@@ -1,17 +1,19 @@
 import py_compile
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 RELEASES_DIR = PROJECT_ROOT / "releases"
 APP_NAME = "AniBase"
-EXE_NAME = "AniBase.exe"
+EXE_NAME = "AniBase.exe" if os.name == "nt" else "AniBase"
 REQUIRED_PROJECT_FILES = ("README.md", "LICENSE", "THIRD_PARTY_NOTICES.md")
+TOOL_SUFFIX = ".exe" if os.name == "nt" else ""
 REQUIRED_PORTABLE_TOOLS = (
-    "tools/ffmpeg.exe",
-    "tools/ffprobe.exe",
+    f"tools/ffmpeg{TOOL_SUFFIX}",
+    f"tools/ffprobe{TOOL_SUFFIX}",
     "tools/FFMPEG_LICENSE.txt",
 )
 COMPILE_TARGETS = ("main.py", "tray_ui.py", "build.py")

@@ -96,6 +96,12 @@ def get_media_tool_path(name):
     return shutil.which(name) or name
 
 def get_local_app_data_dir(app_data_dir_name):
+    if os.name != "nt":
+        xdg_data_home = os.environ.get("XDG_DATA_HOME", "").strip()
+        if not xdg_data_home:
+            xdg_data_home = os.path.join(os.path.expanduser("~"), ".local", "share")
+        return os.path.abspath(os.path.join(xdg_data_home, app_data_dir_name))
+
     local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
     if local_app_data:
         return os.path.abspath(os.path.join(local_app_data, app_data_dir_name))

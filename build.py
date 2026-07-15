@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import platform
 from pathlib import Path
 
 
@@ -134,7 +135,7 @@ def find_media_tool(name):
     path = shutil.which(name)
     if not path:
         raise FileNotFoundError(
-            f"{name}.exe tidak ditemukan di PATH mesin build. "
+            f"{name} tidak ditemukan di PATH mesin build. "
             "Install FFmpeg pada mesin build sebelum membuat release portable."
         )
     return Path(path).resolve()
@@ -146,16 +147,22 @@ def bundle_media_tools(release_dir):
 
     ffmpeg = find_media_tool("ffmpeg")
     ffprobe = find_media_tool("ffprobe")
-    shutil.copy2(ffmpeg, tools_dir / "ffmpeg.exe")
-    shutil.copy2(ffprobe, tools_dir / "ffprobe.exe")
+    suffix = ".exe" if os.name == "nt" else ""
+    shutil.copy2(ffmpeg, tools_dir / f"ffmpeg{suffix}")
+    shutil.copy2(ffprobe, tools_dir / f"ffprobe{suffix}")
 
-    # Common Windows FFmpeg distributions place their license beside bin/.
-    license_path = ffmpeg.parent.parent / "LICENSE"
-    if not license_path.is_file():
-        raise FileNotFoundError(
-            f"Lisensi distribusi FFmpeg tidak ditemukan: {license_path}"
+    license_candidates = (
+        ffmpeg.parent.parent / "LICENSE",
+        Path("/usr/share/doc/ffmpeg/copyright"),
+    )
+    license_path = next((path for path in license_candidates if path.is_file()), None)
+    if license_path:
+        shutil.copy2(license_path, tools_dir / "FFMPEG_LICENSE.txt")
+    else:
+        write_text(
+            tools_dir / "FFMPEG_LICENSE.txt",
+            "FFmpeg licensing information: https://ffmpeg.org/legal.html\n",
         )
-    shutil.copy2(license_path, tools_dir / "FFMPEG_LICENSE.txt")
 
 
 def copy_exe_release_files(source_dir, release_dir):
@@ -236,12 +243,25 @@ def build_exe_release(release_dir):
     return True
 
 
-def create_release_zip(release_dir, version):
-    zip_path = RELEASES_DIR / f"{APP_NAME}-{version}-win64.zip"
-    remove_path(zip_path)
-    archive_base = str(zip_path.with_suffix(""))
-    shutil.make_archive(archive_base, "zip", root_dir=release_dir)
-    return zip_path
+def platform_tag():
+    machine = platform.machine().lower()
+    arch = "x86_64" if machine in {"amd64", "x86_64"} else machine
+    return "win64" if os.name == "nt" and arch == "x86_64" else (
+        f"win-{arch}" if os.name == "nt" else f"linux-{arch}"
+    )
+
+
+def create_release_archive(release_dir, version):
+    base = RELEASES_DIR / f"{APP_NAME}-{version}-{platform_tag()}"
+    if os.name == "nt":
+        archive_path = Path(f"{base}.zip")
+        remove_path(archive_path)
+        shutil.make_archive(str(base), "zip", root_dir=release_dir)
+    else:
+        archive_path = Path(f"{base}.tar.gz")
+        remove_path(archive_path)
+        shutil.make_archive(str(base), "gztar", root_dir=release_dir)
+    return archive_path
 
 
 def main():
@@ -298,8 +318,8 @@ def main():
     release_type = "executable" if built_exe else "source"
     print(f"Build {release_type} selesai: {release_dir}")
     if built_exe:
-        zip_path = create_release_zip(release_dir, version)
-        print(f"ZIP portable selesai: {zip_path}")
+        archive_path = create_release_archive(release_dir, version)
+        print(f"Arsip portable selesai: {archive_path}")
     return 0
 
 

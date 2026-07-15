@@ -1,8 +1,8 @@
 # AniBase
 
-AniBase turns your local anime folders into a private streaming library: browse posters, continue episodes, track progress, generate thumbnails/subtitles, and keep everything running quietly from a Windows tray app.
+AniBase turns your local anime folders into a private streaming library: browse posters, continue episodes, track progress, generate thumbnails/subtitles, and keep everything running quietly from a Windows or Linux tray app.
 
-It is built for personal collections first. Your media stays on your machine, runtime data lives in your Windows user profile, and the web dashboard is served locally by the app.
+It is built for personal collections first. Your media stays on your machine, runtime data lives in your operating-system user profile, and the web dashboard is served locally by the app.
 
 ## Preview
 
@@ -149,6 +149,19 @@ The build target is `onedir` and `windowed`. The release folder is:
 
 ```text
 releases\AniBase v<version>\
+```
+
+The build is native: run it on Windows for `win64.zip`, or on Linux for
+`linux-x86_64.tar.gz`. PyInstaller does not cross-compile between operating
+systems. The included GitHub Actions workflow builds both variants when a `v*`
+tag is pushed, or when **Build release** is run manually.
+
+On Linux, runtime data is stored under `$XDG_DATA_HOME/AniBase` (normally
+`~/.local/share/AniBase`). After extracting the archive, run:
+
+```bash
+chmod +x AniBase
+./AniBase
 ```
 
 ## First Setup

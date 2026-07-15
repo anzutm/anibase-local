@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import webbrowser
+from pathlib import Path
 
 from werkzeug.serving import make_server
 
@@ -19,6 +20,7 @@ INFINITE = 0xFFFFFFFF
 SHUTDOWN_JOIN_TIMEOUT_SECONDS = 5
 
 INSTANCE_MUTEX_HANDLE = None
+INSTANCE_LOCK_FILE = None
 
 app = None
 app_log = None
@@ -40,6 +42,14 @@ sync_thread = None
 
 
 def get_fallback_log_file():
+    if os.name != "nt":
+        data_home = os.environ.get("XDG_DATA_HOME", "").strip()
+        if not data_home:
+            data_home = os.path.join(os.path.expanduser("~"), ".local", "share")
+        log_dir = os.path.join(data_home, "AniBase", "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        return os.path.join(log_dir, "anibase.log")
+
     local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
     if not local_app_data:
         local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
@@ -57,7 +67,14 @@ def fallback_log(message):
 
 
 def release_instance_mutex():
-    global INSTANCE_MUTEX_HANDLE
+    global INSTANCE_MUTEX_HANDLE, INSTANCE_LOCK_FILE
+    if INSTANCE_LOCK_FILE is not None:
+        try:
+            import fcntl
+            fcntl.flock(INSTANCE_LOCK_FILE, fcntl.LOCK_UN)
+            INSTANCE_LOCK_FILE.close()
+        finally:
+            INSTANCE_LOCK_FILE = None
     if not INSTANCE_MUTEX_HANDLE:
         return
 
@@ -69,9 +86,22 @@ def release_instance_mutex():
 
 
 def acquire_single_instance_guard():
-    global INSTANCE_MUTEX_HANDLE
+    global INSTANCE_MUTEX_HANDLE, INSTANCE_LOCK_FILE
 
     if os.name != "nt":
+        import fcntl
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "").strip()
+        lock_path = Path(runtime_dir or Path.home() / ".cache") / "anibase.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        INSTANCE_LOCK_FILE = lock_path.open("a+")
+        try:
+            fcntl.flock(INSTANCE_LOCK_FILE, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            INSTANCE_LOCK_FILE.close()
+            INSTANCE_LOCK_FILE = None
+            webbrowser.open(APP_URL)
+            return False
+        atexit.register(release_instance_mutex)
         return True
 
     kernel32 = ctypes.windll.kernel32
