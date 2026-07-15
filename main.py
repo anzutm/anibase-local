@@ -35,9 +35,11 @@ except ImportError:
 DISCORD_CLIENT_ID = ""
 rpc = None
 rpc_connected = False
+RPC_LOCK = threading.RLock()
 
 RPC_START_TIME = None
 CURRENT_RPC_ANIME = None
+CURRENT_RPC_OWNER = None
 
 APP_DATA_DIR_NAME = "AniBase"
 LEGACY_APP_DATA_DIR_NAMES = ("".join(("Anzu", "Anime Server")),)
@@ -950,20 +952,22 @@ def is_configured_movie_folder_name(folder_name):
     return False
 
 def reset_discord_rpc():
-    global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME
+    global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME, CURRENT_RPC_OWNER
 
-    if rpc is not None:
-        try:
-            if rpc_connected:
-                rpc.clear()
-            rpc.close()
-        except Exception:
-            pass
+    with RPC_LOCK:
+        if rpc is not None:
+            try:
+                if rpc_connected:
+                    rpc.clear()
+                rpc.close()
+            except Exception:
+                pass
 
-    rpc = None
-    rpc_connected = False
-    RPC_START_TIME = None
-    CURRENT_RPC_ANIME = None
+        rpc = None
+        rpc_connected = False
+        RPC_START_TIME = None
+        CURRENT_RPC_ANIME = None
+        CURRENT_RPC_OWNER = None
 
 def get_discord_rpc_client():
     global rpc
@@ -2924,56 +2928,82 @@ def get_schedule_alert_payload(processed, now_ts, now_iso, timezone_offset_minut
         "timezone_offset_minutes": timezone_offset_minutes
     }
 
-def update_discord_rpc(anime_name, episode_num, time_str=None):
-    global rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME
+def update_discord_rpc(anime_name, episode_num, time_str=None, owner_id=None):
+    global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME, CURRENT_RPC_OWNER
     if not DISCORD_RPC_ENABLED:
         return
 
-    rpc_client = get_discord_rpc_client()
-    if rpc_client is None:
-        return
-    
-    try:
-        # Reset timer jika menonton anime yang berbeda
-        if CURRENT_RPC_ANIME != anime_name:
-            RPC_START_TIME = time.time()
-            CURRENT_RPC_ANIME = anime_name
+    with RPC_LOCK:
+        rpc_client = get_discord_rpc_client()
+        if rpc_client is None:
+            return
 
-        if not rpc_connected:
-            rpc_client.connect()
-            rpc_connected = True
-
-        episode_label = format_episode_number(episode_num) or str(episode_num)
-        state_text = f"Episode {episode_label}"
-        if time_str:
-            state_text += f" ({time_str})"
-
-        rpc_client.update(
-            details=anime_name,
-            state=state_text,
-            large_image="anibase_logo",
-            buttons=[{"label": "Open AniBase", "url": "http://animearchive.local:5000"}]
-        )
-    except Exception as e:
-        app_log(f"Discord RPC error: {e}", "WARN")
-        rpc_connected = False
-
-def clear_discord_rpc():
-    """Menghapus status Discord Rich Presence."""
-    global rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME
-    if not DISCORD_RPC_ENABLED:
-        return
-
-    if rpc is not None and rpc_connected:
         try:
-            rpc.clear()
-            RPC_START_TIME = None
-            CURRENT_RPC_ANIME = None
-            debug_log("Discord RPC cleared")
+            if CURRENT_RPC_ANIME != anime_name or CURRENT_RPC_OWNER != owner_id:
+                RPC_START_TIME = int(time.time())
+            CURRENT_RPC_ANIME = anime_name
+            CURRENT_RPC_OWNER = owner_id
+
+            if not rpc_connected:
+                rpc_client.connect()
+                rpc_connected = True
+
+            episode_label = format_episode_number(episode_num) or str(episode_num)
+            state_text = f"Episode {episode_label}"
+            if time_str:
+                state_text += f" ({time_str})"
+
+            rpc_client.update(
+                details=anime_name,
+                state=state_text,
+                start=RPC_START_TIME,
+                large_image="anibase_logo",
+                buttons=[{"label": "Open AniBase", "url": "http://127.0.0.1:5000"}]
+            )
         except Exception as e:
-            app_log(f"Discord RPC clear error: {e}", "WARN")
-            # Jika gagal (misal Discord tertutup), set koneksi ke False
+            app_log(f"Discord RPC error: {e}", "WARN")
+            try:
+                rpc_client.close()
+            except Exception:
+                pass
+            rpc = None
             rpc_connected = False
+
+def clear_discord_rpc(owner_id=None):
+    """Menghapus status Discord Rich Presence."""
+    global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME, CURRENT_RPC_OWNER
+    if not DISCORD_RPC_ENABLED:
+        return
+
+    with RPC_LOCK:
+        if owner_id is not None and owner_id != CURRENT_RPC_OWNER:
+            return False
+
+        if rpc is not None and rpc_connected:
+            try:
+                rpc.clear()
+                debug_log("Discord RPC cleared")
+            except Exception as e:
+                app_log(f"Discord RPC clear error: {e}", "WARN")
+                try:
+                    rpc.close()
+                except Exception:
+                    pass
+                rpc = None
+                rpc_connected = False
+
+        RPC_START_TIME = None
+        CURRENT_RPC_ANIME = None
+        CURRENT_RPC_OWNER = None
+        return True
+
+def clear_discord_rpc_when_process_exits(process, owner_id):
+    try:
+        process.wait()
+    except Exception as e:
+        app_log(f"Media player monitor error: {e}", "WARN")
+    finally:
+        clear_discord_rpc(owner_id)
 
 def get_cached_anilist_info(
     anime_name
@@ -5849,6 +5879,15 @@ def schedule_alerts():
 
 @app.route("/studio/<path:studio_name>")
 def studio_page(studio_name):
+    return_to = request.args.get("return_to", "").strip()
+    parsed_return_to = urlparse(return_to)
+    if (
+        parsed_return_to.scheme
+        or parsed_return_to.netloc
+        or not parsed_return_to.path.startswith("/anime/")
+    ):
+        return_to = url_for("index")
+
     local_anime = get_anime()
     local_match_index = build_local_anime_match_index(local_anime)
     studio_payload, studio_error = fetch_anilist_studio_projects(studio_name)
@@ -5934,12 +5973,24 @@ def studio_page(studio_name):
         total_anime=len(library_projects),
         earliest_year=earliest_year,
         newest_year=newest_year,
-        dominant_formats=dominant_formats_str
+        dominant_formats=dominant_formats_str,
+        studio_return_url=return_to,
+        studio_return_label="Back to Anime" if return_to != url_for("index") else "Back to Library"
     )
 
 @app.route("/seiyuu/<int:staff_id>")
 def seiyuu_page(staff_id):
     """Display seiyuu/voice actor profile and voice roles"""
+    return_to = request.args.get("return_to", "").strip()
+    parsed_return_to = urlparse(return_to)
+    if (
+        parsed_return_to.scheme
+        or parsed_return_to.netloc
+        or not parsed_return_to.path.startswith("/anime/")
+    ):
+        return_to = url_for("index")
+    return_label = "Back to Anime" if return_to != url_for("index") else "Back to Library"
+
     local_anime = get_anime()
     local_match_index = build_local_anime_match_index(local_anime)
     fallback_name = request.args.get("name", "").strip() or None
@@ -5952,7 +6003,9 @@ def seiyuu_page(staff_id):
             seiyuu_data=None,
             seiyuu_error=seiyuu_error or "Seiyuu not found",
             voice_roles=[],
-            library_roles=[]
+            library_roles=[],
+            seiyuu_return_url=return_to,
+            seiyuu_return_label=return_label
         ), 404
     
     # Process voice roles and check if in library
@@ -5993,7 +6046,9 @@ def seiyuu_page(staff_id):
         other_roles=other_roles,
         bio_paragraphs=bio_content["paragraphs"],
         social_links=social_links,
-        backdrop_image=backdrop_image
+        backdrop_image=backdrop_image,
+        seiyuu_return_url=return_to,
+        seiyuu_return_label=return_label
     )
 
 @app.route("/movies")
@@ -6974,7 +7029,7 @@ def play_episode(anime_name, episode):
 
     try:
 
-        popen_hidden_subprocess([
+        player_process = popen_hidden_subprocess([
             VLC_PATH,
             episode_path
         ])
@@ -6988,7 +7043,14 @@ def play_episode(anime_name, episode):
             media_name=anime_name,
             display_name=get_watch_history_display_name(anime_name, episode)
         )
-        update_discord_rpc(anime_name, episode_num)
+        rpc_owner_id = f"vlc-{secrets.token_urlsafe(16)}"
+        update_discord_rpc(anime_name, episode_num, owner_id=rpc_owner_id)
+        threading.Thread(
+            target=clear_discord_rpc_when_process_exits,
+            args=(player_process, rpc_owner_id),
+            daemon=True,
+            name="discord-rpc-player-monitor",
+        ).start()
 
         return jsonify({
             "ok": True,
@@ -7111,7 +7173,8 @@ def update_progress():
         media_name=anime_name,
         display_name=get_watch_history_display_name(anime_name, episode)
     )
-    update_discord_rpc(anime_name, episode_num, time_str)
+    rpc_owner_id = str(data.get("rpc_session_id", "")).strip() or None
+    update_discord_rpc(anime_name, episode_num, time_str, owner_id=rpc_owner_id)
     return jsonify({"ok": True, "status": "success"})
 
 def get_watch_status_payload():
@@ -7254,8 +7317,9 @@ def api_remove_watch_history_entry():
 @require_action_token
 def clear_rpc_route():
     """Endpoint untuk menghapus status Discord secara manual."""
-    clear_discord_rpc()
-    return jsonify({"status": "success"})
+    owner_id = request.headers.get("X-AniBase-RPC-Session", "").strip() or None
+    cleared = clear_discord_rpc(owner_id)
+    return jsonify({"status": "success", "cleared": cleared})
 
 @app.route('/favicon.ico')
 def favicon():

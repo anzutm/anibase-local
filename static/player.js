@@ -9,6 +9,9 @@ const episodeSwitchNotice = document.getElementById('episodeSwitchNotice');
 const vlcToastActionBtn = document.getElementById('vlcToastActionBtn');
 const MX_PLAYER_PACKAGE = 'com.mxtech.videoplayer.pro';
 let isSoftSwitching = false;
+const RPC_SESSION_ID = (window.crypto && window.crypto.randomUUID)
+    ? window.crypto.randomUUID()
+    : `player-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 function actionHeaders(extra = {}) {
     const headers = { ...extra };
@@ -100,7 +103,8 @@ function updateStatus() {
             episode_num: window.CURRENT_EP_NUM,
             time_str: timeStr,
             last_seconds: currentTime,
-            duration: duration
+            duration: duration,
+            rpc_session_id: RPC_SESSION_ID
         })
     }).then((response) => {
         if (!response.ok) {
@@ -362,7 +366,7 @@ function switchEpisode(episodePath, options = {}) {
 function clearStatus() {
     fetch('/clear_rpc', {
         method: 'POST',
-        headers: actionHeaders()
+        headers: actionHeaders({ 'X-AniBase-RPC-Session': RPC_SESSION_ID })
     }).then((response) => {
         if (!response.ok) {
             throw new Error('Clear RPC failed');
@@ -396,7 +400,7 @@ window.addEventListener('beforeunload', () => {
     sendWatchProgress(true);
     fetch('/clear_rpc', {
         method: 'POST',
-        headers: actionHeaders(),
+        headers: actionHeaders({ 'X-AniBase-RPC-Session': RPC_SESSION_ID }),
         keepalive: true
     }).then((response) => {
         if (!response.ok) {
@@ -460,6 +464,7 @@ function playInVLC() {
         })
         .then(data => {
             if(data.status === 'playing') {
+                player.pause();
                 showVlcToast('Opening video in Media Player...');
             } else if (data.message) {
                 const needsSettings = data.status === 'vlc_not_configured' || data.status === 'vlc_not_found';

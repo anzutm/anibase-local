@@ -351,7 +351,10 @@
             return;
         }
 
-        const todaySlots = scheduleSlots.filter(slot => slot.dataset.slotDate === todayKey);
+        const todaySlots = scheduleSlots.filter(slot => (
+            slot.dataset.slotDate === todayKey
+            && slot.style.display !== 'none'
+        ));
         if (todaySlots.length === 0) {
             scheduleNowMarker.hidden = true;
             return;
@@ -362,12 +365,12 @@
         const firstTsMs = getTimestampMs(firstSlot, 'slotIso', 'slotTs');
         const lastTsMs = getTimestampMs(lastSlot, 'slotIso', 'slotTs');
 
-        if (!Number.isFinite(firstTsMs) || !Number.isFinite(lastTsMs) || nowMs < firstTsMs || nowMs > lastTsMs + 1800000) {
+        if (!Number.isFinite(firstTsMs) || !Number.isFinite(lastTsMs)) {
             scheduleNowMarker.hidden = true;
             return;
         }
 
-        let previousSlot = firstSlot;
+        let previousSlot = null;
         let nextSlot = null;
 
         for (const slot of todaySlots) {
@@ -385,11 +388,14 @@
         }
 
         const timelineRect = scheduleTimeline.getBoundingClientRect();
-        const previousRect = previousSlot.getBoundingClientRect();
-        const previousTop = previousRect.top - timelineRect.top + Math.min(44, previousRect.height / 2);
-        let markerTop = previousTop;
+        let markerTop;
 
-        if (nextSlot) {
+        if (!previousSlot) {
+            const firstRect = firstSlot.getBoundingClientRect();
+            markerTop = firstRect.top - timelineRect.top;
+        } else if (nextSlot) {
+            const previousRect = previousSlot.getBoundingClientRect();
+            const previousTop = previousRect.top - timelineRect.top + Math.min(44, previousRect.height / 2);
             const previousMs = getTimestampMs(previousSlot, 'slotIso', 'slotTs');
             const nextMs = getTimestampMs(nextSlot, 'slotIso', 'slotTs');
             const nextRect = nextSlot.getBoundingClientRect();
@@ -397,8 +403,8 @@
             const ratio = Math.max(0, Math.min(1, (nowMs - previousMs) / (nextMs - previousMs)));
             markerTop = previousTop + (nextTop - previousTop) * ratio;
         } else {
-            const lastRatio = Math.max(0, Math.min(1, (nowMs - lastTsMs) / 1800000));
-            markerTop = previousTop + Math.min(previousRect.height, 88) * lastRatio;
+            const previousRect = previousSlot.getBoundingClientRect();
+            markerTop = previousRect.bottom - timelineRect.top + 8;
         }
 
         scheduleNowMarker.style.top = `${Math.max(0, markerTop)}px`;

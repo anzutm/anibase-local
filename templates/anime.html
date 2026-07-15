@@ -16,9 +16,9 @@
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
 <a
-    href="{{ url_for('index') }}"
+    href="{{ url_for('movies') if is_movie else url_for('index') }}"
     class="back-btn anime-floating-back"
-    aria-label="Back to home"
+    aria-label="{{ 'Back to movies' if is_movie else 'Back to home' }}"
 >
     &larr; Back
 </a>
@@ -161,7 +161,7 @@
                             {% if anime_info.studio %}
                             <a
                                 class="studio-card-link"
-                                href="{{ url_for('studio_page', studio_name=anime_info.studio) }}"
+                                href="{{ url_for('studio_page', studio_name=anime_info.studio, return_to=request.path) }}"
                             >
                                 <span>{{ anime_info.studio }}</span>
                                 <span aria-hidden="true">→</span>
@@ -282,7 +282,7 @@
             <div class="va-side character-profile voice-profile">
                 <div class="character-image-wrap voice-image-wrap">
                     {% if char.va_staff_id %}
-                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name) }}" class="va-image-link" aria-label="Open seiyuu profile for {{ char.va_name }}">
+                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name, return_to=request.path) }}" class="va-image-link" aria-label="Open seiyuu profile for {{ char.va_name }}">
                     <img src="{{ url_for('character_img', anime_name=anime_info.character_cache_name or anime_name, filename=char.va_image_local) }}" alt="{{ char.va_name }}" loading="lazy">
                     </a>
                     {% else %}
@@ -291,7 +291,7 @@
                 </div>
                 <div class="va-info">
                     {% if char.va_staff_id %}
-                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name) }}" class="va-name-link">
+                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name, return_to=request.path) }}" class="va-name-link">
                         <span class="va-name">{{ char.va_name }}</span>
                     </a>
                     {% else %}
@@ -585,15 +585,17 @@ function initializeAnimeDetailContent() {
             return 'now';
         }
 
-        const totalMinutes = Math.max(1, Math.ceil(seconds / 60));
-        const days = Math.floor(totalMinutes / 1440);
-        const hours = Math.floor((totalMinutes % 1440) / 60);
-        const minutes = totalMinutes % 60;
+        const totalSeconds = Math.max(0, Math.floor(seconds));
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const remainingSeconds = totalSeconds % 60;
         const parts = [];
 
         if (days) parts.push(`${days}d`);
         if (hours || days) parts.push(`${hours}h`);
         parts.push(`${minutes}m`);
+        parts.push(`${remainingSeconds}s`);
         return parts.join(' ');
     }
 
@@ -609,7 +611,7 @@ function initializeAnimeDetailContent() {
 
     if (airingCards.length) {
         updateDetailAiringCountdowns();
-        setInterval(updateDetailAiringCountdowns, 60000);
+        setInterval(updateDetailAiringCountdowns, 1000);
     }
 
     const grid = document.getElementById('episodeGrid');
@@ -760,6 +762,9 @@ window.addEventListener('pageshow', () => {
     const screenshotBtn = document.getElementById('movieScreenshotBtn');
     const vlcBtn = document.getElementById('movieVlcBtn');
     const toast = document.getElementById('screenshotToast');
+    const rpcSessionId = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : `movie-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const player = new Plyr(video, {
         title: config.displayName || config.animeName,
         iconUrl: config.plyrIconUrl,
@@ -841,7 +846,8 @@ window.addEventListener('pageshow', () => {
                 episode_num: 1,
                 time_str: `${formatTime(currentTime)} / ${formatTime(duration)}`,
                 last_seconds: currentTime,
-                duration: duration
+                duration: duration,
+                rpc_session_id: rpcSessionId
             }),
             keepalive: Boolean(useKeepalive)
         }).then((response) => {
@@ -893,6 +899,7 @@ window.addEventListener('pageshow', () => {
             })
             .then(data => {
                 if (data.status === 'playing') {
+                    player.pause();
                     showMovieToast('Opening video in Media Player...', '\u25b6');
                 } else if (data.message) {
                     showMovieToast(data.message, '!');
@@ -961,7 +968,7 @@ window.addEventListener('pageshow', () => {
         sendProgress(false);
         fetch('/clear_rpc', {
             method: 'POST',
-            headers: actionHeaders()
+            headers: actionHeaders({ 'X-AniBase-RPC-Session': rpcSessionId })
         }).then((response) => {
             if (!response.ok) {
                 throw new Error('Clear RPC failed');
@@ -1023,7 +1030,7 @@ window.addEventListener('pageshow', () => {
         sendProgress(true);
         fetch('/clear_rpc', {
             method: 'POST',
-            headers: actionHeaders(),
+            headers: actionHeaders({ 'X-AniBase-RPC-Session': rpcSessionId }),
             keepalive: true
         }).then((response) => {
             if (!response.ok) {

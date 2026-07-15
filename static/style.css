@@ -6210,8 +6210,6 @@ body:has(.featured-anime) {
 
 .va-name-link:hover .va-name {
     color: rgba(99, 102, 241, 0.95);
-    text-decoration: underline;
-    text-underline-offset: 2px;
 }
 
 .episode-grid {
@@ -9801,6 +9799,7 @@ body:has(.hero-foreground) .character-section {
 
 .auto-import-unmatched-row {
     align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .auto-import-unmatched-main {
@@ -9809,10 +9808,11 @@ body:has(.hero-foreground) .character-section {
 
 .auto-import-resolve-controls {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     align-items: center;
-    min-width: min(100%, 430px);
+    min-width: 0;
+    width: 100%;
 }
 
 .auto-import-target-select {
@@ -9838,6 +9838,7 @@ body:has(.hero-foreground) .character-section {
     min-height: 38px;
     padding: 0 13px;
     font-size: 12px;
+    width: 100%;
 }
 
 .theme-preset-grid {
@@ -12610,6 +12611,25 @@ body.anime-detail-body .studio-card-link span:last-child {
 
 body.anime-detail-body .info-card:hover .studio-card-link span:last-child {
     transform: translateX(3px);
+}
+
+html[data-theme="dark-blue"] body.anime-detail-body .info-card:hover h3 {
+    color: #7dd3fc;
+}
+
+html[data-theme="dark-blue"] body.anime-detail-body .studio-card-link {
+    color: #67e8f9;
+}
+
+html[data-theme="dark-blue"] body.anime-detail-body .info-card:hover .studio-card-link,
+html[data-theme="dark-blue"] body.anime-detail-body .studio-card-link:focus-visible {
+    color: #f8fafc;
+}
+
+html[data-theme="dark-blue"] body.anime-detail-body .studio-card-link:focus-visible {
+    border-radius: 4px;
+    outline: 2px solid rgba(125, 211, 252, .8);
+    outline-offset: 3px;
 }
 
 @media(max-width: 1180px) {

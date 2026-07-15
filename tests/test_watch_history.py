@@ -79,6 +79,74 @@ class HiddenSubprocessTests(unittest.TestCase):
         self.assertNotIn("shell", calls["kwargs"])
 
 
+class DiscordRpcLifecycleTests(unittest.TestCase):
+    class FakePresence:
+        def __init__(self, client_id):
+            self.client_id = client_id
+            self.connected = False
+            self.closed = False
+            self.clear_count = 0
+            self.updates = []
+
+        def connect(self):
+            self.connected = True
+
+        def update(self, **payload):
+            self.updates.append(payload)
+
+        def clear(self):
+            self.clear_count += 1
+
+        def close(self):
+            self.closed = True
+
+    def setUp(self):
+        self.original_presence = main.Presence
+        self.original_enabled = main.DISCORD_RPC_ENABLED
+        self.original_client_id = main.DISCORD_CLIENT_ID
+        main.Presence = self.FakePresence
+        main.DISCORD_RPC_ENABLED = True
+        main.DISCORD_CLIENT_ID = "test-client"
+        main.reset_discord_rpc()
+
+    def tearDown(self):
+        main.reset_discord_rpc()
+        main.Presence = self.original_presence
+        main.DISCORD_RPC_ENABLED = self.original_enabled
+        main.DISCORD_CLIENT_ID = self.original_client_id
+
+    def test_update_sets_elapsed_timer_and_local_button(self):
+        main.update_discord_rpc("Demo", 2, "01:00 / 24:00", owner_id="tab-a")
+
+        payload = main.rpc.updates[-1]
+        self.assertIsInstance(payload["start"], int)
+        self.assertEqual(payload["buttons"][0]["url"], "http://127.0.0.1:5000")
+        self.assertEqual(main.CURRENT_RPC_OWNER, "tab-a")
+
+    def test_stale_tab_cannot_clear_current_owner(self):
+        main.update_discord_rpc("Demo", 1, owner_id="tab-a")
+        main.update_discord_rpc("Other", 2, owner_id="tab-b")
+
+        self.assertFalse(main.clear_discord_rpc("tab-a"))
+        self.assertEqual(main.CURRENT_RPC_OWNER, "tab-b")
+        self.assertEqual(main.rpc.clear_count, 0)
+
+        self.assertTrue(main.clear_discord_rpc("tab-b"))
+        self.assertIsNone(main.CURRENT_RPC_OWNER)
+        self.assertEqual(main.rpc.clear_count, 1)
+
+    def test_process_monitor_only_clears_its_own_presence(self):
+        class FinishedProcess:
+            def wait(self):
+                return 0
+
+        main.update_discord_rpc("Browser", 1, owner_id="tab-a")
+        main.clear_discord_rpc_when_process_exits(FinishedProcess(), "old-vlc")
+
+        self.assertEqual(main.CURRENT_RPC_OWNER, "tab-a")
+        self.assertEqual(main.rpc.clear_count, 0)
+
+
 class WatchHistoryRemovalTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()

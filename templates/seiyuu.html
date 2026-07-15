@@ -43,10 +43,10 @@
         <span class="sy-eyebrow">Voice Actor</span>
         <h1>Profile unavailable</h1>
         <p>{{ seiyuu_error or 'The profile could not be loaded right now.' }}</p>
-        <a href="{{ url_for('index') }}" class="sy-button sy-button--primary">Back to Library</a>
+        <a href="{{ seiyuu_return_url }}" class="sy-button sy-button--primary">{{ seiyuu_return_label }}</a>
     </section>
     {% else %}
-    <a href="{{ url_for('index') }}" class="sy-back"><span aria-hidden="true">&larr;</span> Back to Library</a>
+    <a href="{{ seiyuu_return_url }}" class="sy-back"><span aria-hidden="true">&larr;</span> {{ seiyuu_return_label }}</a>
 
     <section class="sy-hero">
         <div class="sy-backdrop" aria-hidden="true">
