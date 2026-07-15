@@ -12280,6 +12280,21 @@ body:has(.hero-foreground) .relation-section .related-grid:has(.related-card:onl
     color: #1c1004;
 }
 
+:root[data-theme="dark-orange"] .index-collection-section > .grid .play-hover-btn:hover,
+:root[data-theme="dark-orange"] .index-collection-section > .grid .play-hover-btn:focus-visible,
+:root[data-theme="dark-orange"] .movie-collection-section > .grid .play-hover-btn:hover,
+:root[data-theme="dark-orange"] .movie-collection-section > .grid .play-hover-btn:focus-visible {
+    color: #1c1004;
+    border-color: rgba(251,191,36,.62);
+    background:
+        linear-gradient(135deg, #fcd34d, #d97706),
+        var(--primary);
+    box-shadow:
+        0 14px 30px rgba(0,0,0,.36),
+        0 0 22px rgba(251,191,36,.24),
+        inset 0 1px 0 rgba(255,255,255,.28);
+}
+
 :root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-past .schedule-slot-list {
     background:
         linear-gradient(90deg, rgba(146,64,14,.18), rgba(120,53,15,.060) 44%, rgba(146,64,14,0) 100%);

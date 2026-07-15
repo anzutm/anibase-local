@@ -1,193 +1,135 @@
 {% extends "base.html" %}
 
-{% block title %}Movies{% endblock %}
+{% block title %}Movies - AniBase{% endblock %}
+{% block body_class %}movies-page{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='movies.css') }}">
+{% endblock %}
 
 {% block content %}
-{% if movies %}
-<div class="featured-anime movie-hero">
-    <div class="hero-ambient hero-ambient-left"></div>
-    <div class="hero-ambient hero-ambient-right"></div>
-
-    {% for hero in movies[:5] %}
-    <div class="featured-slide {% if loop.first %}active{% endif %}">
+<main class="movies-cinema">
+    {% if movies %}
+    {% set featured = movies|first %}
+    <section class="movies-hero" aria-labelledby="moviesFeaturedTitle">
         <img
-            src="{{ url_for('banner', anime_name=hero.title) }}"
-            class="featured-banner"
-            alt="{{ hero.title }}"
+            class="movies-hero-backdrop"
+            src="{{ url_for('banner', anime_name=featured.title) }}"
+            alt=""
+            aria-hidden="true"
         >
+        <div class="movies-hero-shade" aria-hidden="true"></div>
+        <div class="movies-hero-grain" aria-hidden="true"></div>
 
-        <div class="featured-overlay">
-            <div class="featured-stage">
-                <div class="featured-content">
-                    <div class="featured-kicker">Featured Movie</div>
-                    <h2>{{ hero.title }}</h2>
+        <div class="movies-hero-content">
+            <p class="movies-kicker"><span></span> AniBase Cinema Selection</p>
+            <h1 id="moviesFeaturedTitle">{{ featured.title }}</h1>
 
-                    <div class="featured-row">
-                        <div class="hero-actions">
-                            <a href="{{ url_for('movie_detail_page', filename=hero.file) }}" class="watch-btn">&#9654; View Details</a>
-                        </div>
+            <div class="movies-hero-meta" aria-label="Featured movie information">
+                {% if featured.year %}<span>{{ featured.year }}</span>{% endif %}
+                {% if featured.duration %}<span>{{ featured.duration }} min</span>{% endif %}
+                <span>Movie</span>
+                {% for genre in featured.genres[:3] %}<span>{{ genre }}</span>{% endfor %}
+            </div>
 
-                        <div class="featured-meta">
-                            {% if hero.score %}
-                            <span><b>&starf;</b> {{ "%.1f"|format(hero.score / 10) }}/10</span>
-                            {% endif %}
-                            {% if hero.year %}
-                            <span>{{ hero.year }}</span>
-                            {% endif %}
-                            <span>MOVIE</span>
-                        </div>
-                    </div>
+            {% if featured.description %}
+            <p class="movies-hero-description">
+                {{ featured.description | striptags | truncate(260) }}
+            </p>
+            {% else %}
+            <p class="movies-hero-description movies-hero-description--fallback">
+                A feature-length title from your local AniBase movie collection.
+            </p>
+            {% endif %}
 
-                    <div class="featured-proof">
-                        <span>Movie Library</span>
-                        <span>Browser/Media Player</span>
-                        <span>Cinematic Mode</span>
-                    </div>
-
-                    {% if hero.description %}
-                    <p class="featured-description">
-                        {{ hero.description | striptags | truncate(170) }}
-                    </p>
-                    {% endif %}
-                </div>
-
-                <div class="featured-visual">
-                    <div class="featured-poster-wrapper">
-                        <div class="poster-glass-frame">
-                            <img src="{{ url_for('poster', anime_name=hero.title) }}" class="featured-poster-floating" alt="">
-                        </div>
-                        <div class="featured-side-panel">
-                            <span class="side-panel-label">Featured</span>
-                            <strong>{{ loop.index }}/{{ movies[:5]|length }}</strong>
-                        </div>
-                    </div>
-                </div>
+            <div class="movies-hero-actions">
+                <a class="movies-action movies-action--primary" href="{{ url_for('movie_detail_page', filename=featured.file) }}#movieDetailPlayer">
+                    <span aria-hidden="true">▶</span> Play
+                </a>
+                <a class="movies-action movies-action--secondary" href="{{ url_for('movie_detail_page', filename=featured.file) }}">
+                    View Details <span aria-hidden="true">→</span>
+                </a>
             </div>
         </div>
-    </div>
-    {% endfor %}
 
-    {% if movies|length > 1 %}
-    <div class="featured-dots movie-featured-dots">
-        {% for hero in movies[:5] %}
-        <div class="dot {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}"></div>
-        {% endfor %}
-    </div>
+        <div class="movies-hero-poster" aria-hidden="true">
+            <img src="{{ url_for('poster', anime_name=featured.title) }}" alt="">
+        </div>
+
+        <div class="movies-hero-index" aria-label="Movie collection size">
+            <strong>{{ movies|length }}</strong>
+            <span>title{% if movies|length != 1 %}s{% endif %} available</span>
+        </div>
+    </section>
     {% endif %}
-</div>
-{% endif %}
 
-<section class="collection-section movie-collection-section index-section-panel">
-    <div class="collection-glow"></div>
-
-    <div class="collection-top movie-collection-top">
-        <div class="collection-heading">
-            <span class="home-section-eyebrow">Local Movies</span>
-            <div class="section-title">
-                <div class="section-line"></div>
-                <h2 class="section-heading">Movie Collection</h2>
+    <section class="movies-library" aria-labelledby="moviesCollectionTitle">
+        <header class="movies-library-header">
+            <div>
+                <p class="movies-kicker"><span></span> Your Local Archive</p>
+                <h2 id="moviesCollectionTitle">Movie Collection</h2>
+                <p>Feature-length stories, presented from your local library.</p>
             </div>
-            <p class="section-subtitle">A collection of local anime movies available in your storage.</p>
-        </div>
-    </div>
+            {% if movies %}
+            <div class="movies-result-count" id="moviesResultCount" aria-live="polite">
+                {{ movies|length }} movie{% if movies|length != 1 %}s{% endif %}
+            </div>
+            {% endif %}
+        </header>
 
-    <div class="collection-toolbar">
-        <div class="toolbar-line"></div>
-    </div>
-
-    <div class="grid">
-        {% for movie in movies %}
-        <div class="card">
-            <a href="{{ url_for('movie_detail_page', filename=movie.file) }}">
+        {% if movies %}
+        <div class="movies-grid" id="moviesGrid">
+            {% for movie in movies %}
+            <article class="movie-poster-card" data-movie-title="{{ movie.title|lower }}">
                 <img
-                    class="poster"
+                    class="movie-poster-art"
                     src="{{ url_for('poster', anime_name=movie.title) }}"
-                    alt="{{ movie.title }}"
+                    alt="Poster for {{ movie.title }}"
                     loading="lazy"
                 >
+                <div class="movie-poster-vignette" aria-hidden="true"></div>
 
-                <div class="poster-overlay">
-                    <h3>{{ movie.title }}</h3>
-
-                    <div class="poster-card-meta">
-                        {% if movie.score %}
-                        <span>&starf; {{ "%.1f"|format(movie.score / 10) }}</span>
-                        {% endif %}
-                        {% if movie.year %}
-                        <span>{{ movie.year }}</span>
-                        {% endif %}
-                    </div>
-
-                    <button class="play-hover-btn">&#9654; Details</button>
+                <div class="movie-card-status movie-card-status--{{ movie.watch_status_kind }}">
+                    {{ movie.watch_status_label }}
                 </div>
-            </a>
+
+                <div class="movie-card-content">
+                    <h3>{{ movie.title }}</h3>
+                    <div class="movie-card-meta">
+                        {% if movie.year %}<span>{{ movie.year }}</span>{% endif %}
+                        {% if movie.duration %}<span>{{ movie.duration }} min</span>{% endif %}
+                        {% if movie.score %}<span>★ {{ "%.1f"|format(movie.score / 10) }}</span>{% endif %}
+                    </div>
+                    <div class="movie-card-actions">
+                        <a class="movie-card-play" href="{{ url_for('movie_detail_page', filename=movie.file) }}#movieDetailPlayer">
+                            <span aria-hidden="true">▶</span> Play
+                        </a>
+                        <a class="movie-card-details" href="{{ url_for('movie_detail_page', filename=movie.file) }}">
+                            Details
+                        </a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-</section>
+
+        <div class="movies-empty movies-empty--search" id="moviesSearchEmpty" hidden>
+            <span aria-hidden="true">⌕</span>
+            <h3>No matching movies</h3>
+            <p>Try another title in the library search.</p>
+        </div>
+        {% else %}
+        <div class="movies-empty">
+            <span aria-hidden="true">◇</span>
+            <h3>Your cinema is waiting</h3>
+            <p>Add a valid Movies folder in Settings to build your collection.</p>
+            <a href="{{ url_for('settings_page') }}">Open Settings</a>
+        </div>
+        {% endif %}
+    </section>
+</main>
 {% endblock %}
 
 {% block scripts %}
-<script>
-const movieSearchInput = document.getElementById('animeSearch');
-if (movieSearchInput) {
-    movieSearchInput.addEventListener('input', function(e) {
-        const term = e.target.value.toLowerCase().trim();
-        const cards = document.querySelectorAll('.grid .card');
-        const movieHero = document.querySelector('.movie-hero');
-        const collectionTop = document.querySelector('.collection-top');
-        const toolbar = document.querySelector('.collection-toolbar');
-        const isSearching = term.length > 0;
-
-        if (movieHero) movieHero.style.display = isSearching ? 'none' : 'block';
-        if (collectionTop) collectionTop.style.display = isSearching ? 'none' : 'block';
-        if (toolbar) toolbar.style.display = isSearching ? 'none' : 'flex';
-
-        cards.forEach(card => {
-            const title = card.querySelector('h3').textContent.toLowerCase();
-            if (title.includes(term)) {
-                card.style.display = "flex";
-            } else {
-                card.style.display = "none";
-            }
-        });
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const movieSlides = document.querySelectorAll('.movie-hero .featured-slide');
-    const movieDots = document.querySelectorAll('.movie-featured-dots .dot');
-    let currentMovieSlide = 0;
-    let movieSlideInterval;
-
-    function showMovieSlide(index) {
-        if (!movieSlides[currentMovieSlide] || !movieDots[currentMovieSlide] || !movieSlides[index] || !movieDots[index]) {
-            return;
-        }
-
-        movieSlides[currentMovieSlide].classList.remove('active');
-        movieDots[currentMovieSlide].classList.remove('active');
-        currentMovieSlide = index;
-        movieSlides[currentMovieSlide].classList.add('active');
-        movieDots[currentMovieSlide].classList.add('active');
-    }
-
-    function startMovieSlider() {
-        movieSlideInterval = setInterval(() => {
-            showMovieSlide((currentMovieSlide + 1) % movieSlides.length);
-        }, 7000);
-    }
-
-    if (movieSlides.length > 1 && movieDots.length > 1) {
-        startMovieSlider();
-        movieDots.forEach((dot, idx) => {
-            dot.addEventListener('click', () => {
-                clearInterval(movieSlideInterval);
-                showMovieSlide(idx);
-                startMovieSlider();
-            });
-        });
-    }
-});
-</script>
+<script src="{{ url_for('static', filename='movies.js') }}" defer></script>
 {% endblock %}

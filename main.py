@@ -5018,6 +5018,8 @@ def get_movies():
                 "score": movie_info.get("score") if movie_info else None,
                 "year": movie_info.get("year") if movie_info else None,
                 "description": movie_info.get("description") if movie_info else None,
+                "duration": movie_info.get("duration") if movie_info else None,
+                "genres": (movie_info.get("genres") or []) if movie_info else [],
                 "watch_progress_label": watch_progress_label,
                 "watch_status_label": watch_status_label,
                 "watch_status_kind": watch_status_kind
