@@ -71,7 +71,7 @@ Choose one path:
 
 **Step 1: Download or Unpack**
 
-[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v2026.07.13)
+[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v2026.07.15)
 
 Download the Windows ZIP from the release assets, extract it, then run `AniBase.exe`.
 
