@@ -52,9 +52,13 @@
             </div>
         </div>
 
-        <div class="movies-hero-poster" aria-hidden="true">
+        <a
+            class="movies-hero-poster"
+            href="{{ url_for('movie_detail_page', filename=featured.file) }}"
+            aria-label="Open {{ featured.title }}"
+        >
             <img src="{{ url_for('poster', anime_name=featured.title) }}" alt="">
-        </div>
+        </a>
 
         <div class="movies-hero-index" aria-label="Movie collection size">
             <strong>{{ movies|length }}</strong>
@@ -81,13 +85,19 @@
         <div class="movies-grid" id="moviesGrid">
             {% for movie in movies %}
             <article class="movie-poster-card" data-movie-title="{{ movie.title|lower }}">
-                <img
-                    class="movie-poster-art"
-                    src="{{ url_for('poster', anime_name=movie.title) }}"
-                    alt="Poster for {{ movie.title }}"
-                    loading="lazy"
+                <a
+                    class="movie-poster-link"
+                    href="{{ url_for('movie_detail_page', filename=movie.file) }}"
+                    aria-label="Open {{ movie.title }}"
                 >
-                <div class="movie-poster-vignette" aria-hidden="true"></div>
+                    <img
+                        class="movie-poster-art"
+                        src="{{ url_for('poster', anime_name=movie.title) }}"
+                        alt="Poster for {{ movie.title }}"
+                        loading="lazy"
+                    >
+                    <div class="movie-poster-vignette" aria-hidden="true"></div>
+                </a>
 
                 <div class="movie-card-status movie-card-status--{{ movie.watch_status_kind }}">
                     {{ movie.watch_status_label }}

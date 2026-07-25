@@ -176,6 +176,7 @@ SCHEDULE_CACHE = {
 }
 SCHEDULE_CACHE_TTL_SECONDS = 300
 SCHEDULE_LOOKAHEAD_DAYS = 3
+AIRING_NOW_GRACE_SECONDS = 30 * 60
 STUDIO_PROJECT_CACHE_TTL_SECONDS = 86400
 STUDIO_PROJECT_LIMIT = 80
 SEIYUU_CACHE_TTL_SECONDS = 86400
@@ -490,6 +491,8 @@ def get_default_settings():
         "ongoing_path": "",
         "movie_path": "",
         "vlc_path": "",
+        "screenshot_folder": "",
+        "screenshot_filename_prefix": "vlcsnap",
         "discord_rpc_enabled": False,
         "discord_client_id": "",
         "lan_access_enabled": False,
@@ -536,6 +539,13 @@ def load_settings():
     merged["lan_access_enabled"] = normalize_bool_setting(
         merged.get("lan_access_enabled"),
         defaults["lan_access_enabled"]
+    )
+    merged["screenshot_folder"] = normalize_library_path(
+        merged.get("screenshot_folder")
+    )
+    merged["screenshot_filename_prefix"] = normalize_screenshot_filename_prefix(
+        merged.get("screenshot_filename_prefix"),
+        defaults["screenshot_filename_prefix"]
     )
     merged["auto_import_enabled"] = normalize_bool_setting(
         merged.get("auto_import_enabled"),
@@ -787,6 +797,12 @@ def normalize_int_setting(value, default, minimum, maximum):
         return default
 
     return max(minimum, min(maximum, number))
+
+def normalize_screenshot_filename_prefix(value, default="vlcsnap"):
+    prefix = str(value or "").strip()
+    prefix = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", prefix)
+    prefix = re.sub(r"\s+", " ", prefix).strip(" .")
+    return prefix[:80] or default
 
 def normalize_library_path(path):
     if not path:
@@ -2188,6 +2204,34 @@ def get_anilist_info(anime_name):
         app_log(f"AniList metadata error for {anime_name}: {e}", "WARN")
 
         return None
+
+def is_next_airing_expired(next_airing, now_ts=None):
+    if not isinstance(next_airing, dict):
+        return False
+
+    try:
+        airing_at = int(next_airing.get("airingAt") or 0)
+    except (TypeError, ValueError):
+        return False
+
+    if airing_at <= 0:
+        return False
+
+    if now_ts is None:
+        now_ts = int(time.time())
+
+    return now_ts >= airing_at + AIRING_NOW_GRACE_SECONDS
+
+def remove_expired_next_airing(info, now_ts=None):
+    if not isinstance(info, dict):
+        return info, False
+
+    if is_next_airing_expired(info.get("next_airing"), now_ts=now_ts):
+        cleaned = dict(info)
+        cleaned.pop("next_airing", None)
+        return cleaned, True
+
+    return info, False
     
 def get_video_duration_seconds(video_path):
     try:
@@ -3014,6 +3058,7 @@ def get_cached_anilist_info(
         f"{anime_name}.json"
     )
     info = None
+    stale_fallback_info = None
 
     # 1. Coba muat dari cache metadata
     if os.path.exists(
@@ -3026,6 +3071,8 @@ def get_cached_anilist_info(
                 encoding="utf-8"
             ) as f:
                 info = json.load(f)
+                info, expired_next_airing = remove_expired_next_airing(info)
+                pruned_info = info
                 # Jika metadata ditemukan tapi tidak punya informasi karakter atau relations, paksa ambil ulang
                 if "characters" not in info or "relations" not in info or "recommendations" not in info:
                     info = None
@@ -3035,12 +3082,21 @@ def get_cached_anilist_info(
                 # Releasing anime needs next episode metadata for the airing countdown.
                 elif (info.get("status") or "").upper() == "RELEASING" and "next_airing" not in info:
                     info = None
+                if expired_next_airing and isinstance(pruned_info, dict):
+                    stale_fallback_info = pruned_info
+                    try:
+                        with open(cache_file, "w", encoding="utf-8") as f:
+                            json.dump(pruned_info, f, ensure_ascii=False, indent=4)
+                    except OSError as e:
+                        app_log(f"Unable to prune expired airing metadata for {anime_name}: {e}", "WARN")
         except:
             info = None
 
     # 2. Jika tidak ada di cache atau data tidak lengkap, ambil dari AniList API
     if not info:
         info = get_anilist_info(anime_name)
+        if not info and stale_fallback_info:
+            info = stale_fallback_info
         if info:
             with open(
                 cache_file,
@@ -4136,23 +4192,10 @@ def move_auto_import_file(source_path, target_folder, clean_title, match_score=N
     return destination
 
 def move_auto_import_to_unmatched(source_path, clean_title, reason):
-    root = get_auto_import_target_root()
-    if not root:
-        record_auto_import_unmatched(source_path, clean_title, "No anime destination folder configured.")
-        app_log(f"Auto import unmatched without target root: {os.path.basename(source_path)}", "WARN")
-        return None
-
-    unmatched_folder = os.path.join(root, "_Unmatched Downloads")
-    destination = move_auto_import_file(
-        source_path,
-        unmatched_folder,
-        clean_title,
-        None
-    )
-    record_auto_import_unmatched(destination, clean_title, reason)
-    sync_all_library("Auto import unmatched sync")
-    app_log(f"Auto import unmatched: {os.path.basename(destination)} ({reason})", "WARN")
-    return destination
+    record_auto_import_unmatched(source_path, clean_title, reason)
+    AUTO_IMPORT_FILE_STATE.pop(source_path, None)
+    app_log(f"Auto import left unmatched file in place: {os.path.basename(source_path)} ({reason})", "WARN")
+    return source_path
 
 def auto_import_candidate_files(downloads_path):
     try:
@@ -4718,6 +4761,11 @@ def update_settings():
         "ongoing_path": library_paths[1] if len(library_paths) > 1 else "",
         "movie_path": request.form.get("movie_path", "").strip(),
         "vlc_path": request.form.get("vlc_path", "").strip(),
+        "screenshot_folder": request.form.get("screenshot_folder", "").strip(),
+        "screenshot_filename_prefix": normalize_screenshot_filename_prefix(
+            request.form.get("screenshot_filename_prefix"),
+            "vlcsnap"
+        ),
         "discord_rpc_enabled": "discord_rpc_enabled" in request.form,
         "discord_client_id": request.form.get("discord_client_id", "").strip(),
         "lan_access_enabled": "lan_access_enabled" in request.form,
@@ -5051,7 +5099,18 @@ def get_cached_metadata_only(anime_name):
     except (json.JSONDecodeError, OSError):
         return None
 
-    return data if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return None
+
+    data, expired_next_airing = remove_expired_next_airing(data)
+    if expired_next_airing:
+        try:
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+        except OSError as e:
+            app_log(f"Unable to prune expired cached metadata for {anime_name}: {e}", "WARN")
+
+    return data
 
 def get_studio_project_cache_file(studio_name):
     return os.path.join(
@@ -7107,13 +7166,17 @@ def save_screenshot():
         return json_error("invalid_image_data", "Invalid image data.", 400)
 
     try:
+        settings = load_settings()
+        filename_prefix = settings.get("screenshot_filename_prefix") or "vlcsnap"
+        save_path = normalize_library_path(settings.get("screenshot_folder"))
+        if not save_path:
+            save_path = os.path.join(os.path.expanduser("~"), "Pictures")
+
         now = datetime.now()
         # Format milidetik 3 digit
         ms = str(now.microsecond // 1000).zfill(3)
-        filename = now.strftime("vlcsnap-%Y-%m-%d-%Hh%Mm%Ss") + ms + ".png"
-        
-        # Menggunakan folder Pictures user yang sedang aktif agar lebih dinamis
-        save_path = os.path.join(os.path.expanduser("~"), "Pictures")
+        filename = f"{filename_prefix}-" + now.strftime("%Y-%m-%d-%Hh%Mm%Ss") + ms + ".png"
+
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         

@@ -579,9 +579,18 @@ function playEpisode(ep){
 <script>
 function initializeAnimeDetailContent() {
     const airingCards = document.querySelectorAll('.detail-airing-card[data-airing-at]');
+    const airingNowGraceSeconds = 30 * 60;
 
     function formatAiringCountdown(seconds) {
-        if (!Number.isFinite(seconds) || seconds <= 0) {
+        if (!Number.isFinite(seconds)) {
+            return '';
+        }
+
+        if (seconds <= -airingNowGraceSeconds) {
+            return '';
+        }
+
+        if (seconds <= 0) {
             return 'now';
         }
 
@@ -606,6 +615,7 @@ function initializeAnimeDetailContent() {
             const output = card.querySelector('[data-airing-countdown]');
             if (!airingAt || !output) return;
             output.textContent = formatAiringCountdown(airingAt - nowSeconds);
+            card.hidden = !output.textContent;
         });
     }
 

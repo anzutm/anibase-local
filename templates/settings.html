@@ -375,8 +375,8 @@
                             <div class="auto-import-result-panel">
                                 <div class="settings-mini-head">
                                     <div>
-                                        <h4>Unmatched Downloads</h4>
-                                        <p>Pick the right anime folder, preview the move, then resolve it.</p>
+                                        <h4>Unmatched Files</h4>
+                                        <p>Files stay in the download folder until you choose an anime folder.</p>
                                     </div>
                                     <button
                                         type="submit"
@@ -438,7 +438,7 @@
                                     {% endfor %}
                                 </div>
                                 {% else %}
-                                <div class="auto-import-empty">No unmatched downloads.</div>
+                                <div class="auto-import-empty">No unmatched files.</div>
                                 {% endif %}
                             </div>
                         </div>
@@ -473,6 +473,44 @@
                                     data-target="vlc_path"
                                 >
                                     Browse File
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="settings-field">
+                            <label class="settings-label" for="screenshot_filename_prefix">Screenshot Filename</label>
+                            <p class="settings-helper">Only changes the prefix. Date, time, and milliseconds stay unchanged.</p>
+                            <input
+                                class="settings-input"
+                                type="text"
+                                id="screenshot_filename_prefix"
+                                name="screenshot_filename_prefix"
+                                value="{{ settings.screenshot_filename_prefix }}"
+                                autocomplete="off"
+                                placeholder="vlcsnap"
+                            >
+                        </div>
+
+                        <div class="settings-field">
+                            <label class="settings-label" for="screenshot_folder">Screenshot Folder</label>
+                            <p class="settings-helper">Leave empty to save screenshots in your Pictures folder.</p>
+                            <div class="settings-input-row">
+                                <input
+                                    class="settings-input settings-path-input"
+                                    id="screenshot_folder"
+                                    type="text"
+                                    name="screenshot_folder"
+                                    value="{{ settings.screenshot_folder }}"
+                                    autocomplete="off"
+                                    placeholder="C:/Users/You/Pictures"
+                                >
+                                <button
+                                    class="settings-browse-btn"
+                                    type="button"
+                                    data-picker="folder"
+                                    data-target="screenshot_folder"
+                                >
+                                    Browse Folder
                                 </button>
                             </div>
                         </div>
