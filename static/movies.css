@@ -10,6 +10,11 @@ html[data-theme="dark-orange"] .movies-page {
     --movies-accent-warm: #fb923c;
 }
 
+html[data-theme="dark-green"] .movies-page {
+    --movies-accent: #4ade80;
+    --movies-accent-warm: #a3e635;
+}
+
 .movies-page .movies-cinema {
     width: min(1880px, calc(100% + 22px));
     margin: -20px auto 0;

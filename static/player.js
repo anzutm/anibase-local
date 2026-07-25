@@ -504,13 +504,23 @@ function showToast(toastId, messageId, actionButton, message, options = {}) {
         }
     }
 
+    // Dynamic icon support
+    const iconSpan = toast.querySelector('.toast-icon');
+    if (iconSpan) {
+        if (options.icon) {
+            iconSpan.innerHTML = options.icon;
+        } else if (toastId === 'screenshotToast') {
+            iconSpan.innerHTML = '&#128247;'; // Default camera icon
+        }
+    }
+
     toast.classList.add('show');
 
     if (toast.hideTimer) {
         clearTimeout(toast.hideTimer);
     }
     
-    // Sembunyikan notifikasi setelah 3 detik
+    // Sembunyikan notifikasi setelah durasi yang ditentukan atau default 3 detik
     toast.hideTimer = setTimeout(() => {
         toast.classList.remove('show');
     }, options.duration || 3000);
@@ -540,7 +550,7 @@ function changePlaybackSpeed(direction) {
     }
 
     player.speed = nextSpeed;
-    showScreenshotToast(`Playback speed: ${nextSpeed}x`);
+    showScreenshotToast(`Playback speed: ${nextSpeed}x`, { icon: '&#9889;' });
 }
 
 window.addEventListener('keydown', (event) => {
@@ -559,6 +569,59 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     changePlaybackSpeed(isPlus ? 1 : -1);
 });
+
+// Fitur Pengatur Volume dengan ArrowUp / ArrowDown (override Plyr)
+window.addEventListener('keydown', (event) => {
+    const target = event.target;
+    const isTyping = target && (
+        target.isContentEditable ||
+        (target.matches && target.matches('input, textarea, select'))
+    );
+
+    if (isTyping) {
+        return;
+    }
+
+    const isUp = event.key === 'ArrowUp';
+    const isDown = event.key === 'ArrowDown';
+
+    if (!isUp && !isDown) {
+        return;
+    }
+
+    // Abaikan jika menekan tombol modifikasi (Ctrl, Alt, Shift, Meta)
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation(); // Mencegah event mencapai listener default Plyr
+
+    const step = 0.05; // Mengubah volume 5% per klik (0.05)
+    let currentVol = player.volume;
+    let newVol = isUp ? currentVol + step : currentVol - step;
+    newVol = Math.max(0, Math.min(1, newVol));
+    
+    // Jika volume dinaikkan dan sedang di-mute, unmute otomatis
+    if (isUp && player.muted) {
+        player.muted = false;
+    }
+
+    player.volume = newVol;
+
+    // Tentukan icon volume dinamis berdasarkan persentase
+    const volPercent = Math.round(newVol * 100);
+    let volIcon = '&#128266;'; // 🔊 (Volume High)
+    if (volPercent === 0) {
+        volIcon = '&#128263;'; // 🔇 (Mute)
+    } else if (volPercent < 33) {
+        volIcon = '&#128264;'; // 🔈 (Volume Low)
+    } else if (volPercent < 66) {
+        volIcon = '&#128265;'; // 🔉 (Volume Medium)
+    }
+
+    showScreenshotToast(`Volume: ${volPercent}%`, { icon: volIcon, duration: 1500 });
+}, true);
 
 // Fitur Screenshot dengan tombol 's'
 window.addEventListener('keydown', (e) => {

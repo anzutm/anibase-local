@@ -213,7 +213,8 @@ VERBOSE_LOGS = os.environ.get("ANIBASE_VERBOSE_LOGS", "").strip().lower() in {
 }
 THEME_PRESETS = {
     "dark-blue",
-    "dark-orange"
+    "dark-orange",
+    "dark-green"
 }
 
 def get_protected_cache_files():
