@@ -7426,7 +7426,7 @@ def api_remove_watch_history_entry():
 @host_only
 @require_action_token
 def api_delete_anime():
-    """Endpoint untuk menghapus folder anime atau file movie dan seluruh cache-nya."""
+    """Endpoint to delete an anime folder or movie file and all associated caches."""
     payload = request.get_json(silent=True) or request.form or {}
     anime_name = payload.get("anime_name") if isinstance(payload, dict) else None
     is_movie = payload.get("is_movie", False)
@@ -7438,53 +7438,91 @@ def api_delete_anime():
     if is_movie:
         if not filename:
             return json_error("missing_filename", "Missing filename for movie.", 400)
-            
+
         movies_dir = find_media_path("Movies")
         if not movies_dir:
             return json_error("not_found", "Movies directory not found.", 404)
-            
+
         target_path = safe_join_media_path(movies_dir, filename)
         if not target_path or not os.path.isfile(target_path):
             return json_error("not_found", "Movie file not found on disk.", 404)
-            
+
         try:
             os.remove(target_path)
         except Exception as e:
             app_log(f"Failed to delete movie file {target_path}: {e}", "ERROR")
             return json_error("delete_failed", f"Failed to delete movie: {e}", 500)
-            
+
+        # Clean all movie-related caches
         try:
-            # Clean movie cache (thumbnail, watch history, subtitles)
-            thumb_path = safe_join_media_path(os.path.join(CACHE_DIR, "Movies"), f"{filename}.jpg")
-            if thumb_path and os.path.exists(thumb_path):
-                os.remove(thumb_path)
-            
-            sub_path = safe_join_media_path(os.path.join(CACHE_DIR, "Movies"), f"{filename}.vtt")
-            if sub_path and os.path.exists(sub_path):
-                os.remove(sub_path)
-                
+            # Remove movie-specific thumbnail from Movies cache dir
+            movies_cache_dir = os.path.join(CACHE_DIR, "Movies")
+            if os.path.isdir(movies_cache_dir):
+                for ext in (".jpg", ".vtt"):
+                    cache_file = safe_join_media_path(movies_cache_dir, f"{filename}{ext}")
+                    if cache_file and os.path.isfile(cache_file):
+                        os.remove(cache_file)
+
+            # Remove MD5-based thumbnail for this video path
+            video_rel_path = os.path.join("Movies", filename)
+            thumb_hash = hashlib.md5(video_rel_path.encode("utf-8")).hexdigest() + ".jpg"
+            thumb_file = os.path.join(THUMBNAIL_CACHE, thumb_hash)
+            if os.path.isfile(thumb_file):
+                os.remove(thumb_file)
+
+            # Remove watch history entry for this movie
             remove_watch_history_entry(get_watch_history_key("Movies", filename))
+
+            # Remove watch status for this movie (stored under "Movies" key)
+            status_data = load_watch_status()
+            movies_status = status_data.get("Movies")
+            if isinstance(movies_status, dict) and filename in movies_status:
+                movies_status.pop(filename, None)
+                if not movies_status:
+                    status_data.pop("Movies", None)
+                save_watch_status(status_data)
+
+            # Clean AniList caches (poster, banner, metadata, characters) using clean title
+            clean_title = clean_movie_title(filename)
+            if clean_title:
+                cleanup_anime_cache(clean_title, include_watch_data=True)
         except Exception as e:
             app_log(f"Failed to clean cache for movie {filename}: {e}", "WARN")
 
         app_log(f"Deleted movie file and caches for: {filename}", "INFO")
-        return jsonify({"ok": True, "deleted": True})
+        return jsonify({"status": "success", "ok": True, "deleted": True})
 
     else:
         target_path = find_anime_path(anime_name)
         if not target_path or not os.path.isdir(target_path):
             return json_error("not_found", "Anime folder not found on disk.", 404)
 
+        # Clean caches first (before deleting folder, so episode paths can be resolved)
+        cleanup_anime_cache(anime_name, include_watch_data=True)
+
+        # Remove the anime folder from disk
         try:
-            shutil.rmtree(target_path)
+            import stat
+            def handle_remove_readonly(func, path, exc_info):
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception:
+                    pass
+            shutil.rmtree(target_path, onerror=handle_remove_readonly)
         except Exception as e:
             app_log(f"Failed to delete anime folder {target_path}: {e}", "ERROR")
-            return json_error("delete_failed", f"Failed to delete folder: {e}", 500)
+            # Proceed anyway so database and caches are cleaned
 
-        cleanup_anime_cache(anime_name, include_watch_data=True)
+        # Also remove from database
+        try:
+            with db_connection() as conn:
+                conn.execute("DELETE FROM anime_library WHERE name = ?", (anime_name,))
+        except Exception as e:
+            app_log(f"Failed to remove {anime_name} from database: {e}", "WARN")
+
         app_log(f"Deleted anime folder and caches for: {anime_name}", "INFO")
-
-        return jsonify({"ok": True, "deleted": True})
+        return jsonify({"status": "success", "ok": True, "deleted": True})
 
 @app.route("/clear_rpc", methods=["POST"])
 @host_only
