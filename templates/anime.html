@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html data-theme="{{ current_theme|default('dark-blue') }}">
 <head>
     <meta charset="UTF-8">
@@ -248,6 +248,16 @@
                 >
                     <span aria-hidden="true">&#9654;</span>
                     <span>Open in Media Player</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="movie-action-btn"
+                    id="movieDeleteBtn"
+                    style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.1);"
+                >
+                    <span aria-hidden="true">&#128465;</span>
+                    <span>Hapus Anime</span>
                 </button>
             </div>
         </div>
@@ -1020,6 +1030,40 @@ window.addEventListener('pageshow', () => {
             return;
         }
 
+        const isUp = event.key === 'ArrowUp';
+        const isDown = event.key === 'ArrowDown';
+        if ((isUp || isDown) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !isTyping) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const step = 0.05;
+            let currentVol = player.volume;
+            let newVol = isUp ? currentVol + step : currentVol - step;
+            newVol = Math.max(0, Math.min(1, newVol));
+
+            if (isUp && player.muted) {
+                player.muted = false;
+            }
+
+            player.volume = newVol;
+
+            const volPercent = Math.round(newVol * 100);
+            let volIcon = '&#128266;';
+            if (volPercent === 0) {
+                volIcon = '&#128263;';
+            } else if (volPercent < 33) {
+                volIcon = '&#128264;';
+            } else if (volPercent < 66) {
+                volIcon = '&#128265;';
+            }
+            
+            // Render icon safely
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = volIcon;
+            showMovieToast(`Volume: ${volPercent}%`, tempDiv.textContent);
+            return;
+        }
+
         if (
             event.key.toLowerCase() !== 's' ||
             event.ctrlKey ||
@@ -1048,6 +1092,43 @@ window.addEventListener('pageshow', () => {
             }
         }).catch(() => {});
     });
+
+    const movieDeleteBtn = document.getElementById('movieDeleteBtn');
+    if (movieDeleteBtn) {
+        movieDeleteBtn.addEventListener('click', async () => {
+            if (!confirm("Peringatan: Aksi ini akan menghapus folder anime ini secara permanen dari penyimpanan Anda beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus anime ini?")) {
+                return;
+            }
+            
+            movieDeleteBtn.disabled = true;
+            movieDeleteBtn.style.opacity = '0.5';
+            movieDeleteBtn.textContent = 'Menghapus...';
+            
+            try {
+                const response = await fetch('/api/anime/delete', {
+                    method: 'POST',
+                    headers: actionHeaders(),
+                    body: JSON.stringify({ anime_name: "{{ anime.name|replace('\"', '\\\"') }}" })
+                });
+                const data = await response.json().catch(() => ({}));
+                
+                if (response.ok && data.ok) {
+                    alert('Anime berhasil dihapus.');
+                    window.location.href = '/';
+                } else {
+                    alert('Gagal menghapus anime: ' + (data.message || 'Unknown error'));
+                    movieDeleteBtn.disabled = false;
+                    movieDeleteBtn.style.opacity = '1';
+                    movieDeleteBtn.innerHTML = '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
+                }
+            } catch (e) {
+                alert('Terjadi kesalahan jaringan.');
+                movieDeleteBtn.disabled = false;
+                movieDeleteBtn.style.opacity = '1';
+                movieDeleteBtn.innerHTML = '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
+            }
+        });
+    }
 })();
 </script>
 {% endif %}

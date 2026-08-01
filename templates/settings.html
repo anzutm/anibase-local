@@ -433,6 +433,17 @@
                                             >
                                                 Move File
                                             </button>
+
+                                            <button
+                                                type="button"
+                                                class="auto-import-dismiss-btn"
+                                                data-source-path="{{ item.source_path }}"
+                                                aria-label="Hapus dari daftar"
+                                                title="Hapus dari daftar (file tidak ikut dihapus)"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                                Hapus
+                                            </button>
                                         </div>
                                     </div>
                                     {% endfor %}
@@ -960,6 +971,83 @@ document.addEventListener('DOMContentLoaded', function() {
             autoImportResolveMapping.disabled = !(mapCheck && mapCheck.checked);
             autoImportResolveForm.submit();
         });
+    });
+
+    // Dismiss (hapus dari daftar) handler
+    document.addEventListener('click', async function(event) {
+        const btn = event.target.closest('.auto-import-dismiss-btn');
+        if (!btn) return;
+
+        const sourcePath = btn.dataset.sourcePath || '';
+        if (!sourcePath) return;
+
+        const row = btn.closest('.auto-import-unmatched-row');
+
+        // Confirm
+        const filename = row ? (row.querySelector('strong')?.textContent || sourcePath) : sourcePath;
+        if (!confirm(`Hapus "${filename}" dari daftar unmatched?\n\nFile tidak akan ikut terhapus dari disk.`)) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+
+        try {
+            const actionToken = document.querySelector('input[name="action_token"]')?.value || '';
+            const formData = new FormData();
+            formData.append('source_path', sourcePath);
+            formData.append('action_token', actionToken);
+
+            const response = await fetch('/settings/auto-import/dismiss', {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' },
+                body: formData
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.ok === false) {
+                showPickerMessage('Gagal menghapus. Coba lagi.', true);
+                btn.disabled = false;
+                btn.style.opacity = '';
+                return;
+            }
+
+            // Animate row out
+            if (row) {
+                row.style.transition = 'opacity 0.3s ease, transform 0.3s ease, max-height 0.35s ease, margin 0.3s ease, padding 0.3s ease';
+                row.style.overflow = 'hidden';
+                row.style.maxHeight = row.offsetHeight + 'px';
+                row.offsetHeight; // force reflow
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(12px)';
+                row.style.maxHeight = '0';
+                row.style.marginTop = '0';
+                row.style.marginBottom = '0';
+                row.style.paddingTop = '0';
+                row.style.paddingBottom = '0';
+
+                setTimeout(() => {
+                    row.remove();
+                    // Check if list is empty
+                    const list = document.querySelector('.auto-import-list');
+                    if (list && list.querySelectorAll('.auto-import-unmatched-row').length === 0) {
+                        const panel = list.closest('.auto-import-result-panel');
+                        list.remove();
+                        if (panel) {
+                            const empty = document.createElement('div');
+                            empty.className = 'auto-import-empty';
+                            empty.textContent = 'No unmatched files.';
+                            panel.appendChild(empty);
+                        }
+                    }
+                }, 360);
+            }
+        } catch (err) {
+            showPickerMessage('Gagal menghapus. Coba lagi.', true);
+            btn.disabled = false;
+            btn.style.opacity = '';
+        }
     });
 });
 </script>

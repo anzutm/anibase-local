@@ -4870,6 +4870,50 @@ def resolve_auto_import_settings():
         app_log(f"Auto import manual resolve failed: {e}", "ERROR")
         return redirect("/settings?auto_import_scanned=1&processed=0&moved=0&unmatched=0&errors=1")
 
+@app.route("/settings/auto-import/dismiss", methods=["POST"])
+@host_only
+@require_action_token
+def dismiss_auto_import_unmatched():
+    """Remove an unmatched entry from the pending list (without moving the file)."""
+    source_path = request.form.get("source_path", "").strip()
+
+    if not source_path:
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return json_error("missing_source_path", "source_path is required.", 400)
+        return redirect("/settings")
+
+    want_json = (
+        request.accept_mimetypes.accept_json
+        and not request.accept_mimetypes.accept_html
+    )
+
+    with AUTO_IMPORT_STATE_LOCK:
+        settings = load_settings()
+        unmatched = settings.get("auto_import_unmatched", [])
+        source_norm = os.path.normcase(os.path.realpath(os.path.abspath(source_path)))
+
+        new_list = [
+            item for item in unmatched
+            if isinstance(item, dict) and os.path.normcase(
+                os.path.realpath(os.path.abspath(item.get("source_path", "")))
+            ) != source_norm
+        ]
+
+        if len(new_list) == len(unmatched):
+            # Entry not found — still treat as success (idempotent)
+            if want_json:
+                return jsonify({"ok": True, "removed": False})
+            return redirect("/settings?auto_import_dismissed=1")
+
+        settings["auto_import_unmatched"] = new_list
+        save_settings(settings)
+
+    app_log(f"Auto import unmatched dismissed: {source_path}", "INFO")
+
+    if want_json:
+        return jsonify({"ok": True, "removed": True})
+    return redirect("/settings?auto_import_dismissed=1")
+
 @app.route("/settings/cleanup-cache", methods=["POST"])
 @host_only
 @require_action_token
@@ -7377,6 +7421,32 @@ def api_remove_watch_history_entry():
 
     removed = remove_watch_history_entry(str(history_key))
     return jsonify({"ok": removed, "removed": removed})
+
+@app.route("/api/anime/delete", methods=["POST"])
+@host_only
+@require_action_token
+def api_delete_anime():
+    """Endpoint untuk menghapus folder anime dan seluruh cache."""
+    payload = request.get_json(silent=True) or request.form or {}
+    anime_name = payload.get("anime_name") if isinstance(payload, dict) else None
+
+    if not anime_name:
+        return json_error("missing_anime_name", "Missing anime_name.", 400)
+
+    target_path = find_anime_path(anime_name)
+    if not target_path or not os.path.isdir(target_path):
+        return json_error("not_found", "Anime folder not found on disk.", 404)
+
+    try:
+        shutil.rmtree(target_path)
+    except Exception as e:
+        app_log(f"Failed to delete anime folder {target_path}: {e}", "ERROR")
+        return json_error("delete_failed", f"Failed to delete folder: {e}", 500)
+
+    cleanup_anime_cache(anime_name, include_watch_data=True)
+    app_log(f"Deleted anime folder and caches for: {anime_name}", "INFO")
+
+    return jsonify({"ok": True, "deleted": True})
 
 @app.route("/clear_rpc", methods=["POST"])
 @host_only
