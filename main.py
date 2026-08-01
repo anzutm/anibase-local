@@ -7509,7 +7509,11 @@ def api_delete_anime():
                     func(path)
                 except Exception:
                     pass
-            shutil.rmtree(target_path, onerror=handle_remove_readonly)
+            import sys
+            if sys.version_info >= (3, 12):
+                shutil.rmtree(target_path, onexc=handle_remove_readonly)
+            else:
+                shutil.rmtree(target_path, onerror=handle_remove_readonly)
         except Exception as e:
             app_log(f"Failed to delete anime folder {target_path}: {e}", "ERROR")
             # Proceed anyway so database and caches are cleaned
