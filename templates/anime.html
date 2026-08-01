@@ -174,15 +174,16 @@
                     </div>
                     
                     {% if not is_movie %}
-                    <div
+                    <button
+                        type="button"
                         class="info-card"
                         id="movieDeleteBtn"
                         style="cursor: pointer; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);"
-                        title="Hapus folder anime dan cachenya secara permanen"
+                        title="Delete anime folder and its cache permanently"
                     >
                         <h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3>
-                        <p style="color: rgba(252, 165, 165, 0.8);">Hapus Anime</p>
-                    </div>
+                        <p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>
+                    </button>
                     {% endif %}
 
                 </div>
@@ -269,7 +270,7 @@
                     style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.1);"
                 >
                     <span aria-hidden="true">&#128465;</span>
-                    <span>Hapus Film</span>
+                    <span>Delete Movie</span>
                 </button>
             </div>
         </div>
@@ -1114,17 +1115,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (movieDeleteBtn) {
         movieDeleteBtn.addEventListener('click', async () => {
             const isMovie = {{ 'true' if is_movie else 'false' }};
-            const promptText = isMovie 
-                ? "Peringatan: Aksi ini akan menghapus file film ini secara permanen beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus film ini?" 
-                : "Peringatan: Aksi ini akan menghapus folder anime ini secara permanen dari penyimpanan Anda beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus anime ini?";
+            const message = isMovie 
+                ? "Warning: This action will permanently delete this movie file and all its cache.\n\nAre you sure you want to delete this movie?" 
+                : "Warning: This action will permanently delete this anime folder from your storage and all its cache.\n\nAre you sure you want to delete this anime?";
             
-            if (!confirm(promptText)) {
+            if (!confirm(message)) {
                 return;
             }
             
             movieDeleteBtn.disabled = true;
             movieDeleteBtn.style.opacity = '0.5';
-            movieDeleteBtn.textContent = 'Menghapus...';
+            movieDeleteBtn.textContent = 'Deleting...';
             
             const payload = { 
                 anime_name: "{{ anime_name|replace('\"', '\\\"') }}",
@@ -1147,24 +1148,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await response.json().catch(() => ({}));
                 
-                if (response.ok && data.ok) {
-                    alert(isMovie ? 'Film berhasil dihapus.' : 'Anime berhasil dihapus.');
+                if (data.status === 'success') {
+                    alert(isMovie ? 'Movie deleted successfully.' : 'Anime deleted successfully.');
                     window.location.href = isMovie ? '/movies' : '/';
                 } else {
-                    alert('Gagal menghapus: ' + (data.message || 'Unknown error'));
+                    alert('Failed to delete: ' + (data.message || 'Unknown error'));
                     movieDeleteBtn.disabled = false;
                     movieDeleteBtn.style.opacity = '1';
                     movieDeleteBtn.innerHTML = isMovie 
-                        ? '<span aria-hidden="true">&#128465;</span><span>Hapus Film</span>'
-                        : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Hapus Anime</p>';
+                        ? '<span aria-hidden="true">&#128465;</span><span>Delete Movie</span>'
+                        : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>';
                 }
             } catch (e) {
-                alert('Terjadi kesalahan jaringan.');
+                alert('A network error occurred.');
                 movieDeleteBtn.disabled = false;
                 movieDeleteBtn.style.opacity = '1';
                 movieDeleteBtn.innerHTML = isMovie 
-                    ? '<span aria-hidden="true">&#128465;</span><span>Hapus Film</span>'
-                    : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Hapus Anime</p>';
+                    ? '<span aria-hidden="true">&#128465;</span><span>Delete Movie</span>'
+                    : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>';
             }
         });
     }

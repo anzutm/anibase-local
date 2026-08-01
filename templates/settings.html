@@ -438,11 +438,11 @@
                                                 type="button"
                                                 class="auto-import-dismiss-btn"
                                                 data-source-path="{{ item.source_path }}"
-                                                aria-label="Hapus dari daftar"
-                                                title="Hapus dari daftar (file tidak ikut dihapus)"
+                                                aria-label="Remove from list"
+                                                title="Remove from list (file will not be deleted)"
                                             >
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                                Hapus
+                                                Remove
                                             </button>
                                         </div>
                                     </div>
@@ -984,8 +984,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const row = btn.closest('.auto-import-unmatched-row');
 
         // Confirm
-        const filename = row ? (row.querySelector('strong')?.textContent || sourcePath) : sourcePath;
-        if (!confirm(`Hapus "${filename}" dari daftar unmatched?\n\nFile tidak akan ikut terhapus dari disk.`)) {
+        const filename = row.querySelector('.auto-import-unmatched-main strong').textContent.trim();
+        if (!confirm(`Remove "${filename}" from the unmatched list?\n\nThe file will not be deleted from disk.`)) {
             return;
         }
 
@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok || data.ok === false) {
-                showPickerMessage('Gagal menghapus. Coba lagi.', true);
+                showPickerMessage('Failed to remove. Try again.', true);
                 btn.disabled = false;
                 btn.style.opacity = '';
                 return;
@@ -1044,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 360);
             }
         } catch (err) {
-            showPickerMessage('Gagal menghapus. Coba lagi.', true);
+            showPickerMessage('Failed to remove. Try again.', true);
             btn.disabled = false;
             btn.style.opacity = '';
         }
