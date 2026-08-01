@@ -66,6 +66,17 @@
                             {{ anime_info.status }}
                         </span>
                         {% endif %}
+                        
+                        {% if not is_movie %}
+                        <button
+                            type="button"
+                            id="movieDeleteBtn"
+                            style="margin-left: auto; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;"
+                            title="Hapus folder anime dan cachenya secara permanen"
+                        >
+                            <span aria-hidden="true">&#128465;</span> Hapus Anime
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -250,7 +261,6 @@
                     <span>Open in Media Player</span>
                 </button>
 
-                {% if not is_movie %}
                 <button
                     type="button"
                     class="movie-action-btn"
@@ -258,9 +268,8 @@
                     style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.1);"
                 >
                     <span aria-hidden="true">&#128465;</span>
-                    <span>Hapus Anime</span>
+                    <span>Hapus Film</span>
                 </button>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -1098,7 +1107,12 @@ window.addEventListener('pageshow', () => {
     const movieDeleteBtn = document.getElementById('movieDeleteBtn');
     if (movieDeleteBtn) {
         movieDeleteBtn.addEventListener('click', async () => {
-            if (!confirm("Peringatan: Aksi ini akan menghapus folder anime ini secara permanen dari penyimpanan Anda beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus anime ini?")) {
+            const isMovie = {{ 'true' if is_movie else 'false' }};
+            const promptText = isMovie 
+                ? "Peringatan: Aksi ini akan menghapus file film ini secara permanen beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus film ini?" 
+                : "Peringatan: Aksi ini akan menghapus folder anime ini secara permanen dari penyimpanan Anda beserta semua cache-nya.\n\nApakah Anda yakin ingin menghapus anime ini?";
+            
+            if (!confirm(promptText)) {
                 return;
             }
             
@@ -1106,28 +1120,38 @@ window.addEventListener('pageshow', () => {
             movieDeleteBtn.style.opacity = '0.5';
             movieDeleteBtn.textContent = 'Menghapus...';
             
+            const payload = { 
+                anime_name: "{{ anime_name|replace('\"', '\\\"') }}",
+                is_movie: isMovie,
+                filename: isMovie ? "{{ episodes[0].file|replace('\"', '\\\"') if episodes else '' }}" : null
+            };
+            
             try {
                 const response = await fetch('/api/anime/delete', {
                     method: 'POST',
                     headers: actionHeaders(),
-                    body: JSON.stringify({ anime_name: "{{ anime_name|replace('\"', '\\\"') }}" })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json().catch(() => ({}));
                 
                 if (response.ok && data.ok) {
-                    alert('Anime berhasil dihapus.');
-                    window.location.href = '/';
+                    alert(isMovie ? 'Film berhasil dihapus.' : 'Anime berhasil dihapus.');
+                    window.location.href = isMovie ? '/movies' : '/';
                 } else {
-                    alert('Gagal menghapus anime: ' + (data.message || 'Unknown error'));
+                    alert('Gagal menghapus: ' + (data.message || 'Unknown error'));
                     movieDeleteBtn.disabled = false;
                     movieDeleteBtn.style.opacity = '1';
-                    movieDeleteBtn.innerHTML = '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
+                    movieDeleteBtn.innerHTML = isMovie 
+                        ? '<span aria-hidden="true">&#128465;</span><span>Hapus Film</span>'
+                        : '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
                 }
             } catch (e) {
                 alert('Terjadi kesalahan jaringan.');
                 movieDeleteBtn.disabled = false;
                 movieDeleteBtn.style.opacity = '1';
-                movieDeleteBtn.innerHTML = '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
+                movieDeleteBtn.innerHTML = isMovie 
+                    ? '<span aria-hidden="true">&#128465;</span><span>Hapus Film</span>'
+                    : '<span aria-hidden="true">&#128465;</span><span>Hapus Anime</span>';
             }
         });
     }
