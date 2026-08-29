@@ -24,6 +24,7 @@ from urllib.parse import unquote, urlparse
 from difflib import SequenceMatcher
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from werkzeug.exceptions import RequestEntityTooLarge
 import time
 from datetime import datetime, timedelta
  
@@ -138,6 +139,8 @@ app = Flask(
     template_folder=os.path.join(RESOURCE_DIR, "templates"),
     static_folder=os.path.join(RESOURCE_DIR, "static"),
 )
+MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
 
 LOG_DIR = os.path.join(USER_DATA_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "anibase.log")
@@ -625,9 +628,19 @@ def json_error(error, message, status_code):
         "message": message
     }), status_code
 
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_entity_too_large(_error):
+    return json_error(
+        "payload_too_large",
+        "Request body is too large.",
+        413
+    )
+
 def get_json_body():
     try:
         data = request.get_json(silent=False)
+    except RequestEntityTooLarge:
+        raise
     except Exception:
         return None, json_error(
             "invalid_json",
@@ -2687,8 +2700,31 @@ def get_video_duration(video_path):
         return ""
 
 def find_anime_path(anime_name):
+    if (
+        not isinstance(anime_name, str)
+        or not anime_name
+        or anime_name in {".", ".."}
+        or "\x00" in anime_name
+        or "/" in anime_name
+        or "\\" in anime_name
+        or os.path.isabs(anime_name)
+        or re.match(r"^[a-zA-Z]:", anime_name)
+    ):
+        return None
+
     for base_path in get_valid_anime_paths():
-        anime_path = os.path.join(base_path, anime_name)
+        base_real = os.path.realpath(os.path.abspath(base_path))
+        anime_path = os.path.realpath(
+            os.path.abspath(
+                os.path.join(base_real, anime_name)
+            )
+        )
+
+        if (
+            not is_resolved_path_inside(base_real, anime_path)
+            or os.path.normcase(os.path.dirname(anime_path)) != os.path.normcase(base_real)
+        ):
+            continue
 
         if is_anime_library_folder(anime_path):
             return anime_path
@@ -7590,26 +7626,30 @@ def api_delete_anime():
         if not target_path or not os.path.isdir(target_path):
             return json_error("not_found", "Anime folder not found on disk.", 404)
 
-        # Clean caches first (before deleting folder, so episode paths can be resolved)
-        cleanup_anime_cache(anime_name, include_watch_data=True)
-
-        # Remove the anime folder from disk
+        # Remove the anime folder first. Database and cache state must remain intact
+        # when the filesystem operation fails so the library can be retried safely.
         try:
             import stat
             def handle_remove_readonly(func, path, exc_info):
-                try:
-                    os.chmod(path, stat.S_IWRITE)
-                    func(path)
-                except Exception:
-                    pass
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
             import sys
             if sys.version_info >= (3, 12):
                 shutil.rmtree(target_path, onexc=handle_remove_readonly)
             else:
                 shutil.rmtree(target_path, onerror=handle_remove_readonly)
+
+            if os.path.lexists(target_path):
+                raise OSError("Anime folder still exists after deletion.")
         except Exception as e:
             app_log(f"Failed to delete anime folder {target_path}: {e}", "ERROR")
-            # Proceed anyway so database and caches are cleaned
+            return json_error(
+                "delete_failed",
+                "Failed to delete the anime folder. Database and cache were preserved.",
+                500
+            )
+
+        cleanup_anime_cache(anime_name, include_watch_data=True)
 
         # Also remove from database
         try:

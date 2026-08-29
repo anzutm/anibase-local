@@ -16,13 +16,13 @@ function Test-CommandAvailable {
 
 Write-Host "[1/5] Checking Python..."
 if (-not (Test-CommandAvailable "python")) {
-    throw "Python was not found. Install Python 3.12 or newer, then run this script again."
+    throw "Python was not found. Install Python 3.12.x, then run this script again."
 }
 
 $PythonVersion = & python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
-$PythonSupported = & python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)"
+& python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"
 if ($LASTEXITCODE -ne 0) {
-    throw "Python $PythonVersion is too old. AniBase developer setup requires Python 3.12 or newer."
+    throw "Python $PythonVersion is not supported. AniBase developer setup requires Python 3.12.x."
 }
 Write-Host "      Python $PythonVersion"
 
@@ -33,6 +33,13 @@ if (-not (Test-Path -LiteralPath $VenvPython)) {
         throw "Failed to create .venv."
     }
 }
+
+$VenvPythonVersion = & $VenvPython -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
+& $VenvPython -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"
+if ($LASTEXITCODE -ne 0) {
+    throw ".venv uses Python $VenvPythonVersion. Remove .venv and rerun setup_dev.ps1 with Python 3.12.x."
+}
+Write-Host "      .venv Python $VenvPythonVersion"
 
 Write-Host "[3/5] Installing Python dependencies..."
 & $VenvPython -m pip install --upgrade pip

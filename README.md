@@ -55,7 +55,7 @@ It is built for personal collections first. Your media stays on your machine, ru
 
 ## Requirements
 
-* 🐍 Python 3.12 or newer
+* 🐍 Python 3.12.x for development and release builds.
 * 🌐 Internet connection for metadata.
 * 🟣 Optional: Discord desktop app for Rich Presence.
 * 🎬 Install **K-Lite Codec Pack Full** if videos appear blank or cannot be played in the browser.
@@ -71,7 +71,7 @@ Choose one path:
 
 **Step 1: Download or Unpack**
 
-[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v2026.08.01)
+[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v2026.08.29)
 
 Download the Windows ZIP from the release assets, extract it, then run `AniBase.exe`.
 
@@ -105,7 +105,11 @@ git clone https://github.com/anzutm/anibase-local.git
 cd anibase-local
 powershell -ExecutionPolicy Bypass -File .\setup_dev.ps1
 .\.venv\Scripts\Activate.ps1
+python --version
 ```
+
+The final command must report Python `3.12.x`. If an existing `.venv` was made
+with another Python version, remove that `.venv` and run `setup_dev.ps1` again.
 
 Run AniBase from the project folder:
 
@@ -135,13 +139,19 @@ http://127.0.0.1:5000/ or localhost:5000
 
 **Step 1: Prepare the Developer Environment**
 
-Complete the **Developer** setup first. The build script uses the same virtual environment and the dependencies from `requirements.txt`.
+Complete the **Developer** setup first. Builds are validated against Python
+`3.12.x` and PyInstaller `6.11+`. The executable build also requires both
+`ffmpeg` and `ffprobe` on `PATH`; they are copied into the portable release.
 
 **Step 2: Build the Release**
 
 ```powershell
-python build.py --exe-only
+python build.py v1.0.0 --exe-only
 ```
+
+`--exe-only` stops with an error if PyInstaller, FFmpeg, or FFprobe is missing.
+Without that option, `build.py` falls back to a source release. Use
+`python build.py v1.0.0 --source-only` when a source package is intentional.
 
 **Step 3: Locate the Release Output**
 
@@ -153,8 +163,8 @@ releases\AniBase v<version>\
 
 The build is native: run it on Windows for `win64.zip`, or on Linux for
 `linux-x86_64.tar.gz`. PyInstaller does not cross-compile between operating
-systems. The included GitHub Actions workflow builds both variants when a `v*`
-tag is pushed, or when **Build release** is run manually.
+systems. This repository does not currently include an automated release
+workflow, so release archives must be built on the target operating system.
 
 On Linux, runtime data is stored under `$XDG_DATA_HOME/AniBase` (normally
 `~/.local/share/AniBase`). After extracting the archive, run:

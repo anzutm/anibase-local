@@ -9,6 +9,7 @@ import threading
 import time
 import sys
 import unittest
+from unittest.mock import patch
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -1882,6 +1883,67 @@ class HttpStatusConsistencyTests(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assert_safe_error_body(response)
 
+    def test_stream_rejects_anime_name_traversal(self):
+        outside_path = os.path.join(self.root, "outside.mkv")
+        with open(outside_path, "wb") as handle:
+            handle.write(b"outside-video")
+
+        response = self.request("GET", "/stream/%2E%2E/outside.mkv")
+        body = response.get_data()
+        response.close()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertNotEqual(body, b"outside-video")
+        self.assertTrue(os.path.isfile(outside_path))
+        self.assertNotIn(self.root.encode(), body)
+        self.assertNotIn(b"Traceback", body)
+
+    def test_delete_rejects_anime_name_traversal(self):
+        sentinel_path = os.path.join(self.root, "keep.txt")
+        with open(sentinel_path, "w", encoding="utf-8") as handle:
+            handle.write("keep")
+
+        with patch.object(main.shutil, "rmtree") as mocked_rmtree:
+            response = self.request(
+                "POST",
+                "/api/anime/delete",
+                json={"anime_name": "..", "is_movie": False},
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["error"], "not_found")
+        mocked_rmtree.assert_not_called()
+        self.assertTrue(os.path.isfile(sentinel_path))
+
+    def test_delete_failure_preserves_database_and_cache(self):
+        with main.db_connection() as conn:
+            conn.execute(
+                "INSERT INTO anime_library (name, episodes) VALUES (?, ?)",
+                (self.anime_name, 1),
+            )
+
+        with (
+            patch.object(main.shutil, "rmtree", side_effect=OSError("simulated delete failure")),
+            patch.object(main, "cleanup_anime_cache") as mocked_cleanup,
+        ):
+            response = self.request(
+                "POST",
+                "/api/anime/delete",
+                json={"anime_name": self.anime_name, "is_movie": False},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json()["error"], "delete_failed")
+        mocked_cleanup.assert_not_called()
+        self.assertTrue(os.path.isdir(self.anime_dir))
+
+        with main.db_connection() as conn:
+            row = conn.execute(
+                "SELECT name FROM anime_library WHERE name = ?",
+                (self.anime_name,),
+            ).fetchone()
+        self.assertEqual(row, (self.anime_name,))
+
     def test_subtitle_unavailable_returns_404(self):
         response = self.request(
             "GET",
@@ -1974,6 +2036,26 @@ class HttpStatusConsistencyTests(unittest.TestCase):
             "/screenshot",
             json={"image": "data:image/png;base64," + ("A" * (main.MAX_SCREENSHOT_DATA_URL_BYTES + 1))},
         )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.get_json()["error"], "payload_too_large")
+
+    def test_global_request_body_limit_returns_json_413(self):
+        self.assertEqual(
+            main.app.config["MAX_CONTENT_LENGTH"],
+            main.MAX_REQUEST_BODY_BYTES,
+        )
+        original_limit = main.app.config["MAX_CONTENT_LENGTH"]
+        main.app.config["MAX_CONTENT_LENGTH"] = 128
+        try:
+            response = self.request(
+                "POST",
+                "/update_progress",
+                data=b"x" * 129,
+                content_type="application/json",
+            )
+        finally:
+            main.app.config["MAX_CONTENT_LENGTH"] = original_limit
 
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.get_json()["error"], "payload_too_large")

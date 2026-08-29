@@ -12,9 +12,7 @@ from pathlib import Path
 APP_NAME = "AniBase"
 ENTRYPOINT = "tray_ui.py"
 MIN_PYINSTALLER_VERSION = (6, 11, 0)
-UNSUPPORTED_BUILD_PYTHON_VERSIONS = {
-    (3, 10, 0): "Python 3.10.0 dapat membuat PyInstaller crash saat menganalisis bytecode.",
-}
+REQUIRED_BUILD_PYTHON_SERIES = (3, 12)
 PROJECT_ROOT = Path(__file__).resolve().parent
 RELEASES_DIR = PROJECT_ROOT / "releases"
 BUILD_DIR = PROJECT_ROOT / "build"
@@ -68,15 +66,15 @@ def format_version(version_tuple):
     return ".".join(str(part) for part in version_tuple)
 
 
-def ensure_supported_build_python():
-    version = sys.version_info[:3]
-    reason = UNSUPPORTED_BUILD_PYTHON_VERSIONS.get(version)
-    if not reason:
+def ensure_supported_build_python(version_info=None):
+    version = tuple(version_info or sys.version_info[:3])
+    if version[:2] == REQUIRED_BUILD_PYTHON_SERIES:
         return
 
     raise RuntimeError(
-        f"{reason} Gunakan Python 3.10.11+ atau Python 3.11/3.12, "
-        "buat ulang .venv, lalu install ulang requirements."
+        f"Build AniBase memerlukan Python 3.12.x; versi aktif adalah "
+        f"{format_version(version)}. Buat ulang .venv dengan Python 3.12, "
+        "lalu install ulang requirements."
     )
 
 
@@ -204,7 +202,7 @@ def create_source_release(release_dir):
         "setlocal\n"
         "cd /d \"%~dp0\"\n"
         "if not exist .venv (\n"
-        "  py -3 -m venv .venv\n"
+        "  py -3.12 -m venv .venv\n"
         ")\n"
         "call .venv\\Scripts\\activate.bat\n"
         "python -m pip install -r requirements.txt\n"
@@ -217,7 +215,7 @@ def create_source_release(release_dir):
         "setlocal\n"
         "cd /d \"%~dp0\"\n"
         "if not exist .venv (\n"
-        "  py -3 -m venv .venv\n"
+        "  py -3.12 -m venv .venv\n"
         ")\n"
         "call .venv\\Scripts\\activate.bat\n"
         "python -m pip install -r requirements.txt\n"
@@ -226,7 +224,6 @@ def create_source_release(release_dir):
 
 
 def build_exe_release(release_dir):
-    ensure_supported_build_python()
     ensure_pyinstaller()
 
     remove_path(BUILD_DIR)
@@ -290,6 +287,7 @@ def main():
     )
     args = parser.parse_args()
 
+    ensure_supported_build_python()
     version = normalize_version(args.version)
     release_dir = RELEASES_DIR / f"{APP_NAME} {version}"
 
