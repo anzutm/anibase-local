@@ -12827,8 +12827,8 @@ body.anime-detail-body .anime-description.is-collapsed::after {
     background: linear-gradient(180deg, rgba(12,15,28,0), rgba(12,15,28,.88));
 }
 
-body.anime-detail-body .info-grid:has(.detail-watch-btn) {
-    grid-template-columns: repeat(6, minmax(120px, 1fr));
+body.anime-detail-body .detail-info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
 .detail-watch-btn {
@@ -13721,8 +13721,8 @@ body.movie-detail-body .hero-overlay {
     background: transparent !important;
 }
 
-body.movie-detail-body .info-grid {
-    grid-template-columns: repeat(5, minmax(120px, 1fr));
+body.movie-detail-body .detail-info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
 body.movie-detail-body .anime-meta.detail-meta span:nth-child(2),

@@ -146,6 +146,36 @@ class DiscordRpcLifecycleTests(unittest.TestCase):
         self.assertEqual(main.CURRENT_RPC_OWNER, "tab-a")
         self.assertEqual(main.rpc.clear_count, 0)
 
+    def test_dispatch_does_not_wait_for_slow_discord_ipc(self):
+        started = threading.Event()
+        release = threading.Event()
+        original_update = main.update_discord_rpc
+
+        def slow_update(*_args):
+            started.set()
+            release.wait(2)
+
+        main.update_discord_rpc = slow_update
+        try:
+            before = time.monotonic()
+            queued = main.dispatch_discord_rpc_update(
+                "Demo",
+                3,
+                "02:00 / 24:00",
+                owner_id="tab-slow",
+            )
+            elapsed = time.monotonic() - before
+
+            self.assertTrue(queued)
+            self.assertLess(elapsed, 0.25)
+            self.assertTrue(started.wait(0.5))
+        finally:
+            release.set()
+            worker = main.RPC_WORKER_THREAD
+            if worker is not None:
+                worker.join(1)
+            main.update_discord_rpc = original_update
+
 
 class WatchHistoryRemovalTests(unittest.TestCase):
     def setUp(self):

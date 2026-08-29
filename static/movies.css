@@ -39,6 +39,34 @@ html[data-theme="dark-green"] .movies-page {
     display: none;
 }
 
+.movies-page .movies-hero-slide {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: inherit;
+    align-items: inherit;
+    isolation: isolate;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .75s ease, visibility .75s step-end;
+}
+
+.movies-page .movies-hero-slide.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity .75s ease;
+}
+
+.movies-page .movies-hero-slide .movies-hero-backdrop {
+    transition: transform 7.5s ease;
+}
+
+.movies-page .movies-hero-slide.active .movies-hero-backdrop {
+    transform: scale(1.065);
+}
+
 .movies-page .movies-hero-backdrop,
 .movies-page .movies-hero-shade,
 .movies-page .movies-hero-grain {
@@ -241,6 +269,40 @@ html[data-theme="dark-green"] .movies-page {
     color: #fff;
     font-size: 25px;
     line-height: 1;
+}
+
+.movies-page .movies-hero-dots {
+    position: absolute;
+    z-index: 5;
+    bottom: 25px;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transform: translateX(-50%);
+}
+
+.movies-page .movies-hero-dot {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.5);
+    border-radius: 999px;
+    cursor: pointer;
+    background: rgba(255,255,255,.2);
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    transition: width .25s ease, border-color .25s ease, background .25s ease;
+}
+
+.movies-page .movies-hero-dot.active {
+    width: 28px;
+    border-color: var(--movies-accent);
+    background: var(--movies-accent);
+}
+
+.movies-page .movies-hero-dot:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
 }
 
 .movies-page .movies-library {
@@ -666,6 +728,8 @@ html[data-theme="dark-green"] .movies-page {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .movies-page .movies-hero-slide,
+    .movies-page .movies-hero-slide .movies-hero-backdrop,
     .movies-page .movie-poster-card,
     .movies-page .movie-poster-art,
     .movies-page .movie-card-content,

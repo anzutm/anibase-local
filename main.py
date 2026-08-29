@@ -36,6 +36,9 @@ DISCORD_CLIENT_ID = ""
 rpc = None
 rpc_connected = False
 RPC_LOCK = threading.RLock()
+RPC_DISPATCH_LOCK = threading.Lock()
+RPC_PENDING_TASK = None
+RPC_WORKER_THREAD = None
 
 RPC_START_TIME = None
 CURRENT_RPC_ANIME = None
@@ -2125,9 +2128,21 @@ def get_anilist_info(anime_name):
             timeout=20
         )
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            data = {}
 
-        media = data["data"]["Media"]
+        if response.status_code >= 400:
+            app_log(f"AniList metadata request failed with HTTP {response.status_code}: {data}", "ERROR")
+            return None
+
+        errors = data.get("errors") if isinstance(data, dict) else None
+        if errors:
+            app_log(f"AniList metadata GraphQL errors for {anime_name}: {errors}", "WARNING")
+
+        data_content = data.get("data") if isinstance(data, dict) else None
+        media = data_content.get("Media") if isinstance(data_content, dict) else None
 
         if not media:
             return None
@@ -3042,13 +3057,64 @@ def clear_discord_rpc(owner_id=None):
         CURRENT_RPC_OWNER = None
         return True
 
+def run_discord_rpc_worker():
+    """Run Discord IPC outside request threads and keep only the latest pending task."""
+    global RPC_PENDING_TASK, RPC_WORKER_THREAD
+
+    while True:
+        with RPC_DISPATCH_LOCK:
+            task = RPC_PENDING_TASK
+            RPC_PENDING_TASK = None
+            if task is None:
+                RPC_WORKER_THREAD = None
+                return
+
+        action, args = task
+        if action == "update":
+            update_discord_rpc(*args)
+        elif action == "clear":
+            clear_discord_rpc(*args)
+
+def dispatch_discord_rpc_task(action, *args):
+    """Queue Discord work without making playback/progress requests wait for IPC."""
+    global RPC_PENDING_TASK, RPC_WORKER_THREAD
+
+    if not DISCORD_RPC_ENABLED:
+        return False
+
+    with RPC_DISPATCH_LOCK:
+        RPC_PENDING_TASK = (action, args)
+        if RPC_WORKER_THREAD is not None and RPC_WORKER_THREAD.is_alive():
+            return True
+
+        RPC_WORKER_THREAD = threading.Thread(
+            target=run_discord_rpc_worker,
+            daemon=True,
+            name="discord-rpc-worker",
+        )
+        RPC_WORKER_THREAD.start()
+
+    return True
+
+def dispatch_discord_rpc_update(anime_name, episode_num, time_str=None, owner_id=None):
+    return dispatch_discord_rpc_task(
+        "update",
+        anime_name,
+        episode_num,
+        time_str,
+        owner_id,
+    )
+
+def dispatch_discord_rpc_clear(owner_id=None):
+    return dispatch_discord_rpc_task("clear", owner_id)
+
 def clear_discord_rpc_when_process_exits(process, owner_id):
     try:
         process.wait()
     except Exception as e:
         app_log(f"Media player monitor error: {e}", "WARN")
     finally:
-        clear_discord_rpc(owner_id)
+        dispatch_discord_rpc_clear(owner_id)
 
 def get_cached_anilist_info(
     anime_name
@@ -6160,10 +6226,15 @@ def seiyuu_page(staff_id):
 @app.route("/movies")
 def movies():
     movies = get_movies()
+    featured_movies = random.sample(
+        movies,
+        k=min(5, len(movies)),
+    ) if movies else []
 
     return render_template(
         "movies.html",
-        movies=movies
+        movies=movies,
+        featured_movies=featured_movies,
     )
 
 @app.route("/movie/<path:filename>")
@@ -7150,7 +7221,7 @@ def play_episode(anime_name, episode):
             display_name=get_watch_history_display_name(anime_name, episode)
         )
         rpc_owner_id = f"vlc-{secrets.token_urlsafe(16)}"
-        update_discord_rpc(anime_name, episode_num, owner_id=rpc_owner_id)
+        dispatch_discord_rpc_update(anime_name, episode_num, owner_id=rpc_owner_id)
         threading.Thread(
             target=clear_discord_rpc_when_process_exits,
             args=(player_process, rpc_owner_id),
@@ -7284,7 +7355,7 @@ def update_progress():
         display_name=get_watch_history_display_name(anime_name, episode)
     )
     rpc_owner_id = str(data.get("rpc_session_id", "")).strip() or None
-    update_discord_rpc(anime_name, episode_num, time_str, owner_id=rpc_owner_id)
+    dispatch_discord_rpc_update(anime_name, episode_num, time_str, owner_id=rpc_owner_id)
     return jsonify({"ok": True, "status": "success"})
 
 def get_watch_status_payload():
@@ -7534,8 +7605,8 @@ def api_delete_anime():
 def clear_rpc_route():
     """Endpoint untuk menghapus status Discord secara manual."""
     owner_id = request.headers.get("X-AniBase-RPC-Session", "").strip() or None
-    cleared = clear_discord_rpc(owner_id)
-    return jsonify({"status": "success", "cleared": cleared})
+    queued = dispatch_discord_rpc_clear(owner_id)
+    return jsonify({"status": "success", "queued": queued})
 
 @app.route('/favicon.ico')
 def favicon():

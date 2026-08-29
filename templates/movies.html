@@ -9,9 +9,14 @@
 
 {% block content %}
 <main class="movies-cinema">
-    {% if movies %}
-    {% set featured = movies|first %}
-    <section class="movies-hero" aria-labelledby="moviesFeaturedTitle">
+    {% if featured_movies %}
+    <section class="movies-hero" aria-label="Featured movies">
+        {% for featured in featured_movies %}
+        <div
+            class="movies-hero-slide{% if loop.first %} active{% endif %}"
+            data-movies-hero-slide
+            aria-hidden="{{ 'false' if loop.first else 'true' }}"
+        >
         <img
             class="movies-hero-backdrop"
             src="{{ url_for('banner', anime_name=featured.title) }}"
@@ -23,7 +28,7 @@
 
         <div class="movies-hero-content">
             <p class="movies-kicker"><span></span> AniBase Cinema Selection</p>
-            <h1 id="moviesFeaturedTitle">{{ featured.title }}</h1>
+            <h1>{{ featured.title }}</h1>
 
             <div class="movies-hero-meta" aria-label="Featured movie information">
                 {% if featured.year %}<span>{{ featured.year }}</span>{% endif %}
@@ -59,6 +64,23 @@
         >
             <img src="{{ url_for('poster', anime_name=featured.title) }}" alt="">
         </a>
+
+        </div>
+        {% endfor %}
+
+        {% if featured_movies|length > 1 %}
+        <div class="movies-hero-dots" aria-label="Choose featured movie">
+            {% for featured in featured_movies %}
+            <button
+                type="button"
+                class="movies-hero-dot{% if loop.first %} active{% endif %}"
+                data-movies-hero-dot="{{ loop.index0 }}"
+                aria-label="Show {{ featured.title }}"
+                aria-pressed="{{ 'true' if loop.first else 'false' }}"
+            ></button>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         <div class="movies-hero-index" aria-label="Movie collection size">
             <strong>{{ movies|length }}</strong>
