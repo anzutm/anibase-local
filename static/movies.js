@@ -35,7 +35,7 @@
     function startHeroSlider() {
         stopHeroSlider();
         if (heroSlides.length < 2 || reduceMotion || document.hidden) return;
-        heroTimer = window.setInterval(() => showHeroSlide(activeHeroIndex + 1), 7000);
+        heroTimer = window.setInterval(() => showHeroSlide(activeHeroIndex + 1), 3000);
     }
 
     if (heroSlides.length > 1) {

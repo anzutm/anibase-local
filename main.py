@@ -4150,6 +4150,16 @@ def remove_auto_import_unmatched(source_path):
         ]
         save_settings(settings)
 
+def clear_auto_import_unmatched():
+    """Clear pending unmatched records without deleting their source files."""
+    with AUTO_IMPORT_STATE_LOCK:
+        settings = load_settings()
+        unmatched = settings.get("auto_import_unmatched", [])
+        removed_count = len(unmatched) if isinstance(unmatched, list) else 0
+        settings["auto_import_unmatched"] = []
+        save_settings(settings)
+    return removed_count
+
 def is_download_temp_file(path):
     lowered = path.lower()
     return lowered.endswith(DOWNLOAD_TEMP_EXTENSIONS)
@@ -4979,6 +4989,18 @@ def dismiss_auto_import_unmatched():
     if want_json:
         return jsonify({"ok": True, "removed": True})
     return redirect("/settings?auto_import_dismissed=1")
+
+@app.route("/settings/auto-import/dismiss-all", methods=["POST"])
+@host_only
+@require_action_token
+def dismiss_all_auto_import_unmatched():
+    """Clear all unmatched entries without deleting any source files."""
+    removed_count = clear_auto_import_unmatched()
+    app_log(f"Auto import unmatched list cleared: {removed_count} entries", "INFO")
+
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"ok": True, "removed_count": removed_count})
+    return redirect("/settings?auto_import_dismissed_all=1")
 
 @app.route("/settings/cleanup-cache", methods=["POST"])
 @host_only

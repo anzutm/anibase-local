@@ -378,14 +378,25 @@
                                         <h4>Unmatched Files</h4>
                                         <p>Files stay in the download folder until you choose an anime folder.</p>
                                     </div>
-                                    <button
-                                        type="submit"
-                                        class="settings-cleanup-btn settings-scan-btn auto-import-mini-action"
-                                        formaction="{{ url_for('scan_auto_import_settings') }}"
-                                        formmethod="POST"
-                                    >
-                                        Retry Scan
-                                    </button>
+                                    <div class="auto-import-mini-actions">
+                                        {% if auto_import_overview.unmatched %}
+                                        <button
+                                            type="button"
+                                            class="settings-cleanup-btn auto-import-mini-action auto-import-clear-all-btn"
+                                            id="autoImportClearAllBtn"
+                                        >
+                                            Clear All
+                                        </button>
+                                        {% endif %}
+                                        <button
+                                            type="submit"
+                                            class="settings-cleanup-btn settings-scan-btn auto-import-mini-action"
+                                            formaction="{{ url_for('scan_auto_import_settings') }}"
+                                            formmethod="POST"
+                                        >
+                                            Retry Scan
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {% if auto_import_overview.unmatched %}
@@ -700,6 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const autoImportResolveSource = document.getElementById('autoImportResolveSource');
     const autoImportResolveTarget = document.getElementById('autoImportResolveTarget');
     const autoImportResolveMapping = document.getElementById('autoImportResolveMapping');
+    const autoImportClearAllBtn = document.getElementById('autoImportClearAllBtn');
     let libraryPathIndex = libraryPathList ? libraryPathList.querySelectorAll('.settings-path-row').length : 0;
 
     function showPickerMessage(text, isError) {
@@ -973,6 +985,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    if (autoImportClearAllBtn) {
+        autoImportClearAllBtn.addEventListener('click', async function() {
+            const panel = this.closest('.auto-import-result-panel');
+            const list = panel ? panel.querySelector('.auto-import-list') : null;
+            const itemCount = list ? list.querySelectorAll('.auto-import-unmatched-row').length : 0;
+
+            if (!confirm(`Clear all ${itemCount} unmatched file${itemCount === 1 ? '' : 's'} from the list?\n\nFiles will not be deleted from disk.`)) {
+                return;
+            }
+
+            const originalText = this.textContent;
+            this.disabled = true;
+            this.textContent = 'Clearing...';
+
+            try {
+                const actionToken = document.querySelector('input[name="action_token"]')?.value || '';
+                const formData = new FormData();
+                formData.append('action_token', actionToken);
+
+                const response = await fetch('/settings/auto-import/dismiss-all', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
+                });
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok || data.ok === false) {
+                    throw new Error('Clear unmatched list failed');
+                }
+
+                if (list) {
+                    list.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    list.style.opacity = '0';
+                    list.style.transform = 'translateY(-8px)';
+                    window.setTimeout(() => {
+                        list.remove();
+                        if (panel && !panel.querySelector('.auto-import-empty')) {
+                            const empty = document.createElement('div');
+                            empty.className = 'auto-import-empty';
+                            empty.textContent = 'No unmatched files.';
+                            panel.appendChild(empty);
+                        }
+                    }, 300);
+                }
+                this.remove();
+            } catch (error) {
+                showPickerMessage('Failed to clear unmatched files. Try again.', true);
+                this.disabled = false;
+                this.textContent = originalText;
+            }
+        });
+    }
+
     // Dismiss (hapus dari daftar) handler
     document.addEventListener('click', async function(event) {
         const btn = event.target.closest('.auto-import-dismiss-btn');
@@ -1030,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     row.remove();
                     // Check if list is empty
-                    const list = document.querySelector('.auto-import-list');
+                    const list = row.closest('.auto-import-list');
                     if (list && list.querySelectorAll('.auto-import-unmatched-row').length === 0) {
                         const panel = list.closest('.auto-import-result-panel');
                         list.remove();

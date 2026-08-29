@@ -485,6 +485,34 @@ class SettingsLibraryPathTests(unittest.TestCase):
 
 
 class AutoImportMappingTests(unittest.TestCase):
+    def test_clear_unmatched_records_does_not_touch_source_files(self):
+        original_load_settings = main.load_settings
+        original_save_settings = main.save_settings
+        saved_settings = {}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = os.path.join(temp_dir, "unmatched.mp4")
+            with open(source_path, "wb") as handle:
+                handle.write(b"video")
+
+            main.load_settings = lambda: {
+                "auto_import_unmatched": [
+                    {"source_path": source_path, "filename": "unmatched.mp4"},
+                    {"source_path": os.path.join(temp_dir, "missing.mp4")},
+                ]
+            }
+            main.save_settings = lambda settings: saved_settings.update(settings)
+
+            try:
+                removed_count = main.clear_auto_import_unmatched()
+            finally:
+                main.load_settings = original_load_settings
+                main.save_settings = original_save_settings
+
+            self.assertEqual(removed_count, 2)
+            self.assertEqual(saved_settings["auto_import_unmatched"], [])
+            self.assertTrue(os.path.isfile(source_path))
+
     def test_build_auto_import_mappings_from_input_pairs(self):
         mappings = main.build_auto_import_mappings_from_pairs(
             [" Hokori ", "", "Wrong"],

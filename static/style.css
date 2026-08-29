@@ -9786,6 +9786,26 @@ body:has(.hero-foreground) .character-section {
     font-size: 12px;
 }
 
+.auto-import-mini-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.auto-import-clear-all-btn {
+    color: rgba(252,165,165,.94);
+    border-color: rgba(239,68,68,.34);
+    background: rgba(239,68,68,.08);
+}
+
+.auto-import-clear-all-btn:hover:not(:disabled) {
+    color: #fff;
+    border-color: rgba(239,68,68,.58);
+    background: rgba(239,68,68,.16);
+}
+
 .auto-import-list {
     display: grid;
     gap: 10px;
@@ -10060,6 +10080,10 @@ body:has(.hero-foreground) .character-section {
     .auto-import-resolve-btn,
     .auto-import-dismiss-btn,
     .auto-import-add-mapping {
+        width: 100%;
+    }
+
+    .auto-import-mini-actions {
         width: 100%;
     }
 
