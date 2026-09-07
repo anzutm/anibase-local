@@ -485,6 +485,131 @@ class SettingsLibraryPathTests(unittest.TestCase):
         )
 
 
+class AniListManualMappingTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.cache_dir = os.path.join(self.temp_dir.name, "cache")
+        self.library_dir = os.path.join(self.temp_dir.name, "library")
+        self.anime_name = "Demo Folder"
+        os.makedirs(os.path.join(self.library_dir, self.anime_name))
+        os.makedirs(self.cache_dir)
+
+        self.originals = {
+            "SETTINGS_FILE": main.SETTINGS_FILE,
+            "METADATA_CACHE": main.METADATA_CACHE,
+            "POSTER_CACHE": main.POSTER_CACHE,
+            "BANNER_CACHE": main.BANNER_CACHE,
+            "CHARACTER_CACHE": main.CHARACTER_CACHE,
+            "DB_PATH": main.DB_PATH,
+            "ANIME_PATHS": main.ANIME_PATHS,
+            "get_anilist_info": main.get_anilist_info,
+        }
+        main.SETTINGS_FILE = os.path.join(self.cache_dir, "settings.json")
+        main.METADATA_CACHE = os.path.join(self.cache_dir, "metadata")
+        main.POSTER_CACHE = os.path.join(self.cache_dir, "posters")
+        main.BANNER_CACHE = os.path.join(self.cache_dir, "banners")
+        main.CHARACTER_CACHE = os.path.join(self.cache_dir, "characters")
+        main.DB_PATH = os.path.join(self.cache_dir, "library.db")
+        main.ANIME_PATHS = [self.library_dir]
+        for path in (
+            main.METADATA_CACHE,
+            main.POSTER_CACHE,
+            main.BANNER_CACHE,
+            main.CHARACTER_CACHE,
+        ):
+            os.makedirs(path)
+
+        settings = main.get_default_settings()
+        settings.update({
+            "setup_completed": True,
+            "library_paths": [self.library_dir],
+            "action_token": "mapping-token",
+        })
+        main.save_settings(settings)
+        main.init_db()
+
+    def tearDown(self):
+        for key, value in self.originals.items():
+            setattr(main, key, value)
+
+    @staticmethod
+    def metadata(anilist_id=123):
+        return {
+            "anilist_id": anilist_id,
+            "title": "Correct Anime",
+            "description": "",
+            "episodes": 12,
+            "duration": 24,
+            "format": "TV",
+            "season": "SPRING",
+            "year": 2026,
+            "status": "FINISHED",
+            "studio": "Demo Studio",
+            "genres": ["Action"],
+            "score": 80,
+            "next_airing": None,
+            "poster": None,
+            "banner": None,
+            "characters": [],
+            "relations": [],
+            "recommendations": [],
+        }
+
+    def test_mapping_is_saved_by_folder_name(self):
+        saved = main.save_anilist_mapping(self.anime_name, self.metadata())
+
+        self.assertEqual(saved["anilist_id"], 123)
+        self.assertEqual(main.get_anilist_mapping(self.anime_name)["title"], "Correct Anime")
+
+    def test_cached_metadata_refetches_by_mapped_id(self):
+        main.save_anilist_mapping(self.anime_name, self.metadata())
+        stale = self.metadata(anilist_id=999)
+        with open(
+            os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"),
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(stale, handle)
+
+        calls = []
+        main.get_anilist_info = lambda name, anilist_id=None: (
+            calls.append((name, anilist_id)) or self.metadata(anilist_id)
+        )
+
+        loaded = main.get_cached_anilist_info(self.anime_name)
+
+        self.assertEqual(loaded["anilist_id"], 123)
+        self.assertEqual(calls, [(self.anime_name, 123)])
+
+    def test_match_endpoint_requires_token_and_persists_selection(self):
+        main.get_anilist_info = lambda _name, anilist_id=None: self.metadata(anilist_id)
+        client = main.app.test_client()
+        payload = {"anime_name": self.anime_name, "anilist_id": 123}
+
+        forbidden = client.post(
+            "/api/anime/metadata-match",
+            json=payload,
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+        response = client.post(
+            "/api/anime/metadata-match",
+            json=payload,
+            headers={"X-AniBase-Action-Token": "mapping-token"},
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+
+        self.assertEqual(forbidden.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(main.get_anilist_mapping(self.anime_name)["anilist_id"], 123)
+        with open(
+            os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            self.assertEqual(json.load(handle)["anilist_id"], 123)
+
+
 class AutoImportMappingTests(unittest.TestCase):
     def test_clear_unmatched_records_does_not_touch_source_files(self):
         original_load_settings = main.load_settings
@@ -814,6 +939,80 @@ class EpisodeNumberingTests(unittest.TestCase):
         for filename, expected in cases.items():
             with self.subTest(filename=filename):
                 self.assertEqual(main.get_episode_number(filename), expected)
+
+    def test_episode_parser_classifies_specials_and_batches(self):
+        cases = {
+            "Anime - Special 02.mkv": ("special", 2, None, "Special 2"),
+            "Anime SP03.mkv": ("special", 3, None, "Special 3"),
+            "Anime OVA 1.mkv": ("ova", 1, None, "OVA 1"),
+            "Anime OAD.mkv": ("oad", 0, None, "OAD"),
+            "Anime ONA 2.mkv": ("ona", 2, None, "ONA 2"),
+            "Anime NCOP2 [1080p].mkv": ("ncop", 2, None, "NCOP 2"),
+            "Anime NCED 1080p.mkv": ("nced", 0, None, "NCED"),
+            "Anime EP01-12 Batch.mkv": ("batch", 1, 12, "Episodes 1-12 · Batch"),
+            "Anime [13-24].mkv": ("batch", 13, 24, "Episodes 13-24 · Batch"),
+            "Anime Batch 1080p.mkv": ("batch", 0, None, "Batch"),
+        }
+
+        for filename, expected in cases.items():
+            with self.subTest(filename=filename):
+                identity = main.parse_episode_identity(filename)
+                self.assertEqual(
+                    (
+                        identity["kind"],
+                        identity["number"],
+                        identity["end_number"],
+                        identity["display_name"],
+                    ),
+                    expected,
+                )
+
+    def test_display_name_override_does_not_rename_media_file(self):
+        filename = "Demo Anime - OVA 01.mkv"
+        anime_dir = self.make_anime("Display Name Anime", [filename])
+        response = self.local_request(
+            "POST",
+            "/api/episode/display-name",
+            json={
+                "anime_name": "Display Name Anime",
+                "episode": filename,
+                "display_name": "The Hidden Training Arc",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(os.path.isfile(os.path.join(anime_dir, filename)))
+        self.assertEqual(os.listdir(anime_dir), [filename])
+        self.assertEqual(
+            main.get_episode_display_override("Display Name Anime", filename),
+            "The Hidden Training Arc",
+        )
+
+        detail = self.client.get(
+            self.url_for("anime_detail", anime_name="Display Name Anime")
+        ).get_data(as_text=True)
+        self.assertIn("The Hidden Training Arc", detail)
+        self.assertIn("The media filename will not be changed.", detail)
+
+    def test_empty_display_name_restores_detected_name(self):
+        filename = "Demo Anime NCOP2 [1080p].mkv"
+        self.make_anime("Reset Name Anime", [filename])
+        main.save_episode_display_override("Reset Name Anime", filename, "Opening Two")
+
+        response = self.local_request(
+            "POST",
+            "/api/episode/display-name",
+            json={
+                "anime_name": "Reset Name Anime",
+                "episode": filename,
+                "display_name": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["display_name"], "NCOP 2")
+        self.assertFalse(response.get_json()["custom"])
+        self.assertEqual(main.get_episode_display_override("Reset Name Anime", filename), "")
 
     def test_episode_sorting_and_unparsed_fallback(self):
         filenames = [

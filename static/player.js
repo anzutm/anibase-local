@@ -101,6 +101,7 @@ function updateStatus() {
             anime_name: window.ANIME_NAME,
             episode: window.EPISODE_PATH,
             episode_num: window.CURRENT_EP_NUM,
+            episode_display_name: window.CURRENT_EP_DISPLAY_NAME,
             time_str: timeStr,
             last_seconds: currentTime,
             duration: duration,
@@ -272,12 +273,13 @@ function updatePlayerEpisodeState(episodePath) {
     window.EPISODE_PATH = episodePath;
     window.CURRENT_EP_NUM = state.card.dataset.episodeNum || '';
     window.CURRENT_EP_LABEL = state.card.dataset.episodeLabel || window.CURRENT_EP_NUM || 'Unknown';
+    window.CURRENT_EP_DISPLAY_NAME = state.card.dataset.episodeDisplayName || `Episode ${window.CURRENT_EP_LABEL}`;
     window.CURRENT_POSITION = state.card.dataset.listPosition || String(state.index + 1);
     window.NEXT_EP_PATH = state.next ? state.next.dataset.episodePath : null;
     window.RESUME_TIME = 0;
 
     if (episodeLine) {
-        episodeLine.textContent = `Episode ${window.CURRENT_EP_LABEL} (${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} available)`;
+        episodeLine.textContent = `${window.CURRENT_EP_DISPLAY_NAME} (${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} available)`;
     }
 
     updateEpisodeLink(prevEpisodeLink, state.previous);
@@ -329,7 +331,7 @@ function switchEpisode(episodePath, options = {}) {
 
     isSoftSwitching = true;
     updatePlayerEpisodeState(episodePath);
-    showEpisodeSwitchNotice(`Loading Episode ${window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM}...`);
+    showEpisodeSwitchNotice(`Loading ${window.CURRENT_EP_DISPLAY_NAME || `Episode ${window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM}`}...`);
 
     player.once('canplay', () => {
         isSoftSwitching = false;
@@ -552,6 +554,46 @@ function changePlaybackSpeed(direction) {
     player.speed = nextSpeed;
     showScreenshotToast(`Playback speed: ${nextSpeed}x`, { icon: '&#9889;' });
 }
+
+// Episode navigation: Shift+N for next, Shift+P for previous.
+window.addEventListener('keydown', (event) => {
+    const target = event.target;
+    const isTyping = target && (
+        target.isContentEditable ||
+        (target.matches && target.matches('input, textarea, select'))
+    );
+    const key = event.key.toLowerCase();
+
+    if (
+        !event.shiftKey ||
+        (key !== 'n' && key !== 'p') ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.repeat ||
+        isTyping
+    ) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const state = getEpisodeState(window.EPISODE_PATH);
+    const destination = key === 'n' ? state.next : state.previous;
+    const directionLabel = key === 'n' ? 'next' : 'previous';
+    if (!destination || !destination.dataset.episodePath) {
+        showScreenshotToast(`No ${directionLabel} episode available`, {
+            icon: key === 'n' ? '&#8250;' : '&#8249;',
+            duration: 1800
+        });
+        return;
+    }
+
+    if (!switchEpisode(destination.dataset.episodePath)) {
+        window.location.href = destination.href;
+    }
+}, true);
 
 window.addEventListener('keydown', (event) => {
     const target = event.target;

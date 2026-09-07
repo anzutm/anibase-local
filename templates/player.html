@@ -53,7 +53,7 @@
                 {% if is_movie %}
                 Movie
                 {% else %}
-                Episode {{ current_episode_label or current_episode }} ({{ current_position }} of {{ total_episodes }} available)
+                {{ current_episode_display_name }} ({{ current_position }} of {{ total_episodes }} available)
                 {% endif %}
             </p>
         </div>
@@ -63,7 +63,7 @@
                 {{ "Media Player Ready" if vlc_available else "Media Player Not Set" }}
             </span>
             {% if previous_episode or next_episode %}
-            <span>Episode Nav</span>
+            <span title="Previous / next episode shortcuts">Shift+P / Shift+N</span>
             {% endif %}
         </div>
     </header>
@@ -155,6 +155,7 @@
             data-episode-path="{{ ep.file }}"
             data-episode-num="{{ ep.episode }}"
             data-episode-label="{{ ep.episode_label or ep.episode }}"
+            data-episode-display-name="{{ ep.display_name | e }}"
             data-list-position="{{ ep.list_position }}"
 
             class="player-episode-card
@@ -206,7 +207,7 @@
                         {% if is_movie %}
                         {{ watch_display_name }}
                         {% else %}
-                        Episode {{ ep.episode_label or ep.episode }}
+                        {{ ep.display_name }}
                         {% endif %}
                     </h3>
 
@@ -251,6 +252,7 @@
     data-episode-path="{{ episode }}"
     data-current-ep="{{ current_episode }}"
     data-current-ep-label="{{ current_episode_label or current_episode }}"
+    data-current-ep-display-name="{{ current_episode_display_name | e }}"
     data-current-position="{{ current_position }}"
     data-total-ep="{{ total_episodes }}"
     data-next-ep="{{ next_episode }}"
@@ -269,6 +271,7 @@
         window.EPISODE_PATH = config.episodePath;
         window.CURRENT_EP_NUM = config.currentEp;
         window.CURRENT_EP_LABEL = config.currentEpLabel || config.currentEp;
+        window.CURRENT_EP_DISPLAY_NAME = config.currentEpDisplayName || `Episode ${window.CURRENT_EP_LABEL}`;
         window.CURRENT_POSITION = config.currentPosition;
         window.TOTAL_EPISODES = config.totalEp;
         window.NEXT_EP_PATH = (config.nextEp && config.nextEp !== 'None') ? config.nextEp : null;

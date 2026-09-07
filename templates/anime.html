@@ -67,6 +67,12 @@
                         </span>
                         {% endif %}
                     </div>
+                    {% if not is_movie %}
+                    <button type="button" class="metadata-match-trigger" data-metadata-match-open>
+                        <span aria-hidden="true">&#10022;</span>
+                        <span>{{ "Change AniList Match" if anilist_mapping else "Fix Metadata Match" }}</span>
+                    </button>
+                    {% endif %}
                 </div>
 
                 <div class="anime-meta detail-meta">
@@ -127,7 +133,7 @@
                         onclick="playEpisode(this.dataset.episodePath)"
                     >
                         <span aria-hidden="true">▶</span>
-                        <span>{{ resume_label }} · Episode {{ resume_episode.episode_label or resume_episode.episode }}</span>
+                        <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
                     </button>
                     {% endif %}
 
@@ -197,6 +203,12 @@
         <h1>
             {{ anime_name }}
         </h1>
+        {% if not is_movie %}
+        <button type="button" class="metadata-match-trigger" data-metadata-match-open>
+            <span aria-hidden="true">&#10022;</span>
+            <span>Match AniList Metadata</span>
+        </button>
+        {% endif %}
 
         {% endif %}
 
@@ -204,6 +216,60 @@
 
     </div> <!-- End hero-overlay -->
 </div> <!-- End hero -->
+
+{% if not is_movie %}
+<div class="metadata-match-modal" id="metadataMatchModal" hidden>
+    <div class="metadata-match-backdrop" data-metadata-match-close></div>
+    <section class="metadata-match-dialog" role="dialog" aria-modal="true" aria-labelledby="metadataMatchTitle">
+        <header class="metadata-match-header">
+            <div>
+                <span class="metadata-match-eyebrow">AniList metadata</span>
+                <h2 id="metadataMatchTitle">Match this folder manually</h2>
+                <p>Folder: <strong>{{ anime_name }}</strong></p>
+            </div>
+            <button type="button" class="metadata-match-close" data-metadata-match-close aria-label="Close">&times;</button>
+        </header>
+
+        {% if anilist_mapping %}
+        <div class="metadata-current-match">
+            <span>Manual match active</span>
+            <strong>{{ anilist_mapping.title }}</strong>
+            <small>AniList ID {{ anilist_mapping.anilist_id }}</small>
+        </div>
+        {% endif %}
+
+        <form class="metadata-search-form" id="metadataSearchForm">
+            <label for="metadataSearchInput">Search title</label>
+            <div class="metadata-search-row">
+                <input
+                    id="metadataSearchInput"
+                    name="q"
+                    type="search"
+                    minlength="2"
+                    maxlength="120"
+                    value="{{ anime_name }}"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit">Search AniList</button>
+            </div>
+        </form>
+
+        <div class="metadata-match-status" id="metadataMatchStatus" role="status" aria-live="polite">
+            Search for the correct title, then select one result.
+        </div>
+        <div class="metadata-search-results" id="metadataSearchResults"></div>
+
+        {% if anilist_mapping %}
+        <footer class="metadata-match-footer">
+            <button type="button" class="metadata-auto-match-btn" id="metadataAutoMatchBtn">
+                Return to automatic matching
+            </button>
+        </footer>
+        {% endif %}
+    </section>
+</div>
+{% endif %}
 
 {% if is_movie and episodes %}
 <section class="movie-watch-section" id="movieWatch">
@@ -397,8 +463,10 @@
 
 <div
     class="episode-card"
-    data-episode-index="{{ ep.episode if ep.episode else ep.list_position }}"
+    data-episode-index="{{ ep.list_position }}"
     data-watch-state="{% if ep.watched %}watched{% elif ep.progress and ep.progress > 0 %}progress{% else %}unwatched{% endif %}"
+    data-episode-kind="{{ ep.episode_kind }}"
+    data-episode-file="{{ ep.file | e }}"
 >
     <div class="episode-card-shell">
 
@@ -442,7 +510,12 @@
 
     <div class="episode-card-footer">
         <div class="episode-footer-row">
-            <strong>Episode {{ ep.episode_label or ep.episode }}</strong>
+            <div class="episode-title-block">
+                <strong class="episode-display-name">{{ ep.display_name }}</strong>
+                {% if ep.episode_kind != 'episode' %}
+                <span class="episode-kind-badge">{{ ep.episode_kind }}</span>
+                {% endif %}
+            </div>
 
             {% if ep.watched %}
             <span class="watch-status-badge">
@@ -453,7 +526,33 @@
                 Progress {{ ep.progress }}%
             </span>
             {% endif %}
+            <button
+                type="button"
+                class="episode-rename-trigger{% if ep.display_name_custom %} is-custom{% endif %}"
+                aria-label="Edit display name for {{ ep.display_name }}"
+                title="Rename display only"
+            >
+                &#9998;
+            </button>
         </div>
+        <form class="episode-rename-form" hidden>
+            <label>
+                Display name
+                <input
+                    type="text"
+                    value="{{ ep.display_name | e }}"
+                    data-default-name="{{ ep.default_display_name | e }}"
+                    maxlength="120"
+                    autocomplete="off"
+                >
+            </label>
+            <div class="episode-rename-actions">
+                <button type="submit">Save</button>
+                <button type="button" data-episode-name-reset{% if not ep.display_name_custom %} hidden{% endif %}>Use detected name</button>
+                <button type="button" data-episode-name-cancel>Cancel</button>
+            </div>
+            <small>The media filename will not be changed.</small>
+        </form>
     </div>
 
     </div>
@@ -714,6 +813,79 @@ function initializeAnimeDetailContent() {
             applyEpisodeControls();
         });
     }
+
+    async function persistEpisodeDisplayName(card, requestedName) {
+        const form = card.querySelector('.episode-rename-form');
+        const input = form ? form.querySelector('input') : null;
+        const trigger = card.querySelector('.episode-rename-trigger');
+        const title = card.querySelector('.episode-display-name');
+        const resetButton = form ? form.querySelector('[data-episode-name-reset]') : null;
+        if (!form || !input || !trigger || !title) return;
+
+        form.classList.add('is-saving');
+        form.querySelectorAll('button, input').forEach((control) => { control.disabled = true; });
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (window.ANIBASE_ACTION_TOKEN) {
+                headers['X-AniBase-Action-Token'] = window.ANIBASE_ACTION_TOKEN;
+            }
+            const response = await fetch('/api/episode/display-name', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    anime_name: playerAnimeName,
+                    episode: card.dataset.episodeFile,
+                    display_name: requestedName
+                })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || 'Could not save the display name.');
+            }
+
+            title.textContent = data.display_name;
+            input.value = data.display_name;
+            trigger.classList.toggle('is-custom', Boolean(data.custom));
+            trigger.setAttribute('aria-label', `Edit display name for ${data.display_name}`);
+            if (resetButton) resetButton.hidden = !data.custom;
+            form.hidden = true;
+        } catch (error) {
+            alert(error.message || 'Could not save the display name.');
+        } finally {
+            form.classList.remove('is-saving');
+            form.querySelectorAll('button, input').forEach((control) => { control.disabled = false; });
+        }
+    }
+
+    cards.forEach((card) => {
+        const trigger = card.querySelector('.episode-rename-trigger');
+        const form = card.querySelector('.episode-rename-form');
+        const input = form ? form.querySelector('input') : null;
+        if (!trigger || !form || !input) return;
+
+        trigger.addEventListener('click', () => {
+            form.hidden = !form.hidden;
+            if (!form.hidden) {
+                input.focus();
+                input.select();
+            }
+        });
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            persistEpisodeDisplayName(card, input.value);
+        });
+        const cancelButton = form.querySelector('[data-episode-name-cancel]');
+        if (cancelButton) {
+            cancelButton.addEventListener('click', () => {
+                input.value = card.querySelector('.episode-display-name').textContent.trim();
+                form.hidden = true;
+            });
+        }
+        const nameResetButton = form.querySelector('[data-episode-name-reset]');
+        if (nameResetButton) {
+            nameResetButton.addEventListener('click', () => persistEpisodeDisplayName(card, ''));
+        }
+    });
 
     applyEpisodeControls();
 }
@@ -1181,5 +1353,211 @@ document.addEventListener('click', async function(event) {
     }
 });
 </script>
+{% if not is_movie %}
+<script>
+(() => {
+    const modal = document.getElementById('metadataMatchModal');
+    const form = document.getElementById('metadataSearchForm');
+    const input = document.getElementById('metadataSearchInput');
+    const results = document.getElementById('metadataSearchResults');
+    const status = document.getElementById('metadataMatchStatus');
+    const automaticButton = document.getElementById('metadataAutoMatchBtn');
+    const animeName = {{ anime_name | tojson }};
+    let requestSequence = 0;
+
+    if (!modal || !form || !input || !results || !status) return;
+
+    function setStatus(message, kind = '') {
+        status.textContent = message;
+        status.dataset.kind = kind;
+    }
+
+    function actionHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (window.ANIBASE_ACTION_TOKEN) {
+            headers['X-AniBase-Action-Token'] = window.ANIBASE_ACTION_TOKEN;
+        }
+        return headers;
+    }
+
+    function closeModal() {
+        modal.hidden = true;
+        document.body.classList.remove('metadata-modal-open');
+    }
+
+    async function openModal() {
+        modal.hidden = false;
+        document.body.classList.add('metadata-modal-open');
+        input.focus();
+        if (!results.children.length) {
+            await searchAniList();
+        }
+    }
+
+    function addText(element, text) {
+        if (text !== null && text !== undefined && text !== '') {
+            element.textContent = String(text);
+        }
+    }
+
+    function renderResults(items) {
+        results.replaceChildren();
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'metadata-results-empty';
+            empty.textContent = 'No matching anime found. Try another title or its romaji name.';
+            results.appendChild(empty);
+            return;
+        }
+
+        items.forEach((item) => {
+            const card = document.createElement('article');
+            card.className = 'metadata-result-card';
+
+            const poster = document.createElement('div');
+            poster.className = 'metadata-result-poster';
+            if (item.poster) {
+                const image = document.createElement('img');
+                image.src = item.poster;
+                image.alt = '';
+                image.loading = 'lazy';
+                poster.appendChild(image);
+            } else {
+                poster.textContent = 'No image';
+            }
+
+            const copy = document.createElement('div');
+            copy.className = 'metadata-result-copy';
+            const title = document.createElement('h3');
+            addText(title, item.title || item.romaji_title || 'Untitled');
+            copy.appendChild(title);
+
+            if (item.romaji_title && item.romaji_title !== item.title) {
+                const alternate = document.createElement('p');
+                addText(alternate, item.romaji_title);
+                copy.appendChild(alternate);
+            }
+
+            const facts = document.createElement('div');
+            facts.className = 'metadata-result-facts';
+            [item.format, item.year, item.season, item.episodes ? `${item.episodes} eps` : null]
+                .filter(Boolean)
+                .forEach((fact) => {
+                    const chip = document.createElement('span');
+                    addText(chip, fact);
+                    facts.appendChild(chip);
+                });
+            copy.appendChild(facts);
+
+            const select = document.createElement('button');
+            select.type = 'button';
+            select.className = 'metadata-result-select';
+            select.dataset.anilistId = item.anilist_id;
+            select.dataset.title = item.title || item.romaji_title || '';
+            select.textContent = 'Use this title';
+
+            card.append(poster, copy, select);
+            results.appendChild(card);
+        });
+    }
+
+    async function searchAniList() {
+        const query = input.value.trim();
+        if (query.length < 2) {
+            setStatus('Enter at least two characters.', 'error');
+            return;
+        }
+
+        const sequence = ++requestSequence;
+        form.classList.add('is-busy');
+        setStatus('Searching AniList...', 'loading');
+        try {
+            const response = await fetch(`/api/anilist/search?q=${encodeURIComponent(query)}`);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || 'AniList search failed.');
+            }
+            if (sequence !== requestSequence) return;
+            renderResults(Array.isArray(data.results) ? data.results : []);
+            setStatus(`${data.results.length} result${data.results.length === 1 ? '' : 's'} found.`, 'success');
+        } catch (error) {
+            if (sequence !== requestSequence) return;
+            results.replaceChildren();
+            setStatus(error.message || 'Unable to search AniList.', 'error');
+        } finally {
+            if (sequence === requestSequence) form.classList.remove('is-busy');
+        }
+    }
+
+    async function saveMatch(button) {
+        const anilistId = Number(button.dataset.anilistId);
+        if (!Number.isInteger(anilistId) || anilistId <= 0) return;
+
+        results.querySelectorAll('button').forEach((item) => { item.disabled = true; });
+        setStatus(`Loading metadata for ${button.dataset.title || 'selected title'}...`, 'loading');
+        try {
+            const response = await fetch('/api/anime/metadata-match', {
+                method: 'POST',
+                headers: actionHeaders(),
+                body: JSON.stringify({ anime_name: animeName, anilist_id: anilistId })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || 'Could not save this match.');
+            }
+            setStatus('Match saved. Refreshing the page...', 'success');
+            window.location.reload();
+        } catch (error) {
+            results.querySelectorAll('button').forEach((item) => { item.disabled = false; });
+            setStatus(error.message || 'Could not save this match.', 'error');
+        }
+    }
+
+    document.querySelectorAll('[data-metadata-match-open]').forEach((button) => {
+        button.addEventListener('click', openModal);
+    });
+    document.querySelectorAll('[data-metadata-match-close]').forEach((button) => {
+        button.addEventListener('click', closeModal);
+    });
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        searchAniList();
+    });
+    results.addEventListener('click', (event) => {
+        const target = event.target instanceof Element
+            ? event.target.closest('.metadata-result-select')
+            : null;
+        if (target) saveMatch(target);
+    });
+
+    if (automaticButton) {
+        automaticButton.addEventListener('click', async () => {
+            if (!confirm('Remove the manual match and return to folder-name matching?')) return;
+            automaticButton.disabled = true;
+            setStatus('Restoring automatic matching...', 'loading');
+            try {
+                const response = await fetch('/api/anime/metadata-match', {
+                    method: 'POST',
+                    headers: actionHeaders(),
+                    body: JSON.stringify({ anime_name: animeName, automatic: true })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.message || 'Could not restore automatic matching.');
+                }
+                window.location.reload();
+            } catch (error) {
+                automaticButton.disabled = false;
+                setStatus(error.message || 'Could not restore automatic matching.', 'error');
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) closeModal();
+    });
+})();
+</script>
+{% endif %}
 </body>
 </html>

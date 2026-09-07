@@ -126,7 +126,7 @@
                     <div class="continue-info">
                         <div class="continue-title-row">
                             <h3>{{ item.display_name }}</h3>
-                            <span>{% if item.is_movie %}Movie{% else %}EP {{ item.episode_num }}{% endif %}</span>
+                            <span>{% if item.is_movie %}Movie{% else %}{{ item.episode_display_name or ('EP ' ~ item.episode_num) }}{% endif %}</span>
                         </div>
                         <p>
                             {% if item.time_str %}

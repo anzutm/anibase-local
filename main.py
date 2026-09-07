@@ -513,6 +513,8 @@ def get_default_settings():
         "auto_import_mappings": {},
         "auto_import_recent_imports": [],
         "auto_import_unmatched": [],
+        "anilist_mappings": {},
+        "episode_display_names": {},
         "action_token": ""
     }
 
@@ -586,6 +588,10 @@ def load_settings():
         merged["auto_import_recent_imports"] = []
     if not isinstance(merged.get("auto_import_unmatched"), list):
         merged["auto_import_unmatched"] = []
+    if not isinstance(merged.get("anilist_mappings"), dict):
+        merged["anilist_mappings"] = {}
+    if not isinstance(merged.get("episode_display_names"), dict):
+        merged["episode_display_names"] = {}
     if not isinstance(merged.get("action_token"), str):
         merged["action_token"] = ""
     return merged
@@ -1063,6 +1069,121 @@ def get_existing_anime_names():
 
 def safe_cache_name(name):
     return re.sub(r'[<>:"/\\|?*]', "_", name or "")
+
+def get_anilist_mapping(anime_name, settings=None):
+    settings = settings if isinstance(settings, dict) else load_settings()
+    mappings = settings.get("anilist_mappings", {})
+    mapping = mappings.get(anime_name) if isinstance(mappings, dict) else None
+    if not isinstance(mapping, dict):
+        return None
+
+    try:
+        anilist_id = int(mapping.get("anilist_id"))
+    except (TypeError, ValueError):
+        return None
+
+    if anilist_id <= 0:
+        return None
+
+    normalized = dict(mapping)
+    normalized["anilist_id"] = anilist_id
+    return normalized
+
+def save_anilist_mapping(anime_name, metadata):
+    settings = load_settings()
+    mappings = settings.get("anilist_mappings", {})
+    if not isinstance(mappings, dict):
+        mappings = {}
+
+    mappings[anime_name] = {
+        "anilist_id": int(metadata["anilist_id"]),
+        "title": metadata.get("title") or anime_name,
+        "updated_at": datetime.now().isoformat(),
+    }
+    settings["anilist_mappings"] = mappings
+    save_settings(settings)
+    return mappings[anime_name]
+
+def remove_anilist_mapping(anime_name):
+    settings = load_settings()
+    mappings = settings.get("anilist_mappings", {})
+    if not isinstance(mappings, dict) or anime_name not in mappings:
+        return False
+
+    mappings.pop(anime_name, None)
+    settings["anilist_mappings"] = mappings
+    save_settings(settings)
+    return True
+
+def invalidate_anilist_cache(anime_name):
+    safe_name = safe_cache_name(anime_name)
+    removed = False
+    for path in (
+        os.path.join(METADATA_CACHE, f"{anime_name}.json"),
+        os.path.join(POSTER_CACHE, f"{safe_name}.jpg"),
+        os.path.join(BANNER_CACHE, f"{safe_name}.jpg"),
+    ):
+        if os.path.isfile(path):
+            remove_file_quietly(path)
+            removed = True
+
+    character_dir = os.path.join(CHARACTER_CACHE, safe_name)
+    if os.path.isdir(character_dir):
+        shutil.rmtree(character_dir)
+        removed = True
+    return removed
+
+def normalize_episode_path_key(episode_path):
+    return str(episode_path or "").replace("\\", "/").strip("/")
+
+def normalize_episode_display_name(value):
+    name = re.sub(r"[\x00-\x1f\x7f]", "", str(value or ""))
+    name = re.sub(r"\s+", " ", name).strip()
+    return name[:120]
+
+def get_episode_display_override(anime_name, episode_path, settings=None):
+    settings = settings if isinstance(settings, dict) else load_settings()
+    all_names = settings.get("episode_display_names", {})
+    anime_names = all_names.get(anime_name) if isinstance(all_names, dict) else None
+    if not isinstance(anime_names, dict):
+        return ""
+    return normalize_episode_display_name(
+        anime_names.get(normalize_episode_path_key(episode_path), "")
+    )
+
+def save_episode_display_override(anime_name, episode_path, display_name):
+    settings = load_settings()
+    all_names = settings.get("episode_display_names", {})
+    if not isinstance(all_names, dict):
+        all_names = {}
+    anime_names = all_names.get(anime_name, {})
+    if not isinstance(anime_names, dict):
+        anime_names = {}
+
+    episode_key = normalize_episode_path_key(episode_path)
+    normalized_name = normalize_episode_display_name(display_name)
+    if normalized_name:
+        anime_names[episode_key] = normalized_name
+    else:
+        anime_names.pop(episode_key, None)
+
+    if anime_names:
+        all_names[anime_name] = anime_names
+    else:
+        all_names.pop(anime_name, None)
+    settings["episode_display_names"] = all_names
+    save_settings(settings)
+    return normalized_name
+
+def remove_episode_display_overrides(anime_name):
+    settings = load_settings()
+    all_names = settings.get("episode_display_names", {})
+    if not isinstance(all_names, dict) or anime_name not in all_names:
+        return False
+    all_names.pop(anime_name, None)
+    settings["episode_display_names"] = all_names
+    save_settings(settings)
+    return True
 
 def is_resolved_path_inside(base_path, candidate_path):
     if not base_path or not candidate_path:
@@ -2042,14 +2163,16 @@ def get_anilist_poster(anime_name):
 
         return None
 
-def get_anilist_info(anime_name):
+def get_anilist_info(anime_name, anilist_id=None):
 
     query = """
-    query ($search: String) {
+    query ($search: String, $id: Int) {
       Media(
         search: $search,
+        id: $id,
         type: ANIME
       ) {
+        id
         title {
           romaji
           english
@@ -2135,7 +2258,8 @@ def get_anilist_info(anime_name):
             json={
                 "query": query,
                 "variables": {
-                    "search": anime_name
+                    "search": None if anilist_id else anime_name,
+                    "id": int(anilist_id) if anilist_id else None
                 }
             },
             timeout=20
@@ -2209,6 +2333,7 @@ def get_anilist_info(anime_name):
             })
 
         return {
+            "anilist_id": media.get("id"),
             "title": media["title"]["english"] or media["title"]["romaji"],
             "description": media["description"],
             "episodes": media["episodes"],
@@ -2233,6 +2358,75 @@ def get_anilist_info(anime_name):
         app_log(f"AniList metadata error for {anime_name}: {e}", "WARN")
 
         return None
+
+def search_anilist_anime(query_text, limit=12):
+    query = """
+    query ($search: String, $perPage: Int) {
+      Page(page: 1, perPage: $perPage) {
+        media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+          id
+          title { romaji english native }
+          coverImage { large }
+          format
+          status
+          season
+          seasonYear
+          episodes
+          isAdult
+        }
+      }
+    }
+    """
+
+    try:
+        response = requests.post(
+            "https://graphql.anilist.co",
+            json={
+                "query": query,
+                "variables": {
+                    "search": query_text,
+                    "perPage": max(1, min(int(limit), 20)),
+                },
+            },
+            timeout=15,
+        )
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+
+        if response.status_code >= 400:
+            return [], f"AniList search failed with HTTP {response.status_code}."
+        if payload.get("errors"):
+            return [], "AniList could not complete that search."
+
+        media_items = payload.get("data", {}).get("Page", {}).get("media", [])
+        results = []
+        for media in media_items:
+            if not isinstance(media, dict) or media.get("isAdult"):
+                continue
+            titles = media.get("title") or {}
+            title = titles.get("english") or titles.get("romaji") or titles.get("native")
+            if not title or not media.get("id"):
+                continue
+            results.append({
+                "anilist_id": media["id"],
+                "title": title,
+                "romaji_title": titles.get("romaji"),
+                "native_title": titles.get("native"),
+                "poster": (media.get("coverImage") or {}).get("large"),
+                "format": media.get("format"),
+                "status": media.get("status"),
+                "season": media.get("season"),
+                "year": media.get("seasonYear"),
+                "episodes": media.get("episodes"),
+            })
+        return results, None
+    except requests.RequestException:
+        return [], "Unable to reach AniList. Check your internet connection."
+    except Exception as error:
+        app_log(f"AniList manual search failed: {error}", "WARN")
+        return [], "AniList search is temporarily unavailable."
 
 def is_next_airing_expired(next_airing, now_ts=None):
     if not isinstance(next_airing, dict):
@@ -2609,13 +2803,59 @@ def format_episode_number(value):
 
     return f"{number:g}"
 
-def get_episode_number(filename):
-    name = os.path.splitext(
-        os.path.basename(filename)
-    )[0]
+def parse_episode_identity(filename):
+    stem = os.path.splitext(os.path.basename(filename))[0]
+    normalized = re.sub(r"[_]+", " ", stem)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
 
-    normalized_name = name.replace("_", " ")
-    normalized_name = re.sub(r"\s+", " ", normalized_name).strip()
+    special_patterns = (
+        ("ncop", "NCOP", r"(?i)(?:^|[\s.\[\(\-])(NCOP)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+        ("nced", "NCED", r"(?i)(?:^|[\s.\[\(\-])(NCED)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+        ("ova", "OVA", r"(?i)(?:^|[\s.\[\(\-])(OVA)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+        ("oad", "OAD", r"(?i)(?:^|[\s.\[\(\-])(OAD)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+        ("ona", "ONA", r"(?i)(?:^|[\s.\[\(\-])(ONA)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+        ("special", "Special", r"(?i)(?:^|[\s.\[\(\-])(?:SPECIAL|SP)\s*[-_. #]*(\d+(?:\.\d+)?(?![\d.]|p\b))?\b"),
+    )
+    for kind, label, pattern in special_patterns:
+        match = re.search(pattern, normalized)
+        if not match:
+            continue
+        number_group = match.lastindex and match.group(match.lastindex)
+        number = normalize_episode_number(number_group) if number_group else None
+        display_name = label
+        if number is not None:
+            display_name += f" {format_episode_number(number)}"
+        return {
+            "kind": kind,
+            "number": number or 0,
+            "end_number": None,
+            "label": display_name,
+            "display_name": display_name,
+        }
+
+    range_patterns = (
+        r"(?i)\bS\d{1,2}\s*E\s*(\d+(?:\.\d+)?)\s*[-~]\s*(?:E\s*)?(\d+(?:\.\d+)?)\b",
+        r"(?i)\b(?:EPISODES?|EPS?|E)\s*[-_. #]*(\d+(?:\.\d+)?)\s*[-~]\s*(?:EPISODES?|EPS?|E)?\s*(\d+(?:\.\d+)?)\b",
+        r"(?i)[\[\(]\s*(\d+(?:\.\d+)?)\s*[-~]\s*(\d+(?:\.\d+)?)\s*[\]\)]",
+        r"(?i)\b(\d+(?:\.\d+)?)\s*[-~]\s*(\d+(?:\.\d+)?)\b(?=.*\bBATCH\b)",
+    )
+    for pattern in range_patterns:
+        match = re.search(pattern, normalized)
+        if not match:
+            continue
+        start = normalize_episode_number(match.group(1))
+        end = normalize_episode_number(match.group(2))
+        if start is None or end is None or float(end) < float(start):
+            continue
+        start_label = format_episode_number(start)
+        end_label = format_episode_number(end)
+        return {
+            "kind": "batch",
+            "number": start,
+            "end_number": end,
+            "label": f"{start_label}-{end_label}",
+            "display_name": f"Episodes {start_label}-{end_label} · Batch",
+        }
 
     patterns = [
         r"(?i)\bS\d{1,2}\s*E\s*(\d+(?:\.\d+)?)\b",
@@ -2624,41 +2864,72 @@ def get_episode_number(filename):
         r"(?i)(?:^|[\s.\[\(])-\s*(\d+(?:\.\d+)?)(?=\s*(?:$|[\]\)\[\(]|[A-Za-z]))",
         r"(?i)(?:^|[\s._-])(\d+(?:\.\d+)?)(?=\s*(?:$|[\]\)\[\(]))",
     ]
-
     for pattern_index, pattern in enumerate(patterns):
-        matches = list(re.finditer(pattern, normalized_name))
+        matches = list(re.finditer(pattern, normalized))
         for match in reversed(matches):
             number = normalize_episode_number(match.group(1))
-            if (
-                pattern_index >= 2
-                and
-                isinstance(number, int)
-                and
-                1900 <= number <= 2099
-            ):
+            if pattern_index >= 2 and isinstance(number, int) and 1900 <= number <= 2099:
                 continue
             if number is not None:
-                return number
+                label = format_episode_number(number)
+                return {
+                    "kind": "episode",
+                    "number": number,
+                    "end_number": None,
+                    "label": label,
+                    "display_name": f"Episode {label}",
+                }
 
-    app_log(f"Could not parse episode number from filename: {filename}", "WARN")
+    if re.search(r"(?i)\bBATCH\b", normalized):
+        return {
+            "kind": "batch",
+            "number": 0,
+            "end_number": None,
+            "label": "Batch",
+            "display_name": "Batch",
+        }
+
+    return {
+        "kind": "unknown",
+        "number": 0,
+        "end_number": None,
+        "label": stem,
+        "display_name": stem,
+    }
+
+def get_episode_number(filename):
+    identity = parse_episode_identity(filename)
+    if identity["number"]:
+        return identity["number"]
+    if identity["kind"] == "unknown":
+        app_log(f"Could not parse episode number from filename: {filename}", "WARN")
     return 0
 
 def get_episode_display_label(filename):
-    episode_number = get_episode_number(filename)
-    episode_label = format_episode_number(episode_number)
-    if episode_label:
-        return episode_label
+    return parse_episode_identity(filename)["label"]
 
-    return os.path.splitext(
-        os.path.basename(filename)
-    )[0]
+def get_episode_default_display_name(filename):
+    return parse_episode_identity(filename)["display_name"]
 
 def get_episode_sort_key(filename):
-    episode_number = get_episode_number(filename)
-    if episode_number:
-        return (0, float(episode_number), os.path.basename(filename).lower())
-
-    return (1, os.path.basename(filename).lower())
+    identity = parse_episode_identity(filename)
+    kind_order = {
+        "episode": 0,
+        "batch": 1,
+        "special": 2,
+        "ova": 3,
+        "oad": 4,
+        "ona": 5,
+        "ncop": 6,
+        "nced": 7,
+        "unknown": 8,
+    }
+    number = identity["number"]
+    return (
+        kind_order.get(identity["kind"], 8),
+        float(number) if number else float("inf"),
+        os.path.basename(filename).lower(),
+    )
 
 def get_video_duration(video_path):
 
@@ -2742,6 +3013,12 @@ def find_media_path(library_name):
     return find_anime_path(library_name)
 
 def get_season_anilist_info(anime_name, season_name):
+
+    if get_anilist_mapping(anime_name):
+        info = get_cached_anilist_info(anime_name)
+        if info:
+            info["character_cache_name"] = anime_name
+        return info
 
     search_name = season_name
 
@@ -3162,6 +3439,8 @@ def get_cached_anilist_info(
     )
     info = None
     stale_fallback_info = None
+    manual_mapping = get_anilist_mapping(anime_name)
+    mapped_anilist_id = manual_mapping.get("anilist_id") if manual_mapping else None
 
     # 1. Coba muat dari cache metadata
     if os.path.exists(
@@ -3176,16 +3455,25 @@ def get_cached_anilist_info(
                 info = json.load(f)
                 info, expired_next_airing = remove_expired_next_airing(info)
                 pruned_info = info
+                if mapped_anilist_id and info.get("anilist_id") != mapped_anilist_id:
+                    info = None
                 # Jika metadata ditemukan tapi tidak punya informasi karakter atau relations, paksa ambil ulang
-                if "characters" not in info or "relations" not in info or "recommendations" not in info:
+                if info and ("characters" not in info or "relations" not in info or "recommendations" not in info):
                     info = None
                 # Jika ada character dengan va_name tapi tidak ada va_staff_id, upgrade metadata
-                elif "characters" in info and any(char.get("va_name") and "va_staff_id" not in char for char in info.get("characters", [])):
+                elif info and "characters" in info and any(char.get("va_name") and "va_staff_id" not in char for char in info.get("characters", [])):
                     info = None
                 # Releasing anime needs next episode metadata for the airing countdown.
-                elif (info.get("status") or "").upper() == "RELEASING" and "next_airing" not in info:
+                elif info and (info.get("status") or "").upper() == "RELEASING" and "next_airing" not in info:
                     info = None
-                if expired_next_airing and isinstance(pruned_info, dict):
+                if (
+                    expired_next_airing
+                    and isinstance(pruned_info, dict)
+                    and (
+                        not mapped_anilist_id
+                        or pruned_info.get("anilist_id") == mapped_anilist_id
+                    )
+                ):
                     stale_fallback_info = pruned_info
                     try:
                         with open(cache_file, "w", encoding="utf-8") as f:
@@ -3197,7 +3485,11 @@ def get_cached_anilist_info(
 
     # 2. Jika tidak ada di cache atau data tidak lengkap, ambil dari AniList API
     if not info:
-        info = get_anilist_info(anime_name)
+        info = (
+            get_anilist_info(anime_name, anilist_id=mapped_anilist_id)
+            if mapped_anilist_id
+            else get_anilist_info(anime_name)
+        )
         if not info and stale_fallback_info:
             info = stale_fallback_info
         if info:
@@ -3685,7 +3977,8 @@ def update_watch_history(
     last_seconds=0,
     duration=0,
     media_name=None,
-    display_name=None
+    display_name=None,
+    episode_display_name=None
 ):
     with WATCH_DATA_LOCK:
         history = load_history_data()
@@ -3698,7 +3991,8 @@ def update_watch_history(
             "last_seconds": last_seconds,
             "duration": duration,
             "media_name": media_name or history_key,
-            "display_name": display_name or history_key
+            "display_name": display_name or history_key,
+            "episode_display_name": normalize_episode_display_name(episode_display_name),
         }
 
         save_watch_history(history)
@@ -4902,6 +5196,8 @@ def update_settings():
         "auto_import_mappings": auto_import_mappings,
         "auto_import_recent_imports": existing_settings.get("auto_import_recent_imports", []),
         "auto_import_unmatched": existing_settings.get("auto_import_unmatched", []),
+        "anilist_mappings": existing_settings.get("anilist_mappings", {}),
+        "episode_display_names": existing_settings.get("episode_display_names", {}),
         "action_token": existing_settings.get("action_token", "")
     }
 
@@ -6420,6 +6716,7 @@ def index():
             "is_movie": is_movie,
             "episode": episode,
             "episode_num": data.get("episode_num"),
+            "episode_display_name": data.get("episode_display_name"),
             "time_str": data.get("time_str"), # Ambil time_str dari history
             "updated_at": data.get("updated_at", ""),
             "image_url": url_for(
@@ -6450,6 +6747,138 @@ def index():
         finished_count=finished_count
     )
 
+
+@app.route("/api/anilist/search")
+@host_only
+def api_anilist_search():
+    query_text = request.args.get("q", "").strip()
+    if len(query_text) < 2:
+        return json_error(
+            "invalid_search_query",
+            "Enter at least two characters to search AniList.",
+            400,
+        )
+    if len(query_text) > 120:
+        return json_error(
+            "invalid_search_query",
+            "Search query is too long.",
+            400,
+        )
+
+    results, error = search_anilist_anime(query_text)
+    if error:
+        return json_error("anilist_search_failed", error, 502)
+    return jsonify({"ok": True, "results": results})
+
+@app.route("/api/anime/metadata-match", methods=["POST"])
+@host_only
+@require_action_token
+def api_update_anime_metadata_match():
+    data, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    anime_name = str(data.get("anime_name") or "").strip()
+    if not anime_name or not find_anime_path(anime_name):
+        return json_error("anime_not_found", "Anime folder was not found.", 404)
+
+    if data.get("automatic") is True:
+        removed = remove_anilist_mapping(anime_name)
+        invalidate_anilist_cache(anime_name)
+        return jsonify({
+            "ok": True,
+            "automatic": True,
+            "mapping_removed": removed,
+        })
+
+    try:
+        anilist_id = int(data.get("anilist_id"))
+    except (TypeError, ValueError):
+        return json_error("invalid_anilist_id", "Select a valid AniList title.", 400)
+    if anilist_id <= 0:
+        return json_error("invalid_anilist_id", "Select a valid AniList title.", 400)
+
+    metadata = get_anilist_info(anime_name, anilist_id=anilist_id)
+    if not metadata or metadata.get("anilist_id") != anilist_id:
+        return json_error(
+            "metadata_fetch_failed",
+            "AniList metadata could not be loaded for that title.",
+            502,
+        )
+
+    save_anilist_mapping(anime_name, metadata)
+    invalidate_anilist_cache(anime_name)
+    cache_file = os.path.join(METADATA_CACHE, f"{anime_name}.json")
+    atomic_write_json_file(cache_file, metadata, "AniList metadata", ensure_ascii=False)
+
+    try:
+        with db_connection() as conn:
+            conn.execute(
+                """
+                UPDATE anime_library
+                SET score = ?, genres = ?, year = ?, season = ?, status = ?
+                WHERE name = ?
+                """,
+                (
+                    metadata.get("score"),
+                    json.dumps(metadata.get("genres")),
+                    metadata.get("year"),
+                    metadata.get("season"),
+                    metadata.get("status"),
+                    anime_name,
+                ),
+            )
+    except sqlite3.Error as error:
+        app_log(f"Unable to update matched metadata row for {anime_name}: {error}", "WARN")
+
+    return jsonify({
+        "ok": True,
+        "mapping": get_anilist_mapping(anime_name),
+        "metadata": {
+            "anilist_id": metadata.get("anilist_id"),
+            "title": metadata.get("title"),
+        },
+    })
+
+@app.route("/api/episode/display-name", methods=["POST"])
+@host_only
+@require_action_token
+def api_update_episode_display_name():
+    data, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    anime_name = str(data.get("anime_name") or "").strip()
+    episode_path = normalize_episode_path_key(data.get("episode"))
+    anime_path = find_anime_path(anime_name)
+    video_path = safe_join_media_path(anime_path, episode_path) if anime_path else None
+    if (
+        not anime_path
+        or not episode_path
+        or not video_path
+        or not os.path.isfile(video_path)
+        or not video_path.lower().endswith(VIDEO_EXTENSIONS)
+    ):
+        return json_error("episode_not_found", "Episode file was not found.", 404)
+
+    requested_name = data.get("display_name", "")
+    if not isinstance(requested_name, str):
+        return json_error("invalid_display_name", "Display name must be text.", 400)
+    if len(requested_name) > 500:
+        return json_error("invalid_display_name", "Display name is too long.", 400)
+
+    saved_name = save_episode_display_override(
+        anime_name,
+        episode_path,
+        requested_name,
+    )
+    default_name = get_episode_default_display_name(os.path.basename(episode_path))
+    return jsonify({
+        "ok": True,
+        "display_name": saved_name or default_name,
+        "custom": bool(saved_name),
+        "default_name": default_name,
+    })
 
 @app.route("/api/library/refresh", methods=["POST"])
 @host_only
@@ -6666,21 +7095,16 @@ def anime_detail(anime_name):
     video_files.sort(
         key=get_episode_sort_key
     )
+    episode_name_settings = load_settings()
 
     for index, file in enumerate(
         video_files,
         start=1
     ):
 
-        episode_number = get_episode_number(
-            file
-        )
-
-        episode_label = format_episode_number(
-            episode_number
-        ) or get_episode_display_label(
-            file
-        )
+        episode_identity = parse_episode_identity(file)
+        episode_number = episode_identity["number"]
+        episode_label = episode_identity["label"]
 
         video_path = os.path.join(
             episode_source_path,
@@ -6701,6 +7125,11 @@ def anime_detail(anime_name):
             anime_name,
             relative_file
         )
+        custom_display_name = get_episode_display_override(
+            anime_name,
+            relative_file,
+            settings=episode_name_settings,
+        )
 
         episodes.append({
 
@@ -6709,6 +7138,16 @@ def anime_detail(anime_name):
             "episode": episode_number,
 
             "episode_label": episode_label,
+
+            "display_name": custom_display_name or episode_identity["display_name"],
+
+            "default_display_name": episode_identity["display_name"],
+
+            "display_name_custom": bool(custom_display_name),
+
+            "episode_kind": episode_identity["kind"],
+
+            "episode_end": episode_identity["end_number"],
 
             "list_position": index,
 
@@ -6807,6 +7246,7 @@ def anime_detail(anime_name):
         resume_episode=resume_episode,
         resume_label=resume_label,
         anime_info=anime_info,
+        anilist_mapping=get_anilist_mapping(anime_name),
         seasons=seasons,
         selected_season=selected_season
     )
@@ -6889,6 +7329,7 @@ def player(
     )
 
     episodes = []
+    episode_name_settings = load_settings()
 
     for index, file in enumerate(
         video_files,
@@ -6914,15 +7355,9 @@ def player(
             "/"
         )
 
-        episode_number = get_episode_number(
-            file
-        )
-
-        episode_label = format_episode_number(
-            episode_number
-        ) or get_episode_display_label(
-            file
-        )
+        episode_identity = parse_episode_identity(file)
+        episode_number = episode_identity["number"]
+        episode_label = episode_identity["label"]
 
         episode_info = get_episode_cache(
             anime_name,
@@ -6934,6 +7369,11 @@ def player(
             anime_name,
             relative_url
         )
+        custom_display_name = get_episode_display_override(
+            anime_name,
+            relative_url,
+            settings=episode_name_settings,
+        )
 
         episodes.append({
 
@@ -6942,6 +7382,16 @@ def player(
             "episode": episode_number,
 
             "episode_label": episode_label,
+
+            "display_name": custom_display_name or episode_identity["display_name"],
+
+            "default_display_name": episode_identity["display_name"],
+
+            "display_name_custom": bool(custom_display_name),
+
+            "episode_kind": episode_identity["kind"],
+
+            "episode_end": episode_identity["end_number"],
 
             "list_position": index,
 
@@ -7063,14 +7513,14 @@ def player(
         if h_data.get("episode") == episode:
             resume_time = h_data.get("last_seconds", 0)
 
-    current_episode_number = get_episode_number(
-        current_file
-    )
-    current_episode_label = format_episode_number(
-        current_episode_number
-    ) or get_episode_display_label(
-        current_file
-    )
+    current_episode_identity = parse_episode_identity(current_file)
+    current_episode_number = current_episode_identity["number"]
+    current_episode_label = current_episode_identity["label"]
+    current_episode_display_name = get_episode_display_override(
+        anime_name,
+        episode,
+        settings=episode_name_settings,
+    ) or current_episode_identity["display_name"]
 
     return render_template(
 
@@ -7089,6 +7539,9 @@ def player(
 
         current_episode_label=
             current_episode_label,
+
+        current_episode_display_name=
+            current_episode_display_name,
 
         current_position=
             current_index + 1,
@@ -7276,7 +7729,11 @@ def play_episode(anime_name, episode):
             episode,
             episode_num,
             media_name=anime_name,
-            display_name=get_watch_history_display_name(anime_name, episode)
+            display_name=get_watch_history_display_name(anime_name, episode),
+            episode_display_name=get_episode_display_override(
+                anime_name,
+                episode,
+            ) or get_episode_default_display_name(os.path.basename(episode)),
         )
         rpc_owner_id = f"vlc-{secrets.token_urlsafe(16)}"
         dispatch_discord_rpc_update(anime_name, episode_num, owner_id=rpc_owner_id)
@@ -7410,7 +7867,8 @@ def update_progress():
         last_seconds,
         duration,
         media_name=anime_name,
-        display_name=get_watch_history_display_name(anime_name, episode)
+        display_name=get_watch_history_display_name(anime_name, episode),
+        episode_display_name=data.get("episode_display_name"),
     )
     rpc_owner_id = str(data.get("rpc_session_id", "")).strip() or None
     dispatch_discord_rpc_update(anime_name, episode_num, time_str, owner_id=rpc_owner_id)
@@ -7650,6 +8108,8 @@ def api_delete_anime():
             )
 
         cleanup_anime_cache(anime_name, include_watch_data=True)
+        remove_anilist_mapping(anime_name)
+        remove_episode_display_overrides(anime_name)
 
         # Also remove from database
         try:
