@@ -4128,7 +4128,9 @@ def get_subtitle_vtt_path(anime_name, episode_path):
     safe_anime = re.sub(r'[<>:"/\\|?*]', '_', anime_name)
     safe_episode = re.sub(r'[<>:"|?*]', '_', episode_path).replace('/', '_').replace('\\', '_')
     
-    vtt_filename = f"{safe_episode}.vtt"
+    # Bump this when subtitle sanitising changes, so old generated VTT files
+    # with unsupported fansub effects are not served from cache.
+    vtt_filename = f"{safe_episode}.clean-v2.vtt"
     return os.path.join(SUBTITLE_CACHE, safe_anime, vtt_filename)
 
 def make_library_sync_skipped_result(trigger_label):
@@ -4177,6 +4179,23 @@ def is_non_subtitle_text(text):
 
     return False
 
+def is_stylized_karaoke_subtitle(text):
+    """Return True for ASS karaoke/effect lines unsuitable for WebVTT players."""
+    raw_text = text or ""
+
+    # Karaoke timing tags (\k, \K, \kf, \ko, \kt) are intended for ASS
+    # renderers. Converting them to WebVTT can leave every syllable overlaid
+    # at once. Inline WebVTT timestamps are the equivalent output produced by
+    # some ffmpeg builds during that conversion.
+    if re.search(r'\{[^}]*\\(?:k|K|kf|ko|kt)\d+', raw_text):
+        return True
+    if re.search(r'<(?:\d{1,2}:)?\d{2}:\d{2}\.\d{3}>', raw_text):
+        return True
+
+    # Vector drawings are never dialogue and can otherwise produce large
+    # malformed overlays in the browser subtitle renderer.
+    return bool(re.search(r'\{[^}]*\\p\d+', raw_text, flags=re.IGNORECASE))
+
 def _vtt_timestamp_seconds(value):
     parts = value.strip().replace(',', '.').split(':')
     try:
@@ -4211,8 +4230,9 @@ def clean_generated_subtitle_vtt(vtt_path):
         cue_text = []
         i += 1
         while i < len(lines) and lines[i].strip() != "" and "-->" not in lines[i]:
-            text_line = re.sub(r'\{.*?\}', '', lines[i].strip())
-            if not is_non_subtitle_text(text_line):
+            raw_text_line = lines[i].strip()
+            text_line = re.sub(r'\{.*?\}', '', raw_text_line)
+            if not is_stylized_karaoke_subtitle(raw_text_line) and not is_non_subtitle_text(text_line):
                 cue_text.append(text_line)
             i += 1
         cues.append({"timestamp": timestamp, "start": start, "end": end, "text": cue_text})

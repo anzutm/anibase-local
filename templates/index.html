@@ -4,7 +4,7 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='7') }}">
 {% endblock %}
 {% block content %}
 <div class="home-intro">
@@ -21,7 +21,7 @@
             <h2>{{ slide.anime.name }}</h2>
             <p class="home-spotlight-meta">{{ slide.anime.episodes }} episodes{% if slide.info and slide.info.year %} &middot; {{ slide.info.year }}{% endif %}{% if slide.info and slide.info.genres %} &middot; {{ slide.info.genres[:2]|join(' / ') }}{% endif %}</p>
             {% if slide.info and slide.info.description %}<p class="home-spotlight-description">{{ slide.info.description|striptags|truncate(180) }}</p>{% endif %}
-            <div class="home-hero-actions"><a class="home-primary-action" href="{{ url_for('anime_detail', anime_name=slide.anime.name) }}">Explore anime <span aria-hidden="true">&rarr;</span></a><a href="#continueGrid" class="home-secondary-action">Continue watching</a></div>
+            <div class="home-hero-actions"><a class="home-primary-action" href="{{ url_for('anime_detail', anime_name=slide.anime.name) }}">Explore anime <span aria-hidden="true">&rarr;</span></a><a href="#continueWatchingSection" class="home-secondary-action">Continue watching</a></div>
         </div>
     </div>
     {% endfor %}
@@ -33,7 +33,7 @@
 </section>
 {% endif %}
 
-<section class="continue-watching-section index-section-panel">
+<section class="continue-watching-section index-section-panel" id="continueWatchingSection">
     <div class="resume-section-head">
         <div>
             <span class="home-section-eyebrow">Resume</span>
@@ -240,7 +240,7 @@
                         {% if anime.next_airing.episode %}
                         Ep {{ anime.next_airing.episode }}:
                         {% else %}
-                        Next broadcast:
+                        Next Ep:
                         {% endif %}
                         <b data-airing-countdown>soon</b>
                     </span>
@@ -413,6 +413,17 @@
 
             startAutoplay();
         }
+
+        const continueSectionTarget = document.getElementById('continueWatchingSection');
+        document.querySelectorAll('.home-secondary-action[href="#continueWatchingSection"]').forEach(link => {
+            link.addEventListener('click', function(event) {
+                if (!continueSectionTarget) return;
+                event.preventDefault();
+                const top = continueSectionTarget.getBoundingClientRect().top + window.scrollY - 112;
+                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                history.replaceState(null, '', '#continueWatchingSection');
+            });
+        });
 
         const searchInput = document.getElementById('animeSearch');
         const featuredSection = document.querySelector('.featured-anime');

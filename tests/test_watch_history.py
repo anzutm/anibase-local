@@ -3469,6 +3469,34 @@ class LibrarySyncStaleSafetyTests(unittest.TestCase):
         self.assertIn("Keep Me", self.db_names())
         self.assertIn("Returned Anime", self.db_names())
 
+class SubtitleSanitisingTests(unittest.TestCase):
+    def test_clean_subtitle_removes_ass_karaoke_and_keeps_dialogue(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subtitle_path = os.path.join(temp_dir, "episode.clean-v2.vtt")
+            with open(subtitle_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "WEBVTT\n\n"
+                    "00:00:01.000 --> 00:00:03.000\n"
+                    "{\\k40}Ka{\\k40}ra{\\k40}o{\\k40}ke\n\n"
+                    "00:00:04.000 --> 00:00:06.000\n"
+                    "This is normal dialogue.\n\n"
+                    "00:00:07.000 --> 00:00:09.000\n"
+                    "<00:00:07.200>Animated lyric timing\n"
+                )
+
+            main.clean_generated_subtitle_vtt(subtitle_path)
+
+            with open(subtitle_path, "r", encoding="utf-8") as handle:
+                cleaned = handle.read()
+
+            self.assertIn("This is normal dialogue.", cleaned)
+            self.assertNotIn("Karaoke", cleaned)
+            self.assertNotIn("Animated lyric timing", cleaned)
+
+    def test_subtitle_cache_path_uses_current_sanitiser_version(self):
+        path = main.get_subtitle_vtt_path("Anime", "Episode 01.mkv")
+        self.assertTrue(path.endswith("Episode 01.mkv.clean-v2.vtt"))
+
 
 if __name__ == "__main__":
     unittest.main()

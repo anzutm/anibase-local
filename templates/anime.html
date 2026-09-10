@@ -188,6 +188,13 @@
                         <p>Studio</p>
                     </div>
 
+                    {% if not is_movie %}
+                    <button type="button" id="movieDeleteBtn" class="info-card detail-delete-card" title="Delete this anime from your local library">
+                        <h3><span aria-hidden="true">&#128465;</span> Delete</h3>
+                        <p>Remove anime</p>
+                    </button>
+                    {% endif %}
+
                 </div>
 
             </div>
@@ -212,14 +219,6 @@
 
     </div> <!-- End hero-overlay -->
 </div> <!-- End hero -->
-
-{% if not is_movie %}
-<details class="detail-library-actions">
-    <summary>Manage this anime</summary>
-    <p>Deleting removes the local anime folder and its cache.</p>
-    <button type="button" id="movieDeleteBtn" class="detail-delete-action">Delete anime</button>
-</details>
-{% endif %}
 
 {% if not is_movie %}
 <div class="metadata-match-modal" id="metadataMatchModal" hidden>
@@ -439,16 +438,22 @@
             </nav>
             {% endif %}
 
-            <div class="episode-filter-tabs" role="group" aria-label="Episode filter">
-                <button type="button" class="episode-filter-btn active" data-episode-filter="all">All</button>
-                <button type="button" class="episode-filter-btn" data-episode-filter="unwatched">Unwatched</button>
-                <button type="button" class="episode-filter-btn" data-episode-filter="progress">In Progress</button>
-                <button type="button" class="episode-filter-btn" data-episode-filter="watched">Watched</button>
+            <div class="episode-control-group">
+                <span class="episode-control-label">Watch status</span>
+                <div class="episode-filter-tabs" role="group" aria-label="Episode filter">
+                    <button type="button" class="episode-filter-btn active" data-episode-filter="all">All</button>
+                    <button type="button" class="episode-filter-btn" data-episode-filter="unwatched">Unwatched</button>
+                    <button type="button" class="episode-filter-btn" data-episode-filter="progress">In Progress</button>
+                    <button type="button" class="episode-filter-btn" data-episode-filter="watched">Watched</button>
+                </div>
             </div>
 
-            <div class="episode-sort-toggle" role="group" aria-label="Episode sort">
-                <button type="button" class="episode-sort-btn active" data-episode-sort="asc">Asc</button>
-                <button type="button" class="episode-sort-btn" data-episode-sort="desc">Desc</button>
+            <div class="episode-control-group">
+                <span class="episode-control-label">Order</span>
+                <div class="episode-sort-toggle" role="group" aria-label="Episode sort">
+                    <button type="button" class="episode-sort-btn active" data-episode-sort="asc">Asc</button>
+                    <button type="button" class="episode-sort-btn" data-episode-sort="desc">Desc</button>
+                </div>
             </div>
         </div>
 
@@ -1347,7 +1352,7 @@ document.addEventListener('click', async function(event) {
             movieDeleteBtn.style.opacity = '1';
             movieDeleteBtn.innerHTML = isMovie
                 ? '<span aria-hidden="true">&#128465;</span><span>Delete Movie</span>'
-                : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>';
+                : '<span aria-hidden="true">&#128465;</span><span>Delete anime</span>';
         }
     } catch (e) {
         alert('A network error occurred.');
@@ -1355,7 +1360,7 @@ document.addEventListener('click', async function(event) {
         movieDeleteBtn.style.opacity = '1';
         movieDeleteBtn.innerHTML = isMovie
             ? '<span aria-hidden="true">&#128465;</span><span>Delete Movie</span>'
-            : '<h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3><p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>';
+            : '<span aria-hidden="true">&#128465;</span><span>Delete anime</span>';
     }
 });
 </script>
