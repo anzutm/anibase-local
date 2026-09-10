@@ -918,6 +918,29 @@ class TenraiAdapterTests(unittest.TestCase):
         self.assertIsNone(main.adapt_tenrai_anime_metadata({"data": {"title": "Unknown"}}))
         self.assertIsNone(main.adapt_tenrai_anime_metadata({"data": {"mal_id": 1}}))
 
+    def test_tenrai_relations_accepts_grouped_entry_lists(self):
+        relations = main.adapt_tenrai_relations({"relations": [
+            {
+                "relation": "Sequel",
+                "entry": [{
+                    "mal_id": 2,
+                    "type": "anime",
+                    "media_type": "TV",
+                    "name": "Next Story",
+                    "images": {"jpg": {"image_url": "https://img/next.jpg"}},
+                }],
+            },
+            {
+                "relation": "Adaptation",
+                "entry": [{"mal_id": 3, "type": "manga", "name": "Source Manga"}],
+            },
+        ]})
+
+        self.assertEqual(len(relations), 1)
+        self.assertEqual(relations[0]["title"], "Next Story")
+        self.assertEqual(relations[0]["mal_id"], 2)
+        self.assertEqual(relations[0]["type"], "TV")
+
     def test_tenrai_duration_parser_handles_hours(self):
         self.assertEqual(main.parse_tenrai_duration("1 hr 30 min"), 90)
         self.assertEqual(main.parse_tenrai_duration("Unknown"), None)

@@ -1203,21 +1203,32 @@ def adapt_tenrai_relations(payload, limit=40):
     if not isinstance(relations, list):
         return []
     adapted = []
-    for item in relations[:max(0, limit)]:
+    for item in relations:
+        if len(adapted) >= max(0, limit):
+            break
         if not isinstance(item, dict):
             continue
-        entry = item.get("entry") or {}
-        title = entry.get("title") or entry.get("title_english")
-        if not title:
-            continue
-        adapted.append({
-            "title": title,
-            "poster": tenrai_image_url(entry.get("images")),
-            "type": str(entry.get("type") or "").upper() or None,
-            "status": normalize_tenrai_status(entry.get("status")),
-            "relation": item.get("relation"),
-            "mal_id": normalize_provider_id(entry.get("mal_id")),
-        })
+        raw_entries = item.get("entry") or []
+        entries = raw_entries if isinstance(raw_entries, list) else [raw_entries]
+        for entry in entries:
+            if len(adapted) >= max(0, limit):
+                break
+            if not isinstance(entry, dict):
+                continue
+            entry_type = str(entry.get("type") or "").strip().lower()
+            if entry_type and entry_type != "anime":
+                continue
+            title = entry.get("title") or entry.get("title_english") or entry.get("name")
+            if not title:
+                continue
+            adapted.append({
+                "title": title,
+                "poster": tenrai_image_url(entry.get("images")),
+                "type": str(entry.get("media_type") or entry.get("type") or "").upper() or None,
+                "status": normalize_tenrai_status(entry.get("status")),
+                "relation": item.get("relation"),
+                "mal_id": normalize_provider_id(entry.get("mal_id")),
+            })
     return adapted
 
 def adapt_tenrai_recommendations(payload, limit=10):
