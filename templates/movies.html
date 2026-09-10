@@ -5,10 +5,15 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='movies.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='movies-redesign.css', v='7') }}">
 {% endblock %}
 
 {% block content %}
-<main class="movies-cinema">
+<div class="movies-cinema">
+    <header class="movies-page-heading">
+        <div><p class="movies-kicker">ANIBASE / YOUR PRIVATE CINEMA</p><h1>Movie night starts here.</h1></div>
+        <a href="#moviesCollectionTitle">Explore collection <span aria-hidden="true">&#8595;</span></a>
+    </header>
     {% if featured_movies %}
     <section class="movies-hero" aria-label="Featured movies">
         {% for featured in featured_movies %}
@@ -16,6 +21,7 @@
             class="movies-hero-slide{% if loop.first %} active{% endif %}"
             data-movies-hero-slide
             aria-hidden="{{ 'false' if loop.first else 'true' }}"
+            {% if not loop.first %}inert{% endif %}
         >
         <img
             class="movies-hero-backdrop"
@@ -28,7 +34,7 @@
 
         <div class="movies-hero-content">
             <p class="movies-kicker"><span></span> AniBase Cinema Selection</p>
-            <h1>{{ featured.title }}</h1>
+            <h2>{{ featured.title }}</h2>
 
             <div class="movies-hero-meta" aria-label="Featured movie information">
                 {% if featured.year %}<span>{{ featured.year }}</span>{% endif %}
@@ -69,6 +75,7 @@
         {% endfor %}
 
         {% if featured_movies|length > 1 %}
+        <button type="button" class="movies-hero-pause" id="moviesHeroPause" aria-pressed="false">Pause slideshow</button>
         <div class="movies-hero-dots" aria-label="Choose featured movie">
             {% for featured in featured_movies %}
             <button
@@ -92,9 +99,9 @@
     <section class="movies-library" aria-labelledby="moviesCollectionTitle">
         <header class="movies-library-header">
             <div>
-                <p class="movies-kicker"><span></span> Your Local Archive</p>
-                <h2 id="moviesCollectionTitle">Movie Collection</h2>
-                <p>Feature-length stories, presented from your local library.</p>
+                <p class="movies-kicker">THE COLLECTION</p>
+                <h2 id="moviesCollectionTitle">Find your next escape.</h2>
+                <p>Familiar favorites. New worlds. All in your library.</p>
             </div>
             {% if movies %}
             <div class="movies-result-count" id="moviesResultCount" aria-live="polite">
@@ -104,9 +111,21 @@
         </header>
 
         {% if movies %}
+        <div class="movies-toolbar">
+            <div class="movies-filters" role="group" aria-label="Filter by watch status">
+                <button type="button" data-movie-filter="all" aria-pressed="true">All movies</button>
+                <button type="button" data-movie-filter="watching" aria-pressed="false">In progress</button>
+                <button type="button" data-movie-filter="not_started" aria-pressed="false">Unwatched</button>
+                <button type="button" data-movie-filter="completed" aria-pressed="false">Watched</button>
+            </div>
+            <div class="movies-tools">
+                <label class="movies-local-search"><span class="movies-sr-only">Search movies</span><input id="moviesSearch" type="search" placeholder="Search movies…"></label>
+                <label class="movies-sort"><span class="movies-sr-only">Sort movies</span><select id="moviesSort"><option value="default">Library order</option><option value="title">Title A–Z</option><option value="year">Newest release</option><option value="score">Highest rated</option></select></label>
+            </div>
+        </div>
         <div class="movies-grid" id="moviesGrid">
             {% for movie in movies %}
-            <article class="movie-poster-card" data-movie-title="{{ movie.title|lower }}">
+            <article class="movie-poster-card" data-movie-title="{{ movie.title|lower }}" data-movie-status="{{ movie.watch_status_kind }}" data-movie-year="{{ movie.year or 0 }}" data-movie-score="{{ movie.score or 0 }}">
                 <a
                     class="movie-poster-link"
                     href="{{ url_for('movie_detail_page', filename=movie.file) }}"
@@ -148,7 +167,8 @@
         <div class="movies-empty movies-empty--search" id="moviesSearchEmpty" hidden>
             <span aria-hidden="true">⌕</span>
             <h3>No matching movies</h3>
-            <p>Try another title in the library search.</p>
+            <p>Try another title or change your watch-status filter.</p>
+            <button type="button" id="moviesReset">Clear filters</button>
         </div>
         {% else %}
         <div class="movies-empty">
@@ -159,7 +179,7 @@
         </div>
         {% endif %}
     </section>
-</main>
+</div>
 {% endblock %}
 
 {% block scripts %}

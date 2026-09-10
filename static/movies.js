@@ -1,74 +1,90 @@
 (function () {
-    const searchInput = document.getElementById('animeSearch');
+    const searchInputs = [document.getElementById('animeSearch'), document.getElementById('moviesSearch')].filter(Boolean);
     const hero = document.querySelector('.movies-hero');
-    const cards = Array.from(document.querySelectorAll('.movie-poster-card[data-movie-title]'));
-    const resultCount = document.getElementById('moviesResultCount');
-    const emptyState = document.getElementById('moviesSearchEmpty');
-    const heroSlides = Array.from(document.querySelectorAll('[data-movies-hero-slide]'));
-    const heroDots = Array.from(document.querySelectorAll('[data-movies-hero-dot]'));
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let activeHeroIndex = 0;
-    let heroTimer;
+    const slides = Array.from(document.querySelectorAll('[data-movies-hero-slide]'));
+    const dots = Array.from(document.querySelectorAll('[data-movies-hero-dot]'));
+    const pauseButton = document.getElementById('moviesHeroPause');
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let activeIndex = 0;
+    let paused = motion.matches;
+    let timer;
 
-    function showHeroSlide(index) {
-        if (!heroSlides.length) return;
-
-        const nextIndex = (index + heroSlides.length) % heroSlides.length;
-        heroSlides.forEach((slide, slideIndex) => {
-            const isActive = slideIndex === nextIndex;
-            slide.classList.toggle('active', isActive);
-            slide.setAttribute('aria-hidden', String(!isActive));
-        });
-        heroDots.forEach((dot, dotIndex) => {
-            const isActive = dotIndex === nextIndex;
-            dot.classList.toggle('active', isActive);
-            dot.setAttribute('aria-pressed', String(isActive));
-        });
-        activeHeroIndex = nextIndex;
+    function stopSlider() { window.clearInterval(timer); }
+    function startSlider() {
+        stopSlider();
+        if (paused || document.hidden || hero?.hidden || hero?.matches(':hover') || hero?.contains(document.activeElement) || slides.length < 2) return;
+        timer = window.setInterval(() => showSlide(activeIndex + 1), 6500);
     }
-
-    function stopHeroSlider() {
-        window.clearInterval(heroTimer);
-        heroTimer = undefined;
-    }
-
-    function startHeroSlider() {
-        stopHeroSlider();
-        if (heroSlides.length < 2 || reduceMotion || document.hidden) return;
-        heroTimer = window.setInterval(() => showHeroSlide(activeHeroIndex + 1), 3000);
-    }
-
-    if (heroSlides.length > 1) {
-        heroDots.forEach((dot, index) => {
-            dot.addEventListener('click', () => {
-                showHeroSlide(index);
-                startHeroSlider();
-            });
+    function showSlide(index) {
+        activeIndex = index % slides.length;
+        slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === activeIndex);
+            slide.setAttribute('aria-hidden', String(i !== activeIndex));
+            slide.inert = i !== activeIndex;
         });
-        hero?.addEventListener('mouseenter', stopHeroSlider);
-        hero?.addEventListener('mouseleave', startHeroSlider);
-        document.addEventListener('visibilitychange', startHeroSlider);
-        startHeroSlider();
-    }
-
-    if (!searchInput || !cards.length) return;
-
-    function updateMovieResults() {
-        const term = searchInput.value.toLowerCase().trim();
-        let visibleCount = 0;
-
-        cards.forEach((card) => {
-            const isVisible = !term || card.dataset.movieTitle.includes(term);
-            card.hidden = !isVisible;
-            if (isVisible) visibleCount += 1;
+        dots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === activeIndex);
+            dot.setAttribute('aria-pressed', String(i === activeIndex));
         });
+    }
+    function updatePauseButton() {
+        if (!pauseButton) return;
+        pauseButton.textContent = paused ? 'Play slideshow' : 'Pause slideshow';
+        pauseButton.setAttribute('aria-pressed', String(paused));
+    }
+    dots.forEach((dot, i) => dot.addEventListener('click', () => { showSlide(i); startSlider(); }));
+    pauseButton?.addEventListener('click', () => { paused = !paused; updatePauseButton(); startSlider(); });
+    hero?.addEventListener('mouseenter', stopSlider);
+    hero?.addEventListener('mouseleave', startSlider);
+    hero?.addEventListener('focusin', stopSlider);
+    hero?.addEventListener('focusout', () => window.setTimeout(startSlider, 0));
+    document.addEventListener('visibilitychange', startSlider);
+    motion.addEventListener('change', () => { paused = motion.matches; updatePauseButton(); startSlider(); });
+    updatePauseButton();
+    startSlider();
 
-        if (hero) hero.hidden = Boolean(term);
-        if (resultCount) {
-            resultCount.textContent = `${visibleCount} movie${visibleCount === 1 ? '' : 's'}`;
+    const grid = document.getElementById('moviesGrid');
+    const cards = Array.from(document.querySelectorAll('[data-movie-title]'));
+    const filters = Array.from(document.querySelectorAll('[data-movie-filter]'));
+    const sort = document.getElementById('moviesSort');
+    const count = document.getElementById('moviesResultCount');
+    const empty = document.getElementById('moviesSearchEmpty');
+    let status = 'all';
+    let term = '';
+
+    function updateResults() {
+        let visible = 0;
+        cards.forEach(card => {
+            card.hidden = !(card.dataset.movieTitle.includes(term) && (status === 'all' || card.dataset.movieStatus === status));
+            if (!card.hidden) visible++;
+        });
+        if (count) count.textContent = `${visible} of ${cards.length} movies`;
+        if (empty) empty.hidden = visible > 0;
+        if (hero) hero.hidden = Boolean(term) || status !== 'all';
+        filters.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.movieFilter === status)));
+        startSlider();
+    }
+    searchInputs.forEach(input => input.addEventListener('input', () => {
+        searchInputs.forEach(other => { other.value = input.value; });
+        term = input.value.toLowerCase().trim();
+        updateResults();
+    }));
+    filters.forEach(button => button.addEventListener('click', () => { status = button.dataset.movieFilter; updateResults(); }));
+    sort?.addEventListener('change', () => {
+        const ordered = [...cards];
+        if (sort.value === 'title') ordered.sort((a, b) => a.dataset.movieTitle.localeCompare(b.dataset.movieTitle));
+        if (sort.value === 'year' || sort.value === 'score') {
+            const key = sort.value === 'year' ? 'movieYear' : 'movieScore';
+            ordered.sort((a, b) => (Number(b.dataset[key]) || 0) - (Number(a.dataset[key]) || 0));
         }
-        if (emptyState) emptyState.hidden = visibleCount > 0;
+        ordered.forEach(card => grid.appendChild(card));
+    });
+    document.getElementById('moviesReset')?.addEventListener('click', () => {
+        term = ''; status = 'all'; searchInputs.forEach(input => { input.value = ''; }); updateResults();
+        document.getElementById('moviesSearch')?.focus();
+    });
+    if (cards.length) {
+        term = (searchInputs[0]?.value || '').toLowerCase().trim();
+        updateResults();
     }
-
-    searchInput.addEventListener('input', updateMovieResults);
 })();

@@ -1,5 +1,5 @@
 /* Shared surfaces and typography for discovery, profiles and onboarding. */
-:is(.support-page,.setup-body) { --support-surface: #111722; --support-muted: #a8b2c4; --support-border: rgba(255,255,255,.12); background: #090d14; color: #edf2fa; }
+:is(.support-page,.setup-body) { --support-surface: #111722; --support-muted: #a8b2c4; --support-border: rgba(255,255,255,.12); background: #070a10; color: #edf2fa; }
 .support-page > main { padding-top: 40px; }
 .support-page :is(.page-heading-panel,.studio-heading-panel,.sy-hero,.movies-hero,.overview-page) { border-color: var(--support-border); box-shadow: none; border-radius: 24px; }
 .support-page :is(.section-heading,.sy-section-head h2) { letter-spacing: -.035em; font-size: clamp(24px,3vw,36px); text-shadow: none; }

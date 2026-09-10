@@ -7,7 +7,7 @@
     <style>html,body{background-color:#0b0907;color:#F3F4F5;}</style>
     <meta name="theme-color" content="#0b0907">
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='9') }}">
     {% block extra_head %}{% endblock %}
     {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_page', 'setup_loading'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='1') }}">

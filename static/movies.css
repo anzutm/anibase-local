@@ -129,7 +129,7 @@ html[data-theme="dark-green"] .movies-page {
     box-shadow: 0 0 14px color-mix(in srgb, var(--movies-accent) 45%, transparent);
 }
 
-.movies-page .movies-hero h1 {
+.movies-page .movies-hero h2 {
     max-width: 850px;
     margin: 0;
     color: #fff;
@@ -620,7 +620,7 @@ html[data-theme="dark-green"] .movies-page {
         padding: 210px 24px 46px;
     }
 
-    .movies-page .movies-hero h1 {
+    .movies-page .movies-hero h2 {
         font-size: clamp(38px, 12vw, 60px);
     }
 

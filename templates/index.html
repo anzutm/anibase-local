@@ -4,7 +4,7 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='7') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='19') }}">
 {% endblock %}
 {% block content %}
 <div class="home-intro">
@@ -45,7 +45,7 @@
         </div>
         <div class="resume-actions">
             <div class="resume-count-badge">
-                {{ continue_watching|length }} Active
+                {{ continue_watching|length }}
             </div>
             <div class="resume-carousel-controls" aria-label="Continue watching carousel controls">
                 <button type="button" class="resume-arrow resume-prev" aria-label="Scroll continue watching left">&larr;</button>
@@ -103,12 +103,12 @@
 
     <div class="collection-top index-collection-top">
         <div class="collection-heading">
-            <span class="home-section-eyebrow">Library</span>
+            <span class="home-section-eyebrow">The Collection</span>
             <div class="section-title">
                 <div class="section-line"></div>
-                <h2 class="section-heading">The Collection<span class="home-heading-count">{{ anime_list|length + home_movies|length }}</span></h2>
+                <h2 class="section-heading">Find your next escape.</h2>
             </div>
-            <p class="section-subtitle">Your collection, ready when you are.</p>
+            <p class="section-subtitle">Familiar favorites. New worlds. All in your library.</p>
         </div>
     </div>
 
@@ -117,7 +117,6 @@
 
         <div class="home-filter-groups">
             <div class="home-filter-group">
-                <span class="home-filter-label">Release</span>
                 <div class="status-filter release-status-filter">
                     <a
                         href="#"
@@ -146,7 +145,6 @@
             </div>
 
             <div class="home-filter-group home-filter-group--watch">
-                <span class="home-filter-label">Watch Status</span>
                 <div class="status-filter watch-status-filter" aria-label="Watch status filter">
                     <button type="button" class="filter-btn watch-filter-btn active" data-watch-filter="all">All</button>
                     <button type="button" class="filter-btn watch-filter-btn" data-watch-filter="not_started">Not Started</button>

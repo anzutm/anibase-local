@@ -4,14 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ anime_name }}</title>
-    <style>html,body{background-color:#050711;color:#F3F4F5;}</style>
-    <meta name="theme-color" content="#050711">
+    <style>html,body{background-color:#03050a;color:#F3F4F5;}</style>
+    <meta name="theme-color" content="#03050a">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='30') }}">
+    {% if is_movie %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css') }}">
+    {% endif %}
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -23,6 +27,52 @@
     &larr; Back
 </a>
 
+{% if is_movie %}
+<header class="cinema-hero">
+    <img class="cinema-backdrop" src="{{ (anime_info.banner or anime_info.poster) if anime_info else url_for('banner', anime_name=anime_name) }}" alt="">
+    <div class="cinema-hero-inner">
+        <div class="cinema-intro">
+            <p class="cinema-eyebrow">ANIBASE <span>/</span> YOUR PRIVATE CINEMA</p>
+            <div class="cinema-facts">
+                <span class="cinema-format">MOVIE</span>
+                {% if anime_info and anime_info.year %}<span>{{ anime_info.year }}</span>{% endif %}
+                {% if anime_info and anime_info.duration %}<span>{{ anime_info.duration }} min</span>{% endif %}
+                {% if anime_info and anime_info.score %}<span class="cinema-rating">&#9733; {{ "%.1f"|format(anime_info.score / 10) }} <small>/ 10</small></span>{% endif %}
+            </div>
+            <h1>{{ anime_info.title or anime_name if anime_info else anime_name }}</h1>
+            {% if anime_info and anime_info.genres %}
+            <div class="cinema-genres" aria-label="Genres">{% for genre in anime_info.genres %}<span>{{ genre }}</span>{% endfor %}</div>
+            {% endif %}
+            <p class="cinema-tagline">A little escape. A whole new world.</p>
+            <div class="cinema-cta-row">
+                {% if episodes %}
+                <a class="cinema-watch" href="#movieWatch" id="movieHeroPlay"><span aria-hidden="true">&#9654;</span> {{ 'Resume movie' if resume_time else 'Watch movie' }}</a>
+                {% endif %}
+                <a class="cinema-about-link" href="#movieAbout">Explore the story <span aria-hidden="true">&#8595;</span></a>
+            </div>
+            {% if episodes and resume_time %}<p class="cinema-resume">Continue from {{ (resume_time / 60)|int }} min &middot; Your progress is saved automatically</p>{% endif %}
+        </div>
+        <div class="cinema-poster">
+            <img src="{{ anime_info.poster if anime_info and anime_info.poster else url_for('poster', anime_name=anime_name) }}" alt="Poster for {{ anime_name }}">
+            <span>FROM YOUR LOCAL COLLECTION</span>
+        </div>
+    </div>
+</header>
+<section class="cinema-about" id="movieAbout" aria-labelledby="movieAboutTitle">
+    <div class="cinema-story">
+        <p class="cinema-eyebrow">THE STORY</p>
+        <h2 id="movieAboutTitle">An escape worth taking.</h2>
+        {% if anime_info and anime_info.description %}
+        <div class="cinema-synopsis">{{ anime_info.description | striptags }}</div>
+        {% else %}<p class="cinema-synopsis">No synopsis available for this movie yet.</p>{% endif %}
+    </div>
+    <dl class="cinema-credits">
+        <div><dt>Studio</dt><dd>{% if anime_info and anime_info.studio %}<a href="{{ url_for('studio_page', studio_name=anime_info.studio, return_to=request.path) }}">{{ anime_info.studio }} &#8599;</a>{% else %}Not available{% endif %}</dd></div>
+        <div><dt>Format</dt><dd>{{ anime_info.format or 'Movie' if anime_info else 'Movie' }}</dd></div>
+        <div><dt>Release</dt><dd>{{ anime_info.status|replace('_', ' ')|title if anime_info and anime_info.status else 'Not available' }}</dd></div>
+    </dl>
+</section>
+{% else %}
 <div class="hero">
 
     <img
@@ -219,6 +269,7 @@
 
     </div> <!-- End hero-overlay -->
 </div> <!-- End hero -->
+{% endif %}
 
 {% if not is_movie %}
 <div class="metadata-match-modal" id="metadataMatchModal" hidden>
@@ -276,6 +327,10 @@
 
 {% if is_movie and episodes %}
 <section class="movie-watch-section" id="movieWatch">
+    <div class="cinema-screen-heading">
+        <div><p class="cinema-eyebrow">THE SCREENING ROOM</p><h2>Settle in. Press play.</h2></div>
+        <button type="button" class="cinema-theater-toggle" id="movieTheaterToggle" aria-pressed="false" aria-controls="movieWatch">Theater mode</button>
+    </div>
     <div class="movie-watch-shell">
         <div class="movie-screen">
             <video
@@ -309,7 +364,7 @@
 
         <div class="movie-watch-bar">
             <div>
-                <span class="movie-watch-label">Local Movie</span>
+                <span class="movie-watch-label">Now showing</span>
                 <strong>{{ anime_name }}</strong>
             </div>
 
@@ -334,9 +389,8 @@
 
                 <button
                     type="button"
-                    class="movie-action-btn"
+                    class="movie-action-btn movie-delete-action"
                     id="movieDeleteBtn"
-                    style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; background: rgba(239, 68, 68, 0.1);"
                 >
                     <span aria-hidden="true">&#128465;</span>
                     <span>Delete Movie</span>
@@ -349,10 +403,11 @@
 
 <div class="character-section">
     <div class="section-title">
-        <div class="section-line"></div>
-        <div>
-            <h2>Characters & Voice Actors</h2>
-            <p class="section-subtitle">Cast highlights pulled into a cleaner streaming-style panel.</p>
+            <div class="section-line"></div>
+            <div>
+                <span class="detail-section-kicker">Cast &amp; Crew</span>
+                <h2>Characters & Voice Actors</h2>
+            <p class="section-subtitle">{{ 'Meet the voices behind the story.' if is_movie else 'Cast highlights pulled into a cleaner streaming-style panel.' }}</p>
         </div>
     </div>
     
@@ -414,6 +469,7 @@
         <div class="section-title">
             <div class="section-line"></div>
             <div>
+                <span class="detail-section-kicker">Episodes</span>
                 <h2>Episode List</h2>
                 <p class="section-subtitle">Choose an episode and jump straight into playback.</p>
             </div>
@@ -996,6 +1052,20 @@ window.addEventListener('pageshow', () => {
         iconUrl: config.plyrIconUrl,
         keyboard: { focused: true, global: false },
         captions: { active: true, update: true, language: 'id' }
+    });
+
+    document.getElementById('movieHeroPlay')?.addEventListener('click', () => {
+        const playRequest = player.play();
+        if (playRequest && typeof playRequest.catch === 'function') {
+            playRequest.catch(() => showMovieToast('Press play in the player to start the movie.', '!'));
+        }
+    });
+    const theaterToggle = document.getElementById('movieTheaterToggle');
+    theaterToggle?.addEventListener('click', () => {
+        const enabled = document.body.classList.toggle('cinema-theater');
+        theaterToggle.setAttribute('aria-pressed', String(enabled));
+        theaterToggle.textContent = enabled ? 'Exit theater mode' : 'Theater mode';
+        document.getElementById('movieWatch').scrollIntoView({ block: 'start' });
     });
 
     function actionHeaders(extra = {}) {
