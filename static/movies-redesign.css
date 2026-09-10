@@ -19,7 +19,7 @@ body.movies-page .movies-hero-shade {
 body.movies-page .movies-hero-grain { display: none; }
 body.movies-page .movies-hero-meta { gap: 8px 16px; margin-top: 0; }
 body.movies-page .movies-hero-meta span { padding: 0; border: 0; background: none; backdrop-filter: none; font-weight: 500; }
-body.movies-page .movies-hero-description { max-width: 610px; margin: 20px 0 24px; color: #aeb5c3; font-size: 14px; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+body.movies-page .movies-hero-description { max-width: 610px; margin: 20px 0 24px; color: #aeb5c3; font-size: 14px; line-height: 1.8; display: -webkit-box; line-clamp: 3; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 body.movies-page .movies-hero-actions { margin-top: 0; }
 body.movies-page .movies-action { padding: 12px 22px; border-radius: 6px; min-height: 46px; font-size: 12px; box-shadow: none; }
 body.movies-page .movies-action--primary { background: var(--movies-accent); color: #080a10; }
@@ -49,6 +49,13 @@ body.movies-page .movies-grid { grid-template-columns: repeat(5,minmax(0,1fr)); 
 body.movies-page .movie-poster-card { aspect-ratio: auto; overflow: visible; border: 0; border-radius: 0; background: none; box-shadow: none; }
 body.movies-page .movie-poster-card:hover, body.movies-page .movie-poster-card:focus-within { transform: none; box-shadow: none; }
 body.movies-page .movie-poster-link { position: relative; display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 8px; border: 1px solid var(--movies-line); background: #161b26; isolation: isolate; }
+body.movies-page .movie-poster-card:hover .movie-poster-art,
+body.movies-page .movie-poster-card:focus-within .movie-poster-art { filter: saturate(1.04) contrast(1.02) brightness(1); }
+body.movies-page .movie-poster-card:hover .movie-poster-vignette,
+body.movies-page .movie-poster-card:focus-within .movie-poster-vignette {
+    opacity: .28;
+    background: linear-gradient(0deg, rgba(2,4,11,.68) 0%, rgba(3,5,13,.18) 34%, transparent 70%);
+}
 body.movies-page .movie-poster-vignette { opacity: .2; }
 body.movies-page .movie-card-status { top: 10px; right: 10px; padding: 5px 7px; border-radius: 4px; font-size: 9px; font-weight: 600; pointer-events: none; }
 body.movies-page .movie-card-content { position: static; padding: 13px 0 0; transform: none; }

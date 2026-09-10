@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ anime_name }}</title>
-    <style>html,body{background-color:#03050a;color:#F3F4F5;}</style>
-    <meta name="theme-color" content="#03050a">
+    <style>html,body{background-color:#08090b;color:#F3F4F5;}</style>
+    <meta name="theme-color" content="#08090b">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='30') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='38') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css') }}">
     {% endif %}
@@ -168,12 +168,9 @@
                     </div>
                 </div>
 
-                <p class="anime-description{% if anime_info.description|striptags|length > 320 %} is-collapsed{% endif %}">
+                <p class="anime-description">
 
-                    {{ anime_info.description
-                        | striptags
-                        | truncate(400)
-                    }}
+                    {{ anime_info.description | striptags }}
 
                 </p>
 
@@ -405,7 +402,6 @@
     <div class="section-title">
             <div class="section-line"></div>
             <div>
-                <span class="detail-section-kicker">Cast &amp; Crew</span>
                 <h2>Characters & Voice Actors</h2>
             <p class="section-subtitle">{{ 'Meet the voices behind the story.' if is_movie else 'Cast highlights pulled into a cleaner streaming-style panel.' }}</p>
         </div>
@@ -469,7 +465,6 @@
         <div class="section-title">
             <div class="section-line"></div>
             <div>
-                <span class="detail-section-kicker">Episodes</span>
                 <h2>Episode List</h2>
                 <p class="section-subtitle">Choose an episode and jump straight into playback.</p>
             </div>
@@ -495,7 +490,6 @@
             {% endif %}
 
             <div class="episode-control-group">
-                <span class="episode-control-label">Watch status</span>
                 <div class="episode-filter-tabs" role="group" aria-label="Episode filter">
                     <button type="button" class="episode-filter-btn active" data-episode-filter="all">All</button>
                     <button type="button" class="episode-filter-btn" data-episode-filter="unwatched">Unwatched</button>
@@ -505,7 +499,6 @@
             </div>
 
             <div class="episode-control-group">
-                <span class="episode-control-label">Order</span>
                 <div class="episode-sort-toggle" role="group" aria-label="Episode sort">
                     <button type="button" class="episode-sort-btn active" data-episode-sort="asc">Asc</button>
                     <button type="button" class="episode-sort-btn" data-episode-sort="desc">Desc</button>
