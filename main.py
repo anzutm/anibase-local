@@ -6220,7 +6220,9 @@ def write_studio_project_cache(studio_name, data):
 
 def fetch_anilist_studio_projects(studio_name, max_projects=STUDIO_PROJECT_LIMIT):
     cached = read_studio_project_cache(studio_name)
-    if cached:
+    if cached and cached.get("provider") != TENRAI_METADATA_PROVIDER:
+        return cached, None
+    if cached and not can_attempt_anilist():
         return cached, None
 
     query = """
@@ -6321,7 +6323,8 @@ def fetch_anilist_studio_projects(studio_name, max_projects=STUDIO_PROJECT_LIMIT
 
         payload = {
             "studio_info": studio_info,
-            "projects": projects[:max_projects]
+            "projects": projects[:max_projects],
+            "provider": ANILIST_METADATA_PROVIDER,
         }
         write_studio_project_cache(studio_name, payload)
         return payload, None
@@ -6379,18 +6382,32 @@ def get_tenrai_studio_projects(studio_name, max_projects=STUDIO_PROJECT_LIMIT):
     producer_id = producer.get("mal_id")
     if not producer_id:
         return None, "Tenrai studio search did not include a producer id."
-    records = unwrap_tenrai_data(fetch_tenrai_json(
-        "/anime", {"producers": producer_id, "limit": max_projects}
-    ))
+    records = []
+    page = 1
+    while len(records) < max_projects:
+        page_size = min(50, max_projects - len(records))
+        page_payload = fetch_tenrai_json(
+            "/anime", {"producers": producer_id, "limit": page_size, "page": page}
+        )
+        page_records = unwrap_tenrai_data(page_payload)
+        if not isinstance(page_records, list) or not page_records:
+            break
+        records.extend(page_records)
+        pagination = page_payload.get("pagination") if isinstance(page_payload, dict) else None
+        if not isinstance(pagination, dict) or not pagination.get("has_next_page"):
+            break
+        page += 1
     projects = adapt_tenrai_studio_projects(records, studio_name)
     if not projects:
         return None, "Tenrai returned no studio productions."
-    return {
+    payload = {
         "studio_info": {"id": producer_id, "name": studio_name, "isAnimationStudio": True,
                          "mal_id": producer_id, "provider": TENRAI_METADATA_PROVIDER},
-        "projects": projects,
+        "projects": projects[:max_projects],
         "provider": TENRAI_METADATA_PROVIDER,
-    }, None
+    }
+    write_studio_project_cache(studio_name, payload)
+    return payload, None
 
 def get_seiyuu_cache_file(staff_id):
     return os.path.join(SEIYUU_CACHE, f"staff_{staff_id}.json")
@@ -6638,6 +6655,24 @@ def fetch_tenrai_seiyuu_detail(staff_name, anilist_staff_id=None, mal_id=None):
         "source": TENRAI_METADATA_PROVIDER,
     }
     return payload, None
+
+def get_cached_tenrai_seiyuu_detail(mal_id, staff_name=None):
+    normalized_mal_id = normalize_provider_id(mal_id)
+    if normalized_mal_id is None:
+        return None, "Tenrai seiyuu profile needs a valid MAL person id."
+    cache_key = f"tenrai_{normalized_mal_id}"
+    cached = read_seiyuu_cache(cache_key)
+    if cached:
+        return cached, None
+    payload, error = fetch_tenrai_seiyuu_detail(
+        staff_name,
+        anilist_staff_id=None,
+        mal_id=normalized_mal_id,
+    )
+    if payload:
+        payload["source"] = "Tenrai"
+        write_seiyuu_cache(cache_key, payload)
+    return payload, error
 
 def fetch_jikan_seiyuu_detail(staff_name, anilist_staff_id=None):
     if not staff_name:
@@ -7138,7 +7173,9 @@ def studio_page(studio_name):
     studio_payload, studio_error = fetch_anilist_studio_projects(studio_name)
     studio_info = None
     studio_projects = []
-    fallback_used = False
+    fallback_used = bool(
+        studio_payload and studio_payload.get("provider") == TENRAI_METADATA_PROVIDER
+    )
 
     if not studio_payload:
         tenrai_payload, tenrai_error = get_tenrai_studio_projects(studio_name)
@@ -7249,8 +7286,17 @@ def seiyuu_page(staff_id):
     local_anime = get_anime()
     local_match_index = build_local_anime_match_index(local_anime)
     fallback_name = request.args.get("name", "").strip() or None
-    
-    seiyuu_data, seiyuu_error = fetch_anilist_seiyuu_detail(staff_id, fallback_name=fallback_name)
+    requested_provider = request.args.get("provider", ANILIST_METADATA_PROVIDER).strip().lower()
+    if requested_provider == TENRAI_METADATA_PROVIDER:
+        seiyuu_data, seiyuu_error = get_cached_tenrai_seiyuu_detail(
+            staff_id,
+            staff_name=fallback_name,
+        )
+    else:
+        seiyuu_data, seiyuu_error = fetch_anilist_seiyuu_detail(
+            staff_id,
+            fallback_name=fallback_name,
+        )
     
     if not seiyuu_data:
         return render_template(

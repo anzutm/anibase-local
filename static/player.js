@@ -94,6 +94,25 @@ function showSeekFeedback(direction) {
     }, SEEK_FEEDBACK_RESET_MS + 180);
 }
 
+function isSeekTargetBuffered(targetTime) {
+    const ranges = videoElement.buffered;
+    if (!ranges || !ranges.length) return false;
+    for (let index = 0; index < ranges.length; index += 1) {
+        if (targetTime >= ranges.start(index) && targetTime <= ranges.end(index) - 0.1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function applyMediaSeek(targetTime, preferFastSeek = false) {
+    if (preferFastSeek && typeof videoElement.fastSeek === 'function') {
+        videoElement.fastSeek(targetTime);
+        return;
+    }
+    player.currentTime = targetTime;
+}
+
 function seekByShortcut(direction) {
     const duration = Number(player.duration || videoElement.duration || 0);
     const currentTime = seekFeedbackState.targetTime === null
@@ -105,12 +124,23 @@ function seekByShortcut(direction) {
         duration ? Math.min(duration, currentTime + delta) : currentTime + delta
     );
 
+    const targetIsBuffered = isSeekTargetBuffered(seekFeedbackState.targetTime);
+
+    if (targetIsBuffered) {
+        // A nearby buffered target can move immediately without another Range request.
+        clearTimeout(seekFeedbackState.seekTimer);
+        applyMediaSeek(seekFeedbackState.targetTime, true);
+        seekFeedbackState.targetTime = null;
+        showSeekFeedback(direction);
+        return;
+    }
+
     // Coalesce repeated presses into one media seek. This avoids issuing a new
     // HTTP Range request for every 5-second step when a shortcut is spammed.
     clearTimeout(seekFeedbackState.seekTimer);
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
-            player.currentTime = seekFeedbackState.targetTime;
+            applyMediaSeek(seekFeedbackState.targetTime, true);
             seekFeedbackState.targetTime = null;
         }
     }, 140);

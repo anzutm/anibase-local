@@ -76,12 +76,25 @@
                 <h3>Personal Settings Backup</h3>
                 <p>Export library paths, mappings, automation, theme, and playback preferences. The security action token is excluded.</p>
             </div>
-            <div class="settings-input-row">
-                <a class="settings-add-path-btn" href="{{ url_for('export_settings_backup') }}">Download Backup</a>
-                <form method="POST" action="{{ url_for('import_settings_backup') }}" enctype="multipart/form-data" class="settings-input-row">
+            <div class="settings-backup-actions">
+                <a class="settings-backup-download" href="{{ url_for('export_settings_backup') }}">
+                    <span class="settings-backup-action-icon" aria-hidden="true">↓</span>
+                    <span>
+                        <strong>Download backup</strong>
+                        <small>Save settings and mappings</small>
+                    </span>
+                </a>
+                <form method="POST" action="{{ url_for('import_settings_backup') }}" enctype="multipart/form-data" class="settings-backup-restore">
                     <input type="hidden" name="action_token" value="{{ action_token }}">
-                    <input class="settings-input" type="file" name="backup_file" accept="application/json,.json" required>
-                    <button class="settings-add-path-btn" type="submit">Restore Backup</button>
+                    <label class="settings-backup-file" for="settingsBackupFile">
+                        <span class="settings-backup-action-icon" aria-hidden="true">↑</span>
+                        <span class="settings-backup-file-copy">
+                            <strong id="settingsBackupFileName">Choose backup file</strong>
+                            <small>JSON file only</small>
+                        </span>
+                        <input id="settingsBackupFile" type="file" name="backup_file" accept="application/json,.json" required>
+                    </label>
+                    <button class="settings-backup-submit" type="submit">Restore backup</button>
                 </form>
             </div>
         </section>
@@ -721,6 +734,15 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const backupInput = document.getElementById('settingsBackupFile');
+    const backupName = document.getElementById('settingsBackupFileName');
+    if (backupInput && backupName) {
+        backupInput.addEventListener('change', function() {
+            const file = backupInput.files && backupInput.files[0];
+            backupName.textContent = file ? file.name : 'Choose backup file';
+        });
+    }
+
     const message = document.getElementById('settingsPickerMessage');
     const libraryPathList = document.getElementById('libraryPathList');
     const addLibraryPath = document.getElementById('addLibraryPath');

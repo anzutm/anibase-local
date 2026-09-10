@@ -8543,6 +8543,131 @@ body:has(.hero-foreground) .character-section {
     text-transform: uppercase;
 }
 
+.settings-backup-actions {
+    display: grid;
+    grid-template-columns: minmax(220px, .8fr) minmax(360px, 1.2fr);
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.settings-backup-download,
+.settings-backup-file {
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    color: var(--text-primary);
+    text-decoration: none;
+    border: 1px solid rgba(0,216,255,.22);
+    border-radius: 10px;
+    background: linear-gradient(145deg, rgba(0,216,255,.09), rgba(255,255,255,.025));
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+}
+
+.settings-backup-download:hover,
+.settings-backup-file:hover {
+    border-color: rgba(0,216,255,.52);
+    background: linear-gradient(145deg, rgba(0,216,255,.15), rgba(255,255,255,.04));
+    transform: translateY(-1px);
+}
+
+.settings-backup-action-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    color: #bff7ff;
+    background: rgba(0,216,255,.16);
+    font-size: 21px;
+    line-height: 1;
+}
+
+.settings-backup-download strong,
+.settings-backup-file-copy strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.settings-backup-download small,
+.settings-backup-file-copy small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.settings-backup-restore {
+    display: flex;
+    min-width: 0;
+    gap: 10px;
+}
+
+.settings-backup-file {
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: pointer;
+    border-color: rgba(255,255,255,.14);
+    background: rgba(0,0,0,.2);
+}
+
+.settings-backup-file input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.settings-backup-file-copy {
+    min-width: 0;
+}
+
+.settings-backup-file-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-backup-submit {
+    flex: 0 0 auto;
+    min-height: 46px;
+    align-self: center;
+    padding: 0 16px;
+    border: 1px solid rgba(0,216,255,.30);
+    border-radius: 9px;
+    color: rgba(199,242,255,.96);
+    background: rgba(0,216,255,.08);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.settings-backup-submit:hover {
+    background: rgba(0,216,255,.16);
+    border-color: rgba(0,216,255,.55);
+}
+
+@media (max-width: 720px) {
+    .settings-backup-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-backup-restore {
+        flex-wrap: wrap;
+    }
+
+    .settings-backup-file,
+    .settings-backup-submit {
+        flex-basis: 100%;
+        width: 100%;
+    }
+}
+
 .settings-form {
     display: grid;
     gap: 24px;

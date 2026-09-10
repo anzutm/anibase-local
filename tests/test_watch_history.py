@@ -958,6 +958,34 @@ class TenraiAdapterTests(unittest.TestCase):
             datetime(2026, 9, 11, 14, 0, tzinfo=timezone.utc),
         )
 
+    def test_tenrai_studio_projects_paginates_with_api_limit(self):
+        calls = []
+
+        def fake_fetch(path, params=None):
+            calls.append((path, dict(params or {})))
+            if path == "/producers":
+                return {"data": [{"mal_id": 95, "name": "Doga Kobo"}]}
+            page = params.get("page")
+            count = 50 if page == 1 else 30
+            return {
+                "pagination": {"has_next_page": page == 1},
+                "data": [
+                    {"mal_id": page * 1000 + index, "title": f"Project {page}-{index}"}
+                    for index in range(count)
+                ],
+            }
+
+        with patch.object(main, "fetch_tenrai_json", side_effect=fake_fetch), \
+             patch.object(main, "write_studio_project_cache"):
+            payload, error = main.get_tenrai_studio_projects("Doga Kobo", max_projects=80)
+
+        self.assertIsNone(error)
+        self.assertEqual(len(payload["projects"]), 80)
+        anime_calls = [params for path, params in calls if path == "/anime"]
+        self.assertEqual(anime_calls[0]["limit"], 50)
+        self.assertEqual(anime_calls[1]["limit"], 30)
+        self.assertEqual(anime_calls[1]["page"], 2)
+
     def test_tenrai_schedule_adapter_builds_next_broadcast(self):
         now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
         entries = main.adapt_tenrai_schedule({"data": [{
@@ -1895,6 +1923,7 @@ class InternalUrlEncodingTests(unittest.TestCase):
 class SeiyuuPageTests(unittest.TestCase):
     def setUp(self):
         self.original_fetch = main.fetch_anilist_seiyuu_detail
+        self.original_tenrai_fetch = main.get_cached_tenrai_seiyuu_detail
         self.original_get_anime = main.get_anime
         self.original_cached_metadata = main.get_cached_metadata_only
         self.original_setup_complete = main.is_setup_complete
@@ -1904,6 +1933,7 @@ class SeiyuuPageTests(unittest.TestCase):
 
     def tearDown(self):
         main.fetch_anilist_seiyuu_detail = self.original_fetch
+        main.get_cached_tenrai_seiyuu_detail = self.original_tenrai_fetch
         main.get_anime = self.original_get_anime
         main.get_cached_metadata_only = self.original_cached_metadata
         main.is_setup_complete = self.original_setup_complete
@@ -1941,6 +1971,33 @@ class SeiyuuPageTests(unittest.TestCase):
         self.assertIn("Test Voice Actor", body)
         self.assertIn("No related anime in your library", body)
         self.assertIn("No other roles available", body)
+
+    def test_seiyuu_route_uses_tenrai_person_id_when_requested(self):
+        profile = self.make_profile(
+            staff_id=None,
+            mal_id=44317,
+            name_full="Manaka Iwami",
+            source="Tenrai",
+            site_url="https://myanimelist.net/people/44317",
+        )
+        main.get_cached_tenrai_seiyuu_detail = lambda mal_id, staff_name=None: (
+            profile if mal_id == 44317 else None,
+            None,
+        )
+        main.fetch_anilist_seiyuu_detail = lambda *_args, **_kwargs: self.fail(
+            "AniList should not be called for a Tenrai profile link"
+        )
+        main.get_anime = lambda: []
+
+        response = self.client.get(
+            "/seiyuu/44317?provider=tenrai&name=Iwami%2C%20Manaka",
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Manaka Iwami", body)
+        self.assertIn("Data: Tenrai", body)
 
     def test_seiyuu_bio_is_structured_and_escaped(self):
         description = (

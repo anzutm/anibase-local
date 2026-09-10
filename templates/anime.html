@@ -353,7 +353,7 @@
         <div class="section-line"></div>
         <div>
             <h2>Characters & Voice Actors</h2>
-            <p class="section-subtitle">Cast highlights pulled into a cleaner streaming-style panel{% if anime_info.metadata_provider == "tenrai" %}; voice actor profiles are unavailable from the fallback source{% endif %}.</p>
+            <p class="section-subtitle">Cast highlights pulled into a cleaner streaming-style panel.</p>
         </div>
     </div>
     
@@ -372,10 +372,12 @@
             </div>
             
             {% if char.va_name %}
+            {% set va_profile_id = char.va_staff_id or char.va_mal_id %}
+            {% set va_provider = 'anilist' if char.va_staff_id else 'tenrai' %}
             <div class="va-side character-profile voice-profile">
                 <div class="character-image-wrap voice-image-wrap">
-                    {% if char.va_staff_id %}
-                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name, return_to=request.path) }}" class="va-image-link" aria-label="Open seiyuu profile for {{ char.va_name }}">
+                    {% if va_profile_id %}
+                    <a href="{{ url_for('seiyuu_page', staff_id=va_profile_id, provider=va_provider, name=char.va_name, return_to=request.path) }}" class="va-image-link" aria-label="Open seiyuu profile for {{ char.va_name }}">
                     <img src="{{ url_for('character_img', anime_name=anime_info.character_cache_name or anime_name, filename=char.va_image_local) }}" alt="{{ char.va_name }}" loading="lazy">
                     </a>
                     {% else %}
@@ -383,8 +385,8 @@
                     {% endif %}
                 </div>
                 <div class="va-info">
-                    {% if char.va_staff_id %}
-                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_staff_id, name=char.va_name, return_to=request.path) }}" class="va-name-link">
+                    {% if va_profile_id %}
+                    <a href="{{ url_for('seiyuu_page', staff_id=va_profile_id, provider=va_provider, name=char.va_name, return_to=request.path) }}" class="va-name-link">
                         <span class="va-name">{{ char.va_name }}</span>
                     </a>
                     {% else %}
