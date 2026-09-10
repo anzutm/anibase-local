@@ -1358,7 +1358,7 @@ document.addEventListener('click', async function(event) {
 });
 </script>
 {% if not is_movie %}
-<script>
+<script id="metadataMatchScript" data-anime-name="{{ anime_name|e }}">
 (() => {
     const modal = document.getElementById('metadataMatchModal');
     const form = document.getElementById('metadataSearchForm');
@@ -1366,7 +1366,7 @@ document.addEventListener('click', async function(event) {
     const results = document.getElementById('metadataSearchResults');
     const status = document.getElementById('metadataMatchStatus');
     const automaticButton = document.getElementById('metadataAutoMatchBtn');
-    const animeName = {{ anime_name | tojson }};
+    const animeName = document.getElementById('metadataMatchScript')?.dataset.animeName || '';
     let requestSequence = 0;
 
     if (!modal || !form || !input || !results || !status) return;
