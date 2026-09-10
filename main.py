@@ -6603,6 +6603,11 @@ def build_seiyuu_role_from_tenrai(voice):
     role = build_seiyuu_role_from_jikan(voice)
     if not role:
         return None
+    # Tenrai's character records often expose a `large_image_url` that is not
+    # actually published by the MAL CDN (character large variants commonly
+    # return 404).  The regular image URL is available and renders reliably.
+    character = voice.get("character") or {}
+    role["character_image"] = get_nested_image(character.get("images"), size="image_url")
     role["source"] = TENRAI_METADATA_PROVIDER
     return role
 

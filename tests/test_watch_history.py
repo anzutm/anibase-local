@@ -1958,6 +1958,26 @@ class SeiyuuPageTests(unittest.TestCase):
         profile.update(overrides)
         return profile
 
+    def test_tenrai_character_uses_available_image_variant(self):
+        voice = {
+            "role": "Supporting",
+            "anime": {"mal_id": 10, "title": "Example Anime", "images": {}},
+            "character": {
+                "mal_id": 20,
+                "name": "Example Character",
+                "images": {
+                    "jpg": {
+                        "image_url": "https://cdn.example/character.jpg",
+                        "large_image_url": "https://cdn.example/characterl.jpg",
+                    }
+                },
+            },
+        }
+
+        role = main.build_seiyuu_role_from_tenrai(voice)
+
+        self.assertEqual(role["character_image"], "https://cdn.example/character.jpg")
+
     def request_profile(self, profile, local_anime=None):
         main.fetch_anilist_seiyuu_detail = lambda *_args, **_kwargs: (profile, None)
         main.get_anime = lambda: local_anime or []
