@@ -157,41 +157,43 @@
             </div>
         </div>
 
-        <div class="home-refresh-control">
-            <button
-                type="button"
-                class="home-refresh-btn"
-                id="homeRefreshLibrary"
-                data-refresh-url="{{ url_for('refresh_library') }}"
-            >
-                <span class="home-refresh-icon" aria-hidden="true">&#8635;</span>
-                <span data-refresh-label>Refresh Library</span>
-            </button>
-            <span class="home-refresh-status" id="homeRefreshStatus" role="status" aria-live="polite"></span>
-        </div>
+        <div class="home-toolbar-actions">
+            <div class="home-refresh-control">
+                <button
+                    type="button"
+                    class="home-refresh-btn"
+                    id="homeRefreshLibrary"
+                    data-refresh-url="{{ url_for('refresh_library') }}"
+                >
+                    <span class="home-refresh-icon" aria-hidden="true">&#8635;</span>
+                    <span data-refresh-label>Refresh Library</span>
+                </button>
+                <span class="home-refresh-status" id="homeRefreshStatus" role="status" aria-live="polite"></span>
+            </div>
 
-        <div class="sort-control home-sort-control" id="animeSortControl">
-            <span class="sort-label">
-                <span class="sort-icon" aria-hidden="true">&#8645;</span>
-                Sort
-            </span>
-            <button
-                type="button"
-                class="sort-trigger"
-                id="animeSortTrigger"
-                aria-haspopup="listbox"
-                aria-expanded="false"
-            >
-                <span id="animeSortLabel">Default</span>
-                <span class="sort-chevron">⌄</span>
-            </button>
+            <div class="sort-control home-sort-control" id="animeSortControl">
+                <span class="sort-label">
+                    <span class="sort-icon" aria-hidden="true">&#8645;</span>
+                    Sort
+                </span>
+                <button
+                    type="button"
+                    class="sort-trigger"
+                    id="animeSortTrigger"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                >
+                    <span id="animeSortLabel">Default</span>
+                    <span class="sort-chevron">⌄</span>
+                </button>
 
-            <div class="sort-menu" id="animeSortMenu" role="listbox">
-                <button type="button" class="sort-option active" data-sort="default" role="option" aria-selected="true">Default</button>
-                <button type="button" class="sort-option" data-sort="title-asc" role="option">Title A-Z</button>
-                <button type="button" class="sort-option" data-sort="title-desc" role="option">Title Z-A</button>
-                <button type="button" class="sort-option" data-sort="score-desc" role="option">Highest Score</button>
-                <button type="button" class="sort-option" data-sort="episodes-desc" role="option">Most Episodes</button>
+                <div class="sort-menu" id="animeSortMenu" role="listbox">
+                    <button type="button" class="sort-option active" data-sort="default" role="option" aria-selected="true">Default</button>
+                    <button type="button" class="sort-option" data-sort="title-asc" role="option">Title A-Z</button>
+                    <button type="button" class="sort-option" data-sort="title-desc" role="option">Title Z-A</button>
+                    <button type="button" class="sort-option" data-sort="score-desc" role="option">Highest Score</button>
+                    <button type="button" class="sort-option" data-sort="episodes-desc" role="option">Most Episodes</button>
+                </div>
             </div>
         </div>
     </div>
@@ -381,13 +383,35 @@
         }
 
         if (slides.length > 1) {
+            let autoplayTimer = null;
+
+            function startAutoplay() {
+                autoplayTimer = setInterval(() => {
+                    showSlide((currentSlide + 1) % slides.length);
+                }, 5000);
+            }
+
+            function stopAutoplay() {
+                clearInterval(autoplayTimer);
+            }
 
             dots.forEach((dot, idx) => {
                 dot.addEventListener('click', () => {
+                    stopAutoplay();
                     showSlide(idx);
-
+                    startAutoplay();
                 });
             });
+
+            const spotlightEl = document.querySelector('.home-spotlight');
+            if (spotlightEl) {
+                spotlightEl.addEventListener('mouseenter', stopAutoplay);
+                spotlightEl.addEventListener('mouseleave', startAutoplay);
+                spotlightEl.addEventListener('focusin', stopAutoplay);
+                spotlightEl.addEventListener('focusout', startAutoplay);
+            }
+
+            startAutoplay();
         }
 
         const searchInput = document.getElementById('animeSearch');

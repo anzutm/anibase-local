@@ -5,6 +5,8 @@
     --movies-line: rgba(255, 255, 255, .12);
 }
 
+.movies-page > main { padding-top: 64px; }
+
 html[data-theme="dark-orange"] .movies-page {
     --movies-accent: #f6b94d;
     --movies-accent-warm: #fb923c;
@@ -17,7 +19,7 @@ html[data-theme="dark-green"] .movies-page {
 
 .movies-page .movies-cinema {
     width: min(1880px, calc(100% + 22px));
-    margin: -20px auto 0;
+    margin: 0 auto;
     color: #f7f9ff;
 }
 

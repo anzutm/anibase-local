@@ -11,8 +11,7 @@
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-2') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='watch-pages.css', v='1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -80,20 +79,6 @@
                     {% endif %}
                 </div>
 
-                <div class="detail-primary-actions">
-                    {% if resume_episode and not is_movie %}
-                    <button
-                        type="button"
-                        class="watch-btn detail-watch-btn"
-                        data-episode-path="{{ resume_episode.file }}"
-                        onclick="playEpisode(this.dataset.episodePath)"
-                    >
-                        <span aria-hidden="true">▶</span>
-                        <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
-                    </button>
-                    {% endif %}
-                    <a href="#episodeListContent" class="detail-episodes-link">Browse episodes &darr;</a>
-                </div>
                 <div class="anime-meta detail-meta">
 
                     <span>
@@ -133,16 +118,28 @@
                     </div>
                 </div>
 
-                {% if anime_info.description %}
-                <details class="detail-synopsis">
-                    <summary>Synopsis <span>Read more</span></summary>
-                    <p>{{ anime_info.description|striptags }}</p>
-                </details>
-                {% endif %}
+                <p class="anime-description{% if anime_info.description|striptags|length > 320 %} is-collapsed{% endif %}">
+
+                    {{ anime_info.description
+                        | striptags
+                        | truncate(400)
+                    }}
+
+                </p>
 
                 <div class="info-grid detail-info-grid">
 
-
+                    {% if resume_episode and not is_movie %}
+                    <button
+                        type="button"
+                        class="watch-btn detail-watch-btn"
+                        data-episode-path="{{ resume_episode.file }}"
+                        onclick="playEpisode(this.dataset.episodePath)"
+                    >
+                        <span aria-hidden="true">▶</span>
+                        <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
+                    </button>
+                    {% endif %}
 
                     <div class="info-card">
                         <h3>{{ anime_info.year }}</h3>
@@ -164,8 +161,13 @@
                         class="info-card detail-airing-card"
                         data-airing-at="{{ anime_info.next_airing.airingAt }}"
                     >
-                        <h3>{{ 'Ep ' ~ anime_info.next_airing.episode if anime_info.next_airing.episode else 'Next broadcast' }}: <span data-airing-countdown>soon</span></h3>
+                        <h3>Ep {{ anime_info.next_airing.episode }}: <span data-airing-countdown>soon</span></h3>
                         <p>Airing</p>
+                    </div>
+                    {% elif anime_info.status %}
+                    <div class="info-card">
+                        <h3>{{ anime_info.status }}</h3>
+                        <p>Status</p>
                     </div>
                     {% endif %}
 
@@ -185,8 +187,6 @@
                         </h3>
                         <p>Studio</p>
                     </div>
-                    
-
 
                 </div>
 

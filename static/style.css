@@ -9956,6 +9956,102 @@ body:has(.hero-foreground) .character-section {
 }
 
 /* Manual AniList metadata matching */
+.anime-watch-corner-badge i {
+    flex: 0 0 15px;
+    width: 15px;
+    height: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #86efac;
+    background: rgba(34,197,94,.35);
+    font-size: 9.5px;
+    font-weight: 900;
+    font-style: normal;
+}
+
+.anime-watch-corner-badge.is-complete {
+    padding: 4px 6px 4px 10px;
+    border-color: rgba(74,222,128,.45);
+    background: rgba(6, 44, 31, 0.88);
+    color: #a7f3d0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+.anime-watch-corner-badge.is-complete i {
+    background: rgba(34,197,94,.35);
+    color: #86efac;
+}
+
+.anime-watch-corner-badge.not-started {
+    padding: 4px 10px;
+    border-color: rgba(255,255,255,.16);
+    background: rgba(20, 27, 41, 0.85);
+    color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+.collection-section .grid .card:hover .anime-watch-corner-badge,
+.collection-section .grid .card:focus-within .anime-watch-corner-badge {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.index-collection-section .grid .anime-watch-corner-badge,
+.movie-collection-section .grid .anime-watch-corner-badge {
+    top: 10px;
+    right: 10px;
+    gap: 6px;
+    max-width: calc(100% - 20px);
+    min-height: 26px;
+    padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    color: rgba(246,250,255,.98);
+    background: rgba(10, 15, 26, 0.82);
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.index-collection-section .grid .anime-watch-corner-badge span,
+.movie-collection-section .grid .anime-watch-corner-badge span {
+    font-size: 10px;
+    letter-spacing: .04em;
+    line-height: 1;
+}
+
+.index-collection-section .grid .anime-watch-corner-badge i,
+.movie-collection-section .grid .anime-watch-corner-badge i {
+    flex-basis: 15px;
+    width: 15px;
+    height: 15px;
+    font-size: 9.5px;
+}
+
+.index-collection-section .grid .anime-watch-corner-badge.is-complete,
+.movie-collection-section .grid .anime-watch-corner-badge.is-complete {
+    padding: 4px 6px 4px 10px;
+    border-color: rgba(74,222,128,.45);
+    color: #a7f3d0;
+    background: rgba(6, 44, 31, 0.88);
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
+}
+
+.index-collection-section .grid .anime-watch-corner-badge.not-started,
+.movie-collection-section .grid .anime-watch-corner-badge.not-started {
+    padding: 4px 10px;
+    border-color: rgba(255,255,255,.16);
+    color: rgba(238,242,248,.94);
+    background: rgba(20, 27, 41, 0.85);
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
+}
+
 .metadata-match-trigger {
     display: inline-flex;
     align-items: center;
@@ -9975,13 +10071,6 @@ body:has(.hero-foreground) .character-section {
     transition: var(--transition);
 }
 
-.metadata-match-trigger:hover,
-.metadata-match-trigger:focus-visible {
-    border-color: var(--cyan);
-    background: rgba(0, 216, 255, .10);
-    box-shadow: 0 0 24px var(--glow-cyan);
-    transform: translateY(-1px);
-}
 
 body.metadata-modal-open {
     overflow: hidden;
@@ -11255,27 +11344,23 @@ body.metadata-modal-open {
 .anime-watch-corner-badge {
     position: absolute;
     top: 14px;
-    right: 14px;
+    top: 7px;
+    right: 7px;
     z-index: 5;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 4px;
     width: max-content;
-    max-width: calc(100% - 28px);
+    max-width: calc(100% - 14px);
     margin-left: auto;
-    min-height: 32px;
-    padding: 5px 6px 5px 11px;
-    border: 1px solid rgba(255,255,255,.16);
+    min-height: 18px;
+    padding: 2px 6px;
+    border: 1px solid rgba(255,255,255,.18);
     border-radius: 999px;
     color: rgba(245,249,255,.96);
-    background:
-        linear-gradient(135deg, rgba(0,216,255,.25), rgba(51,51,255,.18)),
-        rgba(0,0,0,.08);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.24),
-        0 10px 24px rgba(0,0,0,.30),
-        0 0 18px rgba(0,216,255,.18);
+    background: rgba(10, 15, 26, 0.78);
+    box-shadow: 0 2px 8px rgba(0,0,0,.45);
     opacity: 1;
     transform: translateY(0);
     transition:
@@ -11289,15 +11374,16 @@ body.metadata-modal-open {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 10px;
-    font-weight: 900;
+    font-size: 7.5px;
+    font-weight: 800;
     letter-spacing: .04em;
+    line-height: 1;
 }
 
 .anime-watch-corner-badge i {
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
+    flex: 0 0 11px;
+    width: 11px;
+    height: 11px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -11306,7 +11392,6 @@ body.metadata-modal-open {
     background: rgba(51,51,255,.30);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.28),
-        0 0 14px rgba(51,51,255,.32);
     font-size: 12px;
     font-weight: 900;
     font-style: normal;
@@ -11354,12 +11439,12 @@ body.metadata-modal-open {
 
 .index-collection-section .grid .anime-watch-corner-badge,
 .movie-collection-section .grid .anime-watch-corner-badge {
-    top: 12px;
-    right: 12px;
-    gap: 7px;
-    max-width: calc(100% - 24px);
-    min-height: 34px;
-    padding: 7px 12px;
+    top: 7px;
+    right: 7px;
+    gap: 4px;
+    max-width: calc(100% - 14px);
+    min-height: 18px;
+    padding: 2px 6px;
     border-color: rgba(255,255,255,.18);
     color: rgba(246,250,255,.98);
     background:
@@ -11368,15 +11453,14 @@ body.metadata-modal-open {
         rgba(3,8,22,.18);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.20),
-        0 10px 24px rgba(0,0,0,.38),
-        0 0 18px rgba(0,216,255,.15);
+        0 6px 16px rgba(0,0,0,.35);
     backdrop-filter: blur(12px) saturate(145%);
     -webkit-backdrop-filter: blur(12px) saturate(145%);
 }
 
 .index-collection-section .grid .anime-watch-corner-badge span,
 .movie-collection-section .grid .anime-watch-corner-badge span {
-    font-size: 10.5px;
+    font-size: 7.5px;
     letter-spacing: .035em;
     line-height: 1;
     text-shadow: 0 1px 8px rgba(0,0,0,.52);
@@ -11384,15 +11468,15 @@ body.metadata-modal-open {
 
 .index-collection-section .grid .anime-watch-corner-badge i,
 .movie-collection-section .grid .anime-watch-corner-badge i {
-    flex-basis: 20px;
-    width: 20px;
-    height: 20px;
-    font-size: 11px;
+    flex-basis: 11px;
+    width: 11px;
+    height: 11px;
+    font-size: 7.5px;
 }
 
 .index-collection-section .grid .anime-watch-corner-badge.is-complete,
 .movie-collection-section .grid .anime-watch-corner-badge.is-complete {
-    padding: 7px 6px 7px 12px;
+    padding: 2px 4px 2px 6px;
     border-color: rgba(74,222,128,.36);
     color: rgba(232,255,244,.98);
     background:
@@ -11401,13 +11485,12 @@ body.metadata-modal-open {
         rgba(2,18,14,.18);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.20),
-        0 10px 24px rgba(0,0,0,.38),
-        0 0 18px rgba(52,211,153,.16);
+        0 6px 16px rgba(0,0,0,.35);
 }
 
 .index-collection-section .grid .anime-watch-corner-badge.not-started,
 .movie-collection-section .grid .anime-watch-corner-badge.not-started {
-    padding: 7px 12px;
+    padding: 2px 6px;
     border-color: rgba(148,163,184,.28);
     color: rgba(238,242,248,.94);
     background:
@@ -14821,57 +14904,32 @@ body.movie-detail-body .plyr:-webkit-full-screen .movie-toast {
     border: 1px solid rgba(0,216,255,.24);
     border-radius: 11px;
     color: rgba(220,248,255,.94);
-    background: rgba(0,216,255,.075);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.05);
     font: inherit;
     font-size: 12px;
-    font-weight: 850;
+    font-weight: 700;
     white-space: nowrap;
     cursor: pointer;
-    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+    box-shadow: none;
+    transition: all .2s ease;
 }
 
 .index-collection-section .home-refresh-btn:hover,
 .index-collection-section .home-refresh-btn:focus-visible {
-    border-color: rgba(0,216,255,.44);
-    background: rgba(0,216,255,.14);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
     outline: none;
 }
 
 .index-collection-section .home-refresh-btn:disabled {
     cursor: wait;
-    opacity: .72;
+    opacity: .65;
 }
 
-.index-collection-section .home-refresh-icon {
-    font-size: 18px;
-    line-height: 1;
-}
-
-.index-collection-section .home-refresh-btn.is-loading .home-refresh-icon {
-    animation: homeRefreshSpin .8s linear infinite;
-}
-
-.index-collection-section .home-refresh-status {
-    min-height: 14px;
-    max-width: 210px;
-    color: rgba(184,198,213,.72);
-    font-size: 10px;
-    line-height: 1.3;
-    text-align: right;
-}
-
-.index-collection-section .home-refresh-status.is-error {
-    color: rgba(251,146,60,.94);
-}
-
-@keyframes homeRefreshSpin {
-    to { transform: rotate(360deg); }
-}
-
-.index-collection-section .home-sort-control {
-    align-self: end;
-    margin-left: auto;
-}
 
 .index-collection-section .library-filter-empty {
     width: min(1180px, calc(100% - 40px));
