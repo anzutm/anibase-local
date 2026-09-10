@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}support-page{% endblock %}
 
 {% block title %}Airing Schedule - AniBase{% endblock %}
 
@@ -17,7 +18,7 @@
                     </div>
                     <p class="section-subtitle page-heading-copy">{{ schedule_range }} ({{ timezone_label }})</p>
                     <p class="schedule-heading-support">Track what aired, what is live, and what comes next.</p>
-                    <span class="provider-indicator provider-indicator--{{ schedule_provider|lower }}" aria-label="Metadata provider">
+                    <span class="provider-indicator provider-indicator--{{ 'tenrai' if schedule_provider|lower == 'tenrai fallback' else 'anilist' }}" aria-label="Metadata provider">
                         <span class="provider-indicator-dot" aria-hidden="true"></span>
                         Provider: {{ schedule_provider }}
                     </span>

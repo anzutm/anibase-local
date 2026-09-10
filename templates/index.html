@@ -2,89 +2,35 @@
 
 {% block title %}AniBase{% endblock %}
 
+{% block body_class %}home-page{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='2') }}">
+{% endblock %}
 {% block content %}
+<div class="home-intro">
+    <div><span class="home-section-eyebrow">ANIBASE / YOUR PRIVATE SCREENING ROOM</span><h1>Your next escape.</h1></div>
+    <div class="home-collection-summary"><strong>{{ anime_list|length + home_movies|length }}</strong><span>titles in your collection</span><a href="#animeCollectionGrid" class="home-library-link">Explore library &rarr;</a></div>
+</div>
 {% if featured_slides %}
-
-<div class="featured-anime">
-    <div class="hero-ambient hero-ambient-left"></div>
-    <div class="hero-ambient hero-ambient-right"></div>
-
+<section class="home-spotlight featured-anime" aria-label="Featured collection">
     {% for slide in featured_slides %}
-    <div class="featured-slide {% if loop.first %}active{% endif %}">
-        <img
-            src="{{ url_for('banner', anime_name=slide.anime.name) }}"
-            class="featured-banner"
-            alt="{{ slide.anime.name }}"
-        >
-
-        <div class="featured-overlay">
-            <div class="featured-stage">
-                <div class="featured-content">
-                    <div class="featured-kicker">Featured Collection</div>
-                    <h2 class="{% if slide.anime.name|length > 64 %}is-extra-long{% elif slide.anime.name|length > 48 %}is-long{% elif slide.anime.name|length > 34 %}is-medium{% endif %}">
-                        {{ slide.anime.name }}
-                    </h2>
-
-                    <div class="featured-row">
-                        {% if slide.info %}
-                        <div class="hero-actions">
-                            <a href="{{ url_for('anime_detail', anime_name=slide.anime.name) }}" class="watch-btn">&#9654; Play Now</a>
-                        </div>
-
-                        <div class="featured-meta">
-                            {% if slide.info and slide.info.score is not none %}
-                            <span><b>&starf;</b> {{ "%.1f"|format((slide.info.score or 0) / 10) }}/10</span>
-                            {% endif %}
-
-                            {% if slide.info.year %}
-                            <span>{{ slide.info.season }} {{ slide.info.year }}</span>
-                            {% endif %}
-
-                            {% if slide.info.genres %}
-                            <span>{{ slide.info.genres[:3] | join(" / ") }}</span>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        <span class="featured-episodes">{{ slide.anime.episodes }} Episodes</span>
-                    </div>
-
-                    {% if slide.info and slide.info.description %}
-                    <p class="featured-description">
-                        {{ slide.info.description | striptags | truncate(150) }}
-                    </p>
-                    {% endif %}
-
-                    <div class="featured-proof">
-                        <span>Local Library</span>
-                        <span>HD Ready</span>
-                        <span>Resume Supported</span>
-                    </div>
-                </div>
-
-                <div class="featured-visual">
-                    <div class="featured-poster-wrapper">
-                        <div class="poster-glass-frame">
-                            <img src="{{ url_for('poster', anime_name=slide.anime.name) }}" class="featured-poster-floating" alt="">
-                        </div>
-                        <div class="featured-side-panel">
-                            <span class="side-panel-label">Now Featuring</span>
-                            <strong>{{ loop.index }}/{{ featured_slides|length }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="home-spotlight-slide featured-slide {% if loop.first %}active{% endif %}" aria-hidden="{{ 'false' if loop.first else 'true' }}" {% if not loop.first %}inert{% endif %}>
+        <img src="{{ url_for('banner', anime_name=slide.anime.name) }}" class="home-spotlight-image" alt="" {% if loop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %}>
+        <div class="home-spotlight-copy">
+            <span class="home-feature-label"><i aria-hidden="true"></i> THE SPOTLIGHT <span>{{ "%02d"|format(loop.index) }} / {{ "%02d"|format(featured_slides|length) }}</span></span>
+            <h2>{{ slide.anime.name }}</h2>
+            <p class="home-spotlight-meta">{{ slide.anime.episodes }} episodes{% if slide.info and slide.info.year %} &middot; {{ slide.info.year }}{% endif %}{% if slide.info and slide.info.genres %} &middot; {{ slide.info.genres[:2]|join(' / ') }}{% endif %}</p>
+            {% if slide.info and slide.info.description %}<p class="home-spotlight-description">{{ slide.info.description|striptags|truncate(180) }}</p>{% endif %}
+            <div class="home-hero-actions"><a class="home-primary-action" href="{{ url_for('anime_detail', anime_name=slide.anime.name) }}">Explore anime <span aria-hidden="true">&rarr;</span></a><a href="#continueGrid" class="home-secondary-action">Continue watching</a></div>
         </div>
     </div>
     {% endfor %}
-
-    <div class="featured-dots">
-        {% for slide in featured_slides %}
-        <div class="dot {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}"></div>
-        {% endfor %}
+    {% if featured_slides|length > 1 %}
+    <div class="home-spotlight-pagination" aria-label="Choose featured anime">
+        {% for slide in featured_slides %}<button type="button" class="dot {% if loop.first %}active{% endif %}" aria-label="Show {{ slide.anime.name }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-index="{{ loop.index0 }}"></button>{% endfor %}
     </div>
-</div>
-
+    {% endif %}
+</section>
 {% endif %}
 
 <section class="continue-watching-section index-section-panel">
@@ -93,9 +39,9 @@
             <span class="home-section-eyebrow">Resume</span>
             <div class="section-title">
                 <div class="section-line"></div>
-                <h2 class="section-heading">Last Watched</h2>
+                <h2 class="section-heading">Continue Watching</h2>
             </div>
-            <p class="section-subtitle">Back to the last episode without losing momentum.</p>
+            <p class="section-subtitle">Pick up where you left off.</p>
         </div>
         <div class="resume-actions">
             <div class="resume-count-badge">
@@ -119,7 +65,7 @@
                             <div class="progress-fill" style="width: 0%;" data-progress="{{ item.progress_percent }}"></div>
                         </div>
                         <div class="continue-overlay">
-                            <button class="play-mini-btn" type="button">&#9654;</button>
+                            <span class="play-mini-btn" aria-hidden="true">&#9654;</span>
                             <span class="continue-overlay-text">Continue</span>
                         </div>
                     </div>
@@ -160,9 +106,9 @@
             <span class="home-section-eyebrow">Library</span>
             <div class="section-title">
                 <div class="section-line"></div>
-                <h2 class="section-heading">Anime Collection</h2>
+                <h2 class="section-heading">The Collection<span class="home-heading-count">{{ anime_list|length + home_movies|length }}</span></h2>
             </div>
-            <p class="section-subtitle">Explore your local anime library with real-time data.</p>
+            <p class="section-subtitle">Your collection, ready when you are.</p>
         </div>
     </div>
 
@@ -321,7 +267,7 @@
                         {% endif %}
                     </div>
 
-                    <button class="play-hover-btn">&#9654; Watch</button>
+                    <span class="play-hover-btn">View details &rarr;</span>
                 </div>
             </a>
         </div>
@@ -415,7 +361,6 @@
         const slides = document.querySelectorAll('.featured-slide');
         const dots = document.querySelectorAll('.dot');
         let currentSlide = 0;
-        let slideInterval;
 
         function showSlide(index) {
             if (!slides[currentSlide] || !dots[currentSlide] || !slides[index] || !dots[index]) {
@@ -423,25 +368,24 @@
             }
 
             slides[currentSlide].classList.remove('active');
+            slides[currentSlide].setAttribute('aria-hidden', 'true');
+            slides[currentSlide].inert = true;
+            dots[currentSlide].setAttribute('aria-pressed', 'false');
             dots[currentSlide].classList.remove('active');
             currentSlide = index;
             slides[currentSlide].classList.add('active');
+            slides[currentSlide].setAttribute('aria-hidden', 'false');
+            slides[currentSlide].inert = false;
+            dots[currentSlide].setAttribute('aria-pressed', 'true');
             dots[currentSlide].classList.add('active');
         }
 
-        function startSlider() {
-            slideInterval = setInterval(() => {
-                showSlide((currentSlide + 1) % slides.length);
-            }, 7000);
-        }
-
         if (slides.length > 1) {
-            startSlider();
+
             dots.forEach((dot, idx) => {
                 dot.addEventListener('click', () => {
-                    clearInterval(slideInterval);
                     showSlide(idx);
-                    startSlider();
+
                 });
             });
         }

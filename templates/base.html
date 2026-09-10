@@ -9,6 +9,9 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block extra_head %}{% endblock %}
+    {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_page', 'setup_loading'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='1') }}">
+    {% endif %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% block topbar %}

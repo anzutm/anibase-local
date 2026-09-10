@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}support-page{% endblock %}
 
 {% block title %}{{ seiyuu_data.name_full if seiyuu_data else 'Voice Actor Profile' }} - AniBase{% endblock %}
 
@@ -64,7 +65,7 @@
         <div class="sy-profile">
             <div class="sy-badges">
                 <span>Voice Actor</span>
-                {% if seiyuu_data.source %}<span class="sy-source">Provider: {{ seiyuu_data.source }}</span>{% endif %}
+                {% if seiyuu_data.source %}<span class="sy-source provider-indicator provider-indicator--{{ seiyuu_data.source|lower }}">Provider: {{ seiyuu_data.source }}</span>{% endif %}
             </div>
             <h1>{{ seiyuu_data.name_full or 'Unknown Voice Actor' }}</h1>
             {% if seiyuu_data.name_native %}<p class="sy-native">{{ seiyuu_data.name_native }}</p>{% endif %}

@@ -11,7 +11,8 @@
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='watch-pages.css', v='1') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -79,6 +80,20 @@
                     {% endif %}
                 </div>
 
+                <div class="detail-primary-actions">
+                    {% if resume_episode and not is_movie %}
+                    <button
+                        type="button"
+                        class="watch-btn detail-watch-btn"
+                        data-episode-path="{{ resume_episode.file }}"
+                        onclick="playEpisode(this.dataset.episodePath)"
+                    >
+                        <span aria-hidden="true">▶</span>
+                        <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
+                    </button>
+                    {% endif %}
+                    <a href="#episodeListContent" class="detail-episodes-link">Browse episodes &darr;</a>
+                </div>
                 <div class="anime-meta detail-meta">
 
                     <span>
@@ -118,28 +133,16 @@
                     </div>
                 </div>
 
-                <p class="anime-description{% if anime_info.description|striptags|length > 320 %} is-collapsed{% endif %}">
-
-                    {{ anime_info.description
-                        | striptags
-                        | truncate(400)
-                    }}
-
-                </p>
+                {% if anime_info.description %}
+                <details class="detail-synopsis">
+                    <summary>Synopsis <span>Read more</span></summary>
+                    <p>{{ anime_info.description|striptags }}</p>
+                </details>
+                {% endif %}
 
                 <div class="info-grid detail-info-grid">
 
-                    {% if resume_episode and not is_movie %}
-                    <button
-                        type="button"
-                        class="watch-btn detail-watch-btn"
-                        data-episode-path="{{ resume_episode.file }}"
-                        onclick="playEpisode(this.dataset.episodePath)"
-                    >
-                        <span aria-hidden="true">▶</span>
-                        <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
-                    </button>
-                    {% endif %}
+
 
                     <div class="info-card">
                         <h3>{{ anime_info.year }}</h3>
@@ -161,7 +164,7 @@
                         class="info-card detail-airing-card"
                         data-airing-at="{{ anime_info.next_airing.airingAt }}"
                     >
-                        <h3>Ep {{ anime_info.next_airing.episode }}: <span data-airing-countdown>soon</span></h3>
+                        <h3>{{ 'Ep ' ~ anime_info.next_airing.episode if anime_info.next_airing.episode else 'Next broadcast' }}: <span data-airing-countdown>soon</span></h3>
                         <p>Airing</p>
                     </div>
                     {% endif %}
@@ -183,18 +186,7 @@
                         <p>Studio</p>
                     </div>
                     
-                    {% if not is_movie %}
-                    <button
-                        type="button"
-                        class="info-card"
-                        id="movieDeleteBtn"
-                        style="cursor: pointer; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05);"
-                        title="Delete anime folder and its cache permanently"
-                    >
-                        <h3 style="color: #fca5a5;"><span aria-hidden="true">&#128465;</span></h3>
-                        <p style="color: rgba(252, 165, 165, 0.8);">Delete Anime</p>
-                    </button>
-                    {% endif %}
+
 
                 </div>
 
@@ -220,6 +212,14 @@
 
     </div> <!-- End hero-overlay -->
 </div> <!-- End hero -->
+
+{% if not is_movie %}
+<details class="detail-library-actions">
+    <summary>Manage this anime</summary>
+    <p>Deleting removes the local anime folder and its cache.</p>
+    <button type="button" id="movieDeleteBtn" class="detail-delete-action">Delete anime</button>
+</details>
+{% endif %}
 
 {% if not is_movie %}
 <div class="metadata-match-modal" id="metadataMatchModal" hidden>

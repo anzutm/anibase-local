@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}support-page{% endblock %}
 
 {% block title %}About AniBase{% endblock %}
 
@@ -550,15 +551,14 @@
                     <img src="{{ url_for('static', filename='logo_transparent_cropped.png') }}" alt="AniBase logo">
                     <span>About the App</span>
                 </div>
-                <h1>AniBase</h1>
+                <h1>Your collection.<br>Your cinema.</h1>
                 <p class="hero-lede">
-                    A local-first anime library server for watching your own collection from a PC,
-                    phone, tablet, or TV on the same LAN, with background metadata enrichment,
-                    watch progress, automation, and a polished streaming-style interface.
+                    Bring your anime folders to life. Browse beautiful artwork, pick up your last episode,
+                    and enjoy your collection on devices connected to your home network.
                 </p>
                 <div class="badges" aria-label="Release highlights">
                     <span class="badge primary">Local / LAN</span>
-                    <span class="badge">Flask</span>
+
                     <span class="badge gold">Anime Library</span>
                     <span class="badge">Media Player Friendly</span>
                     <span class="badge primary">Watch Progress</span>
@@ -609,7 +609,7 @@
                     <h2 class="section-title">Built for local anime libraries</h2>
                     <p class="section-subtitle">
                         Point it at your anime folders and start browsing as soon as the local scan
-                        finishes. Posters and AniList information continue loading in the background.
+                        finishes. Posters and anime metadata continue loading in the background.
                     </p>
                 </div>
             </div>

@@ -20,8 +20,9 @@
     <meta name="theme-color" content="#0b0907">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-2') }}">
 
+<link rel="stylesheet" href="{{ url_for('static', filename='watch-pages.css', v='1') }}">
 </head>
 
 <body class="player-body">
@@ -140,8 +141,8 @@
             <h2>{{ "Now Playing" if is_movie else "Episodes" }}</h2>
         </div>
         <div class="episode-controls">
-            <button id="scrollLeft">&larr;</button>
-            <button id="scrollRight">&rarr;</button>
+            <button type="button" id="scrollLeft" aria-label="Previous episodes">&larr;</button>
+            <button type="button" id="scrollRight" aria-label="Next episodes">&rarr;</button>
         </div>
     </div>
 
@@ -170,6 +171,7 @@
                 <img
 
                     class="player-thumb"
+                    alt="{{ ep.display_name }}"
 
                     src="{{ ep.thumbnail }}"
 

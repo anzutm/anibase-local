@@ -1,0 +1,115 @@
+/* Home design foundation. Scoped to avoid changing the player and profiles. */
+.home-page {
+    --home-surface: #111722;
+    --home-muted: #a8b2c4;
+    --home-line: rgba(255,255,255,.10);
+    --home-radius: 16px;
+    background: #090d14;
+    color: #f3f5fa;
+}
+.home-page main { padding: 36px 28px 0; }
+.home-page .topbar { background: rgba(9,13,20,.96); box-shadow: none; border-bottom: 1px solid var(--home-line); }
+.home-page .home-intro { max-width: 1320px; margin: 34px auto 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.home-page .home-intro h1 { font-size: clamp(24px,3vw,36px); letter-spacing: -.035em; margin: 6px 0 0; }
+.home-page .home-section-eyebrow { color: var(--cyan); font-size: 11px; letter-spacing: .14em; font-weight: 700; }
+.home-page .home-library-link { color: var(--home-muted); text-decoration: none; font-size: 14px; padding: 12px 0; }
+.home-page .home-spotlight { position: relative; max-width: 1320px; width: 100%; height: 440px; min-height: 0; margin: 0 auto 36px; border: 1px solid var(--home-line); border-radius: 24px; overflow: hidden; background: var(--home-surface); box-shadow: none; }
+.home-page .home-spotlight::after, .home-page .home-spotlight-slide::before, .home-page .home-spotlight-slide::after { display: none; }
+.home-page .home-spotlight-slide { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .25s ease; }
+.home-page .home-spotlight-slide.active { z-index: 1; opacity: 1; visibility: visible; }
+.home-spotlight-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
+.home-spotlight-copy { position: relative; height: 100%; padding: 40px 48px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; background: linear-gradient(90deg,rgba(9,13,20,.98),rgba(9,13,20,.83) 42%,rgba(9,13,20,.18)); }
+.home-spotlight-copy h2 { max-width: 690px; margin: 10px 0; font-size: clamp(28px,3.4vw,48px); line-height: 1.13; letter-spacing: -.035em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.home-spotlight-meta { color: #c3ccd9; font-size: 13px; }
+.home-spotlight-description { max-width: 560px; color: #a8b2c4; font-size: 14px; line-height: 1.6; margin-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home-primary-action { display: inline-flex; gap: 24px; align-items: center; min-height: 44px; padding: 0 20px; margin-top: 20px; border-radius: 10px; background: var(--cyan); color: #071018; font-weight: 700; text-decoration: none; font-size: 14px; }
+.home-spotlight-pagination { position: absolute; bottom: 18px; right: 24px; z-index: 4; display: flex; gap: 4px; }
+.home-page .home-spotlight-pagination .dot { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent; box-shadow: none; cursor: pointer; }
+.home-spotlight-pagination .dot::after { content: ''; width: 18px; height: 3px; border-radius: 4px; background: rgba(255,255,255,.45); }
+.home-spotlight-pagination .dot.active::after { background: var(--cyan); width: 28px; }
+.home-page .index-section-panel { max-width: 1320px; width: 100%; margin: 0 auto 36px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.home-page .index-section-panel::before, .home-page .index-section-panel::after, .home-page .collection-glow, .home-page .toolbar-line, .home-page .section-line { display: none; }
+.home-page .section-heading { font-size: clamp(22px,2.3vw,28px); letter-spacing: -.025em; text-shadow: none; }
+.home-page .section-subtitle { color: var(--home-muted); font-size: 14px; }
+.home-page .resume-section-head { margin-bottom: 18px; }
+.home-page .continue-card { border: 1px solid var(--home-line); border-radius: var(--home-radius); background: var(--home-surface); box-shadow: none; }
+.home-page .continue-card:hover { box-shadow: none; transform: translateY(-2px); }
+.home-page .continue-card::after { display: none; }
+.home-page .continue-info { padding: 14px; }
+.home-page .continue-title-row h3 { font-size: 14px; }
+.home-page .collection-toolbar { padding: 18px; border: 1px solid var(--home-line); background: var(--home-surface); border-radius: var(--home-radius); gap: 16px; }
+.home-page .filter-btn { box-shadow: none; min-height: 40px; }
+.home-page #animeCollectionGrid { grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 22px 18px; }
+.home-page #animeCollectionGrid .card { border-radius: var(--home-radius); box-shadow: none; border: 1px solid var(--home-line); background: var(--home-surface); }
+.home-page #animeCollectionGrid .card:hover { transform: translateY(-3px); box-shadow: none; }
+.home-page #animeCollectionGrid .poster-overlay { background: linear-gradient(transparent,rgba(5,9,16,.90) 35%,#090d14); }
+.home-page #animeCollectionGrid .poster-overlay h3 { font-size: 15px; line-height: 1.4; }
+.home-page #animeCollectionGrid .anime-watch-corner-badge { backdrop-filter: none; box-shadow: none; background: rgba(9,13,20,.90); }
+.home-page :is(a,button,input):focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
+.home-page .main-footer { background: transparent; border-top: 1px solid var(--home-line); box-shadow: none; }
+/* Editorial hierarchy: artwork above readable, always-visible titles. */
+.home-collection-summary { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0 12px; color: var(--home-muted); font-size: 12px; }
+.home-collection-summary strong { grid-row: span 2; color: #edf2fa; font-size: 38px; font-weight: 500; letter-spacing: -.06em; }
+.home-collection-summary .home-library-link { padding: 3px 0; color: var(--cyan); }
+.home-feature-label { display: inline-flex; align-items: center; gap: 9px; color: #e1e8f0; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+.home-feature-label i { width: 6px; height: 6px; background: var(--cyan); border-radius: 50%; }
+.home-feature-label span { color: #9caabc; padding-left: 12px; border-left: 1px solid #596170; margin-left: 8px; }
+.home-hero-actions { display: flex; align-items: center; gap: 22px; margin-top: 24px; }
+.home-hero-actions .home-primary-action { margin-top: 0; }
+.home-secondary-action { color: #ecf2fa; text-decoration: none; font-size: 13px; padding: 14px 0; }
+.home-heading-count { display: inline-block; vertical-align: middle; margin-left: 12px; padding: 4px 9px; font-size: 12px; border: 1px solid var(--home-line); border-radius: 8px; color: var(--home-muted); letter-spacing: 0; }
+.home-page .continue-grid { gap: 18px; }
+.home-page .continue-card .continue-thumb { aspect-ratio: 16/9; height: auto; }
+.home-page .continue-card .continue-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.home-page .continue-card .progress-bar-container { height: 3px; bottom: 0; }
+.home-page .continue-card .continue-info { background: var(--home-surface); }
+.home-page .continue-card .continue-remove-btn { opacity: 1; }
+.home-page #animeCollectionGrid .card { height: auto; overflow: hidden; background: transparent; border: 0; border-radius: 12px; }
+.home-page #animeCollectionGrid .card > a { display: flex; flex-direction: column; height: 100%; text-decoration: none; position: relative; }
+.home-page #animeCollectionGrid .poster { position: relative; width: 100%; height: auto; aspect-ratio: 2/3; object-fit: cover; border-radius: 12px; }
+.home-page #animeCollectionGrid .poster-overlay { position: static; padding: 12px 0 6px; height: auto; min-height: 90px; opacity: 1; transform: none; background: transparent; }
+.home-page #animeCollectionGrid .poster-overlay h3 { color: #e7edf6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 6px; min-height: 42px; opacity: 1; transform: none; }
+.home-page #animeCollectionGrid .poster-card-meta { color: var(--home-muted); font-size: 11px; gap: 6px; flex-wrap: wrap; opacity: 1; transform: none; }
+.home-page #animeCollectionGrid .poster-card-meta span { padding: 0; background: transparent; border: 0; }
+.home-page #animeCollectionGrid .play-hover-btn { display: none; }
+.home-page #animeCollectionGrid .anime-airing-countdown { position: static; order: 2; margin: 3px 0 0; border-radius: 6px; min-height: 28px; padding: 6px 8px; font-size: 10px; background: var(--home-surface); }
+.home-page #animeCollectionGrid .anime-watch-corner-badge { top: 10px; right: 10px; font-size: 9px; padding: 5px 7px; border-radius: 6px; max-width: calc(100% - 20px); }
+.home-page .collection-toolbar { box-shadow: none; margin-bottom: 24px; }
+.home-page .home-filter-label { font-size: 10px; color: var(--home-muted); }
+.home-page .resume-section-head, .home-page .index-collection-top { background: transparent; box-shadow: none; border: 0; padding: 0; }
+.home-page .resume-section-head::before, .home-page .index-collection-top::before { display: none; }
+.home-page .continue-grid-shell { background: transparent; border: 0; padding: 0; box-shadow: none; }
+.home-page .home-filter-group { border: 0; background: transparent; padding: 0; box-shadow: none; }
+.home-page .filter-btn { white-space: nowrap; border-radius: 8px; font-size: 12px; padding: 9px 12px; }
+.home-page .filter-btn.active { background: var(--cyan); color: #071018; border-color: transparent; }
+.home-page .continue-grid:has(.continue-card.empty:only-child) { display: block; }
+.home-page .continue-card.empty { width: 100%; min-height: 120px; height: auto; background: var(--home-surface); }
+@media(max-width: 768px) {
+    .home-page .topbar { position: relative; top: auto; left: auto; transform: none; display: flex; flex-wrap: wrap; width: calc(100% - 24px); margin: 12px; padding: 14px; height: auto; min-height: 0; gap: 14px; }
+    .home-page .topbar .nav-left, .home-page .topbar .nav-center, .home-page .topbar .nav-right { position: static; transform: none; width: 100%; flex: auto; height: auto; margin: 0; }
+    .home-page .topbar .nav-center { order: 3; }
+    .home-page .topbar .nav-links { display: flex; justify-content: center; gap: 8px; }
+    .home-page .topbar .nav-right { display: flex; gap: 10px; }
+    .home-page .topbar .search-box { flex: 1; min-width: 0; width: auto; }
+    .home-page .home-filter-groups { display: flex; flex-direction: column; width: 100%; gap: 16px; overflow: visible; }
+    .home-page .home-filter-group { width: 100%; min-width: 0; }
+    .home-page .status-filter { display: flex; flex-wrap: wrap; overflow: visible; gap: 6px; }
+    .home-page .home-hero-actions { flex-wrap: wrap; gap: 4px 16px; }
+    .home-page .home-primary-action { white-space: nowrap; }
+
+    .home-page main { padding: 0 16px; }
+    .home-page .home-intro { margin-top: 24px; }
+    .home-page .home-library-link { font-size: 12px; }
+    .home-collection-summary { display: none; }
+    .home-hero-actions { gap: 14px; }
+    .home-secondary-action { font-size: 12px; }
+    .home-page .home-spotlight { height: 380px; border-radius: 16px; }
+    .home-spotlight-copy { padding: 24px; padding-bottom: 48px; background: linear-gradient(90deg,rgba(9,13,20,.94),rgba(9,13,20,.55)); }
+    .home-page #animeCollectionGrid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .home-page .collection-toolbar { padding: 12px; }
+}
+.home-page #animeCollectionGrid .card { animation: none; filter: none; opacity: 1; }
+.home-page .continue-grid-shell::before, .home-page .continue-grid-shell::after { display: none; }
+@media(prefers-reduced-motion: reduce) {
+    .home-page *, .home-page *::before, .home-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
