@@ -21,6 +21,7 @@ cache/posters/
 cache/seiyuu/
 cache/subtitles/
 cache/thumbnails/
+cache/image_proxy/
 
 # Local database and user data
 cache/library.db
@@ -78,6 +79,7 @@ Downloads/
 .idea/
 *.code-workspace
 .agents/
+.codex/
 
 # =========================
 # Windows system files
@@ -91,11 +93,15 @@ desktop.ini
 # =========================
 *.log
 logs/
+runtime/
+temp/
 
 # =========================
 # Test / coverage artifacts
 # =========================
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 .coverage.*
 coverage.xml
@@ -110,3 +116,12 @@ releases/
 *.egg-info/
 *.zip
 *.spec
+
+# =========================
+# Local editor / OS scratch files
+# =========================
+*.swp
+*.swo
+*.tmp
+*.temp
+*.bak
