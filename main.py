@@ -1252,6 +1252,35 @@ def adapt_tenrai_recommendations(payload, limit=10):
         })
     return adapted
 
+def get_next_tenrai_broadcast_at(broadcast, now=None):
+    """Calculate the next weekly broadcast timestamp from Tenrai metadata."""
+    if not isinstance(broadcast, dict):
+        return None
+    weekdays = {
+        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+        "friday": 4, "saturday": 5, "sunday": 6,
+    }
+    day_name = str(broadcast.get("day") or "").strip().lower().rstrip("s")
+    time_text = str(broadcast.get("time") or "").strip()
+    if day_name not in weekdays or not re.fullmatch(r"\d{1,2}:\d{2}", time_text):
+        return None
+    try:
+        hour, minute = (int(part) for part in time_text.split(":", 1))
+        if hour > 23 or minute > 59:
+            return None
+        source_tz = ZoneInfo(str(broadcast.get("timezone") or "UTC"))
+    except (ValueError, ZoneInfoNotFoundError):
+        return None
+
+    now = now or datetime.now().astimezone()
+    source_now = now.astimezone(source_tz)
+    day_delta = (weekdays[day_name] - source_now.weekday()) % 7
+    candidate = source_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    candidate += timedelta(days=day_delta)
+    if candidate <= source_now:
+        candidate += timedelta(days=7)
+    return int(candidate.timestamp())
+
 def adapt_tenrai_anime_metadata(anime_payload, characters_payload=None, recommendations_payload=None):
     """Convert a Tenrai anime response into AniBase's metadata contract."""
     anime = unwrap_tenrai_data(anime_payload)
@@ -1268,6 +1297,16 @@ def adapt_tenrai_anime_metadata(anime_payload, characters_payload=None, recommen
         score = round(float(score) * 10, 1) if score is not None else None
     except (TypeError, ValueError):
         score = None
+    broadcast = anime.get("broadcast") if isinstance(anime.get("broadcast"), dict) else None
+    next_broadcast_at = get_next_tenrai_broadcast_at(broadcast)
+    next_airing = None
+    if normalize_tenrai_status(anime.get("status")) == "RELEASING" and next_broadcast_at:
+        next_airing = {
+            "airingAt": next_broadcast_at,
+            "episode": None,
+            "provider": TENRAI_METADATA_PROVIDER,
+            "estimated": True,
+        }
     return normalize_anime_metadata_identity({
         "mal_id": mal_id,
         "metadata_provider": TENRAI_METADATA_PROVIDER,
@@ -1283,8 +1322,9 @@ def adapt_tenrai_anime_metadata(anime_payload, characters_payload=None, recommen
         "studio": studio,
         "genres": tenrai_named_values(anime.get("genres")),
         "score": score,
-        # Tenrai does not expose AniList's banner/nextAiringEpisode contract.
-        "next_airing": None,
+        # Tenrai exposes a weekly broadcast slot, but no certain next episode number.
+        "broadcast": broadcast,
+        "next_airing": next_airing,
         "poster": tenrai_image_url(anime.get("images")),
         "banner": None,
         "characters": adapt_tenrai_characters(characters_payload),
@@ -3486,40 +3526,21 @@ def adapt_tenrai_schedule(payload, now=None, lookahead_days=None):
     if now is None:
         now = datetime.now().astimezone()
     lookahead_days = lookahead_days or SCHEDULE_LOOKAHEAD_DAYS
-    weekdays = {
-        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
-        "friday": 4, "saturday": 5, "sunday": 6,
-    }
     adapted = []
     for anime in entries:
         if not isinstance(anime, dict):
             continue
         broadcast = anime.get("broadcast") or {}
-        day_name = str(broadcast.get("day") or "").strip().lower().rstrip("s")
-        time_text = str(broadcast.get("time") or "").strip()
-        if day_name not in weekdays or not re.fullmatch(r"\d{1,2}:\d{2}", time_text):
+        next_broadcast_at = get_next_tenrai_broadcast_at(broadcast, now=now)
+        if not next_broadcast_at:
             continue
-        try:
-            hour, minute = (int(part) for part in time_text.split(":", 1))
-            if hour > 23 or minute > 59:
-                continue
-            source_tz = ZoneInfo(str(broadcast.get("timezone") or "UTC"))
-        except (ValueError, ZoneInfoNotFoundError):
-            continue
-        source_now = now.astimezone(source_tz)
-        day_delta = (weekdays[day_name] - source_now.weekday()) % 7
-        candidate = source_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        candidate += timedelta(days=day_delta)
-        if candidate <= source_now:
-            candidate += timedelta(days=7)
-        local_candidate = candidate.astimezone(now.tzinfo)
-        if local_candidate > now + timedelta(days=lookahead_days):
+        if next_broadcast_at > int((now + timedelta(days=lookahead_days)).timestamp()):
             continue
         title = anime.get("title_english") or anime.get("title")
         if not title:
             continue
         adapted.append({
-            "airingAt": int(local_candidate.timestamp()),
+            "airingAt": next_broadcast_at,
             "episode": None,
             "media": {
                 "title": {"english": anime.get("title_english"), "romaji": title},
@@ -3965,7 +3986,7 @@ def get_cached_anilist_info(
                 elif info and "characters" in info and any(char.get("va_name") and "va_staff_id" not in char for char in info.get("characters", [])):
                     info = None
                 # Releasing anime needs next episode metadata for the airing countdown.
-                elif info and (info.get("status") or "").upper() == "RELEASING" and "next_airing" not in info:
+                elif info and (info.get("status") or "").upper() == "RELEASING" and not info.get("next_airing"):
                     info = None
                 if (
                     expired_next_airing
@@ -6050,7 +6071,7 @@ def get_anime():
                 metadata = get_cached_metadata_only(item["name"]) or {}
                 if (
                     (item.get("status") or "").upper() == "RELEASING"
-                    and "next_airing" not in metadata
+                    and not metadata.get("next_airing")
                 ):
                     metadata = get_cached_anilist_info(item["name"]) or metadata
 
@@ -8339,11 +8360,18 @@ def stream_video(
     if not video_path.lower().endswith('.mkv'):
         mime_type = mimetypes.guess_type(video_path)[0] or "video/mp4"
 
-    return send_file(
+    response = send_file(
         video_path,
         mimetype=mime_type,
-        conditional=True  # Penting: Mengaktifkan dukungan navigasi/seeking
+        conditional=True,
+        etag=True,
+        max_age=3600,
     )
+    # Media tetap hanya disimpan pada cache browser pengguna. Range support
+    # memungkinkan browser mengambil bagian file yang dibutuhkan saat seeking.
+    response.cache_control.public = False
+    response.cache_control.private = True
+    return response
 
 @app.route("/character_img/<anime_name>/<filename>")
 def character_img(anime_name, filename):

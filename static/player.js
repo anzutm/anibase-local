@@ -36,6 +36,8 @@ const SEEK_FEEDBACK_RESET_MS = 700;
 const seekFeedbackState = {
     direction: null,
     total: 0,
+    targetTime: null,
+    seekTimer: null,
     hideTimer: null,
     resetTimer: null
 };
@@ -94,9 +96,24 @@ function showSeekFeedback(direction) {
 
 function seekByShortcut(direction) {
     const duration = Number(player.duration || videoElement.duration || 0);
-    const currentTime = Number(player.currentTime || 0);
+    const currentTime = seekFeedbackState.targetTime === null
+        ? Number(player.currentTime || 0)
+        : seekFeedbackState.targetTime;
     const delta = direction === 'forward' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS;
-    player.currentTime = Math.max(0, duration ? Math.min(duration, currentTime + delta) : currentTime + delta);
+    seekFeedbackState.targetTime = Math.max(
+        0,
+        duration ? Math.min(duration, currentTime + delta) : currentTime + delta
+    );
+
+    // Coalesce repeated presses into one media seek. This avoids issuing a new
+    // HTTP Range request for every 5-second step when a shortcut is spammed.
+    clearTimeout(seekFeedbackState.seekTimer);
+    seekFeedbackState.seekTimer = setTimeout(() => {
+        if (seekFeedbackState.targetTime !== null) {
+            player.currentTime = seekFeedbackState.targetTime;
+            seekFeedbackState.targetTime = null;
+        }
+    }, 140);
     showSeekFeedback(direction);
 }
 

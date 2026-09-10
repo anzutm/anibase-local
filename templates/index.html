@@ -289,7 +289,11 @@
                 >
                     <strong>Airing</strong>
                     <span>
+                        {% if anime.next_airing.episode %}
                         Ep {{ anime.next_airing.episode }}:
+                        {% else %}
+                        Next broadcast:
+                        {% endif %}
                         <b data-airing-countdown>soon</b>
                     </span>
                 </div>

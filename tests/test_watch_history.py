@@ -945,6 +945,19 @@ class TenraiAdapterTests(unittest.TestCase):
         self.assertEqual(main.parse_tenrai_duration("1 hr 30 min"), 90)
         self.assertEqual(main.parse_tenrai_duration("Unknown"), None)
 
+    def test_tenrai_weekly_broadcast_builds_next_countdown_timestamp(self):
+        now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        airing_at = main.get_next_tenrai_broadcast_at({
+            "day": "Fridays",
+            "time": "23:00",
+            "timezone": "Asia/Tokyo",
+        }, now=now)
+
+        self.assertEqual(
+            datetime.fromtimestamp(airing_at, timezone.utc),
+            datetime(2026, 9, 11, 14, 0, tzinfo=timezone.utc),
+        )
+
     def test_tenrai_schedule_adapter_builds_next_broadcast(self):
         now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
         entries = main.adapt_tenrai_schedule({"data": [{
@@ -1795,6 +1808,20 @@ class InternalUrlEncodingTests(unittest.TestCase):
         )
         self.assertEqual(thumbnail_response.status_code, 200)
         thumbnail_response.close()
+
+    def test_stream_supports_cached_byte_range_requests(self):
+        response = self.local_request(
+            "GET",
+            self.url_for("stream_video", anime_name=self.anime_name, episode=self.episode),
+            headers={"Range": "bytes=1-3"},
+        )
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response.data, b"ide")
+        self.assertEqual(response.headers.get("Accept-Ranges"), "bytes")
+        self.assertEqual(response.headers.get("Content-Range"), "bytes 1-3/5")
+        self.assertIn("private", response.headers.get("Cache-Control", ""))
+        response.close()
 
     def test_poster_and_character_urls_with_normal_special_names_work(self):
         os.makedirs(main.POSTER_CACHE, exist_ok=True)

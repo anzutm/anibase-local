@@ -71,7 +71,7 @@
     <div class="main-player-section">
         <div class="video-player-container">
             <div class="video-player">
-                <video id="player" playsinline controls crossorigin>
+                <video id="player" playsinline controls crossorigin preload="auto">
                     <source src="{{ url_for('stream_video', anime_name=anime_name, episode=episode) }}" type="video/mp4">
                     <track
                         kind="subtitles" 
