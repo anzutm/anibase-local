@@ -35,6 +35,10 @@
                             <p class="section-subtitle page-heading-copy">
                                 Browse anime projects credited to this studio. Titles in your local collection are marked below.
                             </p>
+                            <span class="provider-indicator provider-indicator--{{ studio_provider|lower }}" aria-label="Metadata provider">
+                                <span class="provider-indicator-dot" aria-hidden="true"></span>
+                                Provider: {{ 'Tenrai fallback' if studio_provider == 'tenrai' else 'AniList' }}
+                            </span>
                             
                             <!-- Premium stats and metadata row -->
                             <div class="studio-meta-row">

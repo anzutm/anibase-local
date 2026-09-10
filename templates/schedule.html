@@ -15,14 +15,18 @@
                         <div class="section-line"></div>
                         <h2 class="section-heading"><span>Upcoming</span> Airing</h2>
                     </div>
-                    <p class="section-subtitle page-heading-copy">{{ schedule_range }} (Local Time)</p>
-                    <p class="schedule-heading-support">Track what aired, what is live, and what comes next. Data: {{ schedule_provider }}.</p>
+                    <p class="section-subtitle page-heading-copy">{{ schedule_range }} ({{ timezone_label }})</p>
+                    <p class="schedule-heading-support">Track what aired, what is live, and what comes next.</p>
+                    <span class="provider-indicator provider-indicator--{{ schedule_provider|lower }}" aria-label="Metadata provider">
+                        <span class="provider-indicator-dot" aria-hidden="true"></span>
+                        Provider: {{ schedule_provider }}
+                    </span>
                 </div>
 
                 <div class="schedule-summary">
                     <span id="scheduleVisibleCount">{{ schedule_visible_count }} Title{% if schedule_visible_count != 1 %}s{% endif %}</span>
                     <span>{{ schedule_lookahead_days }} Days</span>
-                    <span>Local Time</span>
+                    <span>{{ timezone_label }}</span>
                     <span
                         class="schedule-now-clock"
                         id="scheduleNowClock"

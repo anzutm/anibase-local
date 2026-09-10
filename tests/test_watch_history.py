@@ -2017,7 +2017,7 @@ class SeiyuuPageTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Manaka Iwami", body)
-        self.assertIn("Data: Tenrai", body)
+        self.assertIn("Provider: Tenrai", body)
 
     def test_seiyuu_bio_is_structured_and_escaped(self):
         description = (

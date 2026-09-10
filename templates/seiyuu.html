@@ -16,7 +16,8 @@
 <article class="sy-role{% if local %} sy-role--local{% endif %}"{% if initially_hidden %} data-extra-role hidden{% endif %}>
     <div class="sy-role-character">
         {% if role.character_image %}
-        <img src="{{ role.character_image }}" alt="{{ role.character_name or 'Unknown Character' }}" loading="lazy">
+        {% set character_image_url = url_for('image_proxy', url=role.character_image) if 'cdn.myanimelist.net' in role.character_image else role.character_image %}
+        <img src="{{ character_image_url }}" alt="{{ role.character_name or 'Unknown Character' }}" loading="lazy">
         {% else %}
         <div class="sy-role-fallback" aria-hidden="true">{{ role.character_name[:1] if role.character_name else 'C' }}</div>
         {% endif %}
@@ -63,7 +64,7 @@
         <div class="sy-profile">
             <div class="sy-badges">
                 <span>Voice Actor</span>
-                {% if seiyuu_data.source %}<span class="sy-source">Data: {{ seiyuu_data.source }}</span>{% endif %}
+                {% if seiyuu_data.source %}<span class="sy-source">Provider: {{ seiyuu_data.source }}</span>{% endif %}
             </div>
             <h1>{{ seiyuu_data.name_full or 'Unknown Voice Actor' }}</h1>
             {% if seiyuu_data.name_native %}<p class="sy-native">{{ seiyuu_data.name_native }}</p>{% endif %}

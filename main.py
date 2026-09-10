@@ -19,6 +19,7 @@ import ipaddress
 import secrets
 import functools
 import html
+from io import BytesIO
 from contextlib import contextmanager
 from urllib.parse import unquote, urlparse
 from difflib import SequenceMatcher
@@ -168,6 +169,7 @@ CHARACTER_CACHE = os.path.join(CACHE_DIR, "characters")
 EPISODE_CACHE = os.path.join(CACHE_DIR, "episodes")
 SUBTITLE_CACHE = os.path.join(CACHE_DIR, "subtitles")
 SEIYUU_CACHE = os.path.join(CACHE_DIR, "seiyuu")
+IMAGE_PROXY_CACHE = os.path.join(CACHE_DIR, "image_proxy")
 DB_PATH = os.path.join(CACHE_DIR, "library.db")
 WATCH_HISTORY_FILE = os.path.join(CACHE_DIR, "watch_history.json")
 WATCH_STATUS_FILE = os.path.join(CACHE_DIR, "watch_status.json")
@@ -6611,6 +6613,22 @@ def build_seiyuu_role_from_tenrai(voice):
     role["source"] = TENRAI_METADATA_PROVIDER
     return role
 
+def normalize_tenrai_role_images(payload):
+    """Repair cached Tenrai character image URLs from unavailable large variants."""
+    if not isinstance(payload, dict):
+        return payload, False
+    changed = False
+    for role in payload.get("voice_roles") or []:
+        if not isinstance(role, dict):
+            continue
+        image = role.get("character_image")
+        if isinstance(image, str) and "cdn.myanimelist.net/images/characters/" in image:
+            repaired = re.sub(r"(characters/[^/]+/[^/?]+?)l(\.(?:jpg|jpeg|png|webp)(?:[?#].*)?)$", r"\1\2", image, flags=re.I)
+            if repaired != image:
+                role["character_image"] = repaired
+                changed = True
+    return payload, changed
+
 def fetch_tenrai_seiyuu_detail(staff_name, anilist_staff_id=None, mal_id=None):
     """Fetch a voice actor profile from Tenrai when AniList is unavailable."""
     person = None
@@ -6668,6 +6686,9 @@ def get_cached_tenrai_seiyuu_detail(mal_id, staff_name=None):
     cache_key = f"tenrai_{normalized_mal_id}"
     cached = read_seiyuu_cache(cache_key)
     if cached:
+        cached, changed = normalize_tenrai_role_images(cached)
+        if changed:
+            write_seiyuu_cache(cache_key, cached)
         return cached, None
     payload, error = fetch_tenrai_seiyuu_detail(
         staff_name,
@@ -6768,6 +6789,10 @@ def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
     """Fetch seiyuu profile and voice roles from AniList"""
     cached = read_seiyuu_cache(staff_id)
     if cached:
+        if str(cached.get("source") or "").lower() == TENRAI_METADATA_PROVIDER.lower():
+            cached, changed = normalize_tenrai_role_images(cached)
+            if changed:
+                write_seiyuu_cache(staff_id, cached)
         return cached, None
     
     query = """
@@ -7068,6 +7093,7 @@ def schedule():
     now_dt = datetime.now(local_tz)
     now_ts = int(now_dt.timestamp())
     timezone_offset_minutes = int(now_dt.utcoffset().total_seconds() // 60)
+    timezone_label = now_dt.tzname() or f"UTC{timezone_offset_minutes / 60:+g}"
     schedule_scope = request.args.get("scope", "all").strip().lower()
     if schedule_scope not in {"all", "library"}:
         schedule_scope = "all"
@@ -7119,6 +7145,7 @@ def schedule():
         now_ts=now_ts,
         now_iso=now_dt.isoformat(),
         timezone_offset_minutes=timezone_offset_minutes,
+        timezone_label=timezone_label,
         today=schedule_start,
         schedule_range=f"{schedule_start} - {schedule_end}",
         schedule_lookahead_days=SCHEDULE_LOOKAHEAD_DAYS,
@@ -8430,6 +8457,46 @@ def character_img(anime_name, filename):
     if img_path and os.path.isfile(img_path):
         return send_file(img_path)
     abort(404)
+
+@app.route("/image-proxy")
+def image_proxy():
+    """Serve provider images locally so browser CDN/hotlink issues do not break cards."""
+    image_url = sanitize_external_url(request.args.get("url"))
+    if not image_url:
+        abort(400)
+    parsed = urlparse(image_url)
+    allowed_hosts = {"cdn.myanimelist.net", "s4.anilist.co", "img.anili.st"}
+    host = (parsed.hostname or "").casefold()
+    if host not in allowed_hosts:
+        abort(403)
+
+    cache_key = hashlib.sha256(image_url.encode("utf-8")).hexdigest()
+    extension = os.path.splitext(parsed.path)[1].lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        extension = ".img"
+    cache_path = os.path.join(IMAGE_PROXY_CACHE, cache_key + extension)
+    if os.path.isfile(cache_path) and os.path.getsize(cache_path) > 0:
+        return send_file(cache_path, max_age=86400)
+
+    try:
+        upstream = requests.get(
+            image_url,
+            timeout=12,
+            headers={"User-Agent": "AniBase/1.0 image proxy"},
+        )
+        if upstream.status_code != 200 or not upstream.content:
+            abort(404)
+        content_type = (upstream.headers.get("Content-Type") or "").split(";", 1)[0].lower()
+        if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+            abort(404)
+        if len(upstream.content) > 8 * 1024 * 1024:
+            abort(413)
+        os.makedirs(IMAGE_PROXY_CACHE, exist_ok=True)
+        with open(cache_path, "wb") as handle:
+            handle.write(upstream.content)
+        return send_file(BytesIO(upstream.content), mimetype=content_type, max_age=86400)
+    except requests.RequestException:
+        abort(404)
 
 @app.route("/subtitle/<anime_name>/<path:episode>")
 def get_subtitle(anime_name, episode):
