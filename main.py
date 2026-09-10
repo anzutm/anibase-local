@@ -172,6 +172,7 @@ DB_PATH = os.path.join(CACHE_DIR, "library.db")
 WATCH_HISTORY_FILE = os.path.join(CACHE_DIR, "watch_history.json")
 WATCH_STATUS_FILE = os.path.join(CACHE_DIR, "watch_status.json")
 SETTINGS_FILE = os.path.join(CACHE_DIR, "settings.json")
+SETTINGS_BACKUP_SCHEMA_VERSION = 1
 WATCH_DATA_LOCK = threading.RLock()
 SETTINGS_LOCK = threading.RLock()
 EPISODE_CACHE_LOCK = threading.RLock()
@@ -5647,6 +5648,59 @@ def settings_page():
         sync_busy=request.args.get("sync_busy") == "1",
         diagnostics_refreshed=request.args.get("diagnostics_refreshed") == "1"
     )
+
+@app.route("/settings/backup/export")
+@host_only
+def export_settings_backup():
+    """Download portable personal settings and mappings as a JSON backup."""
+    settings = load_settings()
+    backup_settings = dict(settings)
+    # Action tokens are machine/session-specific and must never be exported.
+    backup_settings.pop("action_token", None)
+    payload = {
+        "format": "anibase-settings-backup",
+        "version": SETTINGS_BACKUP_SCHEMA_VERSION,
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "settings": backup_settings,
+    }
+    backup_path = os.path.join(CACHE_DIR, "anibase-settings-backup.json")
+    atomic_write_json_file(backup_path, payload, "Settings backup")
+    return send_file(
+        backup_path,
+        as_attachment=True,
+        download_name="anibase-settings-backup.json",
+        mimetype="application/json",
+    )
+
+@app.route("/settings/backup/import", methods=["POST"])
+@host_only
+@require_action_token
+def import_settings_backup():
+    upload = request.files.get("backup_file")
+    if not upload or not upload.filename:
+        return redirect("/settings?backup_error=No+backup+file+selected")
+    try:
+        payload = json.load(upload.stream)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return redirect("/settings?backup_error=Backup+file+is+not+valid+JSON")
+    if not isinstance(payload, dict) or payload.get("format") != "anibase-settings-backup":
+        return redirect("/settings?backup_error=Invalid+AniBase+backup+file")
+    imported = payload.get("settings")
+    if not isinstance(imported, dict):
+        return redirect("/settings?backup_error=Backup+does+not+contain+settings")
+
+    current = load_settings()
+    imported.pop("action_token", None)
+    # Merge through load_settings so defaults and type/path validation remain active.
+    merged = get_default_settings()
+    merged.update(current)
+    merged.update(imported)
+    merged["action_token"] = current.get("action_token", "")
+    save_settings(merged)
+    apply_settings(load_settings())
+    reconfigure_library_observer()
+    start_auto_import_worker()
+    return redirect("/settings?backup_imported=1")
 
 @app.route("/settings/media-diagnostics/check", methods=["POST"])
 @host_only

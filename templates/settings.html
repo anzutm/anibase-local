@@ -24,6 +24,13 @@
         </div>
         {% endif %}
 
+        {% if request.args.get('backup_imported') == '1' %}
+        <div class="settings-success">Settings and mappings restored from backup.</div>
+        {% endif %}
+        {% if request.args.get('backup_error') %}
+        <div class="settings-error">Backup failed: {{ request.args.get('backup_error') }}</div>
+        {% endif %}
+
         {% if cache_cleaned %}
         <div class="settings-success">
             Orphan cache cleaned. Removed {{ cache_removed_files }} files, {{ cache_removed_dirs }} folders, and {{ cache_removed_watch_entries }} watch entries. Skipped {{ cache_skipped }} item{% if cache_skipped != '1' %}s{% endif %}.
@@ -62,6 +69,22 @@
             </div>
             {% endfor %}
         </div>
+
+        <section class="settings-card settings-backup-card">
+            <div class="settings-card-head">
+                <span class="settings-kicker">Backup</span>
+                <h3>Personal Settings Backup</h3>
+                <p>Export library paths, mappings, automation, theme, and playback preferences. The security action token is excluded.</p>
+            </div>
+            <div class="settings-input-row">
+                <a class="settings-add-path-btn" href="{{ url_for('export_settings_backup') }}">Download Backup</a>
+                <form method="POST" action="{{ url_for('import_settings_backup') }}" enctype="multipart/form-data" class="settings-input-row">
+                    <input type="hidden" name="action_token" value="{{ action_token }}">
+                    <input class="settings-input" type="file" name="backup_file" accept="application/json,.json" required>
+                    <button class="settings-add-path-btn" type="submit">Restore Backup</button>
+                </form>
+            </div>
+        </section>
 
         <form method="POST" action="{{ url_for('update_settings') }}" class="settings-form">
             <input type="hidden" name="action_token" value="{{ action_token }}">

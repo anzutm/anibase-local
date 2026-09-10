@@ -25,10 +25,80 @@ function actionHeaders(extra = {}) {
 const player = new Plyr(videoElement, {
     title: window.ANIME_NAME,
     autoplay: true,
+    seekTime: 5,
     iconUrl: window.PLYR_ICON_URL || '/static/plyr.svg',
     keyboard: { focused: true, global: true },
     captions: { active: true, update: true, language: 'id' }
 });
+
+const SEEK_STEP_SECONDS = 5;
+const SEEK_FEEDBACK_RESET_MS = 700;
+const seekFeedbackState = {
+    direction: null,
+    total: 0,
+    hideTimer: null,
+    resetTimer: null
+};
+
+function createSeekFeedback(container, direction) {
+    const feedback = document.createElement('div');
+    feedback.className = `player-seek-feedback player-seek-feedback--${direction}`;
+    feedback.setAttribute('aria-hidden', 'true');
+    feedback.innerHTML = direction === 'forward'
+        ? '<strong>+5</strong><span aria-hidden="true">&#8250;</span>'
+        : '<span aria-hidden="true">&#8249;</span><strong>-5</strong>';
+    container.appendChild(feedback);
+    return feedback;
+}
+
+function getSeekFeedback(direction) {
+    const container = player.elements && player.elements.container;
+    if (!container) return null;
+
+    const selector = `.player-seek-feedback--${direction}`;
+    return container.querySelector(selector) || createSeekFeedback(container, direction);
+}
+
+function showSeekFeedback(direction) {
+    const feedback = getSeekFeedback(direction);
+    if (!feedback) return;
+
+    const oppositeDirection = direction === 'forward' ? 'backward' : 'forward';
+    const oppositeFeedback = getSeekFeedback(oppositeDirection);
+    if (oppositeFeedback) oppositeFeedback.classList.remove('is-visible');
+
+    if (seekFeedbackState.direction !== direction) {
+        seekFeedbackState.total = 0;
+    }
+    seekFeedbackState.direction = direction;
+    seekFeedbackState.total += SEEK_STEP_SECONDS;
+
+    const amount = direction === 'forward'
+        ? `+${seekFeedbackState.total}`
+        : `-${seekFeedbackState.total}`;
+    feedback.querySelector('strong').textContent = amount;
+    feedback.classList.remove('is-pulsing');
+    void feedback.offsetWidth;
+    feedback.classList.add('is-visible', 'is-pulsing');
+
+    clearTimeout(seekFeedbackState.hideTimer);
+    clearTimeout(seekFeedbackState.resetTimer);
+    seekFeedbackState.hideTimer = setTimeout(() => {
+        feedback.classList.remove('is-visible', 'is-pulsing');
+    }, SEEK_FEEDBACK_RESET_MS);
+    seekFeedbackState.resetTimer = setTimeout(() => {
+        seekFeedbackState.direction = null;
+        seekFeedbackState.total = 0;
+    }, SEEK_FEEDBACK_RESET_MS + 180);
+}
+
+function seekByShortcut(direction) {
+    const duration = Number(player.duration || videoElement.duration || 0);
+    const currentTime = Number(player.currentTime || 0);
+    const delta = direction === 'forward' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS;
+    player.currentTime = Math.max(0, duration ? Math.min(duration, currentTime + delta) : currentTime + delta);
+    showSeekFeedback(direction);
+}
 
 // Pindahkan toast ke dalam kontainer Plyr agar terlihat saat fullscreen
 player.on('ready', () => {
@@ -36,6 +106,10 @@ player.on('ready', () => {
     const toast = document.getElementById('screenshotToast');
     if (plyrContainer && toast) {
         plyrContainer.appendChild(toast);
+    }
+    if (plyrContainer) {
+        getSeekFeedback('backward');
+        getSeekFeedback('forward');
     }
 
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
@@ -46,6 +120,26 @@ player.on('ready', () => {
         });
     }
 });
+
+// Override seek kiri/kanan Plyr agar selalu 5 detik dan menampilkan akumulasi.
+window.addEventListener('keydown', (event) => {
+    const target = event.target;
+    const isTyping = target && (
+        target.isContentEditable ||
+        (target.matches && target.matches('input, textarea, select'))
+    );
+    if (
+        isTyping ||
+        (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') ||
+        event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
+    ) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward');
+}, true);
 
 videoElement.addEventListener('error', () => {
     const error = videoElement.error;

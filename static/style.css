@@ -9786,6 +9786,15 @@ body:has(.hero-foreground) .character-section {
     font-size: 12px;
 }
 
+.settings-error {
+    margin: 0 0 1rem;
+    padding: .8rem 1rem;
+    border: 1px solid rgba(248, 113, 113, .35);
+    border-radius: .6rem;
+    color: #fecaca;
+    background: rgba(127, 29, 29, .22);
+}
+
 /* Manual AniList metadata matching */
 .metadata-match-trigger {
     display: inline-flex;
@@ -15254,6 +15263,75 @@ body.player-body .player-vlc-toast.show {
     transform: translateY(0);
 }
 
+.player-seek-feedback {
+    position: absolute;
+    top: 18%;
+    z-index: 8;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 62px;
+    padding: 9px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(5, 9, 18, 0.76);
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(-5px) scale(0.94);
+    transition: opacity 160ms ease, transform 160ms ease;
+    pointer-events: none;
+    user-select: none;
+}
+
+.player-seek-feedback--backward {
+    left: 18%;
+}
+
+.player-seek-feedback--forward {
+    right: 18%;
+}
+
+.player-seek-feedback strong {
+    min-width: 28px;
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-align: center;
+}
+
+.player-seek-feedback span {
+    font-size: 30px;
+    font-weight: 300;
+    line-height: 0.6;
+}
+
+.player-seek-feedback.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.player-seek-feedback.is-pulsing strong {
+    animation: player-seek-number-pulse 180ms ease-out;
+}
+
+@keyframes player-seek-number-pulse {
+    0% { transform: scale(0.82); opacity: 0.72; }
+    60% { transform: scale(1.12); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .player-seek-feedback,
+    .player-seek-feedback.is-pulsing strong {
+        animation: none;
+        transition: opacity 100ms linear;
+    }
+}
+
 @media(max-width: 640px) {
     .player-switch-notice {
         top: 12px;
@@ -15281,6 +15359,20 @@ body.player-body .player-vlc-toast.show {
         width: auto;
         max-width: none;
         bottom: 18px;
+    }
+
+    .player-seek-feedback {
+        top: 14%;
+        min-width: 54px;
+        padding: 8px 10px;
+    }
+
+    .player-seek-feedback--backward {
+        left: 8%;
+    }
+
+    .player-seek-feedback--forward {
+        right: 8%;
     }
 }
 
