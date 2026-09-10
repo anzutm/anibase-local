@@ -142,8 +142,8 @@ body.anime-detail-body:not(.movie-detail-body) .anime-floating-back {
     body.anime-detail-body:not(.movie-detail-body) .hero:has(.hero-foreground) {
         /* The backdrop needs room above and below the card; at the old 540px
            height the fade was visibly cut off as soon as the card ended. */
-        height: 686px;
-        min-height: 686px;
+        height: 660px;
+        min-height: 660px;
         margin-bottom: 0;
     }
 
@@ -168,7 +168,7 @@ body.anime-detail-body:not(.movie-detail-body) .anime-floating-back {
     }
 
     body.anime-detail-body:not(.movie-detail-body):has(.hero-foreground) .character-section {
-        margin-top: 16px;
+        margin-top: 0;
     }
 }
 
@@ -576,6 +576,12 @@ body.anime-detail-body:not(.movie-detail-body) .rel-status.releasing {
     }
 }
 
+@media (max-width: 900px) {
+    body.anime-detail-body:not(.movie-detail-body) .title-row {
+        flex-wrap: wrap;
+    }
+}
+
 /* Shared editorial treatment with Home and Movies. */
 body.anime-detail-body:not(.movie-detail-body) {
     background: #06080d;
@@ -599,6 +605,16 @@ body.anime-detail-body:not(.movie-detail-body) .genre-panel-label {
 body.anime-detail-body:not(.movie-detail-body) .title-row h1 {
     font-size: clamp(30px, 3.3vw, 54px);
     letter-spacing: -.035em;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .title-row {
+    align-items: flex-start;
+    flex-wrap: nowrap;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .title-row .status-badge {
+    flex: 0 0 auto;
+    margin-top: 8px;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
