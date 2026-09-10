@@ -27,7 +27,7 @@
 
     <img
         class="hero-banner"
-        src="{{ anime_info.banner if selected_season and anime_info and anime_info.banner else url_for('banner', anime_name=anime_name) }}"
+        src="{{ (anime_info.banner or anime_info.poster) if anime_info else url_for('banner', anime_name=anime_name) }}"
         alt="{{ anime_name }}"
     >
 
@@ -42,7 +42,7 @@
             <div class="hero-poster-shell">
                 <img
                     class="hero-poster"
-                    src="{{ anime_info.poster if selected_season and anime_info.poster else url_for('poster', anime_name=anime_name) }}"
+                    src="{{ anime_info.poster if anime_info and anime_info.poster else url_for('poster', anime_name=anime_name) }}"
                     alt="{{ anime_info.title or anime_name }}"
                 >
                 <div class="poster-status-chip">
@@ -54,6 +54,10 @@
 
                 <div class="detail-kicker">
                     {{ "Movie" if is_movie else "Now Viewing" }}
+                </div>
+
+                <div class="metadata-provider-label">
+                    Data provider: {{ "Tenrai fallback" if anime_info.metadata_provider == "tenrai" else "AniList" }}
                 </div>
 
                 <div class="detail-panel-top">
@@ -70,7 +74,7 @@
                     {% if not is_movie %}
                     <button type="button" class="metadata-match-trigger" data-metadata-match-open>
                         <span aria-hidden="true">&#10022;</span>
-                        <span>{{ "Change AniList Match" if anilist_mapping else "Fix Metadata Match" }}</span>
+                        <span>{{ "Change Metadata Match" if metadata_mapping else "Fix Metadata Match" }}</span>
                     </button>
                     {% endif %}
                 </div>
@@ -230,11 +234,11 @@
             <button type="button" class="metadata-match-close" data-metadata-match-close aria-label="Close">&times;</button>
         </header>
 
-        {% if anilist_mapping %}
+        {% if metadata_mapping %}
         <div class="metadata-current-match">
             <span>Manual match active</span>
-            <strong>{{ anilist_mapping.title }}</strong>
-            <small>AniList ID {{ anilist_mapping.anilist_id }}</small>
+            <strong>{{ metadata_mapping.title }}</strong>
+            <small>{{ metadata_mapping.provider|capitalize }} ID {{ metadata_mapping.anilist_id or metadata_mapping.mal_id }}</small>
         </div>
         {% endif %}
 
@@ -260,7 +264,7 @@
         </div>
         <div class="metadata-search-results" id="metadataSearchResults"></div>
 
-        {% if anilist_mapping %}
+        {% if metadata_mapping %}
         <footer class="metadata-match-footer">
             <button type="button" class="metadata-auto-match-btn" id="metadataAutoMatchBtn">
                 Return to automatic matching
@@ -349,7 +353,7 @@
         <div class="section-line"></div>
         <div>
             <h2>Characters & Voice Actors</h2>
-            <p class="section-subtitle">Cast highlights pulled into a cleaner streaming-style panel.</p>
+            <p class="section-subtitle">Cast highlights pulled into a cleaner streaming-style panel{% if anime_info.metadata_provider == "tenrai" %}; voice actor profiles are unavailable from the fallback source{% endif %}.</p>
         </div>
     </div>
     
@@ -659,7 +663,7 @@
             </div>
             <div class="footer-meta">
                 <h3>System</h3>
-                <p>Data Provider: AniList API</p>
+                <p>Data Provider: AniList API with Tenrai fallback</p>
                 <p>Media Engine: Media Player / HTML5</p>
             </div>
         </div>
@@ -1452,7 +1456,9 @@ document.addEventListener('click', async function(event) {
             const select = document.createElement('button');
             select.type = 'button';
             select.className = 'metadata-result-select';
-            select.dataset.anilistId = item.anilist_id;
+            select.dataset.provider = item.provider || 'anilist';
+            select.dataset.anilistId = item.anilist_id || '';
+            select.dataset.malId = item.mal_id || '';
             select.dataset.title = item.title || item.romaji_title || '';
             select.textContent = 'Use this title';
 
@@ -1490,8 +1496,9 @@ document.addEventListener('click', async function(event) {
     }
 
     async function saveMatch(button) {
-        const anilistId = Number(button.dataset.anilistId);
-        if (!Number.isInteger(anilistId) || anilistId <= 0) return;
+        const provider = button.dataset.provider || 'anilist';
+        const providerId = Number(provider === 'tenrai' ? button.dataset.malId : button.dataset.anilistId);
+        if (!Number.isInteger(providerId) || providerId <= 0) return;
 
         results.querySelectorAll('button').forEach((item) => { item.disabled = true; });
         setStatus(`Loading metadata for ${button.dataset.title || 'selected title'}...`, 'loading');
@@ -1499,7 +1506,11 @@ document.addEventListener('click', async function(event) {
             const response = await fetch('/api/anime/metadata-match', {
                 method: 'POST',
                 headers: actionHeaders(),
-                body: JSON.stringify({ anime_name: animeName, anilist_id: anilistId })
+                body: JSON.stringify({
+                    anime_name: animeName,
+                    provider,
+                    ...(provider === 'tenrai' ? { mal_id: providerId } : { anilist_id: providerId })
+                })
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) {

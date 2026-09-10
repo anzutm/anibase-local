@@ -47,9 +47,9 @@
                                     <span class="meta-value">{{ dominant_formats }}</span>
                                 </div>
                                 {% if studio_info and studio_info.id %}
-                                <a href="https://anilist.co/studio/{{ studio_info.id }}" target="_blank" rel="noopener noreferrer" class="studio-anilist-link">
+                                <a href="{% if studio_provider == 'tenrai' %}https://myanimelist.net/producers/{{ studio_info.id }}{% else %}https://anilist.co/studio/{{ studio_info.id }}{% endif %}" target="_blank" rel="noopener noreferrer" class="studio-anilist-link">
                                     <svg class="anilist-icon" viewBox="0 0 24 24"><path d="M24 10.975h-7.859L24 18.835v4.996h-7.073L9.07 15.972l-7.857 7.859H0v-4.996l7.142-7.859H0v-4.997h7.859L0 3.125V0h7.072l7.858 7.859 7.859-7.859H24v3.125l-7.141 7.85z" fill="currentColor"/></svg>
-                                    AniList Profile
+                                    {{ 'MyAnimeList Profile' if studio_provider == 'tenrai' else 'AniList Profile' }}
                                 </a>
                                 {% endif %}
                             </div>
@@ -77,7 +77,7 @@
     {% if fallback_used %}
     <div class="studio-fallback-notice">
         <span class="notice-icon">&#9888;</span>
-        <p>Showing available local studio matches because the AniList studio catalog is temporarily unavailable.</p>
+        <p>Showing studio projects from {{ 'Tenrai' if studio_provider == 'tenrai' else 'your local collection' }} because AniList is temporarily unavailable.</p>
     </div>
     {% endif %}
 

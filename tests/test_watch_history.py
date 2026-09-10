@@ -9,6 +9,7 @@ import threading
 import time
 import sys
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -504,6 +505,11 @@ class AniListManualMappingTests(unittest.TestCase):
             "DB_PATH": main.DB_PATH,
             "ANIME_PATHS": main.ANIME_PATHS,
             "get_anilist_info": main.get_anilist_info,
+            "get_tenrai_anime_info": main.get_tenrai_anime_info,
+            "search_anilist_anime": main.search_anilist_anime,
+            "search_tenrai_anime": main.search_tenrai_anime,
+            "ANILIST_UNAVAILABLE_UNTIL": main.ANILIST_UNAVAILABLE_UNTIL,
+            "TENRAI_NEXT_REQUEST_AT": main.TENRAI_NEXT_REQUEST_AT,
         }
         main.SETTINGS_FILE = os.path.join(self.cache_dir, "settings.json")
         main.METADATA_CACHE = os.path.join(self.cache_dir, "metadata")
@@ -534,9 +540,11 @@ class AniListManualMappingTests(unittest.TestCase):
             setattr(main, key, value)
 
     @staticmethod
-    def metadata(anilist_id=123):
+    def metadata(anilist_id=123, mal_id=456):
         return {
             "anilist_id": anilist_id,
+            "mal_id": mal_id,
+            "metadata_provider": "anilist",
             "title": "Correct Anime",
             "description": "",
             "episodes": 12,
@@ -560,7 +568,178 @@ class AniListManualMappingTests(unittest.TestCase):
         saved = main.save_anilist_mapping(self.anime_name, self.metadata())
 
         self.assertEqual(saved["anilist_id"], 123)
+        self.assertEqual(saved["mal_id"], 456)
+        self.assertEqual(saved["provider"], "anilist")
         self.assertEqual(main.get_anilist_mapping(self.anime_name)["title"], "Correct Anime")
+
+    def test_legacy_mapping_is_normalized_as_anilist(self):
+        settings = main.load_settings()
+        settings["anilist_mappings"] = {
+            self.anime_name: {"anilist_id": "123", "title": "Legacy Match"}
+        }
+        main.save_settings(settings)
+
+        mapping = main.get_anilist_mapping(self.anime_name)
+
+        self.assertEqual(mapping["provider"], "anilist")
+        self.assertEqual(mapping["anilist_id"], 123)
+        self.assertNotIn("mal_id", mapping)
+
+    def test_mal_mapping_is_not_read_as_anilist_mapping(self):
+        settings = main.load_settings()
+        settings["anilist_mappings"] = {
+            self.anime_name: {
+                "provider": "tenrai",
+                "mal_id": 456,
+                "anilist_id": 456,
+                "title": "Wrong Provider",
+            }
+        }
+        main.save_settings(settings)
+
+        self.assertIsNone(main.get_anilist_mapping(self.anime_name))
+
+    def test_metadata_identity_keeps_provider_ids_separate(self):
+        metadata = main.normalize_anime_metadata_identity({
+            "metadata_provider": "tenrai",
+            "mal_id": "456",
+        })
+
+        self.assertEqual(metadata["mal_id"], 456)
+        self.assertNotIn("anilist_id", metadata)
+        self.assertEqual(metadata["metadata_provider"], "tenrai")
+
+    def test_legacy_cached_metadata_is_identified_as_anilist(self):
+        cached = self.metadata()
+        cached.pop("mal_id")
+        cached.pop("metadata_provider")
+        with open(
+            os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"),
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(cached, handle)
+
+        loaded = main.get_cached_anilist_info(self.anime_name)
+
+        self.assertEqual(loaded["metadata_provider"], "anilist")
+        self.assertEqual(loaded["metadata_schema_version"], 2)
+        self.assertNotIn("mal_id", loaded)
+
+    def test_anilist_failure_uses_tenrai_and_cooldown_uses_cache(self):
+        tenrai_metadata = self.metadata()
+        tenrai_metadata.pop("anilist_id")
+        tenrai_metadata["metadata_provider"] = "tenrai"
+        anilist_calls = []
+        tenrai_calls = []
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
+        main.TENRAI_NEXT_REQUEST_AT = 0
+        main.get_anilist_info = lambda *_args, **_kwargs: (
+            anilist_calls.append(True) or None
+        )
+        main.get_tenrai_anime_info = lambda *_args, **_kwargs: (
+            tenrai_calls.append(True) or tenrai_metadata
+        )
+
+        first = main.get_cached_anilist_info(self.anime_name)
+        second = main.get_cached_anilist_info(self.anime_name)
+
+        self.assertEqual(first["metadata_provider"], "tenrai")
+        self.assertEqual(first["mal_id"], 456)
+        self.assertEqual(second["metadata_provider"], "tenrai")
+        self.assertEqual(len(anilist_calls), 1)
+        self.assertEqual(len(tenrai_calls), 1)
+
+    def test_tenrai_fallback_mapping_survives_metadata_cache_cleanup(self):
+        tenrai_metadata = self.metadata()
+        tenrai_metadata.pop("anilist_id")
+        tenrai_metadata["metadata_provider"] = "tenrai"
+        tenrai_ids = []
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
+        main.get_anilist_info = lambda *_args, **_kwargs: None
+        main.get_tenrai_anime_info = lambda _name, mal_id=None: (
+            tenrai_ids.append(mal_id) or tenrai_metadata
+        )
+
+        first = main.get_cached_anilist_info(self.anime_name)
+        mapping = main.get_metadata_mapping(self.anime_name)
+        os.remove(os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"))
+        second = main.get_cached_anilist_info(self.anime_name)
+
+        self.assertEqual(first["metadata_provider"], "tenrai")
+        self.assertEqual(second["metadata_provider"], "tenrai")
+        self.assertEqual(mapping["provider"], "tenrai")
+        self.assertEqual(mapping["mal_id"], 456)
+        self.assertEqual(tenrai_ids, [None, 456])
+
+    def test_tenrai_cache_is_refreshed_by_anilist_after_cooldown(self):
+        tenrai_metadata = self.metadata()
+        tenrai_metadata.pop("anilist_id")
+        tenrai_metadata["metadata_provider"] = "tenrai"
+        with open(
+            os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"),
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(tenrai_metadata, handle)
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
+        main.get_anilist_info = lambda *_args, **_kwargs: self.metadata()
+        main.get_tenrai_anime_info = lambda *_args, **_kwargs: self.fail("Tenrai should not be used")
+
+        refreshed = main.get_cached_anilist_info(self.anime_name)
+        cache_file = os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json")
+        recovered = None
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            try:
+                with open(cache_file, "r", encoding="utf-8") as handle:
+                    candidate = json.load(handle)
+                if candidate.get("metadata_provider") == "anilist":
+                    recovered = candidate
+                    break
+            except (OSError, json.JSONDecodeError):
+                pass
+            time.sleep(0.01)
+
+        self.assertEqual(refreshed["metadata_provider"], "tenrai")
+        self.assertIsNotNone(recovered)
+        self.assertEqual(recovered["anilist_id"], 123)
+        self.assertEqual(main.ANILIST_UNAVAILABLE_UNTIL, 0)
+
+    def test_search_endpoint_uses_tenrai_results_when_anilist_fails(self):
+        main.search_anilist_anime = lambda _query: ([], "AniList unavailable")
+        main.search_tenrai_anime = lambda _query: ([{
+            "provider": "tenrai", "mal_id": 456, "title": "Fallback Anime"
+        }], None)
+
+        response = main.app.test_client().get(
+            "/api/anilist/search?q=Fallback",
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["provider"], "tenrai")
+        self.assertEqual(response.get_json()["results"][0]["mal_id"], 456)
+        self.assertNotIn("anilist_id", response.get_json()["results"][0])
+
+    def test_metadata_match_endpoint_saves_tenrai_provider_mapping(self):
+        tenrai_metadata = self.metadata()
+        tenrai_metadata.pop("anilist_id")
+        tenrai_metadata["metadata_provider"] = "tenrai"
+        main.get_tenrai_anime_info = lambda *_args, **_kwargs: tenrai_metadata
+
+        response = main.app.test_client().post(
+            "/api/anime/metadata-match",
+            json={"anime_name": self.anime_name, "provider": "tenrai", "mal_id": 456},
+            headers={"X-AniBase-Action-Token": "mapping-token"},
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mapping = main.get_metadata_mapping(self.anime_name)
+        self.assertEqual(mapping["provider"], "tenrai")
+        self.assertEqual(mapping["mal_id"], 456)
+        self.assertNotIn("anilist_id", mapping)
 
     def test_cached_metadata_refetches_by_mapped_id(self):
         main.save_anilist_mapping(self.anime_name, self.metadata())
@@ -601,13 +780,182 @@ class AniListManualMappingTests(unittest.TestCase):
 
         self.assertEqual(forbidden.status_code, 403)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(main.get_anilist_mapping(self.anime_name)["anilist_id"], 123)
+        mapping = main.get_anilist_mapping(self.anime_name)
+        self.assertEqual(mapping["anilist_id"], 123)
+        self.assertEqual(mapping["mal_id"], 456)
+        self.assertEqual(mapping["provider"], "anilist")
         with open(
             os.path.join(main.METADATA_CACHE, f"{self.anime_name}.json"),
             "r",
             encoding="utf-8",
         ) as handle:
-            self.assertEqual(json.load(handle)["anilist_id"], 123)
+            cached = json.load(handle)
+            self.assertEqual(cached["anilist_id"], 123)
+            self.assertEqual(cached["mal_id"], 456)
+            self.assertEqual(cached["metadata_provider"], "anilist")
+
+
+class TenraiAdapterTests(unittest.TestCase):
+    def tearDown(self):
+        main.TENRAI_NEXT_REQUEST_AT = 0.0
+
+    @staticmethod
+    def http_response(status_code, payload=None, headers=None, json_error=False):
+        class FakeResponse:
+            def __init__(self):
+                self.status_code = status_code
+                self.headers = headers or {}
+
+            def json(self):
+                if json_error:
+                    raise ValueError("invalid JSON")
+                return payload
+
+        return FakeResponse()
+
+    def test_tenrai_http_429_honors_retry_after(self):
+        main.TENRAI_NEXT_REQUEST_AT = 0.0
+        response = self.http_response(429, payload={"error": "rate limited"}, headers={"Retry-After": "7"})
+        with patch.object(main.requests, "get", return_value=response), \
+             patch.object(main.time, "monotonic", return_value=100.0):
+            result = main.fetch_tenrai_json("/anime")
+
+        self.assertIsNone(result)
+        self.assertGreaterEqual(main.TENRAI_NEXT_REQUEST_AT, 107.0)
+
+    def test_tenrai_http_503_returns_none(self):
+        response = self.http_response(503, payload={"error": "unavailable"})
+        with patch.object(main.requests, "get", return_value=response):
+            self.assertIsNone(main.fetch_tenrai_json("/anime"))
+
+    def test_tenrai_invalid_json_returns_none(self):
+        response = self.http_response(200, json_error=True)
+        with patch.object(main.requests, "get", return_value=response):
+            self.assertIsNone(main.fetch_tenrai_json("/anime"))
+
+    def test_tenrai_rate_limiter_waits_between_reserved_slots(self):
+        main.TENRAI_NEXT_REQUEST_AT = 0.0
+        with patch.object(main.time, "monotonic", side_effect=[10.0, 10.1]), \
+             patch.object(main.time, "sleep") as sleep:
+            main.tenrai_wait_for_rate_limit()
+            main.tenrai_wait_for_rate_limit()
+
+        sleep.assert_called_once()
+        self.assertAlmostEqual(sleep.call_args.args[0], 0.15, places=6)
+
+    def test_adapts_tenrai_payload_without_cross_provider_ids(self):
+        metadata = main.adapt_tenrai_anime_metadata(
+            {
+                "data": {
+                    "mal_id": 52991,
+                    "title": "Sousou no Frieren",
+                    "title_english": "Frieren: Beyond Journey's End",
+                    "synopsis": "A mage travels beyond the end.",
+                    "episodes": 28,
+                    "duration": "24 min per ep",
+                    "type": "TV",
+                    "season": "fall",
+                    "year": 2023,
+                    "status": "Finished Airing",
+                    "score": 9.25,
+                    "images": {"jpg": {"large_image_url": "https://img/poster.jpg"}},
+                    "studios": [{"name": "Madhouse"}],
+                    "genres": [{"name": "Adventure"}],
+                    "relations": [{
+                        "relation": "Prequel",
+                        "entry": {
+                            "mal_id": 1,
+                            "title": "Earlier Story",
+                            "type": "TV",
+                            "images": {"jpg": {"image_url": "https://img/earlier.jpg"}},
+                            "status": "Finished Airing",
+                        },
+                    }],
+                }
+            },
+            {"data": [{
+                "character": {
+                    "mal_id": 7,
+                    "name": "Fern",
+                    "images": {"jpg": {"image_url": "https://img/fern.jpg"}},
+                },
+                "role": "Main",
+                "voice_actors": [{
+                    "language": "Japanese",
+                    "person": {
+                        "mal_id": 8,
+                        "name": "Kana Ichinose",
+                        "images": {"jpg": {"image_url": "https://img/kana.jpg"}},
+                    },
+                }],
+            }]},
+            {"data": [{
+                "entry": {
+                    "mal_id": 33352,
+                    "title": "Violet Evergarden",
+                    "type": "Movie",
+                    "images": {"jpg": {"image_url": "https://img/violet.jpg"}},
+                    "status": "Finished Airing",
+                },
+                "votes": 30,
+            }]},
+        )
+
+        self.assertEqual(metadata["mal_id"], 52991)
+        self.assertNotIn("anilist_id", metadata)
+        self.assertEqual(metadata["metadata_provider"], "tenrai")
+        self.assertEqual(metadata["duration"], 24)
+        self.assertEqual(metadata["score"], 92.5)
+        self.assertEqual(metadata["status"], "FINISHED")
+        self.assertEqual(metadata["genres"], ["Adventure"])
+        self.assertIsNone(metadata["banner"])
+        self.assertIsNone(metadata["next_airing"])
+        self.assertEqual(metadata["characters"][0]["va_mal_id"], 8)
+        self.assertIsNone(metadata["characters"][0]["va_staff_id"])
+        self.assertEqual(metadata["recommendations"][0]["mal_id"], 33352)
+
+    def test_tenrai_adapter_rejects_payload_without_mal_id_or_title(self):
+        self.assertIsNone(main.adapt_tenrai_anime_metadata({"data": {"title": "Unknown"}}))
+        self.assertIsNone(main.adapt_tenrai_anime_metadata({"data": {"mal_id": 1}}))
+
+    def test_tenrai_duration_parser_handles_hours(self):
+        self.assertEqual(main.parse_tenrai_duration("1 hr 30 min"), 90)
+        self.assertEqual(main.parse_tenrai_duration("Unknown"), None)
+
+    def test_tenrai_schedule_adapter_builds_next_broadcast(self):
+        now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        entries = main.adapt_tenrai_schedule({"data": [{
+            "mal_id": 52991,
+            "title": "Frieren",
+            "broadcast": {"day": "Fridays", "time": "23:00", "timezone": "Asia/Tokyo"},
+            "type": "TV",
+            "images": {"jpg": {"large_image_url": "https://img/frieren.jpg"}},
+        }]}, now=now)
+
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["provider"], "tenrai")
+        self.assertEqual(entries[0]["mal_id"], 52991)
+        self.assertIsNone(entries[0]["episode"])
+        self.assertEqual(entries[0]["media"]["format"], "TV")
+        self.assertEqual(entries[0]["airingAt"], 1789135200)
+
+    def test_schedule_falls_back_to_tenrai_when_anilist_request_fails(self):
+        original_post = main.requests.post
+        original_fallback = main.get_tenrai_airing_schedule
+        try:
+            main.requests.post = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                main.requests.RequestException("AniList down")
+            )
+            fallback = [{"airingAt": 1, "media": {"title": {"english": "Fallback"}}}]
+            main.get_tenrai_airing_schedule = lambda: (fallback, None)
+
+            entries, error = main.get_airing_schedule()
+
+            self.assertEqual(entries, fallback)
+            self.assertIsNone(error)
+        finally:
+            main.requests.post = original_post
+            main.get_tenrai_airing_schedule = original_fallback
 
 
 class AutoImportMappingTests(unittest.TestCase):

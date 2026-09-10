@@ -16,7 +16,7 @@
                         <h2 class="section-heading"><span>Upcoming</span> Airing</h2>
                     </div>
                     <p class="section-subtitle page-heading-copy">{{ schedule_range }} (Local Time)</p>
-                    <p class="schedule-heading-support">Track what aired, what is live, and what comes next.</p>
+                    <p class="schedule-heading-support">Track what aired, what is live, and what comes next. Data: {{ schedule_provider }}.</p>
                 </div>
 
                 <div class="schedule-summary">
@@ -81,7 +81,7 @@
             <h3>{{ schedule_focus.title }}</h3>
 
             <div class="schedule-now-hero-meta">
-                <span>Ep {{ schedule_focus.episode }}</span>
+                {% if schedule_focus.episode %}<span>Ep {{ schedule_focus.episode }}</span>{% else %}<span>Episode number unavailable</span>{% endif %}
                 <span>{{ schedule_focus.time }}</span>
                 {% if schedule_focus.format %}
                 <span>{{ schedule_focus.format }}</span>
@@ -152,7 +152,7 @@
                                 </div>
 
                                 <div class="schedule-entry-meta">
-                                    <span>Ep {{ item.episode }}</span>
+                                    {% if item.episode %}<span>Ep {{ item.episode }}</span>{% else %}<span>Episode number unavailable</span>{% endif %}
                                     <span>{{ item.time }}</span>
                                     {% if item.format %}
                                     <span>{{ item.format }}</span>

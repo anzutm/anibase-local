@@ -119,13 +119,13 @@
             {% for role in library_roles %}{{ role_card(role, true) }}{% endfor %}
         </div>
         {% else %}
-        <div class="sy-empty"><strong>No related anime in your library</strong><p>Known roles will still appear below when AniList data is available.</p></div>
+        <div class="sy-empty"><strong>No related anime in your library</strong><p>Known roles will still appear below when provider data is available.</p></div>
         {% endif %}
     </section>
 
     <section class="sy-section" aria-labelledby="other-roles-title">
         <header class="sy-section-head">
-            <div><span class="sy-eyebrow">AniList Credits</span><h2 id="other-roles-title">Other Known Roles</h2></div>
+            <div><span class="sy-eyebrow">{{ seiyuu_data.source or 'Provider' }} Credits</span><h2 id="other-roles-title">Other Known Roles</h2></div>
             <span>{{ other_roles|length }} role{% if other_roles|length != 1 %}s{% endif %}</span>
         </header>
         {% if other_roles %}
@@ -134,7 +134,7 @@
         </div>
         {% if other_roles|length > 24 %}<button class="sy-load-more" id="seiyuuLoadMore" type="button">Show more roles</button>{% endif %}
         {% else %}
-        <div class="sy-empty"><strong>No other roles available</strong><p>This profile does not currently include additional AniList credits.</p></div>
+        <div class="sy-empty"><strong>No other roles available</strong><p>This profile does not currently include additional provider credits.</p></div>
         {% endif %}
     </section>
     {% endif %}
