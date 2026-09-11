@@ -13,7 +13,7 @@ It is built for personal collections first. Your media stays on your machine, ru
 <td width="50%" style="padding: 12px; box-sizing: border-box;">
 
 ### Home
-<img src="assets/screenshots/Home.jpg" alt="Home page" width="100%" style="border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+<img src="assets/screenshots/Home.png" alt="Home page" width="100%" style="border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 
 </td>
 <td width="50%" style="padding: 12px; box-sizing: border-box;">
@@ -71,7 +71,7 @@ Choose one path:
 
 **Step 1: Download or Unpack**
 
-[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v2026.09.10)
+[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v1.3.0)
 
 Download the Windows ZIP from the release assets, extract it, then run `AniBase.exe`.
 
