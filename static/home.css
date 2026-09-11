@@ -81,14 +81,28 @@
 .home-page .home-spotlight-slide.active .home-spotlight-meta { transition-delay: .16s; }
 .home-page .home-spotlight-slide.active .home-spotlight-description { transition-delay: .21s; }
 .home-page .home-spotlight-slide.active .home-hero-actions { transition-delay: .26s; }
-.home-spotlight-copy h2 { max-width: 690px; margin: 10px 0; font-size: clamp(28px,3.4vw,48px); line-height: 1.13; letter-spacing: -.035em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.home-spotlight-copy h2 { max-width: 690px; margin: 10px 0; font-size: clamp(28px,3.4vw,48px); line-height: 1.13; letter-spacing: -.035em; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .home-spotlight-meta { color: #c3ccd9; font-size: 13px; }
-.home-spotlight-description { max-width: 560px; color: #a8b2c4; font-size: 14px; line-height: 1.6; margin-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home-spotlight-description { max-width: 560px; color: #a8b2c4; font-size: 14px; line-height: 1.6; margin-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .home-primary-action { display: inline-flex; gap: 24px; align-items: center; min-height: 44px; padding: 0 20px; margin-top: 20px; border-radius: 10px; background: var(--cyan); color: #071018; font-weight: 700; text-decoration: none; font-size: 14px; }
 .home-spotlight-pagination { position: absolute; bottom: 18px; right: 24px; z-index: 4; display: flex; gap: 4px; }
 .home-page .home-spotlight-pagination .dot { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent; box-shadow: none; cursor: pointer; }
 .home-spotlight-pagination .dot::after { content: ''; width: 18px; height: 3px; border-radius: 4px; background: rgba(255,255,255,.45); transition: width .35s cubic-bezier(.16, 1, .3, 1), background-color .25s ease, box-shadow .25s ease; }
 .home-spotlight-pagination .dot.active::after { background: var(--cyan); width: 28px; }
+
+/* Hero actions stay static; the spotlight itself retains its editorial slide transition. */
+.home-page .home-hero-actions,
+.home-page .home-spotlight-slide.active .home-hero-actions {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    transition-delay: 0s;
+}
+.home-page .home-hero-actions :is(.home-primary-action, .home-secondary-action),
+.home-page .home-hero-actions :is(.home-primary-action, .home-secondary-action) * {
+    animation: none !important;
+    transition: none !important;
+}
 .home-page .index-section-panel { max-width: 1800px; width: 100%; margin: 0 auto 36px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
 .home-page .index-section-panel::before, .home-page .index-section-panel::after, .home-page .collection-glow, .home-page .toolbar-line, .home-page .section-line { display: none; }
 .home-page .section-heading {
@@ -817,6 +831,7 @@
     letter-spacing: -0.01em;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
@@ -932,6 +947,7 @@
     .home-page #animeCollectionGrid .poster-overlay h3 {
         font-size: 14px;
         -webkit-line-clamp: 3;
+        line-clamp: 3;
     }
     .home-page #animeCollectionGrid .poster-card-meta span {
         font-size: 8px;
@@ -1301,4 +1317,25 @@
     .home-page #animeCollectionGrid .poster-overlay h3 {
         font-size: 14px;
     }
+}
+
+/* Collection status overlays: one glass surface, without stacked outer chrome. */
+.home-page #animeCollectionGrid .anime-watch-corner-badge,
+.home-page #animeCollectionGrid .anime-watch-corner-badge.is-complete,
+.home-page #animeCollectionGrid .anime-watch-corner-badge:is(.not-started, .behind),
+.home-page #animeCollectionGrid .card:hover .anime-watch-corner-badge,
+.home-page #animeCollectionGrid .card:focus-within .anime-watch-corner-badge {
+    border: 0;
+    box-shadow: none;
+}
+
+.home-page #animeCollectionGrid .anime-watch-corner-badge i {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown {
+    border: 0;
+    box-shadow: none;
 }

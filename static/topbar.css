@@ -1,66 +1,341 @@
-/* Shared navigation, paired with the footer wordmark and theme accent. */
+/* AniBase global navigation */
 #anibaseTopbar {
+    --topbar-accent: var(--primary-hover);
+    --topbar-accent-soft: color-mix(in srgb, var(--topbar-accent) 10%, transparent);
+    --topbar-accent-border: color-mix(in srgb, var(--topbar-accent) 28%, var(--border));
     position: fixed;
-    top: 20px;
-    left: 28px;
-    right: 28px;
-    width: auto;
-    max-width: 1800px;
-    height: 64px;
-    min-height: 64px;
+    z-index: 1000;
+    top: 18px;
+    left: 24px;
+    right: 24px;
+    width: calc(100% - 48px);
+    max-width: none;
+    height: 68px;
+    min-height: 68px;
     margin: 0 auto;
-    padding: 0 22px;
-    display: flex;
-    flex-wrap: nowrap;
+    padding: 0 10px 0 16px;
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) auto minmax(310px, 1fr);
     align-items: center;
-    gap: 28px;
+    gap: 20px;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--bg2) 90%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 18px 50px rgba(0, 0, 0, .22);
+    backdrop-filter: blur(22px) saturate(125%);
+    -webkit-backdrop-filter: blur(22px) saturate(125%);
     transform: none;
-    border: 1px solid rgba(255,255,255,.09);
+}
+
+#anibaseTopbar::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--topbar-accent) 24%, transparent), transparent);
+    pointer-events: none;
+}
+
+#anibaseTopbar::after { display: none; }
+#anibaseTopbar :is(.nav-left, .nav-center, .nav-right) { position: static; width: auto; min-width: 0; height: auto; margin: 0; transform: none; }
+#anibaseTopbar .nav-left { justify-self: start; }
+#anibaseTopbar .nav-center { justify-self: center; }
+#anibaseTopbar .nav-right { justify-self: end; display: flex; align-items: center; gap: 6px; }
+
+#anibaseTopbar .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+#anibaseTopbar .brand-mark {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--topbar-accent-border);
+    border-radius: 9px;
+    color: var(--topbar-accent);
+    background: var(--topbar-accent-soft);
+    font-size: 14px;
+    font-weight: 850;
+    line-height: 1;
+    transition: color .24s ease, background-color .24s ease, transform .24s var(--ease);
+}
+
+#anibaseTopbar .brand h1 {
+    margin: 0;
+    color: var(--text);
+    background: none;
+    font-size: 22px;
+    font-weight: 820;
+    line-height: 1;
+    letter-spacing: -.055em;
+    text-shadow: none;
+    -webkit-text-fill-color: currentColor;
+}
+
+#anibaseTopbar .brand h1 span {
+    color: color-mix(in srgb, var(--text-secondary) 72%, var(--text));
+    transition: color .24s ease;
+}
+
+#anibaseTopbar .brand:hover .brand-mark { color: var(--bg); background: var(--topbar-accent); transform: rotate(-4deg); }
+#anibaseTopbar .brand:hover h1 span { color: var(--topbar-accent); }
+
+#anibaseTopbar .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    list-style: none;
+}
+
+#anibaseTopbar .nav-link {
+    position: relative;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--text-secondary) 75%, transparent);
+    background: transparent;
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1;
+    letter-spacing: .005em;
+    text-decoration: none;
+    opacity: 1;
+    transform: none;
+    transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+
+#anibaseTopbar .nav-link::after { display: none; }
+#anibaseTopbar .nav-link:hover { color: var(--text); background: color-mix(in srgb, var(--card-hover) 62%, transparent); }
+#anibaseTopbar .nav-link.active,
+#anibaseTopbar .nav-link[aria-current="page"] {
+    color: var(--text);
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+}
+
+#anibaseTopbar .nav-link.active::before,
+#anibaseTopbar .nav-link[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 12px;
+    height: 1px;
+    border-radius: 2px;
+    background: var(--topbar-accent);
+    transform: translateX(-50%);
+}
+
+#anibaseTopbar .search-box {
+    position: relative;
+    width: clamp(170px, 18vw, 260px);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+#anibaseTopbar .search-box input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px 0 36px;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 11px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .02);
+    font-size: 11px;
+    transition: width .25s var(--ease), border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+
+#anibaseTopbar .search-box input::placeholder { color: color-mix(in srgb, var(--text-secondary) 58%, transparent); }
+#anibaseTopbar .search-box input:hover { border-color: var(--border-bright); }
+#anibaseTopbar .search-box input:focus {
+    border-color: var(--topbar-accent-border);
+    outline: none;
+    background: color-mix(in srgb, var(--topbar-accent) 4%, var(--bg2));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--topbar-accent) 10%, transparent);
+}
+
+#anibaseTopbar .search-icon {
+    position: absolute;
+    z-index: 1;
+    left: 12px;
+    top: 50%;
+    display: flex;
+    color: color-mix(in srgb, var(--text-secondary) 68%, transparent);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+#anibaseTopbar .search-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+#anibaseTopbar .notification-shell,
+#anibaseTopbar .user-action { position: relative; flex: 0 0 auto; }
+
+#anibaseTopbar :is(.notification-button, .profile-circle) {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+    background: transparent;
+    box-shadow: none;
+    filter: none;
+    text-decoration: none;
+    transform: none;
+    transition: color .2s ease, border-color .2s ease, background-color .2s ease, transform .2s var(--ease);
+}
+
+#anibaseTopbar :is(.notification-button, .profile-circle):hover {
+    border-color: var(--topbar-accent-border);
+    color: var(--topbar-accent);
+    background: var(--topbar-accent-soft);
+    transform: translateY(-1px);
+}
+
+#anibaseTopbar :is(.notification-button, .profile-circle).active,
+#anibaseTopbar .notification-button[aria-expanded="true"] {
+    border-color: var(--topbar-accent-border);
+    color: var(--topbar-accent);
+    background: var(--topbar-accent-soft);
+}
+
+#anibaseTopbar :is(.notification-button, .profile-circle) svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#anibaseTopbar :is(a, button, input):focus-visible { outline: 2px solid var(--topbar-accent); outline-offset: 3px; }
+
+/* Schedule alert panel */
+#anibaseTopbar .notification-dot {
+    position: absolute;
+    top: 3px;
+    right: 2px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border: 2px solid var(--bg2);
+    border-radius: 999px;
+    background: var(--topbar-accent);
+    color: var(--bg);
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 11px;
+    box-shadow: none;
+}
+
+#anibaseTopbar .notification-dot[hidden],
+#anibaseTopbar .notification-panel[hidden] { display: none !important; }
+
+#anibaseTopbar .notification-panel {
+    position: absolute;
+    top: calc(100% + 15px);
+    right: -46px;
+    width: min(410px, calc(100vw - 32px));
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--topbar-accent-border);
     border-radius: 16px;
-    background: rgba(9,13,20,.86);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    box-shadow: 0 8px 30px rgba(0,0,0,.16);
+    background: color-mix(in srgb, var(--bg2) 96%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 24px 56px rgba(0,0,0,.46);
+    backdrop-filter: blur(22px) saturate(115%);
+    -webkit-backdrop-filter: blur(22px) saturate(115%);
+    transform-origin: calc(100% - 62px) top;
+    animation: topbarPanelIn .22s var(--ease) both;
 }
-#anibaseTopbar::before, #anibaseTopbar::after { display: none; }
-#anibaseTopbar :is(.nav-left, .nav-center, .nav-right) { position: static; transform: none; width: auto; height: auto; margin: 0; min-width: 0; }
-#anibaseTopbar .nav-left { flex: 0 0 auto; }
-#anibaseTopbar .nav-center { flex: 1 1 auto; justify-content: center; }
-#anibaseTopbar .nav-right { flex: 0 1 auto; gap: 8px; }
-#anibaseTopbar .brand { gap: 9px; }
-#anibaseTopbar .header-logo { width: 30px; height: 30px; }
-#anibaseTopbar .brand h1 { margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -.055em; background: none; color: #f0f3f6; -webkit-text-fill-color: currentColor; text-shadow: none; }
-#anibaseTopbar .brand h1 span { color: #929aa7; transition: color .25s ease; }
-#anibaseTopbar .brand:hover h1 span { color: var(--cyan); }
-#anibaseTopbar .nav-links { display: flex; align-items: center; gap: 26px; margin: 0; padding: 0; }
-#anibaseTopbar .nav-link { display: inline-flex; align-items: center; position: relative; height: 44px; min-height: 44px; padding: 0; font-size: 12px; font-weight: 500; letter-spacing: .01em; opacity: 1; color: #9da7b5; background: transparent; border: 0; box-shadow: none; transform: none; transition: color .2s ease; }
-#anibaseTopbar .nav-link:hover, #anibaseTopbar .nav-link.active { color: #eef2f6; }
-#anibaseTopbar .nav-link::after { left: 0; right: 0; bottom: 1px; height: 2px; background: var(--cyan); border-radius: 2px; box-shadow: none; }
-#anibaseTopbar .search-box { width: clamp(150px, 18vw, 260px); min-width: 0; background: transparent; border: 0; padding: 0; box-shadow: none; }
-#anibaseTopbar .search-box input { width: 100%; height: 38px; padding: 0 12px 0 35px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,.025); color: #e5ebf2; font-size: 12px; box-shadow: none; transition: background .2s ease, border-color .2s ease; }
-#anibaseTopbar .search-box input::placeholder { color: #85909f; }
-#anibaseTopbar .search-box input:focus { outline: none; border-color: color-mix(in srgb, var(--cyan) 40%, transparent); background: rgba(255,255,255,.045); box-shadow: none; }
-#anibaseTopbar .search-icon { left: 12px; display: flex; opacity: 1; color: #85909f; pointer-events: none; }
-#anibaseTopbar .search-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-#anibaseTopbar :is(.notification-button, .profile-circle) { display: grid; place-items: center; width: 38px; height: 38px; min-width: 38px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #a9b3c0; box-shadow: none; transform: none; filter: none; text-decoration: none; transition: color .2s ease, background .2s ease, border-color .2s ease; }
-#anibaseTopbar .profile-circle { font-size: 21px; }
-#anibaseTopbar :is(.notification-button, .profile-circle):hover { background: rgba(255,255,255,.045); border-color: rgba(255,255,255,.09); color: var(--cyan); }
-#anibaseTopbar .notification-button svg { width: 18px; height: 18px; }
-#anibaseTopbar :is(a, button):focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
-@media (max-width: 900px) {
-    #anibaseTopbar { gap: 18px; padding-inline: 16px; }
-    #anibaseTopbar .nav-links { gap: 16px; }
-    #anibaseTopbar .search-box { width: 150px; }
+
+#anibaseTopbar .notification-panel::before { content: ""; position: absolute; top: 0; left: 18px; z-index: 2; width: 48px; height: 2px; background: var(--topbar-accent); }
+#anibaseTopbar .notification-panel-head { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; align-items: center; padding: 18px 18px 14px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, var(--topbar-accent-soft), transparent 48%); }
+#anibaseTopbar .notification-panel-head h2 { margin: 0 0 4px; color: var(--text); font-size: 14px; font-weight: 720; line-height: 1.3; letter-spacing: -.015em; }
+#anibaseTopbar .notification-panel-head p { margin: 0; color: color-mix(in srgb, var(--text-secondary) 68%, transparent); font-size: 10px; line-height: 1.4; }
+#anibaseTopbar .notification-panel-head a { min-height: 30px; display: inline-flex; align-items: center; padding: 0 10px; border: 1px solid var(--topbar-accent-border); border-radius: 7px; color: var(--topbar-accent); background: var(--topbar-accent-soft); font-size: 9px; font-weight: 750; text-decoration: none; transition: transform .2s var(--ease), border-color .2s ease; }
+#anibaseTopbar .notification-panel-head a:hover { border-color: var(--topbar-accent); transform: translateY(-1px); }
+#anibaseTopbar .notification-list { max-height: min(440px, calc(100vh - 130px)); padding: 7px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--topbar-accent-border) transparent; }
+#anibaseTopbar .notification-item { position: relative; min-height: 76px; display: grid; grid-template-columns: 46px minmax(0,1fr); gap: 11px; align-items: center; padding: 8px 10px 8px 8px; overflow: hidden; border: 1px solid transparent; border-radius: 11px; color: inherit; background: transparent; box-shadow: none; text-decoration: none; transition: transform .25s var(--ease), border-color .2s ease, background-color .2s ease; }
+#anibaseTopbar .notification-item + .notification-item { margin-top: 2px; }
+#anibaseTopbar .notification-item::before { content: ""; position: absolute; top: 13px; bottom: 13px; left: 0; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--topbar-accent) 58%, transparent); opacity: .55; }
+#anibaseTopbar .notification-item[href]:hover { border-color: var(--topbar-accent-border); background: color-mix(in srgb, var(--topbar-accent) 5%, transparent); transform: translateX(2px); }
+#anibaseTopbar .notification-item img { width: 46px; height: 62px; object-fit: cover; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 8px 18px rgba(0,0,0,.22); }
+#anibaseTopbar .notification-item-body { min-width: 0; display: grid; gap: 3px; align-content: center; }
+#anibaseTopbar .notification-item strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 680; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+#anibaseTopbar .notification-item small { color: color-mix(in srgb, var(--text-secondary) 62%, transparent); font-size: 9px; line-height: 1.35; }
+#anibaseTopbar .notification-item em { width: max-content; min-height: 20px; margin-top: 2px; padding: 3px 7px; border: 1px solid var(--topbar-accent-border); border-radius: 5px; color: var(--topbar-accent); background: var(--topbar-accent-soft); font-size: 8px; font-style: normal; font-weight: 700; }
+#anibaseTopbar .notification-item.is-live { border-color: var(--topbar-accent-border); background: linear-gradient(90deg, var(--topbar-accent-soft), transparent 70%); }
+#anibaseTopbar .notification-item.is-live::before { background: var(--topbar-accent); opacity: 1; }
+#anibaseTopbar .notification-item.is-aired { opacity: .62; }
+#anibaseTopbar .notification-item.is-aired::before { background: var(--border-bright); }
+#anibaseTopbar .notification-item.is-aired em { border-color: var(--border); color: var(--text-secondary); background: var(--card); }
+#anibaseTopbar .notification-empty { padding: 34px 20px; color: var(--text-secondary); font-size: 11px; line-height: 1.55; }
+
+@keyframes topbarPanelIn {
+    from { opacity: 0; transform: translateY(-6px) scale(.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+@media (max-width: 980px) {
+    #anibaseTopbar { grid-template-columns: auto auto minmax(250px, 1fr); gap: 12px; }
+    #anibaseTopbar .brand h1 { display: none; }
+    #anibaseTopbar .nav-link { padding-inline: 11px; }
+    #anibaseTopbar .search-box { width: clamp(150px, 20vw, 220px); }
+}
+
 @media (max-width: 768px) {
-    #anibaseTopbar { position: relative; top: auto; left: auto; right: auto; width: calc(100% - 32px); height: auto; min-height: 0; margin: 16px auto 0; padding: 16px; flex-wrap: wrap; gap: 12px; }
-    #anibaseTopbar .nav-left { flex: 1 0 100%; }
-    #anibaseTopbar .nav-right { flex: 1 1 100%; width: 100%; }
-    #anibaseTopbar .search-box { flex: 1; width: auto; }
-    #anibaseTopbar .nav-center { order: 3; flex: 1 0 100%; }
-    #anibaseTopbar .nav-links { width: 100%; justify-content: space-between; gap: 12px; }
-    #anibaseTopbar .notification-panel { right: -46px; width: min(360px, calc(100vw - 64px)); }
+    #anibaseTopbar {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        width: calc(100% - 24px);
+        height: auto;
+        min-height: 104px;
+        margin: 0 auto;
+        padding: 9px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-rows: 40px 40px;
+        gap: 7px 8px;
+        border-radius: 15px;
+    }
+
+    #anibaseTopbar .nav-left { grid-column: 1; grid-row: 1; }
+    #anibaseTopbar .brand { gap: 8px; }
+    #anibaseTopbar .brand-mark { width: 36px; height: 36px; }
+    #anibaseTopbar .brand h1 { display: block; font-size: 20px; }
+    #anibaseTopbar .nav-right { grid-column: 2 / 4; grid-row: 1; width: 100%; justify-content: flex-end; }
+    #anibaseTopbar .search-box { flex: 1 1 auto; width: auto; max-width: 260px; }
+    #anibaseTopbar .search-box input { height: 38px; }
+    #anibaseTopbar .nav-center { grid-column: 1 / 4; grid-row: 2; width: 100%; }
+    #anibaseTopbar .nav-links { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); padding: 3px; }
+    #anibaseTopbar .nav-link { width: 100%; min-height: 32px; padding: 0 6px; }
+    #anibaseTopbar .notification-panel { right: -46px; width: min(390px, calc(100vw - 24px)); }
 }
+
+@media (max-width: 480px) {
+    #anibaseTopbar .brand h1 { display: none; }
+    #anibaseTopbar .notification-panel { position: fixed; top: 12px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 24px); }
+    #anibaseTopbar .notification-panel-head { padding-inline: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    #anibaseTopbar * { transition: none !important; }
+    #anibaseTopbar *, #anibaseTopbar *::before { animation: none !important; transition: none !important; }
 }

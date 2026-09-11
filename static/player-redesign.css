@@ -2,6 +2,7 @@
 body.player-body {
     --player-accent: var(--primary);
     --player-accent-hover: var(--primary-hover);
+    padding-top: 24px;
     background: var(--bg2);
 }
 
@@ -17,7 +18,7 @@ body.player-body .player-backdrop img {
 }
 
 body.player-body .player-cinema-shell {
-    padding-top: 20px;
+    padding-top: 12px;
 }
 
 body.player-body .player-cinema-shell::before {
@@ -58,6 +59,10 @@ body.player-body .player-header-actions {
 }
 
 body.player-body .player-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     min-height: 31px;
     padding: 0 10px;
     border: 1px solid rgba(255, 255, 255, .10);
@@ -67,11 +72,24 @@ body.player-body .player-back {
     color: rgba(222, 229, 238, .84);
     font-size: 10px;
     font-weight: 650;
+    line-height: 1;
 }
 
 body.player-body .player-home {
     width: 31px;
     padding: 0;
+}
+
+body.player-body .player-back:not(.player-home),
+body.player-body .nav-btn:is(.prev, .next) {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .01em;
+}
+
+body.player-body .nav-btn:is(.prev, .next) > span {
+    font-size: 15px;
+    line-height: 1;
 }
 
 body.player-body .player-back:hover,
@@ -89,7 +107,7 @@ body.player-body .player-title-stack {
 body.player-body .player-title-stack h1 {
     overflow: hidden;
     color: rgba(247, 249, 252, .96) !important;
-    font-size: 18px;
+    font-size: 23px;
     font-weight: 720;
     line-height: 1.16;
     letter-spacing: -.022em;
@@ -100,7 +118,7 @@ body.player-body .player-title-stack h1 {
 body.player-body .player-episode-line {
     margin-top: 4px;
     color: rgba(181, 192, 205, .72);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: .015em;
 }
@@ -196,6 +214,10 @@ body.player-body .nav-divider {
 }
 
 body.player-body .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     min-height: 30px;
     padding: 0 9px;
     border: 1px solid rgba(255, 255, 255, .10);
@@ -205,6 +227,7 @@ body.player-body .nav-btn {
     color: rgba(218, 226, 236, .82);
     font-size: 9px;
     font-weight: 650;
+    line-height: 1;
 }
 
 body.player-body .nav-btn:hover,
@@ -375,12 +398,16 @@ body.player-body .player-episode-card.active .watch-status-badge {
 
 @media (max-width: 760px) {
     body.player-body .player-cinema-shell {
-        padding-top: 12px;
+        padding-top: 8px;
     }
 
     body.player-body .player-page,
     body.player-body .player-episodes {
         width: calc(100% - 32px);
+    }
+
+    body.player-body {
+        padding-top: 12px;
     }
 
     body.player-body .player-header {
@@ -424,5 +451,233 @@ body.player-body .player-episode-card.active .watch-status-badge {
     body.player-body .player-episode-card .player-thumb,
     body.player-body :is(.player-back, .nav-btn) {
         transition: none !important;
+    }
+}
+
+/* Player episode cards use the same thumbnail / progress / footer rhythm as Anime detail. */
+body.player-body .player-episodes .player-episode-card {
+    overflow: visible;
+    border-color: rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+}
+
+body.player-body .player-episode-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: inherit;
+    background: rgba(8, 11, 17, .78);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+body.player-body .player-episodes .player-episode-card:hover {
+    border-color: color-mix(in srgb, var(--player-accent-hover) 42%, var(--border));
+    background: transparent;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .26);
+}
+
+body.player-body .player-episodes .player-episode-card.active {
+    border-color: color-mix(in srgb, var(--player-accent) 52%, var(--border));
+    background: transparent;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--player-accent) 16%, transparent),
+        0 12px 26px rgba(0, 0, 0, .20);
+}
+
+body.player-body .player-thumb-wrapper {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(255, 255, 255, .075);
+    border-radius: 11px 11px 0 0;
+}
+
+body.player-body .player-thumb-wrapper::before {
+    display: none;
+}
+
+body.player-body .player-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(.94) brightness(.88);
+}
+
+body.player-body .player-episode-card:hover .player-thumb,
+body.player-body .player-episode-card:focus-visible .player-thumb {
+    transform: scale(1.025);
+    filter: saturate(1.02) brightness(.94);
+}
+
+body.player-body .player-episode-card .episode-overlay {
+    inset: 0;
+    width: auto;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 12px;
+    gap: 9px;
+    justify-content: center;
+    border-radius: 0;
+    background: linear-gradient(180deg, transparent 38%, rgba(0, 0, 0, .12) 65%, rgba(0, 0, 0, .48));
+    transition: background .3s ease;
+}
+
+body.player-body .player-episode-card .episode-overlay > * {
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity .25s ease, transform .3s var(--ease);
+}
+
+body.player-body .player-episode-card:hover .episode-overlay > *,
+body.player-body .player-episode-card:focus-visible .episode-overlay > * {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+body.player-body .player-episode-card .play-circle {
+    display: grid;
+    place-items: center;
+    padding-left: 2px;
+    width: 40px;
+    height: 40px;
+    border: 1px solid color-mix(in srgb, var(--player-accent) 34%, rgba(255, 255, 255, .22));
+    background: color-mix(in srgb, var(--player-accent) 18%, rgba(8, 11, 17, .72));
+    box-shadow: none;
+    color: color-mix(in srgb, var(--player-accent) 74%, white);
+    font-size: 14px;
+    line-height: 1;
+}
+
+body.player-body .player-episode-card .episode-meta p {
+    color: rgba(244, 247, 251, .94);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .72);
+}
+
+body.player-body .player-episode-card :is(.duration-badge, .resolution-badge) {
+    top: 9px;
+    padding: 4px 6px;
+    border: 1px solid rgba(255, 255, 255, .10);
+    border-radius: 5px;
+    background: rgba(8, 11, 17, .62);
+    color: rgba(219, 227, 236, .82);
+    font-size: 8px;
+    font-weight: 650;
+    box-shadow: none;
+    backdrop-filter: blur(8px);
+}
+
+body.player-body .player-episode-card .duration-badge { right: 9px; }
+body.player-body .player-episode-card .resolution-badge { left: 9px; }
+
+body.player-body .player-episode-card.active .player-thumb-wrapper::after {
+    content: none;
+}
+
+body.player-body .player-episode-resume-progress {
+    position: relative;
+    z-index: 2;
+    height: 2px;
+    background: rgba(255, 255, 255, .09);
+}
+
+body.player-body .player-episode-resume-progress span {
+    display: block;
+    height: 100%;
+    background: var(--player-accent);
+}
+
+body.player-body .player-card-footer {
+    min-height: 54px;
+    padding: 11px 12px;
+    border-top: 1px solid rgba(255, 255, 255, .055);
+    background: rgba(12, 15, 21, .92);
+}
+
+body.player-body .player-card-footer > .player-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 30px;
+}
+
+body.player-body .player-card-footer h3 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: rgba(237, 242, 247, .92);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.player-body .player-card-state {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 20px;
+}
+
+body.player-body .player-episode-card :is(.watch-status-badge, .watch-progress-badge, .player-playing-badge) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, .10);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, .035);
+    box-shadow: none;
+    color: rgba(219, 227, 236, .76);
+    font-size: 8px;
+    font-weight: 650;
+    letter-spacing: .025em;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+body.player-body .player-episode-card .watch-progress-badge {
+    border-color: color-mix(in srgb, var(--player-accent) 24%, var(--border));
+    background: color-mix(in srgb, var(--player-accent) 7%, transparent);
+    color: color-mix(in srgb, var(--player-accent) 70%, white);
+}
+
+body.player-body .player-playing-badge {
+    display: none !important;
+    border-color: color-mix(in srgb, var(--player-accent) 30%, var(--border)) !important;
+    background: color-mix(in srgb, var(--player-accent) 10%, transparent) !important;
+    color: color-mix(in srgb, var(--player-accent) 74%, white) !important;
+    text-transform: uppercase;
+}
+
+body.player-body .player-episode-card.active .player-playing-badge {
+    display: inline-flex !important;
+}
+
+body.player-body .player-episode-card.active .player-card-state :is(.watch-status-badge, .watch-progress-badge) {
+    display: none;
+}
+
+body.player-body .player-episodes .player-episode-card:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--player-accent-hover) 60%, transparent);
+    outline-offset: 3px;
+}
+
+@media (hover: none) {
+    body.player-body .player-episode-card .episode-overlay .play-circle {
+        opacity: .85;
+        transform: none;
     }
 }

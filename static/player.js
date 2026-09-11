@@ -391,7 +391,7 @@ function updateEpisodeLink(link, card) {
     link.dataset.episodePath = card.dataset.episodePath;
 }
 
-function updatePlayerEpisodeState(episodePath) {
+function updatePlayerEpisodeState(episodePath, options = {}) {
     const state = getEpisodeState(episodePath);
 
     if (!state.card) {
@@ -407,7 +407,7 @@ function updatePlayerEpisodeState(episodePath) {
             - ((episodeGrid.clientWidth - state.card.offsetWidth) / 2);
         episodeGrid.scrollTo({
             left: Math.max(0, centeredLeft),
-            behavior: 'smooth'
+            behavior: options.scrollBehavior || 'smooth'
         });
     }
 
@@ -553,6 +553,11 @@ window.addEventListener('beforeunload', () => {
 });
 
 history.replaceState({ episodePath: window.EPISODE_PATH }, '', window.location.href);
+
+// Bring the episode being played into view on the initial Player load.
+requestAnimationFrame(() => {
+    updatePlayerEpisodeState(window.EPISODE_PATH, { scrollBehavior: 'auto' });
+});
 
 if (openMxPlayerBtn && isAndroidDevice()) {
     openMxPlayerBtn.hidden = false;

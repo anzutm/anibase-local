@@ -1,735 +1,225 @@
 {% extends "base.html" %}
-{% block body_class %}support-page{% endblock %}
+{% block body_class %}support-page about-body{% endblock %}
 
 {% block title %}About AniBase{% endblock %}
 
 {% block extra_head %}
-    <style>
-        .overview-page {
-            --bg: #03040A;
-            --surface: rgba(12, 17, 33, 0.74);
-            --surface-strong: rgba(18, 25, 45, 0.9);
-            --line: rgba(133, 190, 255, 0.18);
-            --line-warm: rgba(245, 182, 88, 0.2);
-            --text: #eef6ff;
-            --muted: #9baac4;
-            --soft: #c7d5ee;
-            --cyan: #53dcff;
-            --blue: #6b8cff;
-            --violet: #b27aff;
-            --gold: #f5b658;
-            --rose: #ff7ea8;
-            --green: #55dfa4;
-            --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-            --radius: 22px;
-            position: relative;
-            width: min(1320px, calc(100% - 64px));
-            margin: 32px auto 0;
-            padding: 36px 0 60px;
-            overflow-x: hidden;
-            color: var(--text);
-            border: 1px solid rgba(133, 190, 255, 0.12);
-            border-radius: 28px;
-            background: rgba(3, 4, 10, 0.54);
-            box-shadow: 0 26px 88px rgba(0, 0, 0, 0.32);
-        }
-
-        .overview-page,
-        .overview-page *,
-        .overview-page *::before,
-        .overview-page *::after {
-            box-sizing: border-box;
-        }
-
-        .overview-page::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
-            pointer-events: none;
-        }
-
-        .overview-page a {
-            color: inherit;
-        }
-
-        .overview-container {
-            width: min(980px, calc(100% - 112px));
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        .overview-hero {
-            position: relative;
-            min-height: auto;
-            display: flex;
-            align-items: flex-start;
-            padding: 50px 0 6px;
-            overflow: hidden;
-        }
-
-        .overview-hero-content::before {
-            content: "";
-            position: absolute;
-            inset: 4px 0 auto;
-            height: 36%;
-            background:
-                radial-gradient(circle at 18% 20%, rgba(83, 220, 255, 0.07), transparent 20rem),
-                radial-gradient(circle at 82% 18%, rgba(245, 182, 88, 0.045), transparent 18rem);
-            opacity: 0.7;
-            pointer-events: none;
-        }
-
-        .overview-hero-content {
-            position: relative;
-            z-index: 1;
-            display: grid;
-            grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.55fr);
-            gap: 18px;
-            align-items: start;
-        }
-
-        .overview-hero-content > * {
-            position: relative;
-            z-index: 1;
-        }
-
-        .brand-lockup {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 10px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.055);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(18px);
-        }
-
-        .brand-lockup img {
-            width: 24px;
-            height: 24px;
-            object-fit: contain;
-        }
-
-        .brand-lockup span {
-            color: var(--soft);
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .overview-page h1 {
-            margin: 10px 0 8px;
-            max-width: 560px;
-            font-size: clamp(2rem, 3.8vw, 3.2rem);
-            line-height: 1.04;
-            letter-spacing: 0;
-        }
-
-        .hero-lede {
-            max-width: 600px;
-            margin: 0;
-            color: var(--soft);
-            font-size: clamp(0.92rem, 1.2vw, 1rem);
-        }
-
-        .badges {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 7px;
-            margin-top: 12px;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            min-height: 25px;
-            padding: 4px 8px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 999px;
-            color: #eaf8ff;
-            background: rgba(255, 255, 255, 0.055);
-            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
-
-        .badge.primary {
-            border-color: rgba(83, 220, 255, 0.36);
-            background: linear-gradient(135deg, rgba(83, 220, 255, 0.2), rgba(107, 140, 255, 0.12));
-        }
-
-        .badge.gold {
-            border-color: rgba(245, 182, 88, 0.34);
-            background: linear-gradient(135deg, rgba(245, 182, 88, 0.18), rgba(255, 126, 168, 0.1));
-        }
-
-        .hero-card {
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: var(--radius);
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
-                rgba(8, 12, 24, 0.78);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(22px);
-            padding: 14px;
-        }
-
-        .hero-card h2 {
-            margin: 0 0 6px;
-            font-size: 0.98rem;
-        }
-
-        .hero-card p {
-            margin: 0 0 10px;
-            color: var(--muted);
-            font-size: 0.84rem;
-        }
-
-        .overview-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .overview-action {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 38px;
-            padding: 0 14px;
-            border: 1px solid rgba(255, 255, 255, 0.13);
-            border-radius: 999px;
-            color: var(--text);
-            background: rgba(255, 255, 255, 0.065);
-            font-size: 0.82rem;
-            font-weight: 800;
-            text-decoration: none;
-        }
-
-        .overview-action.primary {
-            border-color: rgba(83, 220, 255, 0.34);
-            background: linear-gradient(135deg, rgba(83, 220, 255, 0.22), rgba(107, 140, 255, 0.14));
-        }
-
-        .hero-visual {
-            display: grid;
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .hero-visual-window {
-            position: relative;
-            min-height: 118px;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 18px;
-            background:
-                radial-gradient(circle at 18% 24%, rgba(83, 220, 255, 0.32), transparent 32%),
-                radial-gradient(circle at 76% 28%, rgba(245, 182, 88, 0.18), transparent 28%),
-                linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.025)),
-                rgba(3, 4, 10, 0.72);
-        }
-
-        .hero-visual-window::before {
-            content: "";
-            position: absolute;
-            left: 18px;
-            right: 18px;
-            bottom: 16px;
-            height: 38px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.10);
-            box-shadow:
-                0 -44px 0 -10px rgba(255, 255, 255, 0.075),
-                0 -82px 0 -18px rgba(255, 255, 255, 0.055);
-        }
-
-        .hero-visual-window::after {
-            content: "LAN";
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            padding: 5px 9px;
-            border: 1px solid rgba(85, 223, 164, 0.30);
-            border-radius: 999px;
-            color: #dfffee;
-            background: rgba(85, 223, 164, 0.10);
-            font-size: 0.68rem;
-            font-weight: 900;
-        }
-
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-        }
-
-        .stat {
-            min-height: 54px;
-            padding: 9px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.045);
-        }
-
-        .stat strong {
-            display: block;
-            margin-bottom: 3px;
-            color: var(--cyan);
-            font-size: 1rem;
-            line-height: 1;
-        }
-
-        .stat span {
-            color: var(--muted);
-            font-size: 0.72rem;
-        }
-
-        .overview-main {
-            padding: 0 0 76px;
-        }
-
-        .overview-section {
-            margin-top: 14px;
-        }
-
-        .overview-section-head {
-            display: flex;
-            align-items: end;
-            justify-content: space-between;
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-
-        .section-kicker {
-            margin: 0 0 6px;
-            color: var(--gold);
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-        }
-
-        .section-title {
-            margin: 0;
-            font-size: clamp(1.7rem, 3vw, 2.45rem);
-            line-height: 1.1;
-        }
-
-        .section-subtitle {
-            max-width: 660px;
-            margin: 10px 0 0;
-            color: var(--muted);
-        }
-
-        .overview-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 16px;
-        }
-
-        .overview-grid.two {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .overview-card {
-            position: relative;
-            overflow: hidden;
-            min-height: 100%;
-            padding: 22px;
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            background:
-                linear-gradient(160deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
-                var(--surface);
-            box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
-            backdrop-filter: blur(18px);
-        }
-
-        .overview-card::after {
-            content: "";
-            position: absolute;
-            inset: auto 18px 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(83, 220, 255, 0.34), transparent);
-            opacity: 0.8;
-        }
-
-        .overview-card h3 {
-            margin: 0 0 10px;
-            font-size: 1.08rem;
-        }
-
-        .overview-card p {
-            margin: 0;
-            color: var(--muted);
-        }
-
-        .overview-card ul {
-            display: grid;
-            gap: 8px;
-            margin: 12px 0 0;
-            padding-left: 18px;
-            color: var(--soft);
-        }
-
-        .feature-card {
-            border-color: rgba(245, 182, 88, 0.16);
-        }
-
-        .feature-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            margin-bottom: 14px;
-            border: 1px solid rgba(83, 220, 255, 0.22);
-            border-radius: 12px;
-            color: #def8ff;
-            background: rgba(83, 220, 255, 0.10);
-            font-weight: 900;
-        }
-
-        .overview-card.compact {
-            min-height: 0;
-            padding: 18px;
-        }
-
-        .overview-card.compact p {
-            font-size: 0.9rem;
-            line-height: 1.55;
-        }
-
-        .feature-card h3 {
-            color: #fff5dd;
-        }
-
-        .compact-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 14px;
-        }
-
-        .chip {
-            display: inline-flex;
-            align-items: center;
-            min-height: 30px;
-            padding: 6px 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 999px;
-            color: var(--soft);
-            background: rgba(255, 255, 255, 0.05);
-            font-size: 0.84rem;
-            font-weight: 700;
-        }
-
-        .chip.green {
-            border-color: rgba(85, 223, 164, 0.26);
-            color: #dfffee;
-            background: rgba(85, 223, 164, 0.1);
-        }
-
-        .chip.blue {
-            border-color: rgba(83, 220, 255, 0.28);
-            color: #def8ff;
-            background: rgba(83, 220, 255, 0.09);
-        }
-
-        .chip.rose {
-            border-color: rgba(255, 126, 168, 0.25);
-            color: #ffe6ee;
-            background: rgba(255, 126, 168, 0.09);
-        }
-
-        .release {
-            margin-top: 38px;
-            padding: 28px;
-            border: 1px solid var(--line-warm);
-            border-radius: 28px;
-            background:
-                linear-gradient(135deg, rgba(245, 182, 88, 0.13), rgba(83, 220, 255, 0.08) 48%, rgba(178, 122, 255, 0.1)),
-                var(--surface-strong);
-            box-shadow: var(--shadow);
-        }
-
-        .release h2 {
-            margin: 0 0 10px;
-            font-size: clamp(1.8rem, 3vw, 2.55rem);
-        }
-
-        .release p {
-            max-width: 920px;
-            margin: 0;
-            color: var(--soft);
-            font-size: 1.05rem;
-        }
-
-        .about-note {
-            border-color: rgba(85, 223, 164, 0.20);
-            background:
-                linear-gradient(135deg, rgba(85, 223, 164, 0.11), rgba(83, 220, 255, 0.07)),
-                var(--surface-strong);
-        }
-
-        .about-note h2 {
-            font-size: clamp(1.55rem, 2.5vw, 2.15rem);
-        }
-
-        .footer {
-            padding: 34px 0 44px;
-            color: var(--muted);
-            text-align: center;
-        }
-
-        @media (max-width: 900px) {
-            .overview-container {
-                width: min(100% - 72px, 980px);
-            }
-
-            .overview-hero {
-                min-height: auto;
-                padding: 0 0 10px;
-            }
-
-            .overview-hero-content {
-                grid-template-columns: 1fr;
-            }
-
-            .overview-grid,
-            .overview-grid.two {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 560px) {
-            .overview-container {
-                width: min(100% - 32px, 980px);
-            }
-
-            .overview-page {
-                width: min(100% - 24px, 1320px);
-                margin-top: 18px;
-                padding-top: 26px;
-                border-radius: 22px;
-            }
-
-            .hero-card,
-            .overview-card,
-            .release {
-                border-radius: 18px;
-                padding: 14px;
-            }
-
-            .stat-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .overview-section-head {
-                display: block;
-            }
-
-            .brand-lockup span {
-                font-size: 0.72rem;
-            }
-        }
-    </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='about.css', v='1') }}">
 {% endblock %}
 
 {% block content %}
-<div class="overview-page">
-    <header class="overview-hero">
-        <div class="overview-container overview-hero-content">
-            <div>
-                <div class="brand-lockup">
-                    <img src="{{ url_for('static', filename='logo_transparent_cropped.png') }}" alt="AniBase logo">
-                    <span>About the App</span>
-                </div>
-                <h1>Your collection.<br>Your cinema.</h1>
-                <p class="hero-lede">
-                    Bring your anime folders to life. Browse beautiful artwork, pick up your last episode,
-                    and enjoy your collection on devices connected to your home network.
-                </p>
-                <div class="badges" aria-label="Release highlights">
-                    <span class="badge primary">Local / LAN</span>
-
-                    <span class="badge gold">Anime Library</span>
-                    <span class="badge">Media Player Friendly</span>
-                    <span class="badge primary">Watch Progress</span>
-                    <span class="badge">Discord RPC</span>
-                </div>
-                <div class="overview-actions">
-                    <a href="{{ url_for('index') }}" class="overview-action primary">Open Library</a>
-                    <a href="{{ url_for('settings_page') }}" class="overview-action">Settings</a>
-                </div>
+<main class="about-page">
+    <section class="about-hero" aria-labelledby="about-title">
+        <div class="about-hero-copy">
+            <p class="about-eyebrow"><span></span> Local-first anime library</p>
+            <h1 id="about-title">Your anime library,<br><em>made cinematic.</em></h1>
+            <p class="about-lede">
+                AniBase turns the folders you already own into a focused personal streaming experience—beautiful to browse, quick to resume, and private by design.
+            </p>
+            <div class="about-actions">
+                <a class="about-button about-button--primary" href="{{ url_for('index') }}">
+                    Explore your library <span aria-hidden="true">&#8594;</span>
+                </a>
+                <a class="about-button" href="{{ url_for('settings_page') }}">Open settings</a>
             </div>
-
-            <aside class="hero-card">
-                <div class="hero-visual" aria-hidden="true">
-                    <div class="hero-visual-window"></div>
-                </div>
-                <h2>Built for daily local watching</h2>
-                <p>
-                    AniBase turns folders into a browsable personal anime server without accounts,
-                    public hosting, or heavyweight media-server setup.
-                </p>
-                <div class="stat-grid">
-                    <div class="stat">
-                        <strong>LAN</strong>
-                        <span>Access from nearby devices</span>
-                    </div>
-                    <div class="stat">
-                        <strong>Local</strong>
-                        <span>Your files stay on your machine</span>
-                    </div>
-                    <div class="stat">
-                        <strong>Fast</strong>
-                        <span>Local-first setup scan</span>
-                    </div>
-                    <div class="stat">
-                        <strong>Simple</strong>
-                        <span>Folders, settings, and playback</span>
-                    </div>
-                </div>
-            </aside>
         </div>
-    </header>
 
-    <div class="overview-container overview-main">
-        <section class="overview-section">
-            <div class="overview-section-head">
-                <div>
-                    <p class="section-kicker">What It Does</p>
-                    <h2 class="section-title">Built for local anime libraries</h2>
-                    <p class="section-subtitle">
-                        Point it at your anime folders and start browsing as soon as the local scan
-                        finishes. Posters and anime metadata continue loading in the background.
-                    </p>
+        <div class="about-product-preview" aria-hidden="true">
+            <div class="about-preview-frame">
+                <div class="about-preview-bar">
+                    <strong>AniBase</strong>
+                    <span>Home</span><span>Movies</span><span>Schedule</span>
+                    <i aria-hidden="true"></i>
                 </div>
-            </div>
-            <div class="overview-grid">
-                <article class="overview-card feature-card">
-                    <span class="feature-icon">01</span>
-                    <h3>Browse Your Library</h3>
-                    <p>Home, anime detail, movies, seasons, studio pages, schedule, filters, search, and sorting.</p>
-                </article>
-                <article class="overview-card feature-card">
-                    <span class="feature-icon">02</span>
-                    <h3>Continue Where You Left Off</h3>
-                    <p>Watch history, progress badges, resume buttons, and episode status help you keep momentum.</p>
-                </article>
-                <article class="overview-card feature-card">
-                    <span class="feature-icon">03</span>
-                    <h3>Play Your Way</h3>
-                    <p>Watch in the browser, open files in Media Player, or hand playback to MX Player on supported Android devices.</p>
-                </article>
-            </div>
-        </section>
-
-        <section class="overview-section">
-            <div class="overview-section-head">
-                <div>
-                    <p class="section-kicker">Core Experience</p>
-                    <h2 class="section-title">A streaming-style UI for your folders</h2>
-                </div>
-            </div>
-            <div class="overview-grid two">
-                <article class="overview-card compact">
-                    <h3>Library View</h3>
-                    <ul>
-                        <li>Featured titles and Last Watched at the top.</li>
-                        <li>Release and watch-status filters for larger collections.</li>
-                        <li>Readable poster badges for Not Started, Watching, Up To Date, and Completed.</li>
-                    </ul>
-                </article>
-                <article class="overview-card compact">
-                    <h3>Player Flow</h3>
-                    <ul>
-                        <li>Soft episode switching without a full page refresh.</li>
-                        <li>Next and Previous keep the viewport on the player while centering the active episode in the queue.</li>
-                        <li>Subtitles, screenshots, progress reporting, toast feedback, and Discord Rich Presence.</li>
-                    </ul>
-                </article>
-            </div>
-        </section>
-
-        <section class="overview-section">
-            <div class="overview-section-head">
-                <div>
-                    <p class="section-kicker">Management</p>
-                    <h2 class="section-title">Small tools that make local libraries easier</h2>
-                </div>
-            </div>
-            <div class="overview-grid">
-                <article class="overview-card compact">
-                    <h3>Auto Import</h3>
-                    <p>Watch a downloads folder, move matched files into the right anime folder, and manually resolve unmatched files.</p>
-                </article>
-                <article class="overview-card compact">
-                    <h3>Quick First-Run Setup</h3>
-                    <p>Choose library folders and a theme, open the library after the local scan, then let metadata finish in the background.</p>
-                </article>
-                <article class="overview-card compact">
-                    <h3>Settings Clarity</h3>
-                    <p>Status cards show Anime Library, Movie Path, Player, Discord, Auto Import, and LAN readiness at a glance.</p>
-                </article>
-            </div>
-        </section>
-
-        <section class="release about-note" aria-labelledby="local-note">
-            <p class="section-kicker">Local / LAN Note</p>
-            <h2 id="local-note">Designed for a trusted home network</h2>
-            <p>
-                AniBase is intentionally local-first. It is made for your own machine and
-                devices on the same LAN, not for public internet hosting. Streaming pages remain easy
-                to access from nearby devices, while sensitive local actions use lightweight protection.
-            </p>
-        </section>
-
-        <section class="overview-section">
-            <div class="overview-section-head">
-                <div>
-                    <p class="section-kicker">Stack</p>
-                    <h2 class="section-title">What powers the app</h2>
-                </div>
-            </div>
-            <div class="overview-grid two">
-                <article class="overview-card compact">
-                    <h3>Backend</h3>
-                    <ul>
-                        <li>Flask routes and Jinja templates.</li>
-                        <li>SQLite library index and JSON settings/cache files.</li>
-                        <li>AniList enrichment, resilient episode-number parsing, Media Player launch, and media helpers.</li>
-                    </ul>
-                </article>
-                <article class="overview-card compact">
-                    <h3>Frontend</h3>
-                    <div class="compact-list">
-                        <span class="chip blue">Plyr</span>
-                        <span class="chip">Glass UI</span>
-                        <span class="chip green">Responsive</span>
-                        <span class="chip rose">Blue / Orange Themes</span>
-                        <span class="chip">No Login Layer</span>
-                        <span class="chip blue">LAN Friendly</span>
+                <div class="about-preview-hero">
+                    <div class="about-preview-copy">
+                        <small>NOW IN YOUR LIBRARY</small>
+                        <b>Continue your story.</b>
+                        <span>Pick up from the exact episode you left.</span>
+                        <span class="about-preview-button">Resume watching</span>
                     </div>
-                </article>
+                </div>
+                <div class="about-preview-row" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i><i></i>
+                </div>
             </div>
-        </section>
+            <div class="about-preview-float about-preview-float--progress">
+                <span>WATCH PROGRESS</span>
+                <strong>Episode 08</strong>
+                <i><b></b></i>
+            </div>
+            <div class="about-preview-float about-preview-float--local">
+                <i aria-hidden="true"></i>
+                <span><strong>Local stream</strong><small>Ready on your network</small></span>
+            </div>
+        </div>
+    </section>
 
-        <section class="release" aria-labelledby="release-notes">
-            <p class="section-kicker">Project Personality</p>
-            <h2 id="release-notes">A personal streaming shelf, not a public platform</h2>
+    <section class="about-principles" aria-label="AniBase principles">
+        <article><strong>01</strong><span>Local first</span><small>Your media stays yours.</small></article>
+        <article><strong>02</strong><span>Zero accounts</span><small>Open it and start watching.</small></article>
+        <article><strong>03</strong><span>LAN ready</span><small>Comfortable across nearby devices.</small></article>
+        <article><strong>04</strong><span>Built for anime</span><small>Seasons, episodes, and progress.</small></article>
+    </section>
+
+    <section class="about-story" aria-labelledby="about-story-title">
+        <div class="about-section-intro">
+            <p class="about-kicker">The everyday flow</p>
+            <h2 id="about-story-title">From folder to screen,<br>without the friction.</h2>
+            <p>AniBase keeps the workflow understandable while giving a local collection the care of a modern streaming service.</p>
+        </div>
+
+        <div class="about-story-steps">
+            <article>
+                <span class="about-step-number">01</span>
+                <div>
+                    <h3>Point AniBase at your folders</h3>
+                    <p>Add one or more anime libraries and a separate movie folder. The local scan organizes what is already on your machine.</p>
+                </div>
+                <span class="about-step-tag">Library scan</span>
+            </article>
+            <article>
+                <span class="about-step-number">02</span>
+                <div>
+                    <h3>Browse a library that feels alive</h3>
+                    <p>Artwork, metadata, studios, characters, schedules, filters, and watch states give every title useful context.</p>
+                </div>
+                <span class="about-step-tag">Enriched locally</span>
+            </article>
+            <article>
+                <span class="about-step-number">03</span>
+                <div>
+                    <h3>Resume in one move</h3>
+                    <p>Continue Watching, episode progress, and current-playing states keep the next action obvious across the app.</p>
+                </div>
+                <span class="about-step-tag">Progress saved</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="about-capabilities" aria-labelledby="about-capabilities-title">
+        <header class="about-section-heading">
+            <div>
+                <p class="about-kicker">Designed around watching</p>
+                <h2 id="about-capabilities-title">Everything important,<br>nothing in the way.</h2>
+            </div>
+            <p>Purpose-built tools for a personal library, arranged around discovery, playback, and maintenance.</p>
+        </header>
+
+        <div class="about-bento">
+            <article class="about-bento-card about-bento-card--player">
+                <span class="about-card-index">01 / Player</span>
+                <div class="about-player-glyph" aria-hidden="true"><span></span></div>
+                <div>
+                    <h3>A cinema-first player</h3>
+                    <p>Browser playback, subtitles, screenshots, keyboard shortcuts, seamless episode switching, and external media-player support.</p>
+                </div>
+            </article>
+
+            <article class="about-bento-card about-bento-card--progress">
+                <span class="about-card-index">02 / Continuity</span>
+                <div class="about-progress-demo" aria-hidden="true">
+                    <span><i></i></span>
+                    <strong>8 of 12 episodes</strong>
+                    <small>Continue right where you stopped</small>
+                </div>
+                <div>
+                    <h3>Progress with context</h3>
+                    <p>Not Started, Watching, Up to Date, and Completed stay readable everywhere.</p>
+                </div>
+            </article>
+
+            <article class="about-bento-card about-bento-card--schedule">
+                <span class="about-card-index">03 / Schedule</span>
+                <div class="about-schedule-demo" aria-hidden="true">
+                    <i>MON</i><i>TUE</i><i class="is-current">WED</i><i>THU</i><i>FRI</i>
+                </div>
+                <div>
+                    <h3>Know what airs next</h3>
+                    <p>A focused schedule and notification panel keep upcoming episodes within reach.</p>
+                </div>
+            </article>
+
+            <article class="about-bento-card about-bento-card--automation">
+                <span class="about-card-index">04 / Automation</span>
+                <div>
+                    <h3>Quietly handles the routine</h3>
+                    <p>Auto Import watches a downloads folder, moves matched episodes, and keeps unmatched files easy to resolve.</p>
+                </div>
+                <ul>
+                    <li><span></span>Folder watching</li>
+                    <li><span></span>Title mappings</li>
+                    <li><span></span>Manual resolution</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <section class="about-local" aria-labelledby="about-local-title">
+        <div class="about-local-visual" aria-hidden="true">
+            <div class="about-orbit about-orbit--one"></div>
+            <div class="about-orbit about-orbit--two"></div>
+            <div class="about-local-core"><span>AB</span></div>
+            <span class="about-node about-node--desktop">Desktop</span>
+            <span class="about-node about-node--mobile">Mobile</span>
+            <span class="about-node about-node--player">Player</span>
+        </div>
+        <div class="about-local-copy">
+            <p class="about-kicker">Private by design</p>
+            <h2 id="about-local-title">Your home network.<br>Your collection.</h2>
             <p>
-                The goal is simple: make a local anime folder feel like a premium app while keeping
-                the workflow understandable, private, and comfortable for everyday use.
+                AniBase is made for your own computer and trusted LAN—not public internet hosting. There is no account layer between you and the files you already own.
             </p>
-        </section>
-    </div>
-</div>
+            <div class="about-local-points">
+                <span><i></i> Files remain on your machine</span>
+                <span><i></i> Nearby-device streaming</span>
+                <span><i></i> Protected local actions</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="about-foundation" aria-labelledby="about-foundation-title">
+        <header class="about-section-heading">
+            <div>
+                <p class="about-kicker">Under the surface</p>
+                <h2 id="about-foundation-title">Simple foundations,<br>useful integrations.</h2>
+            </div>
+            <p>The technology stays practical so the experience can remain fast, understandable, and easy to maintain.</p>
+        </header>
+        <div class="about-foundation-grid">
+            <article>
+                <span>CORE</span>
+                <h3>Flask + Jinja</h3>
+                <p>Server-rendered pages and straightforward local routes.</p>
+            </article>
+            <article>
+                <span>LIBRARY</span>
+                <h3>SQLite + JSON</h3>
+                <p>A local index, settings, mappings, and lightweight caches.</p>
+            </article>
+            <article>
+                <span>METADATA</span>
+                <h3>AniList enrichment</h3>
+                <p>Artwork and information that make folders easier to explore.</p>
+            </article>
+            <article>
+                <span>PLAYBACK</span>
+                <h3>Plyr + native apps</h3>
+                <p>Watch in-browser or hand playback to a supported player.</p>
+            </article>
+            <article>
+                <span>PRESENCE</span>
+                <h3>Discord RPC</h3>
+                <p>Optional activity sharing while you watch.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="about-closing" aria-labelledby="about-closing-title">
+        <p class="about-kicker">Built for the collection you care about</p>
+        <h2 id="about-closing-title">A personal streaming shelf.<br><em>Not another platform.</em></h2>
+        <p>Comfortable for everyday watching, transparent enough to stay yours.</p>
+        <a class="about-button about-button--primary" href="{{ url_for('index') }}">Enter AniBase <span aria-hidden="true">&#8594;</span></a>
+    </section>
+</main>
 {% endblock %}

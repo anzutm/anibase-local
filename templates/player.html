@@ -21,7 +21,7 @@
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-7') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='9') }}">
 </head>
 
 <body class="player-body">
@@ -43,7 +43,7 @@
                 href="{{ back_url or url_for('anime_detail', anime_name=anime_name) }}"
                 class="player-back"
             >
-                &larr; Back
+                &larr; Back to details
             </a>
         </div>
         
@@ -98,9 +98,6 @@
                     <button type="button" onclick="playInVLC()" class="nav-btn vlc-quick-btn">
                         <span class="vlc-icon">&#9654;</span> Open in Media Player
                     </button>
-                    <button id="openMxPlayerBtn" type="button" class="nav-btn mx-quick-btn" hidden>
-                        Open in MX Player
-                    </button>
                     <div class="nav-divider"></div>
 
                     <a
@@ -111,7 +108,7 @@
                         data-episode-path="{{ previous_episode or '' }}"
                         {% if not previous_episode %}hidden aria-disabled="true"{% endif %}
                     >
-                        <span>&lsaquo;</span> Prev
+                        <span aria-hidden="true">&lsaquo;</span> Previous
                     </a>
                     
                     <a
@@ -122,7 +119,7 @@
                         data-episode-path="{{ next_episode or '' }}"
                         {% if not next_episode %}hidden aria-disabled="true"{% endif %}
                     >
-                        Next <span>&rsaquo;</span>
+                        Next episode <span aria-hidden="true">&rsaquo;</span>
                     </a>
                 </div>
             </div>
@@ -165,6 +162,7 @@
             {% endif %}"
 
         >
+            <div class="player-episode-shell">
             <div class="player-thumb-wrapper">
 
                 <img
@@ -194,14 +192,20 @@
 
                     <div class="episode-meta">
                         <p>
-                            Watch now
+                            Play episode
                         </p>
                     </div>
                 </div>
 
             </div>
 
-            <div class="player-card-info">
+            {% if ep.progress and ep.progress > 0 and not ep.watched %}
+            <div class="player-episode-resume-progress" data-progress="{{ [100, [0, ep.progress|float]|max]|min }}" role="progressbar" aria-label="Watch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ [100, [0, ep.progress|float]|max]|min }}">
+                <span></span>
+            </div>
+            {% endif %}
+
+            <div class="player-card-footer">
 
                 <div class="player-card-row">
                     <h3>
@@ -212,17 +216,17 @@
                         {% endif %}
                     </h3>
 
-                    {% if ep.watched %}
-                    <span class="watch-status-badge">
-                        Watched
-                    </span>
-                    {% elif ep.progress and ep.progress > 0 %}
-                    <span class="watch-progress-badge">
-                        Progress {{ ep.progress }}%
-                    </span>
-                    {% endif %}
+                    <div class="player-card-state">
+                        {% if ep.watched %}
+                        <span class="watch-status-badge">Watched</span>
+                        {% elif ep.progress and ep.progress > 0 %}
+                        <span class="watch-progress-badge">Resume &middot; {{ ep.progress }}%</span>
+                        {% endif %}
+                        <span class="player-playing-badge">Playing</span>
+                    </div>
                 </div>
 
+            </div>
             </div>
 
         </a>
@@ -287,7 +291,14 @@
     })();
 </script>
 
-<script src="{{ url_for('static', filename='player.js', v='player-ui-1') }}"></script>
+<script>
+    document.querySelectorAll('.player-episode-resume-progress[data-progress]').forEach((bar) => {
+        const value = Math.max(0, Math.min(100, Number(bar.dataset.progress) || 0));
+        const fill = bar.querySelector('span');
+        if (fill) fill.style.width = `${value}%`;
+    });
+</script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-2') }}"></script>
 
 </body>
 

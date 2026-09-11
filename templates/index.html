@@ -4,7 +4,7 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='33') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='37') }}">
 {% endblock %}
 {% block content %}
 <div class="home-intro">
@@ -304,15 +304,6 @@
                 </div>
 
                 <div class="poster-overlay">
-                    <div class="anime-watch-corner-badge {% if movie.watch_status_kind != 'watching' %}is-complete{% endif %}">
-                        <span>
-                            {{ movie.watch_status_label }} {{ movie.watch_progress_label }}
-                        </span>
-                        {% if movie.watch_status_kind != 'watching' %}
-                        <i aria-hidden="true">✓</i>
-                        {% endif %}
-                    </div>
-
                     <h3>{{ movie.title }}</h3>
 
                     <div class="poster-card-meta">

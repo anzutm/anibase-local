@@ -12,9 +12,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='51') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='63') }}">
     {% if is_movie %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='8') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='9') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
 </head>
@@ -572,8 +572,8 @@
     </div>
 
     {% if ep.progress and ep.progress > 0 and not ep.watched %}
-    <div class="episode-resume-progress" role="progressbar" aria-label="Watch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ [100, [0, ep.progress|float]|max]|min }}">
-        <span style="width: {{ [100, [0, ep.progress|float]|max]|min }}%"></span>
+    <div class="episode-resume-progress" data-progress="{{ [100, [0, ep.progress|float]|max]|min }}" role="progressbar" aria-label="Watch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ [100, [0, ep.progress|float]|max]|min }}">
+        <span></span>
     </div>
     {% endif %}
 
@@ -804,6 +804,12 @@ function initializeAnimeDetailContent() {
 
     const grid = document.getElementById('episodeGrid');
     if (!grid) return;
+
+    grid.querySelectorAll('.episode-resume-progress[data-progress]').forEach((bar) => {
+        const value = Math.max(0, Math.min(100, Number(bar.dataset.progress) || 0));
+        const fill = bar.querySelector('span');
+        if (fill) fill.style.width = `${value}%`;
+    });
 
     const cards = Array.from(grid.querySelectorAll('.episode-card[data-episode-index]'));
     const filterButtons = Array.from(document.querySelectorAll('.episode-filter-btn[data-episode-filter]'));
