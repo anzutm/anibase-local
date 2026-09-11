@@ -1,0 +1,19 @@
+<footer class="anibase-footer" aria-label="AniBase footer">
+    <div class="anibase-footer-main">
+        <div>
+            <p class="anibase-footer-eyebrow">YOUR COLLECTION. YOUR WORLD.</p>
+            <a class="anibase-footer-wordmark" href="{{ url_for('index') }}" aria-label="AniBase home">Ani<span>Base</span><i aria-hidden="true"></i></a>
+            <p class="anibase-footer-tagline">Good stories deserve a place to stay.</p>
+        </div>
+        <nav class="anibase-footer-nav" aria-label="Footer navigation">
+            <a href="{{ url_for('index') }}">Your library <span aria-hidden="true">&#8599;</span></a>
+            <a href="{{ url_for('movies') }}">Movies <span aria-hidden="true">&#8599;</span></a>
+            <a href="{{ url_for('schedule') }}">Schedule <span aria-hidden="true">&#8599;</span></a>
+            <a href="{{ url_for('settings_page') }}">Settings <span aria-hidden="true">&#8599;</span></a>
+        </nav>
+    </div>
+    <div class="anibase-footer-base">
+        <p>&copy; 2026 AniBase <span>Made for your own little cinema.</span></p>
+        <a class="anibase-footer-top" href="#">Back to top <span aria-hidden="true">&#8593;</span></a>
+    </div>
+</footer>

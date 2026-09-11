@@ -1,0 +1,49 @@
+/* Match the Home collection rail, including its mobile gutter. */
+.home-page .anibase-footer { width: min(1800px, calc(100% - 56px)); }
+@media (max-width: 768px) {
+    .home-page .anibase-footer { width: calc(100% - 32px); }
+}
+
+/* Shared footer, isolated from the legacy page footer styles. */
+.anibase-footer {
+    --footer-accent: var(--cyan, #4ade80);
+    /* Detail/list sections use the wide 1760px content rail. Keeping the
+       footer on that same rail prevents it from appearing inset on pages
+       other than Home. Home has its own gutter override above. */
+    width: min(1760px, calc(100% - 48px));
+    margin: 72px auto 0;
+    padding: 48px 0 22px;
+    border-top: 1px solid rgba(255,255,255,.10);
+    color: #e9edf2;
+    position: relative;
+}
+.anibase-footer::before { content: ""; position: absolute; top: -1px; left: 0; width: 64px; height: 2px; background: var(--footer-accent); opacity: .65; }
+.anibase-footer-main { display: flex; align-items: center; justify-content: space-between; gap: 64px; padding-bottom: 40px; }
+.anibase-footer-eyebrow { margin: 0 0 16px; font-size: 9px; font-weight: 600; letter-spacing: .18em; color: #929aa7; }
+.anibase-footer-wordmark { display: inline-flex; align-items: baseline; color: #f0f3f6; font-size: clamp(44px, 5.2vw, 76px); line-height: 1; font-weight: 800; letter-spacing: -.065em; text-decoration: none; }
+.anibase-footer-wordmark span { color: #929aa7; transition: color .25s ease; }
+.anibase-footer-wordmark i { width: 8px; height: 8px; margin-left: 9px; border-radius: 50%; background: var(--footer-accent); }
+.anibase-footer-wordmark:hover span { color: var(--footer-accent); }
+.anibase-footer-tagline { margin: 18px 0 0; color: #9da5b2; font-size: 13px; line-height: 1.6; }
+.anibase-footer-nav { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px 36px; width: min(380px, 100%); }
+.anibase-footer-nav a { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; color: #bec5cf; font-size: 13px; font-weight: 500; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.07); transition: color .25s ease, border-color .25s ease; }
+.anibase-footer-nav a span { color: #727d8c; transition: transform .25s ease, color .25s ease; }
+.anibase-footer-nav a:hover { color: #f4f6f8; border-color: color-mix(in srgb, var(--footer-accent) 30%, transparent); }
+.anibase-footer-nav a:hover span { color: var(--footer-accent); transform: translate(2px, -2px); }
+.anibase-footer-base { border-top: 1px solid rgba(255,255,255,.07); padding-top: 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.anibase-footer-base p { margin: 0; color: #959eaa; font-size: 11px; line-height: 1.7; }
+.anibase-footer-base p span { margin-left: 18px; color: #788392; }
+.anibase-footer-top { display: inline-flex; align-items: center; gap: 12px; color: #b9c1cb; font-size: 11px; text-decoration: none; white-space: nowrap; }
+.anibase-footer-top span { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; transition: border-color .25s ease, color .25s ease; }
+.anibase-footer-top:hover span { color: var(--footer-accent); border-color: var(--footer-accent); }
+.anibase-footer a:focus-visible { outline: 2px solid var(--footer-accent); outline-offset: 5px; border-radius: 3px; }
+@media (max-width: 700px) {
+    .anibase-footer { width: calc(100% - 32px); margin-top: 48px; padding-top: 32px; }
+    .anibase-footer-main { align-items: flex-start; flex-direction: column; gap: 26px; padding-bottom: 28px; }
+    .anibase-footer-nav { width: 100%; gap: 4px 24px; }
+    .anibase-footer-base { align-items: flex-start; }
+    .anibase-footer-base p span { display: block; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .anibase-footer * { transition: none !important; }
+}

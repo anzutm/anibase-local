@@ -10020,7 +10020,7 @@ body:has(.hero-foreground) .character-section {
 
 .index-collection-section .grid .anime-watch-corner-badge span,
 .movie-collection-section .grid .anime-watch-corner-badge span {
-    font-size: 10px;
+    font-size: 9px;
     letter-spacing: .04em;
     line-height: 1;
 }
@@ -11440,16 +11440,15 @@ body.metadata-modal-open {
 .movie-collection-section .grid .anime-watch-corner-badge {
     top: 7px;
     right: 7px;
-    gap: 4px;
+    gap: 3px;
     max-width: calc(100% - 14px);
-    min-height: 18px;
-    padding: 2px 6px;
-    border-color: rgba(255,255,255,.18);
-    color: rgba(246,250,255,.98);
+    min-height: 16px;
+    padding: 1px 5px;
+    border-color: rgba(148,163,184,.30);
+    color: rgba(226,232,240,.96);
     background:
-        radial-gradient(circle at 18% 12%, rgba(255,255,255,.08), transparent 30%),
-        linear-gradient(135deg, rgba(0,164,255,.28), rgba(47,83,255,.20)),
-        rgba(3,8,22,.18);
+        linear-gradient(135deg, rgba(71,85,105,.24), rgba(30,41,59,.20)),
+        rgba(6,10,18,.52);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.20),
         0 6px 16px rgba(0,0,0,.35);
@@ -11459,7 +11458,7 @@ body.metadata-modal-open {
 
 .index-collection-section .grid .anime-watch-corner-badge span,
 .movie-collection-section .grid .anime-watch-corner-badge span {
-    font-size: 7.5px;
+    font-size: 9px;
     letter-spacing: .035em;
     line-height: 1;
     text-shadow: 0 1px 8px rgba(0,0,0,.52);
@@ -11467,39 +11466,38 @@ body.metadata-modal-open {
 
 .index-collection-section .grid .anime-watch-corner-badge i,
 .movie-collection-section .grid .anime-watch-corner-badge i {
-    flex-basis: 11px;
-    width: 11px;
-    height: 11px;
+    flex-basis: 10px;
+    width: 10px;
+    height: 10px;
     font-size: 7.5px;
 }
 
 .index-collection-section .grid .anime-watch-corner-badge.is-complete,
 .movie-collection-section .grid .anime-watch-corner-badge.is-complete {
-    padding: 2px 4px 2px 6px;
+    padding: 1px 4px 1px 5px;
     border-color: rgba(74,222,128,.36);
     color: rgba(232,255,244,.98);
     background:
-        radial-gradient(circle at 18% 12%, rgba(255,255,255,.07), transparent 30%),
-        linear-gradient(135deg, rgba(34,197,94,.28), rgba(5,150,105,.20)),
-        rgba(2,18,14,.18);
+        radial-gradient(circle at 18% 12%, rgba(255,255,255,.06), transparent 30%),
+        linear-gradient(135deg, rgba(34,197,94,.22), rgba(5,150,105,.16)),
+        rgba(2,18,14,.14);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.20),
         0 6px 16px rgba(0,0,0,.35);
 }
 
-.index-collection-section .grid .anime-watch-corner-badge.not-started,
-.movie-collection-section .grid .anime-watch-corner-badge.not-started {
-    padding: 2px 6px;
-    border-color: rgba(148,163,184,.28);
-    color: rgba(238,242,248,.94);
+.index-collection-section .grid .anime-watch-corner-badge:is(.not-started, .behind),
+.movie-collection-section .grid .anime-watch-corner-badge:is(.not-started, .behind) {
+    padding: 1px 5px;
+    border-color: rgba(248,113,113,.38);
+    color: rgba(254,202,202,.98);
     background:
-        radial-gradient(circle at 18% 12%, rgba(255,255,255,.05), transparent 30%),
-        linear-gradient(135deg, rgba(71,85,105,.22), rgba(100,116,139,.15)),
-        rgba(6,10,18,.18);
+        linear-gradient(135deg, rgba(239,68,68,.18), rgba(127,29,29,.14)),
+        rgba(28,10,14,.55);
     box-shadow:
         inset 0 1px 0 rgba(255,255,255,.16),
-        0 10px 24px rgba(0,0,0,.34),
-        0 0 16px rgba(148,163,184,.10);
+        0 8px 18px rgba(0,0,0,.30),
+        0 0 14px rgba(248,113,113,.10);
 }
 
 .index-collection-section .grid .anime-airing-countdown {
@@ -16415,4 +16413,76 @@ body.player-body .player-episode-card .watch-progress-badge {
         grid-template-columns: 1fr;
         gap: 24px;
     }
+}
+
+/* Home collection poster hover: let the artwork breathe while keeping details legible. */
+.index-collection-section > .grid .card:hover .poster-overlay,
+.index-collection-section > .grid .card:focus-within .poster-overlay {
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        transparent 38%,
+        rgba(3, 6, 10, .16) 53%,
+        rgba(3, 6, 10, .48) 74%,
+        rgba(3, 6, 10, .88) 100%
+    );
+}
+
+.index-collection-section > .grid .poster-overlay h3 {
+    display: -webkit-box;
+    margin-bottom: 8px;
+    overflow: hidden;
+    color: #f8fafc;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.index-collection-section > .grid .poster-card-meta {
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.index-collection-section > .grid .poster-card-meta span,
+.index-collection-section > .grid .poster-card-meta span:first-child {
+    min-height: 21px;
+    padding: 3px 7px;
+    border-color: rgba(255, 255, 255, .12);
+    background: rgba(6, 10, 18, .40);
+    color: rgba(226, 232, 240, .76);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.index-collection-section > .grid .play-hover-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 35px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+    border-radius: 8px;
+    background: var(--primary);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, .34);
+    font-size: 12px;
+    line-height: 1;
+    transition:
+        opacity .36s var(--ease),
+        transform .22s var(--ease),
+        border-color .22s var(--ease),
+        background .22s var(--ease),
+        box-shadow .22s var(--ease),
+        filter .22s var(--ease);
+}
+
+.index-collection-section > .grid .play-hover-btn:hover,
+.index-collection-section > .grid .play-hover-btn:focus-visible {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+    background: var(--primary-hover);
+    box-shadow:
+        0 12px 26px rgba(0, 0, 0, .42),
+        0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+    filter: brightness(1.06);
 }

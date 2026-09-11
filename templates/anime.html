@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='39') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='47') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='8') }}">
     {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -417,7 +418,7 @@
                 </div>
                 <div class="char-info">
                     <span class="char-name">{{ char.name }}</span>
-                    <span class="char-role">{{ char.role }}</span>
+                    <span class="char-role" data-role="{{ char.role|lower }}">{{ char.role }}</span>
                 </div>
             </div>
             
@@ -559,7 +560,7 @@
             <div class="episode-meta">
 
                 <p>
-                    Watch now
+                    {{ 'Resume' if ep.progress and ep.progress > 0 and not ep.watched else 'Play episode' }}
                 </p>
 
             </div>
@@ -567,6 +568,12 @@
         </div>
 
     </div>
+
+    {% if ep.progress and ep.progress > 0 and not ep.watched %}
+    <div class="episode-resume-progress" role="progressbar" aria-label="Watch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ [100, [0, ep.progress|float]|max]|min }}">
+        <span style="width: {{ [100, [0, ep.progress|float]|max]|min }}%"></span>
+    </div>
+    {% endif %}
 
     <div class="episode-card-footer">
         <div class="episode-footer-row">
@@ -583,7 +590,7 @@
             </span>
             {% elif ep.progress and ep.progress > 0 %}
             <span class="watch-progress-badge">
-                Progress {{ ep.progress }}%
+                Resume · {{ ep.progress }}%
             </span>
             {% endif %}
             <button
@@ -703,30 +710,7 @@
     {% endif %}
 </div>
 
-<footer class="main-footer">
-        <div class="footer-surface-glow"></div>
-        <div class="footer-content">
-            <div class="footer-brand">
-                <h2>Anibase</h2>
-                <p>Manage your local anime collection with real-time data integration.</p>
-            </div>
-            <div class="footer-links">
-                <h3>Navigate</h3>
-                <ul>
-                    <li><a href="{{ url_for('index') }}">Home</a></li>
-                    <li><a href="{{ url_for('movies') }}">Movies</a></li>
-                </ul>
-            </div>
-            <div class="footer-meta">
-                <h3>System</h3>
-                <p>Data Provider: AniList API with Tenrai fallback</p>
-                <p>Media Engine: Media Player / HTML5</p>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <p>&copy; 2026 AniBase. Personal Collection.</p>
-        </div>
-</footer>
+{% include '_footer.html' %}
 
 {% if is_movie and episodes %}
 <div id="screenshotToast" class="toast movie-toast">

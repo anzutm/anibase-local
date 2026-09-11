@@ -600,7 +600,7 @@
     border-radius: 18px;
     background: #111722;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-    transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform 0.42s var(--ease), box-shadow 0.42s var(--ease), border-color 0.42s var(--ease);
     animation: none;
     filter: none;
     opacity: 1;
@@ -608,9 +608,9 @@
 
 .home-page #animeCollectionGrid .card:hover,
 .home-page #animeCollectionGrid .card:focus-within {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
-    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-5px);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
 .home-page #animeCollectionGrid .card > a {
@@ -630,41 +630,46 @@
     object-fit: cover;
     border-radius: 0;
     transform: scale(1);
-    transition: transform 0.35s ease, filter 0.35s ease;
+    transition: transform 0.58s var(--ease), filter 0.58s var(--ease);
 }
 
 .home-page #animeCollectionGrid .card:hover .poster,
 .home-page #animeCollectionGrid .card:focus-within .poster {
     transform: scale(1.035);
-    filter: saturate(1.05);
+    filter: saturate(1.04) contrast(1.01);
 }
 
 /* Corner Watch Status Badge */
+.home-page #animeCollectionGrid .card::before,
+.home-page #animeCollectionGrid .card::after {
+    display: none;
+}
+
 .home-page #animeCollectionGrid .anime-watch-corner-badge {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 8px;
+    right: 8px;
     z-index: 6;
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    max-width: calc(100% - 24px);
-    height: 30px;
-    min-height: 30px;
-    padding: 0 13px;
-    border: 1px solid rgba(255, 255, 255, 0.20);
+    gap: 4px;
+    max-width: calc(100% - 16px);
+    height: 24px;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid rgba(203, 213, 225, 0.16);
     border-radius: 999px;
-    background: rgba(10, 15, 26, 0.30);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-    color: #f1f5f9;
-    font-size: 15px;
-    font-weight: 850;
-    letter-spacing: 0.03em;
+    background: rgba(6, 10, 18, 0.42);
+    backdrop-filter: blur(14px) saturate(135%);
+    -webkit-backdrop-filter: blur(14px) saturate(135%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 5px 14px rgba(0, 0, 0, 0.22);
+    color: rgba(226, 232, 240, 0.90);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.045em;
     text-transform: uppercase;
     pointer-events: none;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.35s var(--ease), background 0.35s var(--ease), border-color 0.35s var(--ease);
 }
 
 .home-page #animeCollectionGrid .anime-watch-corner-badge span {
@@ -672,16 +677,20 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1;
-    font-size: 10px;
+    font-size: 8px;
+    font-weight: 700;
+    text-shadow: none;
 }
 
 .home-page #animeCollectionGrid .anime-watch-corner-badge i {
+    flex: 0 0 9px;
+    box-shadow: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 17px;
-    height: 17px;
-    font-size: 11.5px;
+    width: 9px;
+    height: 9px;
+    font-size: 7.5px;
     font-weight: 900;
     font-style: normal;
     border-radius: 50%;
@@ -690,58 +699,71 @@
 }
 
 .home-page #animeCollectionGrid .anime-watch-corner-badge.is-complete {
-    padding: 0 10px 0 13px;
-    border-color: rgba(74, 222, 128, 0.45);
-    background: rgba(6, 44, 31, 0.30);
-    color: #a7f3d0;
+    padding: 3px 7px 3px 8px;
+    border-color: rgba(74, 222, 128, 0.26);
+    background: rgba(6, 78, 59, 0.34);
+    color: rgba(220, 252, 231, 0.92);
 }
 
-.home-page #animeCollectionGrid .anime-watch-corner-badge.not-started {
-    padding: 0 13px;
-    border-color: rgba(255, 255, 255, 0.18);
-    background: rgba(20, 27, 41, 0.30);
-    color: #cbd5e1;
+.home-page #animeCollectionGrid .anime-watch-corner-badge:is(.not-started, .behind) {
+    padding: 3px 8px;
+    border-color: rgba(248, 113, 113, 0.26);
+    background: rgba(127, 29, 29, 0.32);
+    color: rgba(254, 226, 226, 0.90);
 }
 
 /* Airing Countdown Badge (bottom) */
 .home-page #animeCollectionGrid .anime-airing-countdown {
     position: absolute;
-    inset: auto 10px 10px 10px;
+    inset: auto 8px 8px;
     z-index: 5;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    min-height: 26px;
-    padding: 4px 10px;
+    gap: 6px;
+    min-height: 22px;
+    padding: 3px 8px;
     border-radius: 8px;
-    border: 1px solid rgba(245, 182, 66, 0.28);
-    background: rgba(10, 14, 23, 0.84);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    color: #f8fafc;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(6, 10, 18, 0.42);
+    backdrop-filter: blur(14px) saturate(135%);
+    -webkit-backdrop-filter: blur(14px) saturate(135%);
+    color: rgba(248, 250, 252, 0.90);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 6px 16px rgba(0, 0, 0, 0.24);
     pointer-events: none;
-    transition: opacity 0.22s ease, transform 0.22s ease;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
     order: initial;
     margin: 0;
+    animation: none;
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown::before,
+.home-page #animeCollectionGrid .anime-airing-countdown::after {
+    display: none;
 }
 
 .home-page #animeCollectionGrid .anime-airing-countdown strong {
-    color: #f59e0b;
-    font-size: 9px;
+    animation: none;
+    text-shadow: none;
+    color: rgba(253, 230, 138, 0.94);
+    font-size: 8px;
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
 
 .home-page #animeCollectionGrid .anime-airing-countdown span {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 600;
-    color: #f1f5f9;
+    color: rgba(241, 245, 249, 0.84);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown b {
+    color: inherit;
+    font-weight: 600;
 }
 
 .home-page #animeCollectionGrid .card:hover .anime-airing-countdown,
@@ -759,19 +781,22 @@
     flex-direction: column;
     justify-content: flex-end;
     align-items: flex-start;
-    padding: 18px 14px 14px;
+    padding: 16px 15px 15px;
     gap: 9px;
     background: linear-gradient(
-        to top,
-        rgba(7, 10, 18, 0.94) 0%,
-        rgba(7, 10, 18, 0.78) 32%,
-        rgba(7, 10, 18, 0.35) 50%,
-        rgba(7, 10, 18, 0) 62%
+        to bottom,
+        transparent 0%,
+        transparent 38%,
+        rgba(0, 0, 0, 0.12) 50%,
+        rgba(0, 0, 0, 0.52) 70%,
+        rgba(0, 0, 0, 0.74) 100%
     );
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.25s ease, visibility 0.25s ease;
+    transition: opacity 0.42s var(--ease), visibility 0s linear 0.42s;
 }
 
 .home-page #animeCollectionGrid .card:hover .poster-overlay,
@@ -779,18 +804,19 @@
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
+    transition-delay: 0s;
 }
 
 .home-page #animeCollectionGrid .poster-overlay h3 {
     width: 100%;
-    margin: 0;
+    margin: 0 0 1px;
     color: #ffffff;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 700;
-    line-height: 1.32;
+    line-height: 1.15;
     letter-spacing: -0.01em;
     display: -webkit-box;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
@@ -801,7 +827,7 @@
     flex-wrap: nowrap;
     align-items: center;
     gap: 5px;
-    margin: 0;
+    margin: 0 0 2px;
     width: 100%;
     overflow: hidden;
 }
@@ -810,15 +836,16 @@
     display: inline-flex;
     align-items: center;
     min-height: 21px;
-    padding: 3px 8px;
+    padding: 3px 7px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    color: #f1f5f9;
-    font-size: 9.5px;
-    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.035);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    color: rgba(226, 232, 240, 0.76);
+    font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.02em;
     line-height: 1;
     white-space: nowrap;
@@ -826,7 +853,7 @@
 }
 
 .home-page #animeCollectionGrid .poster-card-meta span:first-child {
-    color: #fef08a;
+    color: rgba(226, 232, 240, 0.76);
 }
 
 .home-page #animeCollectionGrid .play-hover-btn {
@@ -835,26 +862,29 @@
     justify-content: center;
     gap: 7px;
     min-height: 35px;
-    padding: 7px 18px;
-    margin-top: 2px;
-    border: none;
-    border-radius: 999px;
-    background: #22c55e;
-    color: #052e16;
+    padding: 0 14px;
+    margin-top: 3px;
+    border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
+    border-radius: 16px;
+    background: var(--cyan);
+    color: #071018;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(34, 197, 94, 0.38);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
     text-decoration: none;
 }
 
-.home-page #animeCollectionGrid .play-hover-btn:hover {
-    transform: scale(1.04);
-    filter: brightness(1.08);
-    box-shadow: 0 6px 18px rgba(34, 197, 94, 0.55);
+.home-page #animeCollectionGrid .play-hover-btn:hover,
+.home-page #animeCollectionGrid .card:focus-within .play-hover-btn {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--cyan) 42%, transparent);
+    background: color-mix(in srgb, var(--cyan) 92%, white);
+    filter: none;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36);
 }
 
 /* =========================================================
@@ -916,9 +946,9 @@
     .home-page #animeCollectionGrid .anime-watch-corner-badge {
         top: 6px;
         right: 6px;
-        padding: 2px 5.5px;
+        padding: 3px 8px;
         font-size: 7.5px;
-        min-height: 17px;
+        min-height: 24px;
     }
     .home-page #animeCollectionGrid .anime-airing-countdown {
         inset: auto 6px 6px 6px;
@@ -930,4 +960,190 @@
 
 @media(prefers-reduced-motion: reduce) {
     .home-page *, .home-page *::before, .home-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Continue Watching: compact, theme-aware refinement. */
+.home-page .continue-watching-section {
+    --continue-accent: var(--cyan);
+    --continue-accent-hover: var(--primary-hover);
+}
+
+.home-page .continue-grid {
+    gap: 16px;
+}
+
+.home-page .continue-card {
+    border-color: var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .008));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .055);
+    transition: transform .42s var(--ease), border-color .32s var(--ease), box-shadow .42s var(--ease) !important;
+}
+
+.home-page .continue-card:hover {
+    transform: translateY(-4px) !important;
+    border-color: color-mix(in srgb, var(--continue-accent-hover) 42%, var(--border)) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .10),
+        0 16px 32px rgba(0, 0, 0, .30) !important;
+}
+
+.home-page .continue-card .continue-thumb {
+    border-radius: 13px 13px 0 0;
+}
+
+.home-page .continue-card .continue-thumb::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 2;
+    height: 46%;
+    pointer-events: none;
+    background: linear-gradient(to top, rgba(5, 8, 13, .52), transparent);
+    opacity: .72;
+    transition: opacity .4s var(--ease);
+}
+
+.home-page .continue-card:hover .continue-thumb::after {
+    opacity: .42;
+}
+
+.home-page .continue-card .continue-thumb img {
+    transition: transform .55s var(--ease), filter .42s var(--ease) !important;
+}
+
+.home-page .continue-card:hover .continue-thumb img {
+    transform: scale(1.035) !important;
+    filter: saturate(1.025) contrast(1.015) !important;
+}
+
+.home-page .continue-card .continue-overlay,
+.home-page .continue-card:hover .continue-overlay {
+    z-index: 3;
+    background: rgba(5, 8, 13, .10) !important;
+    backdrop-filter: blur(1px) !important;
+    -webkit-backdrop-filter: blur(1px) !important;
+}
+
+.home-page .continue-card .play-mini-btn {
+    width: 36px !important;
+    height: 36px !important;
+    flex-basis: 36px !important;
+    border: 1px solid color-mix(in srgb, var(--continue-accent) 30%, var(--border)) !important;
+    background: color-mix(in srgb, var(--continue-accent) 16%, rgba(8, 12, 18, .80)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .11) !important;
+    color: rgba(255, 255, 255, .94) !important;
+    font-size: 12px !important;
+}
+
+.home-page .continue-card .continue-badge,
+.home-page .continue-card .continue-remove-btn {
+    top: 8px;
+    min-height: 22px;
+    border: 1px solid color-mix(in srgb, var(--continue-accent) 22%, var(--border));
+    background: color-mix(in srgb, var(--continue-accent) 8%, rgba(8, 12, 18, .78));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+    color: rgba(247, 249, 252, .90);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.home-page .continue-card .continue-badge {
+    left: 8px;
+    padding: 4px 7px;
+    border-radius: 6px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .07em;
+}
+
+.home-page .continue-card .continue-remove-btn {
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 6px;
+    font-size: 15px;
+    line-height: 1;
+    opacity: .72;
+    transition: opacity .25s ease, color .25s ease, background .25s ease, border-color .25s ease !important;
+}
+
+.home-page .continue-card:hover .continue-remove-btn,
+.home-page .continue-card .continue-remove-btn:focus-visible {
+    opacity: 1;
+}
+
+.home-page .continue-card .continue-remove-btn:hover {
+    transform: none;
+    border-color: color-mix(in srgb, var(--continue-accent-hover) 42%, var(--border));
+    background: color-mix(in srgb, var(--continue-accent-hover) 16%, rgba(8, 12, 18, .88));
+    color: #fff;
+}
+
+.home-page .continue-card .progress-bar-container {
+    z-index: 5;
+    height: 3px;
+    background: rgba(255, 255, 255, .10);
+}
+
+.home-page .continue-card .progress-fill {
+    background: var(--continue-accent);
+    box-shadow: none;
+}
+
+.home-page .continue-card .continue-info {
+    min-height: 76px;
+    padding: 10px 11px 11px;
+    background: transparent;
+}
+
+.home-page .continue-card .continue-title-row {
+    gap: 8px;
+}
+
+.home-page .continue-card .continue-title-row h3 {
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: -.012em;
+}
+
+.home-page .continue-card .continue-title-row > span {
+    padding: 3px 6px;
+    border: 1px solid color-mix(in srgb, var(--continue-accent) 18%, var(--border));
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--continue-accent) 6%, transparent);
+    color: color-mix(in srgb, var(--continue-accent) 72%, white);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .035em;
+}
+
+.home-page .continue-card .continue-info p {
+    margin-top: 5px;
+    color: var(--home-muted);
+    font-size: 10px;
+}
+
+/* Keep the footer of a resume card close to its last-watched metadata. */
+.home-page .continue-card {
+    height: 194px !important;
+    min-height: 194px !important;
+}
+
+.home-page .continue-card .continue-info {
+    min-height: 55px;
+    padding: 8px 11px 9px;
+}
+
+@media (max-width: 768px) {
+    .home-page .continue-card {
+        height: 166px !important;
+        min-height: 166px !important;
+    }
+
+    .home-page .continue-card .continue-info {
+        min-height: 54px;
+        padding: 8px 10px;
+    }
 }
