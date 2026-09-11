@@ -88,7 +88,7 @@
 
     <!-- In Your Library Section -->
     {% if library_projects %}
-    <div class="studio-section-title">
+    <div class="studio-section-title studio-library-title">
         <div class="section-title">
             <div class="section-line"></div>
             <h3 class="section-heading">In Your Library</h3>
@@ -98,13 +98,15 @@
         {% for anime in library_projects %}
         <div class="card in-library-card">
             <a href="{{ anime.local_detail_url }}">
-                <img
-                    class="poster"
-                    src="{{ anime.poster }}"
-                    alt="{{ anime.name }}"
-                    loading="lazy"
-                    onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
-                >
+                <div class="studio-poster-frame">
+                    <img
+                        class="poster"
+                        src="{{ anime.poster }}"
+                        alt="{{ anime.name }}"
+                        loading="lazy"
+                        onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
+                    >
+                </div>
 
                 <div class="library-badge-indicator" title="In Your Library">
                     <svg viewBox="0 0 24 24">
@@ -149,7 +151,7 @@
 
     <!-- All Studio Projects Section Title -->
     {% if studio_projects %}
-    <div class="studio-section-title">
+    <div class="studio-section-title studio-collection-title">
         <div class="section-title">
             <div class="section-line"></div>
             <h3 class="section-heading">All Studio Projects</h3>
@@ -215,13 +217,15 @@
                          data-year="{{ anime.year or 0 }}"
                          data-title="{{ anime.name | lower }}">
                         <a href="{{ anime.local_detail_url }}">
-                            <img
-                                class="poster"
-                                src="{{ anime.poster }}"
-                                alt="{{ anime.name }}"
-                                loading="lazy"
-                                onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
-                            >
+                            <div class="studio-poster-frame">
+                                <img
+                                    class="poster"
+                                    src="{{ anime.poster }}"
+                                    alt="{{ anime.name }}"
+                                    loading="lazy"
+                                    onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
+                                >
+                            </div>
                             <div class="library-badge-indicator" title="In Your Library">
                                 <svg viewBox="0 0 24 24">
                                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"></path>
@@ -267,13 +271,15 @@
                          data-year="{{ anime.year or 0 }}"
                          data-title="{{ anime.name | lower }}">
                         <div class="studio-card-static">
-                            <img
-                                class="poster"
-                                src="{{ anime.poster }}"
-                                alt="{{ anime.name }}"
-                                loading="lazy"
-                                onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
-                            >
+                            <div class="studio-poster-frame">
+                                <img
+                                    class="poster"
+                                    src="{{ anime.poster }}"
+                                    alt="{{ anime.name }}"
+                                    loading="lazy"
+                                    onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
+                                >
+                            </div>
                             <div class="poster-overlay">
                                 <h3>{{ anime.name }}</h3>
                                 <div class="poster-card-meta">
