@@ -1147,3 +1147,158 @@
         padding: 8px 10px;
     }
 }
+
+/* Collection poster overlays: restrained glass layers, driven by the active theme. */
+.home-page #animeCollectionGrid {
+    --poster-overlay-accent: var(--cyan);
+    --poster-overlay-accent-hover: var(--primary-hover);
+}
+
+.home-page #animeCollectionGrid .anime-watch-corner-badge {
+    top: 8px;
+    right: 8px;
+    gap: 4px;
+    max-width: calc(100% - 16px);
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--poster-overlay-accent) 19%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--poster-overlay-accent) 7%, rgba(7, 10, 16, .72));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09);
+    color: rgba(244, 247, 250, .90);
+    font-size: 8px;
+    letter-spacing: .045em;
+    backdrop-filter: blur(10px) saturate(115%);
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    transition: opacity .35s var(--ease), background .35s var(--ease), border-color .35s var(--ease), transform .35s var(--ease);
+}
+
+.home-page #animeCollectionGrid .anime-watch-corner-badge.is-complete {
+    padding: 3px 7px 3px 8px;
+    border-color: color-mix(in srgb, var(--poster-overlay-accent) 30%, var(--border));
+    background: color-mix(in srgb, var(--poster-overlay-accent) 13%, rgba(7, 10, 16, .72));
+    color: rgba(244, 247, 250, .94);
+}
+
+.home-page #animeCollectionGrid .anime-watch-corner-badge:is(.not-started, .behind) {
+    border-color: color-mix(in srgb, var(--poster-overlay-accent) 14%, var(--border));
+    background: color-mix(in srgb, var(--poster-overlay-accent) 4%, rgba(7, 10, 16, .72));
+    color: rgba(224, 229, 236, .86);
+}
+
+.home-page #animeCollectionGrid .anime-watch-corner-badge i {
+    width: 10px;
+    height: 10px;
+    flex-basis: 10px;
+    border: 1px solid color-mix(in srgb, var(--poster-overlay-accent) 34%, transparent);
+    background: color-mix(in srgb, var(--poster-overlay-accent) 16%, transparent);
+    color: color-mix(in srgb, var(--poster-overlay-accent) 76%, white);
+    font-size: 7px;
+}
+
+.home-page #animeCollectionGrid .card:hover .anime-watch-corner-badge,
+.home-page #animeCollectionGrid .card:focus-within .anime-watch-corner-badge {
+    border-color: color-mix(in srgb, var(--poster-overlay-accent-hover) 36%, var(--border));
+    background: color-mix(in srgb, var(--poster-overlay-accent-hover) 12%, rgba(7, 10, 16, .76));
+    transform: translateY(1px);
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown {
+    inset: auto 8px 8px;
+    gap: 7px;
+    min-height: 23px;
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--poster-overlay-accent) 18%, var(--border));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--poster-overlay-accent) 6%, rgba(7, 10, 16, .70));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+    color: rgba(232, 237, 243, .82);
+    backdrop-filter: blur(10px) saturate(112%);
+    -webkit-backdrop-filter: blur(10px) saturate(112%);
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown strong {
+    color: color-mix(in srgb, var(--poster-overlay-accent) 78%, white);
+    font-size: 8px;
+    font-weight: 750;
+    letter-spacing: .065em;
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown span {
+    color: rgba(232, 237, 243, .78);
+    font-size: 8px;
+    font-weight: 600;
+}
+
+.home-page #animeCollectionGrid .anime-airing-countdown b {
+    color: rgba(248, 250, 252, .93);
+    font-weight: 700;
+}
+
+.home-page #animeCollectionGrid .poster-overlay {
+    padding: 15px;
+    gap: 7px;
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        transparent 40%,
+        rgba(4, 6, 10, .08) 54%,
+        rgba(4, 6, 10, .38) 74%,
+        rgba(4, 6, 10, .72) 100%
+    );
+    transition: opacity .46s var(--ease), visibility 0s linear .46s;
+}
+
+.home-page #animeCollectionGrid .poster-overlay h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -.012em;
+    line-clamp: 3;
+    -webkit-line-clamp: 3;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, .45);
+}
+
+.home-page #animeCollectionGrid .poster-card-meta {
+    gap: 4px;
+    margin: 1px 0 2px;
+}
+
+.home-page #animeCollectionGrid .poster-card-meta span,
+.home-page #animeCollectionGrid .poster-card-meta span:first-child {
+    min-height: 20px;
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .035);
+    color: rgba(232, 237, 243, .76);
+    font-size: 9px;
+    font-weight: 650;
+}
+
+@media (max-width: 768px) {
+    .home-page #animeCollectionGrid .anime-watch-corner-badge {
+        top: 6px;
+        right: 6px;
+        min-height: 22px;
+        padding: 3px 7px;
+        border-radius: 7px;
+        font-size: 7.5px;
+    }
+
+    .home-page #animeCollectionGrid .anime-airing-countdown {
+        inset: auto 6px 6px;
+        min-height: 20px;
+        padding: 2px 6px;
+    }
+
+    .home-page #animeCollectionGrid .poster-overlay {
+        padding: 12px 10px;
+        gap: 6px;
+    }
+
+    .home-page #animeCollectionGrid .poster-overlay h3 {
+        font-size: 14px;
+    }
+}

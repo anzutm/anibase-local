@@ -1308,3 +1308,407 @@ body.anime-detail-body:not(.movie-detail-body) .related-section .rel-status.rele
     font-size: 9px !important;
     font-weight: 650;
 }
+
+/* Give episode cards the same restrained theme outline used by interactive cards. */
+body.anime-detail-body:not(.movie-detail-body) #episodeGrid .episode-card {
+    --episode-card-accent: var(--primary);
+}
+
+body.anime-detail-body:not(.movie-detail-body) #episodeGrid .episode-card:hover,
+body.anime-detail-body:not(.movie-detail-body) #episodeGrid .episode-card:focus-within {
+    border-color: color-mix(in srgb, var(--episode-card-accent) 48%, var(--border)) !important;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--episode-card-accent) 16%, transparent),
+        0 14px 30px rgba(0, 0, 0, .25) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) #episodeGrid .episode-card:hover .episode-card-shell,
+body.anime-detail-body:not(.movie-detail-body) #episodeGrid .episode-card:focus-within .episode-card-shell {
+    border-color: color-mix(in srgb, var(--episode-card-accent) 48%, var(--border)) !important;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--episode-card-accent) 14%, transparent),
+        0 14px 30px rgba(0, 0, 0, .25) !important;
+}
+
+/* Character and Seiyuu pairs share the same theme-aware hover outline. */
+body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card {
+    --character-card-accent: var(--primary);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:hover,
+body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:focus-within {
+    border-color: color-mix(in srgb, var(--character-card-accent) 42%, var(--border)) !important;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--character-card-accent) 13%, transparent),
+        0 12px 26px rgba(0, 0, 0, .24) !important;
+}
+
+/* Anime hero information architecture: one calm composition inside the existing footprint. */
+body.anime-detail-body:not(.movie-detail-body) .hero-details {
+    --hero-info-accent: var(--primary);
+    --hero-info-accent-hover: var(--primary-hover);
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 22px;
+    border-color: color-mix(in srgb, var(--hero-info-accent) 12%, var(--border));
+    border-radius: 18px;
+    background:
+        linear-gradient(145deg, color-mix(in srgb, var(--hero-info-accent) 5%, transparent), transparent 38%),
+        rgba(8, 11, 17, .76);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .07),
+        0 18px 46px rgba(0, 0, 0, .28);
+    backdrop-filter: blur(14px) saturate(108%);
+    -webkit-backdrop-filter: blur(14px) saturate(108%);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-panel-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 14px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, .09);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-title-stack {
+    min-width: 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-kicker {
+    margin: 0 0 5px;
+    color: color-mix(in srgb, var(--hero-info-accent) 78%, white);
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .14em;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .metadata-provider-label {
+    margin: 0 0 8px;
+    color: rgba(185, 194, 206, .64);
+    font-size: 10px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .title-row {
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .title-row h1 {
+    color: rgba(247, 249, 252, .97);
+    font-size: clamp(30px, 3vw, 46px);
+    font-weight: 750;
+    line-height: 1.06;
+    letter-spacing: -.042em;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .hero-details .status-badge,
+body.anime-detail-body:not(.movie-detail-body) .hero-details .status-badge.releasing,
+body.anime-detail-body:not(.movie-detail-body) .hero-details .status-badge.finished {
+    flex: 0 0 auto;
+    min-height: 25px;
+    margin: 4px 0 0;
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--hero-info-accent) 28%, var(--border));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--hero-info-accent) 9%, rgba(8, 11, 17, .58));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+    color: color-mix(in srgb, var(--hero-info-accent) 72%, white);
+    font-size: 8px;
+    font-weight: 750;
+    letter-spacing: .06em;
+    line-height: 1;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .metadata-match-trigger {
+    align-self: start;
+    min-height: 28px;
+    padding: 4px 8px;
+    border-color: rgba(255, 255, 255, .10);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, .025);
+    box-shadow: none;
+    color: rgba(190, 199, 210, .76);
+    font-size: 9px;
+    font-weight: 600;
+    transition: color .25s ease, border-color .25s ease, background .25s ease;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .metadata-match-trigger:hover,
+body.anime-detail-body:not(.movie-detail-body) .metadata-match-trigger:focus-visible {
+    border-color: color-mix(in srgb, var(--hero-info-accent) 34%, var(--border));
+    background: color-mix(in srgb, var(--hero-info-accent) 7%, transparent);
+    color: color-mix(in srgb, var(--hero-info-accent) 72%, white);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    margin: 13px 0 12px;
+    padding: 1px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .085);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .055);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span,
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:first-child,
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:last-child {
+    min-width: 0;
+    min-height: 43px;
+    padding: 8px 10px;
+    border: 0 !important;
+    border-radius: 0;
+    background: rgba(8, 11, 17, .54) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta small {
+    display: block;
+    overflow: hidden;
+    color: rgba(175, 186, 199, .62);
+    font-size: 8px;
+    font-weight: 650;
+    letter-spacing: .065em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta strong {
+    display: block;
+    margin-top: 3px;
+    overflow: hidden;
+    color: rgba(238, 242, 247, .94);
+    font-size: 12px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .genre-panel {
+    margin: 0;
+    padding: 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .genre-panel-label {
+    color: rgba(181, 190, 201, .64);
+    font-size: 8px;
+    font-weight: 650;
+    letter-spacing: .09em;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .genre-list {
+    gap: 5px;
+    margin: 6px 0 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .genre-tag {
+    min-height: 23px;
+    padding: 4px 7px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .025);
+    color: rgba(205, 213, 223, .80);
+    font-size: 9px;
+    font-weight: 600;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-description {
+    margin: 12px 0 0;
+    padding: 0 0 0 11px;
+    border: 0;
+    border-left: 2px solid color-mix(in srgb, var(--hero-info-accent) 50%, transparent);
+    background: transparent;
+    color: rgba(207, 216, 227, .78);
+    font-size: 12px;
+    line-height: 1.58;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.8fr) repeat(6, minmax(74px, 1fr));
+    gap: 6px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, .085);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-info-grid:not(:has(.detail-watch-btn)) {
+    grid-template-columns: repeat(6, minmax(74px, 1fr));
+}
+
+body.anime-detail-body:not(.movie-detail-body) .info-card,
+body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
+    min-width: 0;
+    height: 58px;
+    min-height: 58px;
+    border: 1px solid rgba(255, 255, 255, .075);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .025) !important;
+    box-shadow: none !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
+    justify-content: flex-start;
+    padding: 0 13px;
+    border-color: color-mix(in srgb, var(--hero-info-accent) 32%, var(--border));
+    background: color-mix(in srgb, var(--hero-info-accent) 14%, rgba(8, 11, 17, .50)) !important;
+    color: rgba(247, 249, 252, .96);
+    font-size: 11px;
+    font-weight: 700;
+    gap: 8px;
+    transition: border-color .25s ease, background .25s ease, transform .25s var(--ease);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn:hover,
+body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn:focus-visible {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--hero-info-accent-hover) 46%, var(--border));
+    background: color-mix(in srgb, var(--hero-info-accent-hover) 20%, rgba(8, 11, 17, .50)) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .info-card {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 7px 9px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .info-card:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--hero-info-accent) 28%, var(--border));
+    background: color-mix(in srgb, var(--hero-info-accent) 6%, rgba(255, 255, 255, .025)) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .info-card h3,
+body.anime-detail-body:not(.movie-detail-body) .info-card h3 a {
+    overflow: hidden;
+    color: rgba(236, 241, 247, .91);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .info-card p {
+    margin-top: 3px;
+    overflow: hidden;
+    color: rgba(172, 184, 198, .62);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .studio-card-link:hover,
+body.anime-detail-body:not(.movie-detail-body) .studio-card-link:focus-visible {
+    color: color-mix(in srgb, var(--hero-info-accent) 76%, white) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card,
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
+    border-color: rgba(255, 255, 255, .075) !important;
+    background: transparent !important;
+    color: rgba(172, 184, 198, .68);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
+    border-color: color-mix(in srgb, var(--hero-info-accent) 24%, var(--border)) !important;
+    background: color-mix(in srgb, var(--hero-info-accent) 5%, transparent) !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card :is(h3, p),
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover :is(h3, p) {
+    color: inherit !important;
+}
+
+@media (max-width: 1180px) {
+    body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
+        grid-template-columns: minmax(205px, 1.6fr) repeat(3, minmax(82px, 1fr));
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .detail-info-grid:not(:has(.detail-watch-btn)) {
+        grid-template-columns: repeat(4, minmax(82px, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    body.anime-detail-body:not(.movie-detail-body) .hero-details {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .detail-panel-top {
+        grid-template-columns: 1fr;
+        gap: 9px;
+        padding-bottom: 12px;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .metadata-match-trigger {
+        justify-self: start;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .title-row {
+        flex-wrap: wrap;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
+        grid-template-columns: minmax(0, 1fr) repeat(2, minmax(78px, 1fr));
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .detail-info-grid:not(:has(.detail-watch-btn)) {
+        grid-template-columns: repeat(3, minmax(78px, 1fr));
+    }
+}
+
+/* Hero refinement: preserve its footprint while using the vertical space deliberately. */
+body.anime-detail-body:not(.movie-detail-body) .detail-panel-top {
+    gap: 11px;
+    padding-bottom: 13px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .metadata-provider-label {
+    margin-bottom: 6px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
+    margin: 10px 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span,
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:first-child,
+body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:last-child {
+    min-height: 40px;
+    padding: 7px 9px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .anime-description {
+    margin-top: 10px;
+    padding-left: 12px;
+    line-height: 1.62;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card,
+body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
+    border-color: color-mix(in srgb, var(--hero-info-accent) 19%, var(--border)) !important;
+    background: color-mix(in srgb, var(--hero-info-accent) 4%, transparent) !important;
+    color: color-mix(in srgb, var(--hero-info-accent) 62%, white);
+}
+
+@media (min-width: 901px) {
+    body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
+        /* The rail fills the lower edge instead of leaving a dead zone below it. */
+        margin-top: auto;
+        padding-top: 15px;
+    }
+}

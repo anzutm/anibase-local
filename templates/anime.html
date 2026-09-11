@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='47') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='51') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='8') }}">
     {% endif %}
@@ -103,24 +103,26 @@
 
             <div class="hero-details">
 
-                <div class="detail-kicker">
-                    {{ "Movie" if is_movie else "Now Viewing" }}
-                </div>
-
-                <div class="metadata-provider-label">
-                    Data provider: {{ "Tenrai fallback" if anime_info.metadata_provider == "tenrai" else "AniList" }}
-                </div>
-
                 <div class="detail-panel-top">
-                    <div class="title-row">
-                        <h1>
-                            {{ anime_info.title }}
-                        </h1>
-                        {% if anime_info.status %}
-                        <span class="status-badge {{ anime_info.status.lower() }}">
-                            {{ anime_info.status }}
-                        </span>
-                        {% endif %}
+                    <div class="detail-title-stack">
+                        <div class="detail-kicker">
+                            {{ "Movie" if is_movie else "Now Viewing" }}
+                        </div>
+
+                        <div class="metadata-provider-label">
+                            Data provider: {{ "Tenrai fallback" if anime_info.metadata_provider == "tenrai" else "AniList" }}
+                        </div>
+
+                        <div class="title-row">
+                            <h1>
+                                {{ anime_info.title }}
+                            </h1>
+                            {% if anime_info.status %}
+                            <span class="status-badge {{ anime_info.status.lower() }}">
+                                {{ anime_info.status }}
+                            </span>
+                            {% endif %}
+                        </div>
                     </div>
                     {% if not is_movie %}
                     <button type="button" class="metadata-match-trigger" data-metadata-match-open>

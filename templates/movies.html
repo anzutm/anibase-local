@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='movies.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='movies-redesign.css', v='8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='movies-redesign.css', v='9') }}">
 {% endblock %}
 
 {% block content %}
@@ -127,18 +127,19 @@
             {% for movie in movies %}
             <article class="movie-poster-card" data-movie-title="{{ movie.title|lower }}" data-movie-status="{{ movie.watch_status_kind }}" data-movie-year="{{ movie.year or 0 }}" data-movie-score="{{ movie.score or 0 }}">
                 <a
-                    class="movie-poster-link"
+                    class="movie-card-open-link"
                     href="{{ url_for('movie_detail_page', filename=movie.file) }}"
                     aria-label="Open {{ movie.title }}"
-                >
+                ></a>
+                <div class="movie-poster-frame" aria-hidden="true">
                     <img
                         class="movie-poster-art"
                         src="{{ url_for('poster', anime_name=movie.title) }}"
-                        alt="Poster for {{ movie.title }}"
+                        alt=""
                         loading="lazy"
                     >
                     <div class="movie-poster-vignette" aria-hidden="true"></div>
-                </a>
+                </div>
 
                 <div class="movie-card-status movie-card-status--{{ movie.watch_status_kind }}">
                     {{ movie.watch_status_label }}
@@ -154,9 +155,6 @@
                     <div class="movie-card-actions">
                         <a class="movie-card-play" href="{{ url_for('movie_detail_page', filename=movie.file) }}#movieDetailPlayer">
                             <span aria-hidden="true">▶</span> Play
-                        </a>
-                        <a class="movie-card-details" href="{{ url_for('movie_detail_page', filename=movie.file) }}">
-                            Details
                         </a>
                     </div>
                 </div>

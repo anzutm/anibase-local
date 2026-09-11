@@ -204,7 +204,7 @@ videoElement.addEventListener('error', () => {
 
     const playerContainer = document.querySelector('.video-player-container');
     if (playerContainer) {
-        playerContainer.style.borderColor = '#ef4444';
+        playerContainer.style.borderColor = 'var(--primary-hover)';
     }
 });
 

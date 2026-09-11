@@ -16,11 +16,12 @@
 
     <!-- Plyr & SubtitlesOctopus Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}" />
-    <style>html{background-color:#0b0907;} body{background-color:transparent !important; color:#F3F4F5;}</style>
+    <style>html{background-color:var(--bg2, #0b0907);} body{background-color:transparent !important; color:var(--text, #F3F4F5);}</style>
     <meta name="theme-color" content="#0b0907">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-7') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='1') }}">
 </head>
 
 <body class="player-body">
@@ -286,7 +287,7 @@
     })();
 </script>
 
-<script src="{{ url_for('static', filename='player.js') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-1') }}"></script>
 
 </body>
 
