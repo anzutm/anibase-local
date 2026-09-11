@@ -105,11 +105,10 @@ function isSeekTargetBuffered(targetTime) {
     return false;
 }
 
-function applyMediaSeek(targetTime, preferFastSeek = false) {
-    if (preferFastSeek && typeof videoElement.fastSeek === 'function') {
-        videoElement.fastSeek(targetTime);
-        return;
-    }
+function applyMediaSeek(targetTime) {
+    // `fastSeek()` may jump to a keyframe outside the currently buffered
+    // range, causing an unnecessary network stall even for a nearby seek.
+    // Assigning currentTime lets the browser use the existing buffer first.
     player.currentTime = targetTime;
 }
 
@@ -129,7 +128,7 @@ function seekByShortcut(direction) {
     if (targetIsBuffered) {
         // A nearby buffered target can move immediately without another Range request.
         clearTimeout(seekFeedbackState.seekTimer);
-        applyMediaSeek(seekFeedbackState.targetTime, true);
+        applyMediaSeek(seekFeedbackState.targetTime);
         seekFeedbackState.targetTime = null;
         showSeekFeedback(direction);
         return;
@@ -140,7 +139,7 @@ function seekByShortcut(direction) {
     clearTimeout(seekFeedbackState.seekTimer);
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
-            applyMediaSeek(seekFeedbackState.targetTime, true);
+            applyMediaSeek(seekFeedbackState.targetTime);
             seekFeedbackState.targetTime = null;
         }
     }, 140);
@@ -417,7 +416,9 @@ function updatePlayerEpisodeState(episodePath, options = {}) {
     window.CURRENT_EP_DISPLAY_NAME = state.card.dataset.episodeDisplayName || `Episode ${window.CURRENT_EP_LABEL}`;
     window.CURRENT_POSITION = state.card.dataset.listPosition || String(state.index + 1);
     window.NEXT_EP_PATH = state.next ? state.next.dataset.episodePath : null;
-    window.RESUME_TIME = 0;
+    // Each card carries its persisted playback position. Keeping this value is
+    // essential on first load and when switching episodes without a reload.
+    window.RESUME_TIME = Math.max(0, Number(state.card.dataset.resumeSeconds || 0));
 
     if (episodeLine) {
         episodeLine.textContent = `${window.CURRENT_EP_DISPLAY_NAME} (${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} available)`;
@@ -480,6 +481,9 @@ function switchEpisode(episodePath, options = {}) {
         const playerContainer = document.querySelector('.video-player-container');
         if (playerContainer) {
             playerContainer.style.borderColor = '';
+        }
+        if (window.RESUME_TIME > 0) {
+            player.currentTime = window.RESUME_TIME;
         }
         updateStatus();
         sendWatchProgress();

@@ -4,7 +4,7 @@
 {% block title %}{{ seiyuu_data.name_full if seiyuu_data else 'Voice Actor Profile' }} - AniBase{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='seiyuu.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='seiyuu.css', v='3') }}">
 {% endblock %}
 
 {% macro stat(value, label) %}

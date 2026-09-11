@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='63') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='64') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='9') }}">
     {% endif %}
@@ -277,9 +277,12 @@
     <section class="metadata-match-dialog" role="dialog" aria-modal="true" aria-labelledby="metadataMatchTitle">
         <header class="metadata-match-header">
             <div>
-                <span class="metadata-match-eyebrow">AniList metadata</span>
-                <h2 id="metadataMatchTitle">Match this folder manually</h2>
-                <p>Folder: <strong>{{ anime_name }}</strong></p>
+                <span class="metadata-match-eyebrow">Metadata matching</span>
+                <h2 id="metadataMatchTitle">{{ "Match this season" if selected_season else "Match this folder" }}</h2>
+                <p>
+                    Folder: <strong>{{ anime_name }}</strong>
+                    {% if selected_season %}&middot; Season: <strong>{{ selected_season }}</strong>{% endif %}
+                </p>
             </div>
             <button type="button" class="metadata-match-close" data-metadata-match-close aria-label="Close">&times;</button>
         </header>
@@ -301,16 +304,16 @@
                     type="search"
                     minlength="2"
                     maxlength="120"
-                    value="{{ anime_name }}"
+                    value="{{ metadata_search_name or anime_name }}"
                     autocomplete="off"
                     required
                 >
-                <button type="submit">Search AniList</button>
+                <button type="submit">Search</button>
             </div>
         </form>
 
         <div class="metadata-match-status" id="metadataMatchStatus" role="status" aria-live="polite">
-            Search for the correct title, then select one result.
+            Search for the correct title, then choose its metadata.
         </div>
         <div class="metadata-search-results" id="metadataSearchResults"></div>
 
@@ -970,6 +973,7 @@ async function loadAnimeSeason(url, pushHistory = true) {
         const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
         const selectors = [
             '.hero',
+            '.metadata-match-modal',
             '.character-section',
             '.anime-header',
             '#episodeListContent',
@@ -986,6 +990,7 @@ async function loadAnimeSeason(url, pushHistory = true) {
         document.title = nextDocument.title;
         if (pushHistory) history.pushState({ seasonUrl: url }, '', url);
         initializeAnimeDetailContent();
+        if (window.initializeMetadataMatch) window.initializeMetadataMatch();
         animateAnimeEpisodeCards();
     } catch (error) {
         if (error.name !== 'AbortError') window.location.href = url;
@@ -1420,15 +1425,23 @@ document.addEventListener('click', async function(event) {
 });
 </script>
 {% if not is_movie %}
-<script id="metadataMatchScript" data-anime-name="{{ anime_name|e }}">
-(() => {
+<script
+    id="metadataMatchScript"
+    data-anime-name="{{ anime_name|e }}"
+    data-season-name="{{ selected_season|default('', true)|e }}"
+>
+window.initializeMetadataMatch = function initializeMetadataMatch() {
     const modal = document.getElementById('metadataMatchModal');
     const form = document.getElementById('metadataSearchForm');
     const input = document.getElementById('metadataSearchInput');
     const results = document.getElementById('metadataSearchResults');
     const status = document.getElementById('metadataMatchStatus');
     const automaticButton = document.getElementById('metadataAutoMatchBtn');
-    const animeName = document.getElementById('metadataMatchScript')?.dataset.animeName || '';
+    const scriptElement = document.getElementById('metadataMatchScript');
+    const animeName = scriptElement?.dataset.animeName || '';
+    const seasonName = new URL(window.location.href).searchParams.get('season')
+        || scriptElement?.dataset.seasonName
+        || '';
     let requestSequence = 0;
 
     if (!modal || !form || !input || !results || !status) return;
@@ -1522,7 +1535,7 @@ document.addEventListener('click', async function(event) {
             select.dataset.anilistId = item.anilist_id || '';
             select.dataset.malId = item.mal_id || '';
             select.dataset.title = item.title || item.romaji_title || '';
-            select.textContent = 'Use this title';
+            select.textContent = 'Use match';
 
             card.append(poster, copy, select);
             results.appendChild(card);
@@ -1538,12 +1551,12 @@ document.addEventListener('click', async function(event) {
 
         const sequence = ++requestSequence;
         form.classList.add('is-busy');
-        setStatus('Searching AniList...', 'loading');
+        setStatus('Searching metadata...', 'loading');
         try {
             const response = await fetch(`/api/anilist/search?q=${encodeURIComponent(query)}`);
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) {
-                throw new Error(data.message || 'AniList search failed.');
+                throw new Error(data.message || 'Metadata search failed.');
             }
             if (sequence !== requestSequence) return;
             renderResults(Array.isArray(data.results) ? data.results : []);
@@ -1551,7 +1564,7 @@ document.addEventListener('click', async function(event) {
         } catch (error) {
             if (sequence !== requestSequence) return;
             results.replaceChildren();
-            setStatus(error.message || 'Unable to search AniList.', 'error');
+            setStatus(error.message || 'Unable to search metadata.', 'error');
         } finally {
             if (sequence === requestSequence) form.classList.remove('is-busy');
         }
@@ -1570,6 +1583,7 @@ document.addEventListener('click', async function(event) {
                 headers: actionHeaders(),
                 body: JSON.stringify({
                     anime_name: animeName,
+                    ...(seasonName ? { season_name: seasonName } : {}),
                     provider,
                     ...(provider === 'tenrai' ? { mal_id: providerId } : { anilist_id: providerId })
                 })
@@ -1612,7 +1626,11 @@ document.addEventListener('click', async function(event) {
                 const response = await fetch('/api/anime/metadata-match', {
                     method: 'POST',
                     headers: actionHeaders(),
-                    body: JSON.stringify({ anime_name: animeName, automatic: true })
+                    body: JSON.stringify({
+                        anime_name: animeName,
+                        ...(seasonName ? { season_name: seasonName } : {}),
+                        automatic: true
+                    })
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok || !data.ok) {
@@ -1629,7 +1647,8 @@ document.addEventListener('click', async function(event) {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !modal.hidden) closeModal();
     });
-})();
+};
+window.initializeMetadataMatch();
 </script>
 {% endif %}
 </body>

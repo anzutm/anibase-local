@@ -602,6 +602,7 @@ class AniListManualMappingTests(unittest.TestCase):
     def test_metadata_identity_keeps_provider_ids_separate(self):
         metadata = main.normalize_anime_metadata_identity({
             "metadata_provider": "tenrai",
+            "anilist_id": "123",
             "mal_id": "456",
         })
 
@@ -705,6 +706,22 @@ class AniListManualMappingTests(unittest.TestCase):
         self.assertIsNotNone(recovered)
         self.assertEqual(recovered["anilist_id"], 123)
         self.assertEqual(main.ANILIST_UNAVAILABLE_UNTIL, 0)
+
+    def test_manual_tenrai_mapping_is_not_overridden_by_anilist(self):
+        tenrai_metadata = self.metadata()
+        tenrai_metadata.pop("anilist_id")
+        tenrai_metadata["metadata_provider"] = "tenrai"
+        main.save_metadata_mapping(self.anime_name, tenrai_metadata, manual=True)
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
+        main.get_anilist_info = lambda *_args, **_kwargs: self.fail(
+            "AniList must not override an explicit Tenrai match"
+        )
+        main.get_tenrai_anime_info = lambda _name, mal_id=None: tenrai_metadata
+
+        loaded = main.get_cached_anilist_info(self.anime_name)
+
+        self.assertEqual(loaded["metadata_provider"], "tenrai")
+        self.assertEqual(main.get_metadata_mapping(self.anime_name).get("manual"), True)
 
     def test_search_endpoint_uses_tenrai_results_when_anilist_fails(self):
         main.search_anilist_anime = lambda _query: ([], "AniList unavailable")
@@ -1016,6 +1033,34 @@ class TenraiAdapterTests(unittest.TestCase):
             entries, error = main.get_airing_schedule()
 
             self.assertEqual(entries, fallback)
+            self.assertIsNone(error)
+        finally:
+            main.requests.post = original_post
+            main.get_tenrai_airing_schedule = original_fallback
+
+    def test_schedule_keeps_valid_empty_anilist_window(self):
+        original_post = main.requests.post
+        original_fallback = main.get_tenrai_airing_schedule
+        try:
+            class EmptyResponse:
+                status_code = 200
+                headers = {}
+
+                @staticmethod
+                def json():
+                    return {"data": {"Page": {
+                        "pageInfo": {"hasNextPage": False},
+                        "airingSchedules": [],
+                    }}}
+
+            main.requests.post = lambda *_args, **_kwargs: EmptyResponse()
+            main.get_tenrai_airing_schedule = lambda: self.fail(
+                "Tenrai must not replace a valid empty AniList schedule"
+            )
+
+            entries, error = main.get_airing_schedule()
+
+            self.assertEqual(entries, [])
             self.assertIsNone(error)
         finally:
             main.requests.post = original_post
@@ -1514,6 +1559,54 @@ class EpisodeNumberingTests(unittest.TestCase):
             "/character_img/Seasonal%20Anime%20Season%202/Season%20Character_char.jpg",
             body,
         )
+
+    def test_each_season_uses_an_independent_metadata_identity(self):
+        calls = []
+
+        def season_metadata(name):
+            calls.append(name)
+            return {"title": name, "characters": []}
+
+        main.get_cached_anilist_info = season_metadata
+        season_one = main.get_season_anilist_info("Seasonal Anime", "Season 1")
+        season_two = main.get_season_anilist_info("Seasonal Anime", "Season 2")
+
+        self.assertEqual(calls, ["Seasonal Anime Season 1", "Seasonal Anime Season 2"])
+        self.assertEqual(season_one["title"], "Seasonal Anime Season 1")
+        self.assertEqual(season_two["title"], "Seasonal Anime Season 2")
+        self.assertEqual(season_one["character_cache_name"], "Seasonal Anime Season 1")
+        self.assertEqual(season_two["character_cache_name"], "Seasonal Anime Season 2")
+
+    def test_metadata_match_is_saved_only_for_the_selected_season(self):
+        anime_dir = os.path.join(self.library, "Seasonal Anime")
+        season_dir = os.path.join(anime_dir, "Season 2")
+        os.makedirs(season_dir, exist_ok=True)
+        original_get_anilist_info = main.get_anilist_info
+        main.get_anilist_info = lambda _name, anilist_id=None: {
+            "anilist_id": anilist_id,
+            "mal_id": 456,
+            "metadata_provider": "anilist",
+            "title": "Season Two Match",
+            "genres": [],
+        }
+        try:
+            response = self.local_request(
+                "POST",
+                "/api/anime/metadata-match",
+                json={
+                    "anime_name": "Seasonal Anime",
+                    "season_name": "Season 2",
+                    "anilist_id": 123,
+                },
+            )
+        finally:
+            main.get_anilist_info = original_get_anilist_info
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(main.get_metadata_mapping("Seasonal Anime"))
+        mapping = main.get_metadata_mapping("Seasonal Anime Season 2")
+        self.assertEqual(mapping["anilist_id"], 123)
+        self.assertEqual(mapping["title"], "Season Two Match")
 
     def test_legacy_season_routes_redirect_to_integrated_anime_detail(self):
         anime_dir = os.path.join(self.library, "Seasonal Anime", "Season 2")
@@ -2084,6 +2177,72 @@ class SeiyuuPageTests(unittest.TestCase):
 
         self.assertIn('<div class="sy-role-fallback" aria-hidden="true">M</div>', role_card)
         self.assertNotIn('src="https://img.example/poster.jpg"', role_card)
+
+
+class SeiyuuProviderPrecedenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.original_cache = main.SEIYUU_CACHE
+        self.original_unavailable = main.ANILIST_UNAVAILABLE_UNTIL
+        main.SEIYUU_CACHE = os.path.join(self.temp_dir.name, "seiyuu")
+        main.ANILIST_UNAVAILABLE_UNTIL = 0.0
+        os.makedirs(main.SEIYUU_CACHE)
+
+    def tearDown(self):
+        main.SEIYUU_CACHE = self.original_cache
+        main.ANILIST_UNAVAILABLE_UNTIL = self.original_unavailable
+
+    def test_tenrai_cache_under_anilist_key_does_not_shadow_primary(self):
+        with open(os.path.join(main.SEIYUU_CACHE, "staff_1.json"), "w", encoding="utf-8") as handle:
+            json.dump({"source": "Tenrai", "name_full": "Fallback"}, handle)
+
+        class Response:
+            status_code = 200
+            headers = {}
+
+            @staticmethod
+            def json():
+                return {"data": {"Staff": {
+                    "id": 1,
+                    "name": {"full": "Primary", "native": None},
+                    "image": {"large": None},
+                    "description": None,
+                    "dateOfBirth": None,
+                    "age": None,
+                    "gender": None,
+                    "bloodType": None,
+                    "homeTown": None,
+                    "language": "Japanese",
+                    "siteUrl": None,
+                    "characterMedia": {
+                        "pageInfo": {"lastPage": 1},
+                        "edges": [],
+                    },
+                }}}
+
+        with patch.object(main.requests, "post", return_value=Response()), \
+             patch.object(main, "fetch_tenrai_seiyuu_detail", return_value=(None, "unused")):
+            payload, error = main.fetch_anilist_seiyuu_detail(1, "Primary")
+
+        self.assertIsNone(error)
+        self.assertEqual(payload["source"], "AniList")
+        self.assertEqual(payload["name_full"], "Primary")
+
+    def test_tenrai_fallback_is_cached_under_provider_scoped_key(self):
+        fallback = {
+            "source": "Tenrai",
+            "mal_id": 99,
+            "name_full": "Fallback",
+            "voice_roles": [],
+        }
+        with patch.object(main.requests, "post", side_effect=main.requests.RequestException("down")), \
+             patch.object(main, "fetch_tenrai_seiyuu_detail", return_value=(fallback, None)):
+            payload, _ = main.fetch_anilist_seiyuu_detail(1, "Fallback")
+
+        self.assertEqual(payload["source"], "Tenrai")
+        self.assertTrue(os.path.isfile(os.path.join(main.SEIYUU_CACHE, "staff_tenrai_99.json")))
+        self.assertFalse(os.path.isfile(os.path.join(main.SEIYUU_CACHE, "staff_1.json")))
 
 
 class MediaDependencyDiagnosticsTests(unittest.TestCase):

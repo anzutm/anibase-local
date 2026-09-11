@@ -16437,6 +16437,7 @@ body.player-body .player-episode-card .watch-progress-badge {
     font-weight: 700;
     line-height: 1.15;
     -webkit-box-orient: vertical;
+    line-clamp: 3;
     -webkit-line-clamp: 3;
 }
 

@@ -20,7 +20,7 @@
     <meta name="theme-color" content="#0b0907">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-7') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-8') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='9') }}">
 </head>
 
@@ -154,6 +154,7 @@
             data-episode-label="{{ ep.episode_label or ep.episode }}"
             data-episode-display-name="{{ ep.display_name | e }}"
             data-list-position="{{ ep.list_position }}"
+            data-resume-seconds="{{ resume_time if ep.file == episode else (ep.resume_seconds or 0) }}"
 
             class="player-episode-card
 
@@ -298,7 +299,7 @@
         if (fill) fill.style.width = `${value}%`;
     });
 </script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-2') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-4') }}"></script>
 
 </body>
 

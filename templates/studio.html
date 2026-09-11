@@ -1,11 +1,21 @@
 {% extends "base.html" %}
-{% block body_class %}support-page{% endblock %}
+{% block body_class %}studio-page-body support-page{% endblock %}
 
 {% block title %}{{ studio_name }} - Studio{% endblock %}
 
 {% block content %}
 <section class="collection-section studio-page">
     <div class="collection-glow"></div>
+
+    <header class="studio-page-intro">
+        <div>
+            <p class="studio-page-kicker">ANIBASE / STUDIO ARCHIVE</p>
+            <h1>Behind every frame.</h1>
+        </div>
+        {% if studio_projects %}
+        <a href="#studioCollectionTitle">Explore projects <span aria-hidden="true">&darr;</span></a>
+        {% endif %}
+    </header>
 
     <!-- Header / Hero section -->
     <div class="studio-header-wrap">
@@ -106,6 +116,7 @@
                         loading="lazy"
                         onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
                     >
+                    <div class="card-top-badge">In Your Library</div>
                 </div>
 
                 <div class="library-badge-indicator" title="In Your Library">
@@ -115,7 +126,6 @@
                 </div>
 
                 <div class="poster-overlay">
-                    <div class="card-top-badge">In Your Library</div>
                     <h3>{{ anime.name }}</h3>
 
                     <div class="poster-card-meta">
@@ -141,7 +151,7 @@
                         {% endif %}
                     </div>
 
-                    <button class="play-hover-btn">&#9654; Watch</button>
+                    <span class="play-hover-btn">&#9654; Watch</span>
                 </div>
             </a>
         </div>
@@ -151,11 +161,13 @@
 
     <!-- All Studio Projects Section Title -->
     {% if studio_projects %}
-    <div class="studio-section-title studio-collection-title">
+    <div class="studio-section-title studio-collection-title" id="studioCollectionTitle">
         <div class="section-title">
             <div class="section-line"></div>
             <h3 class="section-heading">All Studio Projects</h3>
+            <p>Explore the studio catalogue by format, year, or popularity.</p>
         </div>
+        <span class="studio-result-count" id="studioResultCount" aria-live="polite">{{ total_projects }} projects</span>
     </div>
 
     <!-- Client-side Toolbar -->
@@ -171,29 +183,15 @@
             <button type="button" data-filter="ONA" class="filter-btn">ONA</button>
         </div>
 
-        <div class="sort-control" id="studioSortControl">
-            <span class="sort-label">
-                <span class="sort-icon" aria-hidden="true">&#8645;</span>
-                Sort
-            </span>
-            <button
-                type="button"
-                class="sort-trigger"
-                id="studioSortTrigger"
-                aria-haspopup="listbox"
-                aria-expanded="false"
-            >
-                <span id="studioSortLabel">Popularity</span>
-                <span class="sort-chevron">⌄</span>
-            </button>
-
-            <div class="sort-menu" id="studioSortMenu" role="listbox">
-                <button type="button" class="sort-option active" data-sort="popularity" role="option" aria-selected="true">Popularity</button>
-                <button type="button" class="sort-option" data-sort="score-desc" role="option">Highest Score</button>
-                <button type="button" class="sort-option" data-sort="newest" role="option">Newest</button>
-                <button type="button" class="sort-option" data-sort="oldest" role="option">Oldest</button>
-            </div>
-        </div>
+        <label class="studio-sort">
+            <span class="studio-sr-only">Sort studio projects</span>
+            <select id="studioSort" aria-label="Sort studio projects">
+                <option value="popularity">Popularity</option>
+                <option value="score-desc">Highest score</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+            </select>
+        </label>
     </div>
 
     <!-- Timeline of All Projects grouped by year -->
@@ -201,7 +199,7 @@
         {% for year, year_projects in projects_by_year %}
         <div class="studio-year-section" data-year="{{ year }}">
             <div class="studio-year-header">
-                <h4>{{ year if year else 'TBA' }} <span class="project-count-badge">· {{ year_projects|length }} Projects</span></h4>
+                <h4>{{ year if year else 'TBA' }} <span class="project-count-badge">&middot; {{ year_projects|length }} Projects</span></h4>
             </div>
             
             <div class="grid studio-grid">
@@ -225,6 +223,7 @@
                                     loading="lazy"
                                     onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
                                 >
+                                <div class="card-top-badge">In Your Library</div>
                             </div>
                             <div class="library-badge-indicator" title="In Your Library">
                                 <svg viewBox="0 0 24 24">
@@ -232,7 +231,6 @@
                                 </svg>
                             </div>
                             <div class="poster-overlay">
-                                <div class="card-top-badge">In Your Library</div>
                                 <h3>{{ anime.name }}</h3>
                                 <div class="poster-card-meta">
                                     {% if anime.score %}
@@ -256,7 +254,7 @@
                                     <span class="meta-status">{{ anime.status.replace('_', ' ').title() }}</span>
                                     {% endif %}
                                 </div>
-                                <button class="play-hover-btn">&#9654; Watch</button>
+                                <span class="play-hover-btn">&#9654; Watch</span>
                             </div>
                         </a>
                     </div>
@@ -304,7 +302,7 @@
                                     <span class="meta-status">{{ anime.status.replace('_', ' ').title() }}</span>
                                     {% endif %}
                                 </div>
-                                <button class="play-hover-btn" disabled>Not in Library</button>
+                                <span class="play-hover-btn is-disabled">Not in Library</span>
                             </div>
                         </div>
                     </div>
@@ -341,35 +339,16 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const filterBtns = document.querySelectorAll('.studio-filter-group .filter-btn');
-    const sortOptions = document.querySelectorAll('#studioSortMenu .sort-option');
-    const sortControl = document.getElementById('studioSortControl');
-    const sortTrigger = document.getElementById('studioSortTrigger');
-    const sortLabel = document.getElementById('studioSortLabel');
-    const sortMenu = document.getElementById('studioSortMenu');
+    const sortSelect = document.getElementById('studioSort');
     const timeline = document.getElementById('studioTimeline');
     if (!timeline) return;
 
     const sections = Array.from(timeline.querySelectorAll('.studio-year-section'));
     const emptyState = document.getElementById('studioNoResults');
+    const resultCount = document.getElementById('studioResultCount');
 
     let currentFilter = 'all';
     let currentSort = 'popularity';
-
-    // Dropdown toggle
-    if (sortTrigger && sortControl) {
-        sortTrigger.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const isOpen = sortControl.classList.toggle('open');
-            sortTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!sortControl.contains(e.target)) {
-                sortControl.classList.remove('open');
-                sortTrigger.setAttribute('aria-expanded', 'false');
-            }
-        });
-    }
 
     function getNumber(val) {
         const num = Number(val);
@@ -470,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update badge text dynamically
             const badge = section.querySelector('.project-count-badge');
             if (badge) {
-                badge.textContent = `· ${visibleCount} Project${visibleCount !== 1 ? 's' : ''}`;
+                badge.textContent = `\u00b7 ${visibleCount} Project${visibleCount !== 1 ? 's' : ''}`;
             }
 
             // Hide section if empty
@@ -485,6 +464,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (emptyState) emptyState.style.display = 'grid';
         } else {
             if (emptyState) emptyState.style.display = 'none';
+        }
+        if (resultCount) {
+            resultCount.textContent = `${totalVisibleCount} project${totalVisibleCount !== 1 ? 's' : ''}`;
         }
 
         sortCardsInGrids();
@@ -501,25 +483,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Sort clicks
-    sortOptions.forEach(opt => {
-        opt.addEventListener('click', function(e) {
-            e.stopPropagation();
-            sortOptions.forEach(o => {
-                o.classList.remove('active');
-                o.removeAttribute('aria-selected');
-            });
-            this.classList.add('active');
-            this.setAttribute('aria-selected', 'true');
-            currentSort = this.dataset.sort;
-            if (sortLabel) sortLabel.textContent = this.textContent.trim();
-            if (sortControl && sortTrigger) {
-                sortControl.classList.remove('open');
-                sortTrigger.setAttribute('aria-expanded', 'false');
-            }
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            currentSort = this.value;
             applyFilterAndSort();
         });
-    });
+    }
 
     // Run initial filter/sort
     applyFilterAndSort();

@@ -448,6 +448,7 @@ html[data-theme="dark-green"] .movies-page {
     line-height: 1.16;
     text-shadow: 0 3px 15px rgba(0,0,0,.8);
     -webkit-box-orient: vertical;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
 }
 
@@ -628,6 +629,7 @@ html[data-theme="dark-green"] .movies-page {
         display: -webkit-box;
         overflow: hidden;
         -webkit-box-orient: vertical;
+        line-clamp: 3;
         -webkit-line-clamp: 3;
     }
 

@@ -201,6 +201,7 @@ TENRAI_MIN_REQUEST_INTERVAL_SECONDS = 0.25
 PROVIDER_REQUEST_STATE_LOCK = threading.RLock()
 ANILIST_UNAVAILABLE_UNTIL = 0.0
 TENRAI_NEXT_REQUEST_AT = 0.0
+ANILIST_CALL_STATE = threading.local()
 ANILIST_RECOVERY_LOCK = threading.RLock()
 ANILIST_RECOVERY_IN_FLIGHT = set()
 LIBRARY_OBSERVER = None
@@ -1117,6 +1118,10 @@ def normalize_anime_metadata_identity(metadata):
         provider = ANILIST_METADATA_PROVIDER
     if provider:
         normalized["metadata_provider"] = provider
+        if provider == TENRAI_METADATA_PROVIDER:
+            # A Tenrai/MAL record must never be interpreted through a stale or
+            # accidentally copied AniList id.
+            normalized.pop("anilist_id", None)
 
     normalized["metadata_schema_version"] = ANIME_METADATA_SCHEMA_VERSION
     return normalized
@@ -1371,6 +1376,12 @@ def refresh_anilist_metadata(anime_name, mapped_anilist_id=None):
             mark_anilist_available()
             mapping = get_metadata_mapping(anime_name)
             if (
+                mapping
+                and mapping.get("provider") == TENRAI_METADATA_PROVIDER
+                and mapping.get("manual") is True
+            ):
+                return False
+            if (
                 mapped_anilist_id
                 and mapping
                 and mapping.get("provider") == ANILIST_METADATA_PROVIDER
@@ -1464,9 +1475,40 @@ def get_tenrai_anime_info(anime_name, mal_id=None):
         candidates = unwrap_tenrai_data(search_payload)
         if not isinstance(candidates, list) or not candidates:
             return None
-        # Tenrai returns MAL search matches; retain the first result only when
-        # there is no persisted provider mapping to avoid an ID mix-up.
-        candidate = candidates[0] if isinstance(candidates[0], dict) else None
+        # Search ranking often puts the currently airing sequel before the
+        # original season (for example, Frieren Season 2 before Season 1).
+        # When the query contains a season number, prefer a result whose title
+        # explicitly matches that number and reject an explicit sequel for S1.
+        season_match = re.search(
+            r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
+            anime_name,
+            flags=re.IGNORECASE,
+        )
+        requested_season = int(next((group for group in (season_match.groups() if season_match else ()) if group), 0) or 0)
+
+        def candidate_score(item):
+            if not isinstance(item, dict):
+                return -1000
+            title = " ".join(
+                str(item.get(key) or "")
+                for key in ("title_english", "title")
+            ).lower()
+            if not requested_season:
+                return 0
+            explicit_season = re.search(
+                r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
+                title,
+                flags=re.IGNORECASE,
+            )
+            title_season = int(next((group for group in (explicit_season.groups() if explicit_season else ()) if group), 0) or 0)
+            if title_season == requested_season:
+                return 100
+            if requested_season == 1 and title_season > 1:
+                return -100
+            return 5 if title_season == 0 else -25
+
+        candidate = max(candidates, key=candidate_score)
+        candidate = candidate if isinstance(candidate, dict) else None
         normalized_mal_id = normalize_provider_id((candidate or {}).get("mal_id"))
         if normalized_mal_id is None:
             return None
@@ -1507,13 +1549,15 @@ def get_metadata_mapping(anime_name, settings=None):
         normalized.pop("mal_id", None)
     else:
         normalized["mal_id"] = mal_id
+    if provider == TENRAI_METADATA_PROVIDER:
+        normalized.pop("anilist_id", None)
     return normalized
 
 def get_anilist_mapping(anime_name, settings=None):
     mapping = get_metadata_mapping(anime_name, settings=settings)
     return mapping if mapping and mapping.get("provider") == ANILIST_METADATA_PROVIDER else None
 
-def save_metadata_mapping(anime_name, metadata):
+def save_metadata_mapping(anime_name, metadata, manual=False):
     metadata = normalize_anime_metadata_identity(metadata)
     provider = str(metadata.get("metadata_provider") or ANILIST_METADATA_PROVIDER).strip().lower()
     if provider not in {ANILIST_METADATA_PROVIDER, TENRAI_METADATA_PROVIDER}:
@@ -1534,10 +1578,14 @@ def save_metadata_mapping(anime_name, metadata):
         "title": metadata.get("title") or anime_name,
         "updated_at": datetime.now().isoformat(),
     }
+    if manual:
+        record["manual"] = True
     if anilist_id is not None:
         record["anilist_id"] = anilist_id
     if mal_id is not None:
         record["mal_id"] = mal_id
+    if provider == TENRAI_METADATA_PROVIDER:
+        record.pop("anilist_id", None)
     mappings[anime_name] = record
     settings["anilist_mappings"] = mappings
     save_settings(settings)
@@ -2609,6 +2657,11 @@ def get_anilist_poster(anime_name):
 
 def get_anilist_info(anime_name, anilist_id=None):
 
+    # The caller uses this flag to distinguish an API outage from a valid
+    # response with no matching title.  A missing title must not put the
+    # primary provider into the global outage cooldown.
+    ANILIST_CALL_STATE.last_error = True
+
     query = """
     query ($search: String, $id: Int) {
       Media(
@@ -2713,20 +2766,26 @@ def get_anilist_info(anime_name, anilist_id=None):
         try:
             data = response.json()
         except ValueError:
-            data = {}
+            mark_anilist_unavailable()
+            app_log(f"AniList metadata response was not valid JSON for {anime_name}", "ERROR")
+            return None
 
         if response.status_code >= 400:
+            mark_anilist_unavailable()
             app_log(f"AniList metadata request failed with HTTP {response.status_code}: {data}", "ERROR")
             return None
 
         errors = data.get("errors") if isinstance(data, dict) else None
         if errors:
+            mark_anilist_unavailable()
             app_log(f"AniList metadata GraphQL errors for {anime_name}: {errors}", "WARNING")
 
         data_content = data.get("data") if isinstance(data, dict) else None
         media = data_content.get("Media") if isinstance(data_content, dict) else None
 
         if not media:
+            ANILIST_CALL_STATE.last_error = False
+            mark_anilist_available()
             return None
 
         studio = None
@@ -2777,7 +2836,7 @@ def get_anilist_info(anime_name, anilist_id=None):
                 "status": rec_media.get("status")
             })
 
-        return normalize_anime_metadata_identity({
+        metadata = normalize_anime_metadata_identity({
             "anilist_id": media.get("id"),
             "mal_id": media.get("idMal"),
             "metadata_provider": ANILIST_METADATA_PROVIDER,
@@ -2800,8 +2859,13 @@ def get_anilist_info(anime_name, anilist_id=None):
             "relations": relations_list,
             "recommendations": recommendations_list
         })
+        ANILIST_CALL_STATE.last_error = False
+        mark_anilist_available()
+        return metadata
 
     except Exception as e:
+
+        mark_anilist_unavailable()
 
         app_log(f"AniList metadata error for {anime_name}: {e}", "WARN")
 
@@ -2845,8 +2909,10 @@ def search_anilist_anime(query_text, limit=12):
             payload = {}
 
         if response.status_code >= 400:
+            mark_anilist_unavailable()
             return [], f"AniList search failed with HTTP {response.status_code}."
         if payload.get("errors"):
+            mark_anilist_unavailable()
             return [], "AniList could not complete that search."
 
         media_items = payload.get("data", {}).get("Page", {}).get("media", [])
@@ -2872,10 +2938,13 @@ def search_anilist_anime(query_text, limit=12):
                 "year": media.get("seasonYear"),
                 "episodes": media.get("episodes"),
             })
+        mark_anilist_available()
         return results, None
     except requests.RequestException:
+        mark_anilist_unavailable()
         return [], "Unable to reach AniList. Check your internet connection."
     except Exception as error:
+        mark_anilist_unavailable()
         app_log(f"AniList manual search failed: {error}", "WARN")
         return [], "AniList search is temporarily unavailable."
 
@@ -3491,33 +3560,44 @@ def find_media_path(library_name):
 
     return find_anime_path(library_name)
 
+def get_season_metadata_name(anime_name, season_name):
+    """Return the independent metadata/cache identity for one season folder."""
+    anime_name = str(anime_name or "").strip()
+    season_name = str(season_name or "").strip()
+    if not season_name:
+        return anime_name
+    if anime_name.lower() in season_name.lower():
+        return season_name
+    return f"{anime_name} {season_name}"
+
+
 def get_season_anilist_info(anime_name, season_name):
-
-    if get_anilist_mapping(anime_name):
-        info = get_cached_anilist_info(anime_name)
-        if info:
-            info["character_cache_name"] = anime_name
-        return info
-
-    search_name = season_name
-
-    if anime_name.lower() not in season_name.lower():
-
-        search_name = f"{anime_name} {season_name}"
-
-    info = get_cached_anilist_info(
-        search_name
+    metadata_name = get_season_metadata_name(anime_name, season_name)
+    info = get_cached_anilist_info(metadata_name)
+    season_match = re.search(
+        r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
+        season_name,
+        flags=re.IGNORECASE,
     )
-
-    if info:
-        info["character_cache_name"] = search_name
-        return info
-
-    info = get_cached_anilist_info(
-        anime_name
+    requested_season = int(next((group for group in (season_match.groups() if season_match else ()) if group), 0) or 0)
+    title = str((info or {}).get("title") or "")
+    title_match = re.search(
+        r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
+        title,
+        flags=re.IGNORECASE,
     )
+    title_season = int(next((group for group in (title_match.groups() if title_match else ()) if group), 0) or 0)
+    if info and requested_season and (
+        (requested_season == 1 and title_season > 1)
+        or (requested_season > 1 and title_season not in (0, requested_season))
+    ):
+        # A previous provider response may have been cached under the right
+        # season key but returned the wrong sequel. Force a fresh search.
+        invalidate_anilist_cache(metadata_name)
+        remove_anilist_mapping(metadata_name)
+        info = get_cached_anilist_info(metadata_name)
     if info:
-        info["character_cache_name"] = anime_name
+        info["character_cache_name"] = metadata_name
     return info
 
 def adapt_tenrai_schedule(payload, now=None, lookahead_days=None):
@@ -3625,20 +3705,24 @@ def get_airing_schedule():
             try:
                 data = response.json()
             except ValueError as e:
+                mark_anilist_unavailable()
                 app_log(f"Schedule API JSON error: {e}", "ERROR")
                 return get_tenrai_airing_schedule()
 
             if response.status_code >= 400:
+                mark_anilist_unavailable()
                 app_log(f"Schedule API HTTP {response.status_code}: {data}", "ERROR")
                 return get_tenrai_airing_schedule()
 
             errors = data.get("errors")
             if errors:
+                mark_anilist_unavailable()
                 app_log(f"Schedule API GraphQL errors: {errors}", "ERROR")
                 return get_tenrai_airing_schedule()
 
             page_data = data.get("data", {}).get("Page")
             if not page_data:
+                mark_anilist_unavailable()
                 app_log(f"Schedule API missing page data: {data}", "ERROR")
                 return get_tenrai_airing_schedule()
 
@@ -3656,10 +3740,15 @@ def get_airing_schedule():
             page += 1
 
         if schedules:
+            mark_anilist_available()
             return schedules, None
-        return get_tenrai_airing_schedule()
+        # An empty AniList window is a valid result (there may simply be no
+        # broadcasts). Do not replace it with unrelated Tenrai data.
+        mark_anilist_available()
+        return [], None
 
     except requests.RequestException as e:
+        mark_anilist_unavailable()
         app_log(f"Schedule API request error: {e}", "ERROR")
         return get_tenrai_airing_schedule()
 
@@ -3964,6 +4053,11 @@ def get_cached_anilist_info(
     manual_mapping = get_metadata_mapping(anime_name)
     mapped_anilist_id = manual_mapping.get("anilist_id") if manual_mapping else None
     mapped_mal_id = manual_mapping.get("mal_id") if manual_mapping else None
+    manual_tenrai_override = bool(
+        manual_mapping
+        and manual_mapping.get("provider") == TENRAI_METADATA_PROVIDER
+        and manual_mapping.get("manual") is True
+    )
 
     # 1. Coba muat dari cache metadata
     if os.path.exists(
@@ -3980,6 +4074,8 @@ def get_cached_anilist_info(
                 info, expired_next_airing = remove_expired_next_airing(info)
                 pruned_info = info
                 if mapped_anilist_id and info.get("anilist_id") != mapped_anilist_id:
+                    info = None
+                if manual_tenrai_override and info and info.get("metadata_provider") != TENRAI_METADATA_PROVIDER:
                     info = None
                 # Jika metadata ditemukan tapi tidak punya informasi karakter atau relations, paksa ambil ulang
                 if info and ("characters" not in info or "relations" not in info or "recommendations" not in info):
@@ -4011,6 +4107,7 @@ def get_cached_anilist_info(
                     info
                     and info.get("metadata_provider") == TENRAI_METADATA_PROVIDER
                     and can_attempt_anilist()
+                    and not manual_tenrai_override
                 ):
                     start_anilist_recovery(anime_name, mapped_anilist_id=mapped_anilist_id)
         except:
@@ -4018,7 +4115,14 @@ def get_cached_anilist_info(
 
     # 2. Jika tidak ada di cache atau data tidak lengkap, ambil dari AniList API
     if not info:
-        if can_attempt_anilist():
+        if can_attempt_anilist() and not manual_tenrai_override:
+            # Preserve the distinction between a provider outage and a valid
+            # no-result response (tests or integrations may replace this
+            # callable, so default to the conservative outage assumption).
+            try:
+                ANILIST_CALL_STATE.last_error = True
+            except Exception:
+                pass
             info = (
                 get_anilist_info(anime_name, anilist_id=mapped_anilist_id)
                 if mapped_anilist_id
@@ -4027,7 +4131,7 @@ def get_cached_anilist_info(
             info = normalize_anime_metadata_identity(info)
             if info and info.get("metadata_provider") == ANILIST_METADATA_PROVIDER:
                 mark_anilist_available()
-            else:
+            elif getattr(ANILIST_CALL_STATE, "last_error", True):
                 mark_anilist_unavailable()
 
         # AniList failed or is cooling down: use the public Tenrai fallback.
@@ -6308,22 +6412,26 @@ def fetch_anilist_studio_projects(studio_name, max_projects=STUDIO_PROJECT_LIMIT
             try:
                 data = response.json()
             except ValueError:
+                mark_anilist_unavailable()
                 stale = read_studio_project_cache(studio_name, allow_stale=True)
                 return stale, "AniList returned an invalid studio response."
 
             if response.status_code >= 400:
+                mark_anilist_unavailable()
                 app_log(f"Studio AniList HTTP {response.status_code}: {data}", "ERROR")
                 stale = read_studio_project_cache(studio_name, allow_stale=True)
                 return stale, f"AniList studio request failed with HTTP {response.status_code}."
 
             errors = data.get("errors")
             if errors:
+                mark_anilist_unavailable()
                 app_log(f"Studio AniList GraphQL errors: {errors}", "ERROR")
                 stale = read_studio_project_cache(studio_name, allow_stale=True)
                 return stale, "AniList returned GraphQL errors for the studio request."
 
             studio_data = data.get("data", {}).get("Studio")
             if not studio_data:
+                mark_anilist_available()
                 stale = read_studio_project_cache(studio_name, allow_stale=True)
                 return stale, "Studio was not found on AniList."
 
@@ -6348,10 +6456,12 @@ def fetch_anilist_studio_projects(studio_name, max_projects=STUDIO_PROJECT_LIMIT
             "projects": projects[:max_projects],
             "provider": ANILIST_METADATA_PROVIDER,
         }
+        mark_anilist_available()
         write_studio_project_cache(studio_name, payload)
         return payload, None
 
     except requests.RequestException as e:
+        mark_anilist_unavailable()
         app_log(f"Studio AniList request error: {e}", "ERROR")
         stale = read_studio_project_cache(studio_name, allow_stale=True)
         return stale, "Unable to reach AniList studio API."
@@ -6456,6 +6566,30 @@ def read_seiyuu_cache(staff_id, allow_stale=False):
         return payload.get("data")
     
     return None
+
+def is_anilist_seiyuu_payload(payload):
+    """Return whether a cached seiyuu profile belongs to AniList.
+
+    Older cache files did not record a source, and those files were written by
+    the AniList-only implementation.  Treat an absent source as AniList for
+    backwards compatibility, but never let an explicitly Tenrai payload be
+    consumed by the AniList path.
+    """
+    if not isinstance(payload, dict):
+        return False
+    source = str(payload.get("source") or "").strip().lower()
+    return source in {"", ANILIST_METADATA_PROVIDER}
+
+def cache_tenrai_seiyuu_payload(payload):
+    """Cache Tenrai seiyuu data under a provider-scoped key."""
+    if not isinstance(payload, dict):
+        return False
+    mal_id = normalize_provider_id(payload.get("mal_id"))
+    if mal_id is None:
+        return False
+    cache_key = f"tenrai_{mal_id}"
+    write_seiyuu_cache(cache_key, payload)
+    return True
 
 def write_seiyuu_cache(staff_id, data):
     os.makedirs(SEIYUU_CACHE, exist_ok=True)
@@ -6705,7 +6839,7 @@ def get_cached_tenrai_seiyuu_detail(mal_id, staff_name=None):
         return None, "Tenrai seiyuu profile needs a valid MAL person id."
     cache_key = f"tenrai_{normalized_mal_id}"
     cached = read_seiyuu_cache(cache_key)
-    if cached:
+    if cached and str(cached.get("source") or "").strip().lower() == TENRAI_METADATA_PROVIDER:
         cached, changed = normalize_tenrai_role_images(cached)
         if changed:
             write_seiyuu_cache(cache_key, cached)
@@ -6808,12 +6942,23 @@ def fetch_jikan_seiyuu_detail(staff_name, anilist_staff_id=None):
 def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
     """Fetch seiyuu profile and voice roles from AniList"""
     cached = read_seiyuu_cache(staff_id)
-    if cached:
-        if str(cached.get("source") or "").lower() == TENRAI_METADATA_PROVIDER.lower():
-            cached, changed = normalize_tenrai_role_images(cached)
-            if changed:
-                write_seiyuu_cache(staff_id, cached)
+    if cached and is_anilist_seiyuu_payload(cached):
         return cached, None
+
+    # A legacy build could store a Tenrai fallback under the AniList staff id.
+    # Ignore that entry here so the primary provider is always attempted.
+    cached = None
+
+    def stale_anilist_cache():
+        stale = read_seiyuu_cache(staff_id, allow_stale=True)
+        return stale if is_anilist_seiyuu_payload(stale) else None
+
+    def return_tenrai_fallback(message):
+        payload, error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
+        if payload:
+            cache_tenrai_seiyuu_payload(payload)
+            return payload, message
+        return None, error or message
     
     query = """
     query ($id: Int, $page: Int) {
@@ -6898,36 +7043,36 @@ def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
             try:
                 data = response.json()
             except ValueError:
-                stale = read_seiyuu_cache(staff_id, allow_stale=True)
+                mark_anilist_unavailable()
+                stale = stale_anilist_cache()
                 if stale:
                     return stale, "AniList returned invalid seiyuu response."
-                mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-                return mal_payload, mal_error or "AniList returned invalid seiyuu response."
+                return return_tenrai_fallback("AniList returned invalid seiyuu response.")
             
             if response.status_code >= 400:
+                mark_anilist_unavailable()
                 app_log(f"Seiyuu AniList HTTP {response.status_code}: {data}", "ERROR")
-                stale = read_seiyuu_cache(staff_id, allow_stale=True)
+                stale = stale_anilist_cache()
                 if stale:
                     return stale, f"AniList seiyuu request failed with HTTP {response.status_code}."
-                mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-                return mal_payload, mal_error or f"AniList seiyuu request failed with HTTP {response.status_code}."
+                return return_tenrai_fallback(f"AniList seiyuu request failed with HTTP {response.status_code}.")
             
             errors = data.get("errors")
             if errors:
+                mark_anilist_unavailable()
                 app_log(f"Seiyuu AniList GraphQL errors: {errors}", "ERROR")
-                stale = read_seiyuu_cache(staff_id, allow_stale=True)
+                stale = stale_anilist_cache()
                 if stale:
                     return stale, "AniList returned GraphQL errors for seiyuu request."
-                mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-                return mal_payload, mal_error or "AniList returned GraphQL errors for seiyuu request."
+                return return_tenrai_fallback("AniList returned GraphQL errors for seiyuu request.")
             
             page_staff_data = data.get("data", {}).get("Staff")
             if not page_staff_data:
-                stale = read_seiyuu_cache(staff_id, allow_stale=True)
+                mark_anilist_available()
+                stale = stale_anilist_cache()
                 if stale:
                     return stale, "Seiyuu was not found on AniList."
-                mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-                return mal_payload, mal_error or "Seiyuu was not found on AniList."
+                return return_tenrai_fallback("Seiyuu was not found on AniList.")
 
             if staff_data is None:
                 staff_data = page_staff_data
@@ -6944,18 +7089,19 @@ def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
             page += 1
 
         if not staff_data:
-            stale = read_seiyuu_cache(staff_id, allow_stale=True)
+            mark_anilist_available()
+            stale = stale_anilist_cache()
             if stale:
                 return stale, "Seiyuu was not found on AniList."
-            mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-            return mal_payload, mal_error or "Seiyuu was not found on AniList."
+            return return_tenrai_fallback("Seiyuu was not found on AniList.")
 
         if not voice_roles:
             anilist_name = (staff_data.get("name") or {}).get("full") or fallback_name
             mal_payload, mal_error = fetch_tenrai_seiyuu_detail(anilist_name, staff_id)
             if mal_payload and mal_payload.get("voice_roles"):
-                write_seiyuu_cache(staff_id, mal_payload)
-                return mal_payload, "AniList did not return voice roles, using Tenrai fallback."
+                # Keep AniList's profile as the authoritative record and use
+                # Tenrai only to fill the missing role list.
+                voice_roles = mal_payload.get("voice_roles") or []
         
         # Get date of birth info
         dob = staff_data.get("dateOfBirth", {})
@@ -6967,6 +7113,7 @@ def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
             if year and month and day:
                 birth_date = f"{year}-{month:02d}-{day:02d}"
         
+        mark_anilist_available()
         payload = {
             "staff_id": staff_data.get("id"),
             "name_full": staff_data.get("name", {}).get("full"),
@@ -6989,15 +7136,12 @@ def fetch_anilist_seiyuu_detail(staff_id, fallback_name=None):
         return payload, None
     
     except requests.RequestException as e:
+        mark_anilist_unavailable()
         app_log(f"Seiyuu AniList request error: {e}", "ERROR")
-        stale = read_seiyuu_cache(staff_id, allow_stale=True)
+        stale = stale_anilist_cache()
         if stale:
             return stale, "Unable to reach AniList seiyuu API."
-        mal_payload, mal_error = fetch_tenrai_seiyuu_detail(fallback_name, staff_id)
-        if mal_payload:
-            write_seiyuu_cache(staff_id, mal_payload)
-            return mal_payload, "Unable to reach AniList seiyuu API, using Tenrai fallback."
-        return None, mal_error or "Unable to reach AniList seiyuu API."
+        return return_tenrai_fallback("Unable to reach AniList seiyuu API, using Tenrai fallback.")
 
 def build_local_anime_match_index(local_anime):
     match_index = {}
@@ -7027,6 +7171,26 @@ def get_project_title_options(project):
         title.get("romaji"),
         title.get("native")
     ]
+
+def get_studio_project_identity(project):
+    """Return a stable identity so provider pagination cannot duplicate cards."""
+    project_id = project.get("id") or project.get("mal_id")
+    if project_id not in (None, ""):
+        return ("provider-id", str(project_id))
+
+    normalized_titles = tuple(
+        sorted({
+            normalized
+            for title in get_project_title_options(project)
+            if (normalized := normalize_anime_match_name(title))
+        })
+    )
+    return (
+        "title",
+        normalized_titles,
+        project.get("seasonYear") or 0,
+        str(project.get("format") or "").upper(),
+    )
 
 def build_studio_project_item(project, local_match=None):
     title_options = get_project_title_options(project)
@@ -7240,8 +7404,14 @@ def studio_page(studio_name):
 
     if studio_payload:
         studio_info = studio_payload.get("studio_info")
+        seen_projects = set()
 
         for project in studio_payload.get("projects", []):
+            project_identity = get_studio_project_identity(project)
+            if project_identity in seen_projects:
+                continue
+            seen_projects.add(project_identity)
+
             local_match = None
 
             for title in get_project_title_options(project):
@@ -7613,12 +7783,25 @@ def api_update_anime_metadata_match():
         return error_response
 
     anime_name = str(data.get("anime_name") or "").strip()
-    if not anime_name or not find_anime_path(anime_name):
+    anime_path = find_anime_path(anime_name) if anime_name else None
+    if not anime_path:
         return json_error("anime_not_found", "Anime folder was not found.", 404)
 
+    season_name = str(data.get("season_name") or "").strip()
+    metadata_name = anime_name
+    if season_name:
+        season_path = safe_join_media_path(anime_path, season_name)
+        if (
+            not season_path
+            or not os.path.isdir(season_path)
+            or os.path.normcase(os.path.dirname(season_path)) != os.path.normcase(anime_path)
+        ):
+            return json_error("season_not_found", "Season folder was not found.", 404)
+        metadata_name = get_season_metadata_name(anime_name, season_name)
+
     if data.get("automatic") is True:
-        removed = remove_anilist_mapping(anime_name)
-        invalidate_anilist_cache(anime_name)
+        removed = remove_anilist_mapping(metadata_name)
+        invalidate_anilist_cache(metadata_name)
         return jsonify({
             "ok": True,
             "automatic": True,
@@ -7631,7 +7814,7 @@ def api_update_anime_metadata_match():
         if mal_id is None:
             return json_error("invalid_mal_id", "Select a valid Tenrai title.", 400)
         metadata = normalize_anime_metadata_identity(
-            get_tenrai_anime_info(anime_name, mal_id=mal_id)
+            get_tenrai_anime_info(metadata_name, mal_id=mal_id)
         )
         valid_match = metadata and metadata.get("metadata_provider") == TENRAI_METADATA_PROVIDER \
             and metadata.get("mal_id") == mal_id
@@ -7644,7 +7827,7 @@ def api_update_anime_metadata_match():
         if anilist_id <= 0:
             return json_error("invalid_anilist_id", "Select a valid AniList title.", 400)
         metadata = normalize_anime_metadata_identity(
-            get_anilist_info(anime_name, anilist_id=anilist_id)
+            get_anilist_info(metadata_name, anilist_id=anilist_id)
         )
         valid_match = metadata and metadata.get("anilist_id") == anilist_id
     if not valid_match:
@@ -7654,9 +7837,11 @@ def api_update_anime_metadata_match():
             502,
         )
 
-    save_metadata_mapping(anime_name, metadata)
-    invalidate_anilist_cache(anime_name)
-    cache_file = os.path.join(METADATA_CACHE, f"{anime_name}.json")
+    # A manually selected Tenrai result is an explicit user override; it must
+    # not be silently replaced by a later AniList recovery.
+    save_metadata_mapping(metadata_name, metadata, manual=True)
+    invalidate_anilist_cache(metadata_name)
+    cache_file = os.path.join(METADATA_CACHE, f"{metadata_name}.json")
     atomic_write_json_file(cache_file, metadata, f"{provider.title()} metadata", ensure_ascii=False)
 
     try:
@@ -7681,7 +7866,7 @@ def api_update_anime_metadata_match():
 
     return jsonify({
         "ok": True,
-        "mapping": get_metadata_mapping(anime_name),
+        "mapping": get_metadata_mapping(metadata_name),
         "metadata": {
             "anilist_id": metadata.get("anilist_id"),
             "mal_id": metadata.get("mal_id"),
@@ -8024,6 +8209,12 @@ def anime_detail(anime_name):
                 watch_status.get(
                     "progress",
                     0
+                ),
+
+            "resume_seconds":
+                watch_status.get(
+                    "current_seconds",
+                    0
                 )
 
         })
@@ -8085,6 +8276,11 @@ def anime_detail(anime_name):
         if selected_season
         else get_cached_anilist_info(anime_name)
     )
+    metadata_name = (
+        get_season_metadata_name(anime_name, selected_season)
+        if selected_season
+        else anime_name
+    )
 
     debug_log(f"Anime info loaded for {anime_name}: {anime_info}")
 
@@ -8096,8 +8292,9 @@ def anime_detail(anime_name):
         resume_episode=resume_episode,
         resume_label=resume_label,
         anime_info=anime_info,
-        anilist_mapping=get_anilist_mapping(anime_name),
-        metadata_mapping=get_metadata_mapping(anime_name),
+        anilist_mapping=get_anilist_mapping(metadata_name),
+        metadata_mapping=get_metadata_mapping(metadata_name),
+        metadata_search_name=metadata_name,
         seasons=seasons,
         selected_season=selected_season
     )
@@ -8268,6 +8465,12 @@ def player(
             "progress":
                 watch_status.get(
                     "progress",
+                    0
+                ),
+
+            "resume_seconds":
+                watch_status.get(
+                    "current_seconds",
                     0
                 )
 
