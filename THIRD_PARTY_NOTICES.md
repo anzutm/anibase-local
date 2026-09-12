@@ -1,7 +1,7 @@
 # Third-Party Notices
 
 This project includes third-party software and assets that remain under their
-respective licenses.
+respective licenses
 
 ## Plyr
 
