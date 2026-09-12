@@ -80,7 +80,6 @@
 .home-page .home-spotlight-slide.active .home-spotlight-copy h2 { transition-delay: .10s; }
 .home-page .home-spotlight-slide.active .home-spotlight-meta { transition-delay: .16s; }
 .home-page .home-spotlight-slide.active .home-spotlight-description { transition-delay: .21s; }
-.home-page .home-spotlight-slide.active .home-hero-actions { transition-delay: .26s; }
 .home-spotlight-copy h2 { max-width: 690px; margin: 10px 0; font-size: clamp(28px,3.4vw,48px); line-height: 1.13; letter-spacing: -.035em; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .home-spotlight-meta { color: #c3ccd9; font-size: 13px; }
 .home-spotlight-description { max-width: 560px; color: #a8b2c4; font-size: 14px; line-height: 1.6; margin-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -115,7 +114,6 @@
     -webkit-text-fill-color: currentColor;
     text-shadow: none;
 }
-.home-page .home-heading-count { margin-left: 0; }
 .home-page .section-subtitle { margin: 12px 0 0; color: #a0a7b5; font-size: 13px; }
 .home-page .collection-heading { gap: 0; }
 .home-page .resume-section-head { margin-bottom: 18px; }
@@ -161,48 +159,8 @@
     color: #f4f4f6;
 }
 .home-page #continueWatchingSection { scroll-margin-top: 112px; }
-.home-page .continue-card { border: 1px solid var(--home-line); border-radius: var(--home-radius); background: var(--home-surface); box-shadow: none; }
-.home-page .continue-card:hover { box-shadow: none; transform: translateY(-2px); }
 .home-page .continue-card::after { display: none; }
 /* Preserve the Continue Watching card layout while matching the quieter page chrome. */
-.home-page .continue-card {
-    border-color: rgba(255,255,255,.12);
-    border-radius: 16px;
-    background: #10131b;
-}
-.home-page .continue-card .continue-thumb { border-radius: 15px 15px 0 0; }
-.home-page .continue-card .continue-info { background: #10131b; }
-.home-page .continue-card .continue-badge {
-    top: 10px;
-    left: 10px;
-    padding: 4px 6px;
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 999px;
-    background: rgba(9,13,20,.48);
-    box-shadow: none;
-    color: #f4f4f6;
-    font-size: 9px;
-    letter-spacing: .06em;
-}
-.home-page .continue-card .continue-remove-btn {
-    top: 10px;
-    right: 10px;
-    width: 26px;
-    height: 26px;
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 50%;
-    background: rgba(9,13,20,.48);
-    box-shadow: none;
-    font-size: 16px;
-}
-.home-page .continue-card .continue-title-row > span {
-    padding: 3px 5px;
-    border-color: rgba(255,255,255,.10);
-    border-radius: 4px;
-    background: transparent;
-    color: #aeb5c3;
-}
-.home-page .continue-card .progress-fill { background: var(--cyan); }
 .home-page .collection-toolbar {
     display: flex;
     align-items: center;
@@ -249,14 +207,6 @@
     height: 22px;
     background: var(--home-line);
     transform: translateY(-50%);
-}
-
-.home-page .home-filter-label {
-    font-size: 10.5px;
-    font-weight: 800;
-    color: var(--home-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
 .home-page .filter-btn {
@@ -308,9 +258,6 @@
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-}
-.home-page .index-collection-section .home-filter-label {
-    display: none;
 }
 .home-page .index-collection-section .release-status-filter,
 .home-page .index-collection-section .watch-status-filter {
@@ -560,8 +507,6 @@
 }
 
 .home-page :is(a,button,input):focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
-.home-page .main-footer { background: #070a10 !important; border-top: 1px solid var(--home-line); box-shadow: none; }
-
 /* Editorial hierarchy */
 .home-collection-summary { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0 12px; color: var(--home-muted); font-size: 12px; }
 .home-collection-summary strong { grid-row: span 2; color: #edf2fa; font-size: 38px; font-weight: 500; letter-spacing: -.06em; }
@@ -572,25 +517,14 @@
 .home-hero-actions { display: flex; align-items: center; gap: 22px; margin-top: 24px; }
 .home-hero-actions .home-primary-action { margin-top: 0; }
 .home-secondary-action { color: #ecf2fa; text-decoration: none; font-size: 13px; padding: 14px 0; }
-.home-heading-count { display: inline-block; vertical-align: middle; margin-left: 10px; padding: 0; border: 0; border-radius: 0; color: var(--cyan); font-size: 12px; letter-spacing: 0; }
-
 /* Continue Watching */
-.home-page .continue-grid { gap: 18px; padding: 0; scroll-padding-inline: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
-.home-page .continue-card { flex: 0 0 300px; width: 300px; min-width: 300px; max-width: 300px; aspect-ratio: auto; position: relative; height: 210px !important; min-height: 210px !important; overflow: hidden; }
 .home-page .continue-card-link { display: block; height: auto; }
 .home-page .continue-card .continue-thumb { position: relative; inset: auto; height: 134px !important; aspect-ratio: auto; overflow: hidden; }
 .home-page .continue-card .continue-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.home-page .continue-card .continue-info { position: relative; inset: auto; z-index: 1; min-height: 76px; padding: 11px 12px; background: var(--home-surface); }
-.home-page .continue-card .continue-title-row h3 { font-size: 12px; line-height: 1.3; color: #fff; }
-.home-page .continue-card .continue-title-row > span { font-size: 9px; padding: 4px 6px; }
-.home-page .continue-card .continue-info p { margin-top: 5px; font-size: 10px; color: #c3cede; }
-.home-page .continue-card .progress-bar-container { height: 3px; bottom: 0; }
-.home-page .continue-card .continue-remove-btn { opacity: 1; }
 .home-page .continue-grid:has(.continue-card.empty:only-child) { display: block; }
 .home-page .continue-card.empty { width: 100%; min-height: 120px; height: auto; background: var(--home-surface); }
 
 /* Filter group overrides */
-.home-page .home-filter-label { font-size: 10px; color: var(--home-muted); }
 .home-page .resume-section-head, .home-page .index-collection-top { background: transparent; box-shadow: none; border: 0; padding: 0; }
 .home-page .resume-section-head::before, .home-page .index-collection-top::before { display: none; }
 .home-page .continue-grid-shell { background: transparent; border: 0; padding: 0; box-shadow: none; }
@@ -712,13 +646,6 @@
     color: #86efac;
 }
 
-.home-page #animeCollectionGrid .anime-watch-corner-badge.is-complete {
-    padding: 3px 7px 3px 8px;
-    border-color: rgba(74, 222, 128, 0.26);
-    background: rgba(6, 78, 59, 0.34);
-    color: rgba(220, 252, 231, 0.92);
-}
-
 .home-page #animeCollectionGrid .anime-watch-corner-badge:is(.not-started, .behind) {
     padding: 3px 8px;
     border-color: rgba(248, 113, 113, 0.26);
@@ -773,11 +700,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.home-page #animeCollectionGrid .anime-airing-countdown b {
-    color: inherit;
-    font-weight: 600;
 }
 
 .home-page #animeCollectionGrid .card:hover .anime-airing-countdown,
@@ -865,10 +787,6 @@
     line-height: 1;
     white-space: nowrap;
     flex-shrink: 0;
-}
-
-.home-page #animeCollectionGrid .poster-card-meta span:first-child {
-    color: rgba(226, 232, 240, 0.76);
 }
 
 .home-page #animeCollectionGrid .play-hover-btn {
@@ -986,9 +904,25 @@
 
 .home-page .continue-grid {
     gap: 16px;
+    padding: 0;
+    scroll-padding-inline: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .home-page .continue-card {
+    flex: 0 0 300px;
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+    aspect-ratio: auto;
+    position: relative;
+    height: 194px !important;
+    min-height: 194px !important;
+    overflow: hidden;
+    border: 1px solid var(--home-line);
     border-color: var(--border);
     border-radius: 14px;
     background: linear-gradient(180deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .008));
@@ -1099,6 +1033,7 @@
 
 .home-page .continue-card .progress-bar-container {
     z-index: 5;
+    bottom: 0;
     height: 3px;
     background: rgba(255, 255, 255, .10);
 }
@@ -1108,20 +1043,16 @@
     box-shadow: none;
 }
 
-.home-page .continue-card .continue-info {
-    min-height: 76px;
-    padding: 10px 11px 11px;
-    background: transparent;
-}
-
 .home-page .continue-card .continue-title-row {
     gap: 8px;
 }
 
 .home-page .continue-card .continue-title-row h3 {
+    color: #fff;
     font-size: 12px;
     font-weight: 650;
     letter-spacing: -.012em;
+    line-height: 1.3;
 }
 
 .home-page .continue-card .continue-title-row > span {
@@ -1141,15 +1072,13 @@
     font-size: 10px;
 }
 
-/* Keep the footer of a resume card close to its last-watched metadata. */
-.home-page .continue-card {
-    height: 194px !important;
-    min-height: 194px !important;
-}
-
 .home-page .continue-card .continue-info {
+    position: relative;
+    inset: auto;
+    z-index: 1;
     min-height: 55px;
     padding: 8px 11px 9px;
+    background: transparent;
 }
 
 @media (max-width: 768px) {

@@ -143,10 +143,10 @@
 .support-page .sy-role--local:hover, .support-page .sy-role--local:focus-within { border-color: var(--sy-accent); }
 
 .sy-role-character { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border-bottom: 1px solid var(--sy-line); background: var(--sy-surface-raised); contain: paint; }
-.sy-role-character img, .sy-role-character .sy-role-fallback { display: grid; width: 100%; height: 100%; overflow: hidden; }
+.sy-role-character img, .sy-role-character .sy-role-fallback { width: 100%; height: 100%; overflow: hidden; }
 .sy-role-character img { display: block; object-fit: cover; object-position: center top; transition: transform .35s ease, filter .35s ease; }
 .sy-role:hover .sy-role-character img, .sy-role:focus-within .sy-role-character img { transform: scale(1.035); filter: saturate(1.04) contrast(1.02); }
-.sy-role-character .sy-role-fallback { place-items: center; font-size: clamp(2.25rem, 6vw, 4rem); }
+.sy-role-character .sy-role-fallback { display: grid; place-items: center; font-size: clamp(2.25rem, 6vw, 4rem); }
 .sy-library-badge { position: absolute; top: 9px; right: 9px; z-index: 2; padding: 5px 7px; border: 1px solid rgba(255,255,255,.18); border-radius: 5px; background: var(--sy-accent); color: #061016; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 
 .sy-role-copy { min-height: 138px; display: flex; flex-direction: column; padding: 13px; }

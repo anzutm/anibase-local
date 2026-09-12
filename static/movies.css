@@ -226,8 +226,7 @@ html[data-theme="dark-green"] .movies-page {
 
 .movies-page .movies-action:focus-visible,
 .movies-page .movie-card-actions a:focus-visible,
-.movies-page .movies-hero-poster:focus-visible,
-.movies-page .movie-poster-link:focus-visible {
+.movies-page .movies-hero-poster:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 3px;
 }
@@ -368,14 +367,6 @@ html[data-theme="dark-green"] .movies-page {
     display: none;
 }
 
-.movies-page .movie-poster-link {
-    position: absolute;
-    inset: 0;
-    display: block;
-    color: inherit;
-    text-decoration: none;
-}
-
 .movies-page .movie-poster-art,
 .movies-page .movie-poster-vignette {
     position: absolute;
@@ -499,10 +490,6 @@ html[data-theme="dark-green"] .movies-page {
     color: #061019 !important;
     border-color: transparent !important;
     background: var(--movies-accent);
-}
-
-.movies-page .movie-card-details {
-    background: rgba(255,255,255,.09);
 }
 
 .movies-page .movie-poster-card:hover,

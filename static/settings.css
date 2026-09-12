@@ -3,10 +3,8 @@
 .settings-page .collection-glow { display: none; }
 .settings-page .settings-top { width: 100%; margin: 0 0 30px; }
 .settings-page .settings-heading-panel { padding: 0; border: 0; background: none; box-shadow: none; }
-.settings-page .settings-eyebrow { color: var(--primary); font-size: 11px; letter-spacing: .12em; }
 .settings-page .section-title { padding: 0; margin: 8px 0; border: 0; background: none; box-shadow: none; }
 .settings-page .section-line { display: none; }
-.settings-page .section-heading { font-size: clamp(32px, 4vw, 46px); color: var(--text); background: none; -webkit-text-fill-color: currentColor; }
 .settings-page .settings-heading-copy { margin-top: 10px; color: var(--text-muted, #9ca3af); }
 .settings-workspace { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 36px; align-items: start; }
 .settings-nav { position: sticky; top: 112px; display: flex; flex-direction: column; gap: 5px; }
@@ -18,14 +16,14 @@
 .settings-nav p { margin: 22px 14px; font-size: 12px; line-height: 1.7; color: var(--text-muted, #9ca3af); opacity: .7; }
 .settings-page .settings-shell { width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
 .settings-page .settings-form { gap: 0; }
-.settings-page .settings-layout, .settings-page .settings-main-column, .settings-page .settings-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+.settings-page .settings-main-column,
+.settings-page .settings-side{ display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .settings-page .settings-card { margin: 0; padding: 28px; border: 1px solid rgba(255,255,255,.09); border-radius: 20px; background: rgba(18,21,29,.65); box-shadow: none; scroll-margin-top: 115px; }
 .settings-page .settings-card::before, .settings-page .settings-card::after { display: none; }
 .settings-page .settings-card-head { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .settings-page .settings-kicker { color: var(--primary); font-size: 10px; letter-spacing: .12em; }
 .settings-page .settings-card-head h3 { margin: 7px 0; font-size: 23px; letter-spacing: -.03em; }
 .settings-page .settings-card-head p, .settings-page .settings-helper { color: var(--text-muted, #9ca3af); font-size: 12px; line-height: 1.65; }
-.settings-page .settings-field { margin-bottom: 20px; }
 .settings-page .settings-field:last-child { margin-bottom: 0; }
 .settings-page .settings-label { font-size: 13px; font-weight: 650; }
 .settings-page .settings-input { min-width: 0; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.13); background: rgba(0,0,0,.2); box-shadow: none; font-size: 13px; }
@@ -34,13 +32,12 @@
 .settings-page .settings-input-row { grid-template-columns: minmax(0, 1fr) auto; }
 .settings-page .settings-browse-btn, .settings-page .settings-add-path-btn, .settings-page .settings-cleanup-btn, .settings-page .settings-remove-path-btn, .settings-discard-btn { min-height: 40px; padding: 9px 14px; border: 1px solid rgba(255,255,255,.13); border-radius: 10px; background: rgba(255,255,255,.04); color: inherit; box-shadow: none; font: inherit; font-size: 12px; cursor: pointer; }
 .settings-page button:hover { filter: brightness(1.1); }
-.settings-page button:focus-visible, .settings-nav a:focus-visible, .settings-page .theme-preset-card:focus-within { outline: 2px solid var(--primary); outline-offset: 3px; }
+.settings-nav a:focus-visible{ outline: 2px solid var(--primary); outline-offset: 3px; }
 .settings-page .settings-toggle-row--subtle { padding: 16px 0; border: 0; border-bottom: 1px solid rgba(255,255,255,.07); border-radius: 0; background: none; box-shadow: none; }
 .settings-page .settings-toggle-row strong { font-size: 13px; }
 .settings-page .settings-toggle-row small { font-size: 12px; }
 .settings-page .theme-preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .settings-page .theme-preset-card { display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding: 15px; border-radius: 14px; background: rgba(0,0,0,.16); box-shadow: none; }
-.settings-page .theme-preset-card:has(input:checked) { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .settings-page .theme-preview { width: 100%; height: 80px; border-radius: 9px; }
 .settings-page .theme-preset-card strong { font-size: 13px; }
 .settings-page .theme-preset-card small { margin-top: 6px; line-height: 1.5; font-size: 11px; }
@@ -49,13 +46,10 @@
 .settings-page .auto-import-summary-card strong { overflow-wrap: anywhere; }
 .settings-page .settings-footer { position: sticky; bottom: 16px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0; padding: 16px 20px; border: 1px solid rgba(255,255,255,.13); border-radius: 15px; background: rgba(16,19,27,.96); box-shadow: 0 8px 30px rgba(0,0,0,.25); backdrop-filter: blur(16px); }
 .settings-page .settings-footer .settings-note { margin: 0; font-size: 12px; }
-.settings-page .has-changes .settings-footer { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
 .settings-page .settings-actions { display: flex; gap: 10px; }
 .settings-page .settings-save-btn { min-height: 42px; padding: 10px 20px; border: 0; border-radius: 10px; background: var(--primary); color: #061014; box-shadow: none; font-size: 12px; }
 .settings-page [hidden] { display: none !important; }
-.settings-page .settings-status-grid { margin-bottom: 22px; gap: 10px; }
 .settings-page .settings-status-card { padding: 14px; border-radius: 12px; background: rgba(255,255,255,.025); box-shadow: none; }
-.settings-page .settings-status-card strong { font-size: 13px; }
 .settings-page .settings-status-card small { font-size: 11px; }
 .settings-page .settings-backup-actions { gap: 12px; }
 .settings-page .settings-backup-download, .settings-page .settings-backup-file { background: rgba(255,255,255,.025); box-shadow: none; border-radius: 12px; }
@@ -87,7 +81,6 @@
     --settings-accent-soft: color-mix(in srgb, var(--settings-accent) 9%, transparent);
     --settings-accent-border: color-mix(in srgb, var(--settings-accent) 28%, var(--border));
     --settings-surface: color-mix(in srgb, var(--card) 78%, var(--bg2));
-    --settings-surface-raised: color-mix(in srgb, var(--card-hover) 72%, var(--bg2));
     max-width: 1480px;
     width: min(calc(100% - 56px), 1480px);
     margin-top: 34px;

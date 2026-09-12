@@ -1,15 +1,12 @@
 /* Shared surfaces and typography for discovery, profiles and onboarding. */
 :is(.support-page,.setup-body) { --support-surface: #111722; --support-muted: #a8b2c4; --support-border: rgba(255,255,255,.12); background: #070a10; color: #edf2fa; }
 .support-page > main { padding-top: 40px; }
-.support-page :is(.page-heading-panel,.studio-heading-panel,.sy-hero,.movies-hero,.overview-page) { border-color: var(--support-border); box-shadow: none; border-radius: 24px; }
+.support-page :is(.page-heading-panel,.studio-heading-panel,.sy-hero,.movies-hero) { border-color: var(--support-border); box-shadow: none; border-radius: 24px; }
 .support-page :is(.section-heading,.sy-section-head h2) { letter-spacing: -.035em; font-size: clamp(24px,3vw,36px); text-shadow: none; }
 .support-page :is(.section-subtitle,.sy-native,.schedule-heading-support) { color: var(--support-muted); line-height: 1.65; }
-.support-page :is(.collection-glow,.collection-heading::before,.footer-surface-glow) { display: none; }
-.support-page :is(.studio-meta-item,.studio-stat-card,.sy-stat,.overview-card) { border: 1px solid var(--support-border); background: var(--support-surface); border-radius: 14px; box-shadow: none; }
+.support-page :is(.collection-glow,.collection-heading::before) { display: none; }
+.support-page :is(.studio-meta-item,.studio-stat-card,.sy-stat) { border: 1px solid var(--support-border); background: var(--support-surface); border-radius: 14px; box-shadow: none; }
 .support-page .studio-header-wrap { border-radius: 24px; overflow: hidden; }
-.support-page .studio-backdrop-overlay { background: linear-gradient(90deg,rgba(9,13,20,.92),rgba(9,13,20,.65)); }
-.support-page .studio-title-row h2 { font-size: clamp(30px,4vw,48px); }
-.support-page .studio-grid .card { border-radius: 14px; box-shadow: none; }
 .support-page .studio-fallback-notice { border: 1px solid var(--support-border); border-radius: 12px; background: var(--support-surface); font-size: 13px; }
 .support-page .studio-page { width: min(1500px,calc(100% - 48px)); padding: 28px 0 72px; }
 .support-page .studio-header-wrap { margin-bottom: 30px; border-radius: 20px; border-color: rgba(255,255,255,.10); background: #0b1018; box-shadow: 0 22px 60px rgba(0,0,0,.24); }
@@ -37,18 +34,14 @@
 .support-page .studio-stat-card { min-width: 104px; padding: 12px 16px; border-radius: 10px; background: rgba(255,255,255,.035); }
 .support-page .studio-stat-card .stat-value { font-size: 24px; color: #f4f7fb; }
 .support-page .studio-stat-card .stat-label { margin-top: 4px; font-size: 9px; letter-spacing: .08em; }
-.support-page .studio-section-title { margin: 38px 0 18px; }
 .support-page .studio-section-title .section-title { gap: 10px; }
 .support-page .studio-section-title .section-line { width: 22px; height: 3px; border-radius: 3px; background: var(--cyan); box-shadow: none; }
 .support-page .studio-section-title .section-heading { font-size: 20px; letter-spacing: -.025em; }
-.support-page .studio-grid { grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 16px; }
 .support-page .studio-grid:has(.card:only-child) { grid-template-columns: minmax(min(100%,190px),220px); }
 .support-page .studio-grid .card { border-color: rgba(255,255,255,.09); background: #0c1118; transition: transform .25s ease,border-color .25s ease,box-shadow .25s ease; }
-.support-page .studio-grid .card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,.19); box-shadow: 0 18px 34px rgba(0,0,0,.26); }
 .support-page .studio-grid .card.in-library-card,
 .support-page .studio-grid .card.project-card.in-library { border-color: color-mix(in srgb,var(--cyan) 38%,transparent); box-shadow: 0 0 0 1px color-mix(in srgb,var(--cyan) 8%,transparent); }
-.support-page .studio-grid .card.in-library-card:hover,
-.support-page .studio-grid .card.project-card.in-library:hover { border-color: var(--cyan); box-shadow: 0 18px 34px rgba(0,0,0,.28); }
+.support-page .studio-grid .card.in-library-card:hover{ border-color: var(--cyan); box-shadow: 0 18px 34px rgba(0,0,0,.28); }
 .support-page .studio-timeline { gap: 34px; }
 .support-page .studio-year-section { gap: 14px; }
 .support-page .studio-year-header { gap: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08); }
@@ -117,15 +110,6 @@
 .support-page .movies-hero-grain { opacity: .04; }
 .support-page .movies-action { min-height: 44px; border-radius: 10px; box-shadow: none; }
 .support-page .movies-action--primary { background: var(--cyan); color: #071018; }
-.support-page .overview-page { background: transparent; border: 0; margin-top: 24px; }
-.support-page .overview-container { width: min(1160px,calc(100% - 48px)); }
-.support-page .overview-hero { background: transparent; }
-.support-page .overview-hero h1 { font-size: clamp(36px,5vw,64px); line-height: 1.07; letter-spacing: -.04em; }
-.support-page .overview-page .hero-lede { font-size: 16px; line-height: 1.8; color: var(--support-muted); }
-.support-page .overview-page .hero-card { background: var(--support-surface); border-color: var(--support-border); border-radius: 20px; box-shadow: none; }
-.support-page .overview-page .hero-visual { display: none; }
-.support-page .overview-page .overview-action { border-radius: 10px; min-height: 44px; box-shadow: none; }
-.support-page .overview-page .overview-action.primary { background: var(--cyan); color: #071018; }
 .setup-body .setup-loading-page { min-height: 100vh; padding: 24px; display: grid; place-items: center; }
 .setup-body .setup-loading-card { width: min(600px,100%); padding: clamp(24px,5vw,52px); border: 1px solid var(--support-border); border-radius: 24px; background: radial-gradient(ellipse at top,rgba(255,255,255,.045),transparent 60%),var(--support-surface); box-shadow: 0 24px 80px rgba(0,0,0,.25); text-align: left; }
 .setup-body .setup-loading-card h1 { font-size: clamp(30px,4vw,44px); letter-spacing: -.035em; margin: 12px 0 16px; }
@@ -140,9 +124,6 @@
 :is(.support-page,.setup-body) :is(a,button,input,summary):focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
 @media(max-width: 768px) {
     .support-page > main { padding-top: 80px; }
-    .support-page .overview-container { width: calc(100% - 32px); }
-    .support-page .overview-page { width: calc(100% - 24px); }
-    .support-page .overview-hero-content { display: grid; grid-template-columns: 1fr; gap: 24px; }
     .support-page .sy-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
     .support-page .sy-role-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
     .setup-body .setup-progress-row { flex-wrap: wrap; }

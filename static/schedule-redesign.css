@@ -5,7 +5,6 @@
     --schedule-accent-line: color-mix(in srgb, var(--schedule-accent) 34%, var(--border));
     --schedule-surface: #0c1017;
     --schedule-surface-raised: #111721;
-    --schedule-muted: #929cab;
     width: min(1480px, calc(100% - 48px));
     margin-inline: auto;
     padding: 34px 0 76px;
