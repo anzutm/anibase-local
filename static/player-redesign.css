@@ -655,3 +655,170 @@ body.player-body .player-episodes .player-episode-card:focus-visible {
         transform: none;
     }
 }
+
+body.player-body .mx-player-btn,
+body.player-body .mx-player-btn[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 760px) {
+    body.player-body {
+        padding: 0;
+        overflow-x: hidden;
+    }
+
+    body.player-body .player-cinema-shell {
+        padding: 12px 0 0;
+    }
+
+    body.player-body .player-page,
+    body.player-body .player-episodes {
+        width: calc(100% - 24px);
+        max-width: none;
+    }
+
+    body.player-body .player-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        padding: 14px;
+        border-radius: 14px 14px 0 0;
+    }
+
+    body.player-body .player-header-actions {
+        width: 100%;
+        min-width: 0;
+    }
+
+    body.player-body .player-back:not(.player-home) {
+        min-width: 0;
+        max-width: 100%;
+        min-height: 36px;
+        padding: 0 11px;
+    }
+
+    body.player-body .player-home {
+        width: 36px;
+        min-height: 36px;
+    }
+
+    body.player-body .player-title-stack {
+        grid-column: 1;
+        width: 100%;
+    }
+
+    body.player-body .player-title-stack h1 {
+        display: -webkit-box;
+        overflow: hidden;
+        font-size: clamp(20px, 6vw, 25px);
+        line-height: 1.16;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+        -webkit-box-orient: vertical;
+        line-clamp: 2;
+        -webkit-line-clamp: 2;
+    }
+
+    body.player-body .player-episode-line {
+        margin-top: 5px;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    body.player-body .player-header-meta {
+        grid-column: 1;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        gap: 6px;
+    }
+
+    body.player-body .video-player-container {
+        border-radius: 0 0 14px 14px;
+    }
+
+    body.player-body .player-status-bar {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+        min-height: 0;
+        padding: 10px;
+    }
+
+    body.player-body .player-navigation {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        gap: 7px;
+        overflow: visible;
+        padding: 0;
+    }
+
+    body.player-body .player-navigation .nav-divider {
+        display: none !important;
+    }
+
+    body.player-body .mx-player-btn:not([hidden]) {
+        display: inline-flex !important;
+        grid-column: 1 / -1;
+        min-height: 40px;
+        border-color: rgba(99, 208, 118, .34);
+        background: rgba(34, 139, 69, .14);
+        color: #9ee6ad;
+        font-size: 11px;
+        font-weight: 750;
+    }
+
+    body.player-body .mx-player-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        padding-left: 1px;
+        border-radius: 50%;
+        background: #55c96d;
+        color: #07130a;
+        font-size: 9px;
+    }
+
+    body.player-body .player-navigation .nav-btn:is(.prev, .next) {
+        width: 100%;
+        min-width: 0;
+        min-height: 36px;
+        padding: 0 8px;
+    }
+
+    body.player-body .player-episodes {
+        margin-top: 28px;
+        padding-bottom: 32px;
+    }
+
+    body.player-body .player-episodes .episode-header {
+        align-items: center;
+        gap: 12px;
+    }
+
+    body.player-body .player-episodes .player-episode-grid {
+        gap: 12px;
+        scroll-padding-inline: 0;
+    }
+
+    body.player-body .player-episodes .player-episode-card {
+        flex-basis: min(86vw, 340px);
+    }
+}
+
+@media (max-width: 380px) {
+    body.player-body .player-page,
+    body.player-body .player-episodes {
+        width: calc(100% - 16px);
+    }
+
+    body.player-body .player-header {
+        padding: 12px;
+    }
+
+    body.player-body .player-header-meta span {
+        font-size: 7.5px;
+    }
+}

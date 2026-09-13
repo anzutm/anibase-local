@@ -21,7 +21,7 @@
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-8') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='9') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='10') }}">
 </head>
 
 <body class="player-body">
@@ -94,6 +94,11 @@
                 </div>
                 <div class="player-navigation">
                     <div class="nav-divider"></div>
+
+                    <button type="button" id="openMxPlayerBtn" class="nav-btn mx-player-btn" hidden>
+                        <span class="mx-player-icon" aria-hidden="true">&#9654;</span>
+                        <span>Open in MX Player</span>
+                    </button>
 
                     <button type="button" onclick="playInVLC()" class="nav-btn vlc-quick-btn">
                         <span class="vlc-icon">&#9654;</span> Open in Media Player
@@ -299,7 +304,7 @@
         if (fill) fill.style.width = `${value}%`;
     });
 </script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-4') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-5') }}"></script>
 
 </body>
 
