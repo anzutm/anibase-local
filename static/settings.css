@@ -44,6 +44,7 @@
 .settings-page .auto-import-panel, .settings-page .auto-import-result-panel, .settings-page .settings-mapping-panel { background: transparent; box-shadow: none; }
 .settings-page .auto-import-summary-card { border-radius: 12px; background: rgba(255,255,255,.025); box-shadow: none; }
 .settings-page .auto-import-summary-card strong { overflow-wrap: anywhere; }
+.settings-page .auto-import-path-grid { margin-top: 16px; }
 .settings-page .settings-field-row--action-only { grid-template-columns: auto; justify-content: start; }
 .settings-page .settings-mapping-summary-actions { display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto; }
 .settings-page .settings-mapping-chevron { width: 30px; height: 30px; padding: 6px; border: 1px solid var(--settings-accent-border); border-radius: 50%; color: var(--settings-accent); background: var(--settings-accent-soft); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s ease, border-color .2s ease, background-color .2s ease; }

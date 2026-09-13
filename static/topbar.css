@@ -327,12 +327,12 @@
     #anibaseTopbar .nav-center { grid-column: 1 / 4; grid-row: 2; width: 100%; }
     #anibaseTopbar .nav-links { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); padding: 3px; }
     #anibaseTopbar .nav-link { width: 100%; min-height: 32px; padding: 0 6px; }
-    #anibaseTopbar .notification-panel { right: -46px; width: min(390px, calc(100vw - 24px)); }
+    #anibaseTopbar .notification-panel { position: fixed; top: 108px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 120px); }
 }
 
 @media (max-width: 480px) {
     #anibaseTopbar .brand h1 { display: none; }
-    #anibaseTopbar .notification-panel { position: fixed; top: 12px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 24px); }
+    #anibaseTopbar .notification-panel { top: 108px; max-height: calc(100vh - 120px); }
     #anibaseTopbar .notification-panel-head { padding-inline: 14px; }
 }
 

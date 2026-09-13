@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Setup - AniBase{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v='1') }}">{% endblock %}
 {% block body_class %}setup-body{% endblock %}
 {% block topbar %}{% endblock %}
 {% block footer %}{% endblock %}
@@ -8,80 +9,93 @@
 {% block content %}
 <section class="setup-page">
     <div class="setup-shell">
-        <div class="setup-hero">
-            <span class="settings-kicker">First Run</span>
-            <h1>Set up AniBase</h1>
-            <p>Add your anime folders and choose a theme. You can change everything later in Settings.</p>
-        </div>
+        <header class="setup-brand">
+            <a href="{{ url_for('setup_page') }}" class="setup-brand-link" aria-label="AniBase setup">
+                <span class="setup-brand-mark">A</span>
+                <span>Ani<span>Base</span></span>
+            </a>
+            <span class="setup-brand-status"><i></i> First-time setup</span>
+        </header>
 
-        {% if error %}
-        <div class="setup-alert">{{ error }}</div>
-        {% endif %}
+        <div class="setup-layout">
+            <aside class="setup-intro">
+                <span class="setup-kicker">YOUR PRIVATE SCREENING ROOM</span>
+                <h1>Make your library feel like home.</h1>
+                <p class="setup-intro-copy">Connect your local anime folders, pick a look, and AniBase will take care of the rest.</p>
 
-        <form method="POST" action="{{ url_for('setup_page') }}" class="setup-card">
-            <input type="hidden" name="action_token" value="{{ action_token }}">
+                <div class="setup-art" aria-hidden="true">
+                    <div class="setup-art-glow"></div>
+                    <div class="setup-art-screen"><span></span><span></span><span></span></div>
+                    <div class="setup-art-card setup-art-card-one"><b>01</b><span>YOUR LIBRARY</span></div>
+                    <div class="setup-art-card setup-art-card-two"><b>02</b><span>YOUR STORIES</span></div>
+                </div>
 
-            <div class="setup-step">
-                <div class="setup-step-number">1</div>
-                <div class="setup-step-content">
-                    <h2>Anime Library Folders</h2>
-                    <p>Add every root folder that contains anime folders.</p>
+                <ul class="setup-benefits">
+                    <li><span class="setup-check">✓</span><div><strong>Local-first by design</strong><small>Your files stay on your device.</small></div></li>
+                    <li><span class="setup-check">✓</span><div><strong>Smart metadata</strong><small>Artwork and details are matched automatically.</small></div></li>
+                    <li><span class="setup-check">✓</span><div><strong>Change it anytime</strong><small>Every choice can be updated in Settings.</small></div></li>
+                </ul>
+            </aside>
 
-                    <div class="settings-path-list" id="setupLibraryPathList">
-                        {% set library_paths = settings.library_paths if settings.library_paths else [''] %}
-                        {% for path in library_paths %}
-                        <div class="settings-path-row">
-                            <input
-                                class="settings-input settings-path-input"
-                                id="setup_library_path_{{ loop.index0 }}"
-                                type="text"
-                                name="library_paths"
-                                value="{{ path }}"
-                                autocomplete="off"
-                                placeholder="D:/Anime/Library"
-                            >
-                            <button
-                                class="settings-browse-btn"
-                                type="button"
-                                data-picker="folder"
-                                data-target="setup_library_path_{{ loop.index0 }}"
-                            >
-                                Browse
-                            </button>
-                            <button class="settings-remove-path-btn" type="button">Remove</button>
+            <div class="setup-form-wrap">
+                <div class="setup-form-heading">
+                    <div><span class="setup-kicker">LET'S GET STARTED</span><h2>Set up AniBase</h2></div>
+                    <span class="setup-step-count">2 steps</span>
+                </div>
+
+                {% if error %}
+                <div class="setup-alert" role="alert"><span aria-hidden="true">!</span>{{ error }}</div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('setup_page') }}" class="setup-card">
+                    <input type="hidden" name="action_token" value="{{ action_token }}">
+
+                    <section class="setup-step" aria-labelledby="setupLibraryTitle">
+                        <div class="setup-step-heading"><span class="setup-step-number">01</span><div><h3 id="setupLibraryTitle">Connect your library</h3><p>Tell AniBase where your anime folders live.</p></div></div>
+                        <div class="setup-step-content">
+                            <label class="setup-field-label" for="setup_library_path_0">Anime library folders</label>
+                            <p class="setup-field-helper">Choose a root folder containing your anime folders.</p>
+                            <div class="settings-path-list" id="setupLibraryPathList">
+                                {% set library_paths = settings.library_paths if settings.library_paths else [''] %}
+                                {% for path in library_paths %}
+                                <div class="settings-path-row">
+                                    <div class="setup-input-shell"><span aria-hidden="true">⌂</span><input class="settings-input settings-path-input" id="setup_library_path_{{ loop.index0 }}" type="text" name="library_paths" value="{{ path }}" autocomplete="off" placeholder="D:/Anime/Library"></div>
+                                    <button class="settings-browse-btn" type="button" data-picker="folder" data-target="setup_library_path_{{ loop.index0 }}"><span aria-hidden="true">＋</span> Browse</button>
+                                    <button class="settings-remove-path-btn" type="button" aria-label="Remove this folder">Remove</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button class="settings-add-path-btn setup-add-path" type="button" id="setupAddLibraryPath"><span aria-hidden="true">+</span> Add another folder</button>
+                            <p class="setup-inline-note"><span aria-hidden="true">i</span> You can add more folders later from Settings.</p>
                         </div>
-                        {% endfor %}
+                    </section>
+
+                    <section class="setup-step" aria-labelledby="setupThemeTitle">
+                        <div class="setup-step-heading"><span class="setup-step-number">02</span><div><h3 id="setupThemeTitle">Choose your atmosphere</h3><p>Pick the palette you want to start with.</p></div></div>
+                        <div class="setup-step-content">
+                            <div class="theme-preset-grid setup-theme-grid" role="radiogroup" aria-label="Theme Preset">
+                                <label class="theme-preset-card" data-theme-choice="dark-blue">
+                                    <input type="radio" name="theme_preset" value="dark-blue" {% if settings.theme_preset == 'dark-blue' %}checked{% endif %}>
+                                    <span class="theme-preview theme-preview-blue"><i></i><i></i><i></i><b>BLUE HOUR</b></span>
+                                    <span class="theme-card-copy"><strong>Dark Blue</strong><small>Cool, calm, and cinematic.</small></span><span class="theme-radio" aria-hidden="true"></span>
+                                </label>
+                                <label class="theme-preset-card" data-theme-choice="dark-orange">
+                                    <input type="radio" name="theme_preset" value="dark-orange" {% if settings.theme_preset == 'dark-orange' %}checked{% endif %}>
+                                    <span class="theme-preview theme-preview-orange"><i></i><i></i><i></i><b>GOLDEN HOUR</b></span>
+                                    <span class="theme-card-copy"><strong>Dark Orange</strong><small>Warm, vivid, and inviting.</small></span><span class="theme-radio" aria-hidden="true"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="setup-actions">
+                        <div id="settingsPickerMessage" class="settings-picker-message" role="status"></div>
+                        <button class="settings-save-btn setup-start-btn" type="submit"><span>Enter AniBase</span><span aria-hidden="true">→</span></button>
                     </div>
-
-                    <button class="settings-add-path-btn setup-add-path" type="button" id="setupAddLibraryPath">Add Path</button>
-                </div>
+                </form>
+                <p class="setup-footer-note">You can change your folders and theme anytime in <strong>Settings</strong>.</p>
             </div>
-
-            <div class="setup-step">
-                <div class="setup-step-number">2</div>
-                <div class="setup-step-content">
-                    <h2>Theme</h2>
-                    <p>Pick the palette you want to start with.</p>
-                    <div class="theme-preset-grid setup-theme-grid" role="radiogroup" aria-label="Theme Preset">
-                        <label class="theme-preset-card" data-theme-choice="dark-blue">
-                            <input type="radio" name="theme_preset" value="dark-blue" {% if settings.theme_preset == 'dark-blue' %}checked{% endif %}>
-                            <span class="theme-preview theme-preview-blue"><i></i><i></i><i></i></span>
-                            <span><strong>Dark Blue</strong><small>Default AniBase accent.</small></span>
-                        </label>
-                        <label class="theme-preset-card" data-theme-choice="dark-orange">
-                            <input type="radio" name="theme_preset" value="dark-orange" {% if settings.theme_preset == 'dark-orange' %}checked{% endif %}>
-                            <span class="theme-preview theme-preview-orange"><i></i><i></i><i></i></span>
-                            <span><strong>Dark Orange</strong><small>Warm amber accents.</small></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="setup-actions">
-                <div id="settingsPickerMessage" class="settings-picker-message"></div>
-                <button class="settings-save-btn setup-start-btn" type="submit">Finish Setup</button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
 {% endblock %}

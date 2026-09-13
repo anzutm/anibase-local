@@ -958,9 +958,78 @@ function animateAnimeEpisodeCards() {
 }
 
 let seasonRequestController = null;
+let activeSeasonUrl = window.location.href;
+const seasonViewCache = new Map();
+const seasonViewSelectors = [
+    '.hero',
+    '.metadata-match-modal',
+    '.character-section',
+    '.anime-header',
+    '.season-switcher',
+    '#episodeListContent',
+    '.recommendation-section',
+    '.relation-section'
+];
+
+function seasonCacheKey(url) {
+    return new URL(url, window.location.href).href;
+}
+
+function cacheCurrentSeasonView(url) {
+    const fragments = {};
+    seasonViewSelectors.forEach((selector) => {
+        const element = document.querySelector(selector);
+        if (element) fragments[selector] = element.outerHTML;
+    });
+    if (Object.keys(fragments).length) {
+        const metadataScript = document.getElementById('metadataMatchScript');
+        seasonViewCache.set(seasonCacheKey(url), {
+            fragments,
+            title: document.title,
+            metadata: metadataScript ? {
+                animeName: metadataScript.dataset.animeName || '',
+                seasonName: metadataScript.dataset.seasonName || ''
+            } : null
+        });
+    }
+}
+
+function restoreSeasonView(url) {
+    const cached = seasonViewCache.get(seasonCacheKey(url));
+    if (!cached) return false;
+
+    seasonViewSelectors.forEach((selector) => {
+        const current = document.querySelector(selector);
+        const html = cached.fragments[selector];
+        if (!current || !html) return;
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const replacement = template.content.firstElementChild;
+        if (replacement) current.replaceWith(replacement);
+    });
+    document.title = cached.title;
+    const metadataScript = document.getElementById('metadataMatchScript');
+    if (metadataScript && cached.metadata) {
+        metadataScript.dataset.animeName = cached.metadata.animeName;
+        metadataScript.dataset.seasonName = cached.metadata.seasonName;
+    }
+    initializeAnimeDetailContent();
+    if (window.initializeMetadataMatch) window.initializeMetadataMatch();
+    animateAnimeEpisodeCards();
+    return true;
+}
 
 async function loadAnimeSeason(url, pushHistory = true) {
+    const targetUrl = seasonCacheKey(url);
+    cacheCurrentSeasonView(activeSeasonUrl);
     if (seasonRequestController) seasonRequestController.abort();
+
+    if (restoreSeasonView(targetUrl)) {
+        if (pushHistory) history.pushState({ seasonUrl: targetUrl }, '', targetUrl);
+        activeSeasonUrl = targetUrl;
+        return;
+    }
+
     const requestController = new AbortController();
     seasonRequestController = requestController;
     document.body.classList.add('season-switching');
@@ -973,17 +1042,7 @@ async function loadAnimeSeason(url, pushHistory = true) {
         if (!response.ok) throw new Error('Unable to load this season.');
 
         const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
-        const selectors = [
-            '.hero',
-            '.metadata-match-modal',
-            '.character-section',
-            '.anime-header',
-            '#episodeListContent',
-            '.recommendation-section',
-            '.relation-section'
-        ];
-
-        selectors.forEach((selector) => {
+        seasonViewSelectors.forEach((selector) => {
             const current = document.querySelector(selector);
             const next = nextDocument.querySelector(selector);
             if (current && next) current.replaceWith(next);
@@ -997,9 +1056,11 @@ async function loadAnimeSeason(url, pushHistory = true) {
             currentMatchScript.dataset.seasonName = nextMatchScript.dataset.seasonName;
         }
         if (pushHistory) history.pushState({ seasonUrl: url }, '', url);
+        activeSeasonUrl = targetUrl;
         initializeAnimeDetailContent();
         if (window.initializeMetadataMatch) window.initializeMetadataMatch();
         animateAnimeEpisodeCards();
+        cacheCurrentSeasonView(targetUrl);
     } catch (error) {
         if (error.name !== 'AbortError') window.location.href = url;
     } finally {
