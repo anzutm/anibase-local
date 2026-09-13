@@ -225,31 +225,6 @@ body.anime-detail-body:not(.movie-detail-body) .hero-overlay {
     background: transparent;
 }
 
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span,
-body.anime-detail-body:not(.movie-detail-body) .genre-tag{
-    background: rgba(255,255,255,.028);
-    border-color: rgba(255,255,255,.085);
-}
-
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span {
-    padding-inline: 12px;
-    border: 0 !important;
-    border-radius: 0;
-    background: transparent !important;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: none !important;
-    filter: none;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
-    border: 0 !important;
-    background: transparent !important;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: none !important;
-}
-
 body.anime-detail-body:not(.movie-detail-body) .hero-overlay::before {
     content: "";
     position: absolute;
@@ -1009,48 +984,15 @@ body.anime-detail-body:not(.movie-detail-body) .status-badge.finished {
     color: #6ee7b7;
 }
 
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span {
-    min-height: 0;
-    padding: 8px 10px;
-    border: 0;
-    border-left: 1px solid rgba(255,255,255,.12);
-    border-radius: 0;
-    background: transparent;
-}
-
 body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:first-child {
     padding-left: 0;
     border-left: 0;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .genre-panel {
-    padding: 0;
     border: 0;
     background: transparent;
     box-shadow: none;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
-    border-radius: 16px;
-    background: var(--cyan);
-    box-shadow: none;
-    color: #071018;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .info-card {
-    border: 0;
-    border-radius: 0;
-    background: transparent !important;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: none !important;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .info-card:hover {
-    transform: translateY(-2px);
-    border-color: transparent;
-    background: transparent !important;
-    box-shadow: none !important;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .info-card::before {
@@ -1316,43 +1258,12 @@ body.anime-detail-body:not(.movie-detail-body) .title-row .status-badge {
     margin-top: 8px;
 }
 
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
-    gap: 0;
-    margin-block: 14px 12px;
-    padding-block: 10px;
-    border: 0 !important;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span {
-    padding-block: 2px;
-    border: 0 !important;
-}
-
 body.anime-detail-body:not(.movie-detail-body) .studio-card-link {
     transition: color .2s ease;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .studio-card-link:hover span:last-child{
     color: var(--primary-hover) !important;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
-    border-color: rgba(248,113,113,.72) !important;
-    background: rgba(127,29,29,.18) !important;
-    color: #fca5a5 !important;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover h3,
-body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover p {
-    color: #fca5a5 !important;
-}
-
-body.anime-detail-body:not(.movie-detail-body) .info-card {
-    min-height: 66px;
-    border: 0 !important;
-    border-radius: 0;
-    background: transparent !important;
-    box-shadow: none !important;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .character-card,
@@ -1639,6 +1550,9 @@ body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta {
     border: 1px solid rgba(255, 255, 255, .085);
     border-radius: 10px;
     background: rgba(255, 255, 255, .055);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none !important;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span,
@@ -1650,6 +1564,10 @@ body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta span:last
     border: 0 !important;
     border-radius: 0;
     background: rgba(8, 11, 17, .54) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none !important;
+    filter: none;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta small {
@@ -1678,6 +1596,9 @@ body.anime-detail-body:not(.movie-detail-body) .anime-meta.detail-meta strong {
 body.anime-detail-body:not(.movie-detail-body) .genre-panel {
     margin: 0;
     padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .genre-panel-label {
@@ -1761,6 +1682,8 @@ body.anime-detail-body:not(.movie-detail-body) .info-card {
     align-items: flex-start;
     justify-content: center;
     padding: 7px 9px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .info-card:hover {
