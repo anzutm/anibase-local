@@ -579,7 +579,14 @@
 }
 
 @media (max-width: 640px) {
+    .schedule-page {
+        margin-top: 0;
+        padding-top: 0;
+        padding-bottom: 20px;
+    }
+
     .schedule-page .page-heading-panel {
+        padding-top: 12px;
         padding-bottom: 24px;
     }
 

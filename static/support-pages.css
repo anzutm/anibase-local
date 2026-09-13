@@ -124,6 +124,8 @@
 :is(.support-page,.setup-body) :is(a,button,input,summary):focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
 @media(max-width: 768px) {
     .support-page > main { padding-top: 80px; }
+    .support-page:has(.schedule-page) > main,
+    .support-page.about-body > main { padding-top: 0; }
     .support-page .sy-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
     .support-page .sy-role-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
     .setup-body .setup-progress-row { flex-wrap: wrap; }

@@ -6,6 +6,7 @@
     --home-radius: 16px;
     background: #070a10;
     color: #f3f5fa;
+    overflow-x: clip;
 }
 .home-page main { padding: 64px 28px 0; }
 .home-page .topbar { background: rgba(9,13,20,.96); box-shadow: none; border-bottom: 1px solid var(--home-line); }
@@ -782,12 +783,12 @@
    Responsive Breakpoints
    ========================================================= */
 @media(max-width: 768px) {
-    .home-page .topbar { position: relative; top: auto; left: auto; transform: none; display: flex; flex-wrap: wrap; width: calc(100% - 24px); margin: 12px; padding: 14px; height: auto; min-height: 0; gap: 14px; }
-    .home-page .topbar .nav-left, .home-page .topbar .nav-center, .home-page .topbar .nav-right { position: static; transform: none; width: 100%; flex: auto; height: auto; margin: 0; }
-    .home-page .topbar .nav-center { order: 3; }
-    .home-page .topbar .nav-links { display: flex; justify-content: center; gap: 8px; }
-    .home-page .topbar .nav-right { display: flex; gap: 10px; }
-    .home-page .topbar .search-box { flex: 1; min-width: 0; width: auto; }
+    .home-page .sort-menu {
+        right: 0;
+        left: auto;
+        max-width: calc(100vw - 32px);
+    }
+
     .home-page .home-filter-groups { display: flex; flex-direction: column; width: 100%; gap: 16px; overflow: visible; }
     .home-page .home-filter-group { width: 100%; min-width: 0; }
     .home-page .status-filter { display: flex; flex-wrap: wrap; overflow: visible; gap: 6px; }

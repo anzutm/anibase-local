@@ -10,10 +10,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
     {% block extra_head %}{% endblock %}
     {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_page', 'setup_loading'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='4') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='5') }}">
     {% endif %}
     {% if request.endpoint == 'schedule' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='schedule-redesign.css', v='4') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='schedule-redesign.css', v='5') }}">
     {% endif %}
     {% if request.endpoint == 'studio_page' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='studio-redesign.css', v='4') }}">

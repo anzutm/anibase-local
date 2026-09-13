@@ -133,8 +133,8 @@
     .about-foundation-grid article:nth-child(n+4) { border-top: 1px solid var(--border); }
 }
 @media (max-width: 760px) {
-    .about-page { width: calc(100% - 28px); margin-top: 16px; }
-    .about-hero { padding: 56px 0 64px; gap: 34px; }
+    .about-page { width: calc(100% - 28px); margin-top: 0; }
+    .about-hero { min-height: 0; align-items: start; padding: 24px 0 64px; gap: 34px; }
     .about-hero h1 { font-size: clamp(46px, 14vw, 70px); }
     .about-product-preview { padding-inline: 8px; }
     .about-preview-frame { min-height: 340px; transform: none; }
