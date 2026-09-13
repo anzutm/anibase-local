@@ -707,21 +707,57 @@ class AniListManualMappingTests(unittest.TestCase):
         self.assertEqual(recovered["anilist_id"], 123)
         self.assertEqual(main.ANILIST_UNAVAILABLE_UNTIL, 0)
 
-    def test_manual_tenrai_mapping_is_not_overridden_by_anilist(self):
+    def test_manual_tenrai_mapping_upgrades_same_title_to_anilist(self):
         tenrai_metadata = self.metadata()
         tenrai_metadata.pop("anilist_id")
         tenrai_metadata["metadata_provider"] = "tenrai"
         main.save_metadata_mapping(self.anime_name, tenrai_metadata, manual=True)
         main.ANILIST_UNAVAILABLE_UNTIL = 0
-        main.get_anilist_info = lambda *_args, **_kwargs: self.fail(
-            "AniList must not override an explicit Tenrai match"
-        )
+        def fetch_primary(name, mal_id=None):
+            self.assertEqual(mal_id, 456)
+            return self.metadata()
+        main.get_anilist_info = fetch_primary
         main.get_tenrai_anime_info = lambda _name, mal_id=None: tenrai_metadata
 
         loaded = main.get_cached_anilist_info(self.anime_name)
 
-        self.assertEqual(loaded["metadata_provider"], "tenrai")
+        self.assertEqual(loaded["metadata_provider"], "anilist")
         self.assertEqual(main.get_metadata_mapping(self.anime_name).get("manual"), True)
+
+    def test_manual_season_match_survives_number_heuristic(self):
+        name = main.get_season_metadata_name(self.anime_name, "Season 1")
+        metadata = self.metadata()
+        metadata["title"] = "Correct Anime Season 2"
+        main.save_metadata_mapping(name, metadata, manual=True)
+        with patch.object(main, "get_cached_anilist_info", return_value=metadata), patch.object(main, "invalidate_anilist_cache") as invalidate:
+            result = main.get_season_anilist_info(self.anime_name, "Season 1")
+        self.assertEqual(result["title"], metadata["title"])
+        self.assertTrue(main.get_metadata_mapping(name)["manual"])
+        invalidate.assert_not_called()
+
+    def test_primary_lookup_sends_only_selected_filter(self):
+        for kwargs, variables, field in (
+            ({}, {"search": "Frieren"}, "search: $search"),
+            ({"anilist_id": 154587}, {"id": 154587}, "id: $id"),
+            ({"mal_id": 52991}, {"malId": 52991}, "idMal: $malId"),
+        ):
+            with self.subTest(kwargs=kwargs), patch.object(main.requests, "post") as post:
+                post.return_value.status_code = 200
+                post.return_value.json.return_value = {"data": {"Media": None}}
+                self.originals["get_anilist_info"]("Frieren", **kwargs)
+                payload = post.call_args.kwargs["json"]
+                self.assertEqual(payload["variables"], variables)
+                self.assertIn(field, payload["query"])
+                for unused in {"search: $search", "id: $id", "idMal: $malId"} - {field}:
+                    self.assertNotIn(unused, payload["query"])
+
+    def test_not_found_does_not_disable_primary_provider(self):
+        with patch.object(main.requests, "post") as post:
+            post.return_value.status_code = 404
+            post.return_value.json.return_value = {"errors": [{"status": 404, "message": "Not Found."}], "data": {"Media": None}}
+            self.assertIsNone(self.originals["get_anilist_info"]("Missing Anime"))
+        self.assertFalse(main.ANILIST_CALL_STATE.last_error)
+        self.assertTrue(main.can_attempt_anilist())
 
     def test_search_endpoint_uses_tenrai_results_when_anilist_fails(self):
         main.search_anilist_anime = lambda _query: ([], "AniList unavailable")
@@ -1607,6 +1643,55 @@ class EpisodeNumberingTests(unittest.TestCase):
         mapping = main.get_metadata_mapping("Seasonal Anime Season 2")
         self.assertEqual(mapping["anilist_id"], 123)
         self.assertEqual(mapping["title"], "Season Two Match")
+
+    def test_movie_detail_exposes_metadata_matching(self):
+        movie_dir = os.path.join(self.root, "movies")
+        os.makedirs(movie_dir)
+        filename = "Perfect Blue (1997).mkv"
+        with open(os.path.join(movie_dir, filename), "wb") as handle:
+            handle.write(b"video")
+        main.MOVIE_PATH = movie_dir
+
+        response = self.local_request("GET", "/movie/Perfect%20Blue%20(1997).mkv")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Match this movie", body)
+        self.assertIn('data-media-type="movie"', body)
+        self.assertIn('data-movie-filename="Perfect Blue (1997).mkv"', body)
+        self.assertIn("data-metadata-match-open", body)
+
+    def test_movie_metadata_match_saves_mapping_for_clean_title(self):
+        movie_dir = os.path.join(self.root, "movies")
+        os.makedirs(movie_dir)
+        filename = "Perfect Blue (1997).mkv"
+        with open(os.path.join(movie_dir, filename), "wb") as handle:
+            handle.write(b"video")
+        main.MOVIE_PATH = movie_dir
+        metadata = {
+            "anilist_id": 437,
+            "mal_id": 437,
+            "metadata_provider": "anilist",
+            "title": "Perfect Blue",
+            "genres": ["Drama"],
+        }
+
+        with patch.object(main, "get_anilist_info", return_value=metadata):
+            response = self.local_request(
+                "POST",
+                "/api/anime/metadata-match",
+                json={
+                    "anime_name": main.clean_movie_title(filename),
+                    "media_type": "movie",
+                    "movie_filename": filename,
+                    "anilist_id": 437,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mapping = main.get_metadata_mapping(main.clean_movie_title(filename))
+        self.assertEqual(mapping["anilist_id"], 437)
+        self.assertTrue(mapping["manual"])
 
     def test_legacy_season_routes_redirect_to_integrated_anime_detail(self):
         anime_dir = os.path.join(self.library, "Seasonal Anime", "Season 2")

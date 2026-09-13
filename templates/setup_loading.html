@@ -1,110 +1,37 @@
 {% extends "base.html" %}
-
 {% block title %}Preparing Library - AniBase{% endblock %}
 {% block body_class %}setup-body setup-loading-body{% endblock %}
 {% block topbar %}{% endblock %}
 {% block footer %}{% endblock %}
-
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='setup-loading.css', v='1') }}">{% endblock %}
 {% block content %}
-<section class="setup-loading-page">
-    <div class="setup-loading-card">
-        <div class="setup-loader" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
+<section class="preparation" id="setupPreparation" data-sync-url="{{ url_for('setup_sync') }}" data-home-url="{{ url_for('index') }}" aria-labelledby="preparationTitle">
+    <header class="prep-brand"><span aria-hidden="true">A</span> AniBase <small>YOUR PRIVATE SCREENING ROOM</small></header>
+    <div class="prep-layout">
+        <div class="prep-intro">
+            <p class="prep-eyebrow">MAKE YOURSELF AT HOME</p>
+            <h1 id="preparationTitle">Your next escape.<br><em>Almost ready.</em></h1>
+            <p class="prep-description">A little preparation for a lot of good stories. We're bringing your local anime collection together.</p>
+            <div class="prep-art" aria-hidden="true"><i></i><i></i><i>&#9654;</i></div>
+            <p class="prep-privacy">Your files stay right where they are.</p>
         </div>
-        <span class="settings-kicker">YOUR COLLECTION, COMING TO LIFE</span>
-        <h1>Setting the scene.</h1>
-        <p id="setupLoadingText">Reading folders and building your local library. Anime info will continue loading in the background.</p>
-        <div class="setup-progress-row">
-            <strong id="setupProgressPercent">0%</strong>
-            <span id="setupProgressLabel" role="status" aria-live="polite">Starting scan</span>
+        <div class="prep-panel">
+            <div class="prep-head"><span class="prep-eyebrow">LIBRARY PREPARATION</span><span id="setupState">In progress</span></div>
+            <h2 id="setupProgressLabel" role="status" aria-live="polite">Getting things ready</h2>
+            <p id="setupLoadingText">Connecting to your library scanner.</p>
+            <div class="prep-metrics"><strong id="setupProgressPercent">—</strong><span id="setupProgressCount">Waiting for scan</span></div>
+            <div class="prep-track" id="setupProgressBar" role="progressbar" aria-label="Library preparation" aria-valuemin="0" aria-valuemax="100"><span id="setupProgressFill"></span></div>
+            <ol class="prep-steps" aria-label="Preparation stages">
+                <li aria-current="step"><span>01</span><div><strong>Find your collection</strong><small>Read folders and discover anime.</small></div></li>
+                <li><span>02</span><div><strong>Bring the details together</strong><small>Match titles, artwork, and anime information.</small></div></li>
+                <li><span>03</span><div><strong>Welcome to your library</strong><small>Everything in one place. Ready to explore.</small></div></li>
+            </ol>
+            <div class="prep-actions" id="setupActions" hidden><button type="button" id="setupRetry">Try again</button><a href="{{ url_for('index') }}">Open library &#8594;</a></div>
+            <p class="prep-note">Artwork may continue loading after your library opens.</p>
+            <noscript><p>Enable JavaScript to show setup progress, or <a href="{{ url_for('index') }}">open your library</a>.</p></noscript>
         </div>
-        <div class="setup-loading-bar" role="progressbar" aria-label="Library preparation" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="setupProgressFill"></span></div>
-        <div class="setup-loading-note">Your files stay in place. Posters and anime details can continue loading after you enter the library.</div>
     </div>
+    <footer class="prep-footer">LOCAL FILES. YOUR COLLECTION. YOUR SPACE.</footer>
 </section>
 {% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', async function() {
-    const text = document.getElementById('setupLoadingText');
-    const percentText = document.getElementById('setupProgressPercent');
-    const progressLabel = document.getElementById('setupProgressLabel');
-    const progressFill = document.getElementById('setupProgressFill');
-    const startedAt = Date.now();
-
-    function setProgress(value, label) {
-        const progress = Math.max(0, Math.min(100, Math.round(value)));
-        document.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(progress));
-        if (percentText) percentText.textContent = `${progress}%`;
-        if (progressFill) progressFill.style.width = `${progress}%`;
-        if (label && progressLabel) progressLabel.textContent = label;
-    }
-
-    function renderProgress(data) {
-        const current = Number(data.current) || 0;
-        const total = Number(data.total) || 0;
-        const itemProgress = total > 0 ? Math.min(1, current / total) : 0;
-
-        if (data.stage === 'scan') {
-            setProgress(5 + itemProgress * 40, `Scanning anime folders — ${current} / ${total}`);
-            if (text) text.textContent = 'Reading folders and building your local library database.';
-        } else if (data.stage === 'metadata') {
-            setProgress(45 + itemProgress * 50, `Fetching anime database — ${current} / ${total}`);
-            if (text) text.textContent = 'Fetching titles, scores, genres, seasons, and airing status.';
-        } else if (data.stage === 'complete') {
-            setProgress(100, `Complete — ${data.anime_count} / ${data.anime_count}`);
-        }
-    }
-
-    const requestOptions = {
-        headers: {'X-AniBase-Action-Token': window.ANIBASE_ACTION_TOKEN || ''}
-    };
-
-    setProgress(2, 'Preparing scanner — 0 / 0');
-
-    async function finishAfterMinimumDelay() {
-        const elapsed = Date.now() - startedAt;
-        const wait = Math.max(0, 1800 - elapsed);
-        await new Promise(resolve => setTimeout(resolve, wait));
-        window.location.href = "{{ url_for('index') }}";
-    }
-
-    try {
-        const startResponse = await fetch("{{ url_for('setup_sync') }}", {
-            ...requestOptions,
-            method: 'POST'
-        });
-        if (!startResponse.ok) throw new Error('Unable to start setup sync.');
-
-        let data = await startResponse.json();
-        while (!data.done) {
-            renderProgress(data);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const statusResponse = await fetch("{{ url_for('setup_sync') }}", requestOptions);
-            data = await statusResponse.json();
-            if (!statusResponse.ok || !data.ok) {
-                throw new Error(data.error || 'Setup sync failed.');
-            }
-        }
-
-        if (!data.ok) throw new Error(data.error || 'Setup sync failed.');
-        renderProgress(data);
-        if (text) {
-            text.textContent = data.anime_count > 0
-                ? `Found ${data.anime_count} anime folder${data.anime_count === 1 ? '' : 's'}. Opening your library...`
-                : 'No anime folders found yet. Opening the library so you can adjust paths.';
-        }
-        await finishAfterMinimumDelay();
-    } catch (error) {
-        setProgress(100, 'Opening library');
-        if (text) {
-            text.textContent = 'Setup saved, but scanning needs another try. Opening the library...';
-        }
-        await finishAfterMinimumDelay();
-    }
-});
-</script>
-{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='setup-loading.js', v='1') }}" defer></script>{% endblock %}

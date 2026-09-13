@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='65') }}">
     {% if is_movie %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='10') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='12') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
 </head>
@@ -50,6 +50,10 @@
                 <a class="cinema-watch" href="#movieWatch" id="movieHeroPlay"><span aria-hidden="true">&#9654;</span> {{ 'Resume movie' if resume_time else 'Watch movie' }}</a>
                 {% endif %}
                 <a class="cinema-about-link" href="#movieAbout">Explore the story <span aria-hidden="true">&#8595;</span></a>
+                <button type="button" class="metadata-match-trigger cinema-metadata-match" data-metadata-match-open>
+                    <span aria-hidden="true">&#10022;</span>
+                    <span>{{ "Change Metadata Match" if metadata_mapping else "Fix Metadata Match" }}</span>
+                </button>
             </div>
             {% if episodes and resume_time %}<p class="cinema-resume">Continue from {{ (resume_time / 60)|int }} min &middot; Your progress is saved automatically</p>{% endif %}
         </div>
@@ -271,16 +275,15 @@
 </div> <!-- End hero -->
 {% endif %}
 
-{% if not is_movie %}
 <div class="metadata-match-modal" id="metadataMatchModal" hidden>
     <div class="metadata-match-backdrop" data-metadata-match-close></div>
     <section class="metadata-match-dialog" role="dialog" aria-modal="true" aria-labelledby="metadataMatchTitle">
         <header class="metadata-match-header">
             <div>
                 <span class="metadata-match-eyebrow">Metadata matching</span>
-                <h2 id="metadataMatchTitle">{{ "Match this season" if selected_season else "Match this folder" }}</h2>
+                <h2 id="metadataMatchTitle">{{ "Match this movie" if is_movie else ("Match this season" if selected_season else "Match this folder") }}</h2>
                 <p>
-                    Folder: <strong>{{ anime_name }}</strong>
+                    {{ "Movie" if is_movie else "Folder" }}: <strong>{{ anime_name }}</strong>
                     {% if selected_season %}&middot; Season: <strong>{{ selected_season }}</strong>{% endif %}
                 </p>
             </div>
@@ -326,7 +329,6 @@
         {% endif %}
     </section>
 </div>
-{% endif %}
 
 {% if is_movie and episodes %}
 <section class="movie-watch-section" id="movieWatch">
@@ -988,6 +990,12 @@ async function loadAnimeSeason(url, pushHistory = true) {
         });
 
         document.title = nextDocument.title;
+        const currentMatchScript = document.getElementById('metadataMatchScript');
+        const nextMatchScript = nextDocument.getElementById('metadataMatchScript');
+        if (currentMatchScript && nextMatchScript) {
+            currentMatchScript.dataset.animeName = nextMatchScript.dataset.animeName;
+            currentMatchScript.dataset.seasonName = nextMatchScript.dataset.seasonName;
+        }
         if (pushHistory) history.pushState({ seasonUrl: url }, '', url);
         initializeAnimeDetailContent();
         if (window.initializeMetadataMatch) window.initializeMetadataMatch();
@@ -1100,6 +1108,7 @@ window.addEventListener('pageshow', () => {
     }
 
     const playbackSpeedSteps = [1, 1.25, 1.5, 1.75, 2];
+    let playbackStarted = false;
 
     function changeMoviePlaybackSpeed(direction) {
         const currentSpeed = Number(player.speed || video.playbackRate || 1);
@@ -1121,7 +1130,7 @@ window.addEventListener('pageshow', () => {
     function sendProgress(useKeepalive) {
         const duration = player.duration || 0;
         const currentTime = player.currentTime || 0;
-        if (!config.animeName || !config.episodePath || !duration) return;
+        if (!playbackStarted || !config.animeName || !config.episodePath || !duration) return;
 
         fetch('/update_progress', {
             method: 'POST',
@@ -1244,6 +1253,7 @@ window.addEventListener('pageshow', () => {
 
     let progressInterval;
     player.on('play', () => {
+        playbackStarted = true;
         sendProgress(false);
         clearInterval(progressInterval);
         progressInterval = setInterval(() => sendProgress(false), 30000);
@@ -1424,11 +1434,12 @@ document.addEventListener('click', async function(event) {
     }
 });
 </script>
-{% if not is_movie %}
 <script
     id="metadataMatchScript"
     data-anime-name="{{ anime_name|e }}"
     data-season-name="{{ selected_season|default('', true)|e }}"
+    data-media-type="{{ 'movie' if is_movie else 'anime' }}"
+    data-movie-filename="{{ episodes[0].file|e if is_movie and episodes else '' }}"
 >
 window.initializeMetadataMatch = function initializeMetadataMatch() {
     const modal = document.getElementById('metadataMatchModal');
@@ -1439,9 +1450,9 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
     const automaticButton = document.getElementById('metadataAutoMatchBtn');
     const scriptElement = document.getElementById('metadataMatchScript');
     const animeName = scriptElement?.dataset.animeName || '';
-    const seasonName = new URL(window.location.href).searchParams.get('season')
-        || scriptElement?.dataset.seasonName
-        || '';
+    const seasonName = scriptElement?.dataset.seasonName || '';
+    const mediaType = scriptElement?.dataset.mediaType || 'anime';
+    const movieFilename = scriptElement?.dataset.movieFilename || '';
     let requestSequence = 0;
 
     if (!modal || !form || !input || !results || !status) return;
@@ -1553,7 +1564,8 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
         form.classList.add('is-busy');
         setStatus('Searching metadata...', 'loading');
         try {
-            const response = await fetch(`/api/anilist/search?q=${encodeURIComponent(query)}`);
+            const movieFilter = mediaType === 'movie' ? '&media_type=movie' : '';
+            const response = await fetch(`/api/anilist/search?q=${encodeURIComponent(query)}${movieFilter}`);
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) {
                 throw new Error(data.message || 'Metadata search failed.');
@@ -1584,6 +1596,7 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
                 body: JSON.stringify({
                     anime_name: animeName,
                     ...(seasonName ? { season_name: seasonName } : {}),
+                    ...(mediaType === 'movie' ? { media_type: 'movie', movie_filename: movieFilename } : {}),
                     provider,
                     ...(provider === 'tenrai' ? { mal_id: providerId } : { anilist_id: providerId })
                 })
@@ -1629,6 +1642,7 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
                     body: JSON.stringify({
                         anime_name: animeName,
                         ...(seasonName ? { season_name: seasonName } : {}),
+                        ...(mediaType === 'movie' ? { media_type: 'movie', movie_filename: movieFilename } : {}),
                         automatic: true
                     })
                 });
@@ -1650,6 +1664,5 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
 };
 window.initializeMetadataMatch();
 </script>
-{% endif %}
 </body>
 </html>

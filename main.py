@@ -1367,19 +1367,21 @@ def mark_anilist_available():
 def refresh_anilist_metadata(anime_name, mapped_anilist_id=None):
     """Refresh one metadata cache in a worker without replacing a good fallback."""
     try:
+        original_mapping = get_metadata_mapping(anime_name)
+        mal_id = original_mapping.get("mal_id") if original_mapping else None
+        ANILIST_CALL_STATE.last_error = True
         metadata = normalize_anime_metadata_identity(
             get_anilist_info(anime_name, anilist_id=mapped_anilist_id)
             if mapped_anilist_id
+            else get_anilist_info(anime_name, mal_id=mal_id) if mal_id
             else get_anilist_info(anime_name)
         )
         if metadata and metadata.get("metadata_provider") == ANILIST_METADATA_PROVIDER:
             mark_anilist_available()
             mapping = get_metadata_mapping(anime_name)
-            if (
-                mapping
-                and mapping.get("provider") == TENRAI_METADATA_PROVIDER
-                and mapping.get("manual") is True
-            ):
+            if mapping != original_mapping:
+                return False
+            if mal_id and not mapped_anilist_id and metadata.get("mal_id") != mal_id:
                 return False
             if (
                 mapped_anilist_id
@@ -1390,8 +1392,11 @@ def refresh_anilist_metadata(anime_name, mapped_anilist_id=None):
                 return False
             cache_file = os.path.join(METADATA_CACHE, f"{anime_name}.json")
             atomic_write_json_file(cache_file, metadata, "AniList recovery metadata", ensure_ascii=False)
+            if original_mapping and original_mapping.get("provider") == TENRAI_METADATA_PROVIDER:
+                save_metadata_mapping(anime_name, metadata, manual=original_mapping.get("manual") is True)
             return True
-        mark_anilist_unavailable()
+        if getattr(ANILIST_CALL_STATE, "last_error", True):
+            mark_anilist_unavailable()
         return False
     except Exception as error:
         mark_anilist_unavailable()
@@ -2655,7 +2660,7 @@ def get_anilist_poster(anime_name):
 
         return None
 
-def get_anilist_info(anime_name, anilist_id=None):
+def get_anilist_info(anime_name, anilist_id=None, mal_id=None):
 
     # The caller uses this flag to distinguish an API outage from a valid
     # response with no matching title.  A missing title must not put the
@@ -2750,15 +2755,22 @@ def get_anilist_info(anime_name, anilist_id=None):
     """
 
     try:
+        # Explicit null filters cause AniList to return 404 for valid titles.
+        if anilist_id:
+            query = query.replace("$search: String, $id: Int", "$id: Int").replace("search: $search,", "")
+            variables = {"id": int(anilist_id)}
+        elif mal_id:
+            query = query.replace("$search: String, $id: Int", "$malId: Int").replace("search: $search,", "").replace("id: $id,", "idMal: $malId,")
+            variables = {"malId": int(mal_id)}
+        else:
+            query = query.replace("$search: String, $id: Int", "$search: String").replace("id: $id,", "")
+            variables = {"search": anime_name}
 
         response = requests.post(
             "https://graphql.anilist.co",
             json={
                 "query": query,
-                "variables": {
-                    "search": None if anilist_id else anime_name,
-                    "id": int(anilist_id) if anilist_id else None
-                }
+                "variables": variables
             },
             timeout=20
         )
@@ -2770,6 +2782,11 @@ def get_anilist_info(anime_name, anilist_id=None):
             app_log(f"AniList metadata response was not valid JSON for {anime_name}", "ERROR")
             return None
 
+        errors = data.get("errors") if isinstance(data, dict) else None
+        if response.status_code == 404 and errors and all(error.get("status") == 404 for error in errors):
+            ANILIST_CALL_STATE.last_error = False
+            mark_anilist_available()
+            return None
         if response.status_code >= 400:
             mark_anilist_unavailable()
             app_log(f"AniList metadata request failed with HTTP {response.status_code}: {data}", "ERROR")
@@ -2779,6 +2796,7 @@ def get_anilist_info(anime_name, anilist_id=None):
         if errors:
             mark_anilist_unavailable()
             app_log(f"AniList metadata GraphQL errors for {anime_name}: {errors}", "WARNING")
+            return None
 
         data_content = data.get("data") if isinstance(data, dict) else None
         media = data_content.get("Media") if isinstance(data_content, dict) else None
@@ -3574,6 +3592,11 @@ def get_season_metadata_name(anime_name, season_name):
 def get_season_anilist_info(anime_name, season_name):
     metadata_name = get_season_metadata_name(anime_name, season_name)
     info = get_cached_anilist_info(metadata_name)
+    mapping = get_metadata_mapping(metadata_name)
+    if mapping and mapping.get("manual") is True:
+        if info:
+            info["character_cache_name"] = metadata_name
+        return info
     season_match = re.search(
         r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
         season_name,
@@ -4107,7 +4130,6 @@ def get_cached_anilist_info(
                     info
                     and info.get("metadata_provider") == TENRAI_METADATA_PROVIDER
                     and can_attempt_anilist()
-                    and not manual_tenrai_override
                 ):
                     start_anilist_recovery(anime_name, mapped_anilist_id=mapped_anilist_id)
         except:
@@ -4115,7 +4137,7 @@ def get_cached_anilist_info(
 
     # 2. Jika tidak ada di cache atau data tidak lengkap, ambil dari AniList API
     if not info:
-        if can_attempt_anilist() and not manual_tenrai_override:
+        if can_attempt_anilist():
             # Preserve the distinction between a provider outage and a valid
             # no-result response (tests or integrations may replace this
             # callable, so default to the conservative outage assumption).
@@ -4126,11 +4148,14 @@ def get_cached_anilist_info(
             info = (
                 get_anilist_info(anime_name, anilist_id=mapped_anilist_id)
                 if mapped_anilist_id
+                else get_anilist_info(anime_name, mal_id=mapped_mal_id) if mapped_mal_id
                 else get_anilist_info(anime_name)
             )
             info = normalize_anime_metadata_identity(info)
             if info and info.get("metadata_provider") == ANILIST_METADATA_PROVIDER:
                 mark_anilist_available()
+                if manual_mapping and manual_mapping.get("provider") == TENRAI_METADATA_PROVIDER:
+                    save_metadata_mapping(anime_name, info, manual=manual_mapping.get("manual") is True)
             elif getattr(ANILIST_CALL_STATE, "last_error", True):
                 mark_anilist_unavailable()
 
@@ -5566,7 +5591,7 @@ def build_auto_import_overview(settings, anime_folders):
     }
 
     if isinstance(recent_imports, list):
-        for item in recent_imports[:6]:
+        for item in recent_imports[:2]:
             if not isinstance(item, dict):
                 continue
             overview["recent_imports"].append({
@@ -5902,13 +5927,13 @@ def update_settings():
         "auto_import_destination_root": request.form.get("auto_import_destination_root", "").strip(),
         "auto_import_interval_seconds": normalize_int_setting(
             request.form.get("auto_import_interval_seconds"),
-            15,
+            existing_settings.get("auto_import_interval_seconds", 15),
             5,
             3600
         ),
         "auto_import_stable_seconds": normalize_int_setting(
             request.form.get("auto_import_stable_seconds"),
-            60,
+            existing_settings.get("auto_import_stable_seconds", 60),
             10,
             86400
         ),
@@ -6248,6 +6273,7 @@ def get_movies():
                 "title": clean_title,
                 "file": file,
                 "poster": internal_url_for("poster", anime_name=clean_title),
+                "banner": movie_info.get("banner") if movie_info else None,
                 "score": movie_info.get("score") if movie_info else None,
                 "year": movie_info.get("year") if movie_info else None,
                 "description": movie_info.get("description") if movie_info else None,
@@ -7638,6 +7664,9 @@ def movie_detail_page(filename):
         folder_name="Movies",       # Digunakan untuk mencari file di disk
         episodes=episodes,
         anime_info=anime_info,
+        anilist_mapping=get_anilist_mapping(clean_title),
+        metadata_mapping=get_metadata_mapping(clean_title),
+        metadata_search_name=clean_title,
         is_movie=True,
         resume_time=resume_time
     )
@@ -7692,6 +7721,13 @@ def index():
 
         episode = data.get("episode")
         if not episode:
+            continue
+
+        try:
+            watched_seconds = float(data.get("last_seconds", 0) or 0)
+        except (TypeError, ValueError):
+            watched_seconds = 0
+        if watched_seconds <= 0:
             continue
 
         is_movie = (
@@ -7749,6 +7785,7 @@ def index():
 @host_only
 def api_anilist_search():
     query_text = request.args.get("q", "").strip()
+    media_type = request.args.get("media_type", "").strip().lower()
     if len(query_text) < 2:
         return json_error(
             "invalid_search_query",
@@ -7772,6 +7809,8 @@ def api_anilist_search():
             error = None
         elif error:
             return json_error("metadata_search_failed", fallback_error or error, 502)
+    if media_type == "movie":
+        results = [item for item in results if str(item.get("format") or "").upper() == "MOVIE"]
     return jsonify({"ok": True, "provider": provider, "results": results})
 
 @app.route("/api/anime/metadata-match", methods=["POST"])
@@ -7783,13 +7822,26 @@ def api_update_anime_metadata_match():
         return error_response
 
     anime_name = str(data.get("anime_name") or "").strip()
-    anime_path = find_anime_path(anime_name) if anime_name else None
-    if not anime_path:
-        return json_error("anime_not_found", "Anime folder was not found.", 404)
+    is_movie = str(data.get("media_type") or "").strip().lower() == "movie"
+    movie_filename = str(data.get("movie_filename") or "").strip()
+    if is_movie:
+        movie_path = safe_join_media_path(MOVIE_PATH, movie_filename) if anime_name and movie_filename else None
+        if (
+            not movie_path
+            or not os.path.isfile(movie_path)
+            or not movie_path.lower().endswith(VIDEO_EXTENSIONS)
+            or clean_movie_title(movie_filename) != anime_name
+        ):
+            return json_error("movie_not_found", "Movie file was not found.", 404)
+        anime_path = None
+    else:
+        anime_path = find_anime_path(anime_name) if anime_name else None
+        if not anime_path:
+            return json_error("anime_not_found", "Anime folder was not found.", 404)
 
     season_name = str(data.get("season_name") or "").strip()
     metadata_name = anime_name
-    if season_name:
+    if season_name and not is_movie:
         season_path = safe_join_media_path(anime_path, season_name)
         if (
             not season_path
@@ -7837,8 +7889,8 @@ def api_update_anime_metadata_match():
             502,
         )
 
-    # A manually selected Tenrai result is an explicit user override; it must
-    # not be silently replaced by a later AniList recovery.
+    # Preserve the selected title; recovery can upgrade the same MAL identity
+    # to the primary provider when AniList becomes available again.
     save_metadata_mapping(metadata_name, metadata, manual=True)
     invalidate_anilist_cache(metadata_name)
     cache_file = os.path.join(METADATA_CACHE, f"{metadata_name}.json")
@@ -7846,7 +7898,8 @@ def api_update_anime_metadata_match():
 
     try:
         with db_connection() as conn:
-            conn.execute(
+            if not is_movie:
+                conn.execute(
                 """
                 UPDATE anime_library
                 SET score = ?, genres = ?, year = ?, season = ?, status = ?

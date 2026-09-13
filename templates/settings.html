@@ -2,7 +2,7 @@
 
 {% block title %}Settings - AniBase{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='settings.css', v='2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='settings.css', v='4') }}">
 {% endblock %}
 {% block body_class %}settings-body{% endblock %}
 
@@ -226,7 +226,7 @@
                                 </strong>
                                 <small>
                                     {% if auto_import_overview.enabled %}
-                                    Scans every {{ auto_import_overview.interval_seconds }}s after files stay stable for {{ auto_import_overview.stable_seconds }}s.
+                                    Auto scan monitors the configured download folder in the background.
                                     {% else %}
                                     Auto scan is off. You can still run Scan Now manually.
                                     {% endif %}
@@ -314,33 +314,7 @@
                             </span>
                         </label>
 
-                        <div class="settings-field-row">
-                            <div class="settings-field">
-                                <label class="settings-label" for="auto_import_interval_seconds">Check Every</label>
-                                <input
-                                    class="settings-input"
-                                    id="auto_import_interval_seconds"
-                                    type="number"
-                                    min="5"
-                                    name="auto_import_interval_seconds"
-                                    value="{{ settings.auto_import_interval_seconds }}"
-                                >
-                                <p class="settings-helper">Seconds between scans.</p>
-                            </div>
-
-                            <div class="settings-field">
-                                <label class="settings-label" for="auto_import_stable_seconds">Stable Wait</label>
-                                <input
-                                    class="settings-input"
-                                    id="auto_import_stable_seconds"
-                                    type="number"
-                                    min="10"
-                                    name="auto_import_stable_seconds"
-                                    value="{{ settings.auto_import_stable_seconds }}"
-                                >
-                                <p class="settings-helper">Seconds before a file is moved.</p>
-                            </div>
-
+                        <div class="settings-field-row settings-field-row--action-only">
                             <div class="settings-field settings-field--action">
                                 <button
                                     type="submit"
@@ -359,7 +333,12 @@
                                     <h4>Advanced Import Matching</h4>
                                     <p>Optional title aliases. Most users can leave this closed.</p>
                                 </div>
-                                <span>Advanced</span>
+                                <div class="settings-mapping-summary-actions" aria-hidden="true">
+                                    <span>Advanced</span>
+                                    <svg class="settings-mapping-chevron" viewBox="0 0 24 24" focusable="false">
+                                        <path d="m7 10 5 5 5-5"></path>
+                                    </svg>
+                                </div>
                             </summary>
 
                             <p class="settings-helper">

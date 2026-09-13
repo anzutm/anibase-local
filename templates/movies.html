@@ -25,7 +25,7 @@
         >
         <img
             class="movies-hero-backdrop"
-            src="{{ url_for('banner', anime_name=featured.title) }}"
+            src="{{ featured.banner or url_for('banner', anime_name=featured.title) }}"
             alt=""
             aria-hidden="true"
         >
@@ -181,5 +181,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='movies.js') }}" defer></script>
+<script src="{{ url_for('static', filename='movies.js', v='3') }}" defer></script>
 {% endblock %}

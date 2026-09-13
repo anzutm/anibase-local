@@ -29,6 +29,8 @@ body.movie-detail-body {
 .cinema-watch:hover { filter: brightness(1.15); transform: translateY(-2px); }
 .cinema-about-link { color: #e2e4e9; font-size: 13px; text-decoration: none; }
 .cinema-about-link span { margin-left: 12px; }
+.movie-detail-body .cinema-metadata-match { min-height: 42px; border-color: var(--cinema-line); border-radius: 7px; background: rgba(8,10,16,.42); color: #e2e4e9; }
+.movie-detail-body .cinema-metadata-match:hover { border-color: var(--cinema-accent); color: var(--cinema-accent); }
 .cinema-resume { margin: 16px 0 0; color: var(--cinema-muted); font-size: 11px; line-height: 1.6; }
 .cinema-poster { width: 100%; transform: rotate(3deg); }
 .cinema-poster img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; box-shadow: 0 28px 65px #0009; }
@@ -41,7 +43,8 @@ body.movie-detail-body {
 .cinema-credits > div + div { margin-top: 20px; }
 .cinema-credits dt { color: var(--cinema-muted); font-size: 11px; margin-bottom: 5px; }
 .cinema-credits dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
-.cinema-credits a { color: #e2e4e9; text-decoration: none; }
+.cinema-credits a { color: #e2e4e9; text-decoration: none; transition: color .2s ease, text-decoration-color .2s ease; }
+.cinema-credits a:hover { color: var(--cinema-accent); text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
 body.movie-detail-body .movie-watch-section { width: min(1480px, calc(100% - 72px)); margin: 0 auto; scroll-margin-top: 24px; }
 body.movie-detail-body .related-section { width: min(1480px, calc(100% - 72px)); }
 body.movie-detail-body .related-section > .section-title {

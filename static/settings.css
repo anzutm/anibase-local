@@ -44,6 +44,12 @@
 .settings-page .auto-import-panel, .settings-page .auto-import-result-panel, .settings-page .settings-mapping-panel { background: transparent; box-shadow: none; }
 .settings-page .auto-import-summary-card { border-radius: 12px; background: rgba(255,255,255,.025); box-shadow: none; }
 .settings-page .auto-import-summary-card strong { overflow-wrap: anywhere; }
+.settings-page .settings-field-row--action-only { grid-template-columns: auto; justify-content: start; }
+.settings-page .settings-mapping-summary-actions { display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+.settings-page .settings-mapping-chevron { width: 30px; height: 30px; padding: 6px; border: 1px solid var(--settings-accent-border); border-radius: 50%; color: var(--settings-accent); background: var(--settings-accent-soft); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s ease, border-color .2s ease, background-color .2s ease; }
+.settings-page .settings-mapping-panel[open] .settings-mapping-chevron { transform: rotate(180deg); }
+.settings-page .settings-mapping-summary:hover .settings-mapping-chevron { border-color: var(--settings-accent); background: color-mix(in srgb, var(--settings-accent) 16%, transparent); }
+.settings-page .settings-mapping-summary:focus-visible { outline: 2px solid var(--settings-accent); outline-offset: 5px; border-radius: 8px; }
 .settings-page .settings-footer { position: sticky; bottom: 16px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0; padding: 16px 20px; border: 1px solid rgba(255,255,255,.13); border-radius: 15px; background: rgba(16,19,27,.96); box-shadow: 0 8px 30px rgba(0,0,0,.25); backdrop-filter: blur(16px); }
 .settings-page .settings-footer .settings-note { margin: 0; font-size: 12px; }
 .settings-page .settings-actions { display: flex; gap: 10px; }
