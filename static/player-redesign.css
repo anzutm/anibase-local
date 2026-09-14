@@ -808,6 +808,29 @@ body.player-body .mx-player-btn[hidden] {
     }
 }
 
+/* Explicit dimensions stop Plyr scaling previews with the full video width,
+   including fullscreen. Sprite frames remain larger than the display size. */
+body.player-body .plyr__preview-thumb {
+    background: transparent;
+    padding: 0;
+}
+
+body.player-body .plyr__preview-thumb::before {
+    display: none;
+}
+
+body.player-body .plyr__preview-thumb__image-container {
+    width: 349.44px;
+    height: 196.56px;
+}
+
+@media (max-width: 600px) {
+    body.player-body .plyr__preview-thumb__image-container {
+        width: 291.2px;
+        height: 163.8px;
+    }
+}
+
 @media (max-width: 380px) {
     body.player-body .player-page,
     body.player-body .player-episodes {

@@ -27,6 +27,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from werkzeug.exceptions import RequestEntityTooLarge
 import time
+import math
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
  
@@ -1909,10 +1910,14 @@ def cleanup_watch_data_for_anime(anime_name, safe_name, summary):
 
 def cleanup_thumbnails_for_video_paths(video_paths, summary):
     for video_path in video_paths:
-        filename = hashlib.md5(video_path.encode("utf-8")).hexdigest() + ".jpg"
-        thumbnail_path = os.path.join(THUMBNAIL_CACHE, filename)
-        if os.path.isfile(thumbnail_path):
-            remove_cache_file_if_safe(summary, thumbnail_path, f"thumbnails/{filename}")
+        stem = hashlib.md5(video_path.encode("utf-8")).hexdigest()
+        for filename in (stem + ".jpg", stem + "_v2.jpg"):
+            thumbnail_path = os.path.join(THUMBNAIL_CACHE, filename)
+            if os.path.isfile(thumbnail_path):
+                remove_cache_file_if_safe(summary, thumbnail_path, f"thumbnails/{filename}")
+        preview_path = os.path.join(THUMBNAIL_CACHE, "seek", stem)
+        if os.path.isdir(preview_path):
+            remove_cache_dir_if_safe(summary, preview_path, f"thumbnails/seek/{stem}")
 
 def cleanup_anime_cache(anime_name, summary=None, include_watch_data=False):
     summary = summary or make_cache_cleanup_summary()
@@ -2078,6 +2083,25 @@ def cleanup_orphan_cache():
                     add_thumbnail_candidate_paths(candidate_paths, anime_name, episode_file)
 
         cleanup_thumbnails_for_video_paths(candidate_paths, summary)
+        preview_root = os.path.join(THUMBNAIL_CACHE, "seek")
+        if os.path.isdir(preview_root):
+            for stem in os.listdir(preview_root):
+                if not re.fullmatch(r"[a-f0-9]{32}", stem):
+                    continue
+                folder = os.path.join(preview_root, stem)
+                manifest = load_json_dict_if_exists(os.path.join(folder, "manifest.json"))
+                source = manifest.get("source")
+                if not isinstance(source, str) or os.path.isfile(source):
+                    continue
+                # A disconnected library is not evidence of a deleted video.
+                for root in available_base_paths:
+                    try:
+                        belongs = os.path.commonpath([os.path.abspath(source), os.path.abspath(root)]) == os.path.abspath(root)
+                    except ValueError:
+                        belongs = False
+                    if belongs:
+                        remove_cache_dir_if_safe(summary, folder, f"thumbnails/seek/{stem}")
+                        break
 
     clean_named_files(POSTER_CACHE, "posters")
     clean_named_files(BANNER_CACHE, "banners")
@@ -3207,6 +3231,131 @@ def get_thumbnail(video_path):
         return result.get("path")
 
     return None
+
+# Seek previews are optional, bounded background work. Playback never waits for
+# this worker, and only one preview job may compete for the shared FFmpeg slots.
+SEEK_PREVIEW_LOCK = threading.Lock()
+SEEK_PREVIEW_ACTIVE = set()
+SEEK_PREVIEW_FAILURES = {}
+
+
+def seek_preview_identity(video_path):
+    fingerprint = media_source_fingerprint(video_path)
+    if fingerprint is None:
+        return None
+    stem = hashlib.md5(video_path.encode("utf-8")).hexdigest()
+    version = hashlib.sha256(repr((fingerprint, 3)).encode()).hexdigest()[:24]
+    return os.path.join(THUMBNAIL_CACHE, "seek", stem), version
+
+
+def seek_preview_frames(duration):
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("Invalid media duration")
+    interval = max(10, math.ceil(duration / 180))
+    frames = []
+    for index in range(math.ceil(duration / interval)):
+        frames.append({
+            "startTime": index * interval,
+            "endTime": min(duration, (index + 1) * interval),
+            "text": f"sprite-{index // 100 + 1:02d}.jpg",
+            "x": (index % 10) * 384, "y": ((index % 100) // 10) * 216,
+            "w": 384, "h": 216,
+        })
+    return interval, frames
+
+
+def read_seek_preview(folder, version):
+    try:
+        with open(os.path.join(folder, "manifest.json"), encoding="utf-8") as handle:
+            data = json.load(handle)
+        if not isinstance(data, dict) or data.get("version") != version or not data.get("frames"):
+            return None
+        if not isinstance(data["frames"], list) or len(data["frames"]) > 180:
+            return None
+        if any(not isinstance(frame, dict)
+               or not re.fullmatch(r"sprite-0[12]\.jpg", str(frame.get("text", "")))
+               for frame in data["frames"]):
+            return None
+        if all(is_valid_cache_file(os.path.join(folder, name))
+               for name in {frame["text"] for frame in data["frames"]}):
+            return data
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def generate_seek_preview(video_path, folder, version):
+    temp_files = []
+    succeeded = False
+    try:
+        duration = get_video_duration_seconds(video_path)
+        interval, frames = seek_preview_frames(duration)
+        os.makedirs(folder, exist_ok=True)
+        prefix = ".preview-" + secrets.token_hex(8)
+        sprite_names = sorted({frame["text"] for frame in frames})
+        temp_files = [os.path.join(folder, prefix + name) for name in sprite_names]
+        # Decode keyframes only: fully decoding a 1080p HEVC episode can exceed
+        # the preview timeout while competing with playback. fps maps these
+        # representative frames onto the timeline; each sheet holds 100 frames.
+        result = run_ffmpeg_command([
+            "ffmpeg", "-y", "-threads", "1", "-skip_frame", "nokey", "-i", video_path,
+            "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1",
+            "-vf", f"fps=1/{interval}:start_time=0:round=up,"
+            f"tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration},"
+            "scale=384:216:force_original_aspect_ratio=decrease:flags=lanczos,"
+            "pad=384:216:(ow-iw)/2:(oh-ih)/2,setsar=1,tile=10x10:nb_frames=100",
+            "-frames:v", str(len(sprite_names)), "-threads", "1", "-q:v", "2",
+            os.path.join(folder, prefix + "sprite-%02d.jpg"),
+        ], timeout=180)
+        if not result["ok"] or not all(is_valid_cache_file(path) for path in temp_files):
+            app_log(f'Seek preview generation failed: {result.get("status", "incomplete")} '
+                    f'for {os.path.basename(video_path)}', "WARN")
+            return
+        if seek_preview_identity(video_path) != (folder, version):
+            return
+        for temp_path, name in zip(temp_files, sprite_names):
+            os.replace(temp_path, os.path.join(folder, name))
+        manifest_path = os.path.join(folder, "manifest.json")
+        temporary = temporary_media_cache_path(manifest_path, ".json")
+        temp_files.append(temporary)
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump({"version": version, "frames": frames, "source": video_path}, handle)
+        os.replace(temporary, manifest_path)
+        app_log(f"Seek preview ready: {os.path.basename(video_path)} ({len(frames)} frames)", "INFO")
+        succeeded = True
+    except (OSError, ValueError) as error:
+        app_log(f"Seek preview unavailable: {type(error).__name__}", "WARN")
+    finally:
+        for path in temp_files:
+            remove_file_quietly(path)
+        with SEEK_PREVIEW_LOCK:
+            SEEK_PREVIEW_ACTIVE.discard(folder)
+            if not succeeded:
+                SEEK_PREVIEW_FAILURES[(folder, version)] = time.monotonic() + 60
+
+
+def request_seek_preview(video_path, folder, version):
+    with SEEK_PREVIEW_LOCK:
+        now = time.monotonic()
+        for key in list(SEEK_PREVIEW_FAILURES):
+            if SEEK_PREVIEW_FAILURES[key] <= now:
+                SEEK_PREVIEW_FAILURES.pop(key, None)
+        if (folder, version) in SEEK_PREVIEW_FAILURES:
+            return "unavailable"
+        if SEEK_PREVIEW_ACTIVE:
+            return "pending"
+        if is_shutdown_requested():
+            return "unavailable"
+        SEEK_PREVIEW_ACTIVE.add(folder)
+        try:
+            threading.Thread(target=generate_seek_preview,
+                             args=(video_path, folder, version), daemon=True,
+                             name="seek-preview").start()
+        except RuntimeError:
+            SEEK_PREVIEW_ACTIVE.discard(folder)
+            return "unavailable"
+    return "pending"
+
 
 def get_video_resolution(video_path):
 
@@ -8248,6 +8397,53 @@ def banner(anime_name):
         )
 
     return "", 404
+
+@app.route("/seek-preview/<anime_name>/<path:episode>")
+def seek_preview(anime_name, episode):
+    video_path = safe_join_media_path(find_media_path(anime_name), episode)
+    if (not video_path or not os.path.isfile(video_path)
+            or not video_path.lower().endswith(VIDEO_EXTENSIONS)):
+        abort(404)
+    identity = seek_preview_identity(video_path)
+    if identity is None:
+        abort(404)
+    folder, version = identity
+    data = read_seek_preview(folder, version)
+    asset = request.args.get("asset")
+    if asset:
+        if request.args.get("v") != version or data is None:
+            abort(404)
+        allowed = {frame["text"] for frame in data["frames"]}
+        if asset not in allowed or not re.fullmatch(r"sprite-\d{2}\.jpg", asset):
+            abort(404)
+        response = send_file(os.path.join(folder, asset), mimetype="image/jpeg",
+                             conditional=True, max_age=86400)
+        response.cache_control.public = False
+        response.cache_control.private = True
+        return response
+    if data is None:
+        status = request_seek_preview(video_path, folder, version)
+        response = jsonify(status=status)
+        response.status_code = 202 if status == "pending" else 503
+        response.headers["Retry-After"] = "3"
+    else:
+        frames = [{**frame, "text": url_for("seek_preview", anime_name=anime_name,
+                   episode=episode, asset=frame["text"], v=version)}
+                  for frame in data["frames"]]
+        if request.args.get("format") == "vtt":
+            lines = ["WEBVTT", ""]
+            for frame in frames:
+                lines.extend([
+                    f'{format_timestamp(frame["startTime"])}.000 --> '
+                    f'{format_timestamp(frame["endTime"])}.000',
+                    f'{frame["text"]}#xywh={frame["x"]},{frame["y"]},{frame["w"]},{frame["h"]}', "",
+                ])
+            response = app.response_class("\n".join(lines), mimetype="text/vtt")
+        else:
+            response = jsonify(status="ready", frames=frames)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 @app.route("/thumbnail/<anime_name>/<path:episode>")
 def thumbnail(

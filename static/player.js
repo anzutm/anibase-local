@@ -32,6 +32,93 @@ const player = new Plyr(videoElement, {
 });
 const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
 
+// Preview data arrives independently of playback and subtitle preparation.
+let previewGeneration = 0;
+let previewTimer = null;
+let previewRequest = null;
+let previewStarted = false;
+
+function resetSeekPreview() {
+    previewGeneration += 1;
+    clearTimeout(previewTimer);
+    previewRequest?.abort();
+    previewRequest = null;
+    previewStarted = false;
+    player.setPreviewThumbnails({ enabled: false });
+    if (player.elements.display.seekTooltip) {
+        player.elements.display.seekTooltip.hidden = false;
+    }
+}
+
+async function loadSeekPreview(generation, attempts = 0) {
+    if (generation !== previewGeneration || attempts >= 70) return;
+    const controller = new AbortController();
+    previewRequest = controller;
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+        const url = buildEpisodeRoute(window.PREVIEW_URL_TEMPLATE,
+            '/seek-preview/__ANIME__/__EPISODE__', window.ANIME_NAME, window.EPISODE_PATH);
+        const response = await fetch(url, { signal: controller.signal });
+        if (generation !== previewGeneration) return;
+        if (response.status === 202 || response.status === 503) {
+            const delay = response.status === 503 ? 10000 : 3000;
+            previewTimer = setTimeout(() => loadSeekPreview(generation, attempts + 1), delay);
+            return;
+        }
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.status !== 'ready' || !data.frames?.length) return;
+        // Resolve images before handing data to Plyr. Its URL loader does not
+        // handle failed images or cancel an in-flight load on episode changes.
+        const images = await Promise.all([...new Set(data.frames.map(frame => frame.text))]
+            .map(src => new Promise((resolve, reject) => {
+                const img = new Image();
+                const timer = setTimeout(() => reject(new Error('Preview image timeout')), 10000);
+                img.onload = () => { clearTimeout(timer); resolve(img); };
+                img.onerror = () => { clearTimeout(timer); reject(new Error('Preview image unavailable')); };
+                img.src = src;
+            })));
+        if (generation !== previewGeneration) return;
+        player.setPreviewThumbnails({ enabled: true, src: done => done([{
+            frames: data.frames, urlPrefix: '',
+            width: images[0].naturalWidth, height: images[0].naturalHeight
+        }]) });
+        // The bundled Plyr destroy() removes DOM but does not unregister these
+        // listeners. Install equivalent shared handlers once below instead.
+        player.previewThumbnails.listeners = () => {};
+    } catch (error) {
+        // A transient fetch/image failure must not disable previews until reload.
+        if (generation === previewGeneration) {
+            previewTimer = setTimeout(() => loadSeekPreview(generation, attempts + 1), 10000);
+        }
+    } finally {
+        clearTimeout(timeout);
+        if (previewRequest === controller) previewRequest = null;
+    }
+}
+
+function startSeekPreview() {
+    if (previewStarted) return;
+    previewStarted = true;
+    const generation = previewGeneration;
+    previewTimer = setTimeout(() => loadSeekPreview(generation), 1500);
+}
+player.on('playing', startSeekPreview);
+// Autoplay may already have started before this script's listeners were bound.
+if (!videoElement.paused && videoElement.readyState >= 2) startSeekPreview();
+window.addEventListener('pageshow', () => {
+    if (!videoElement.paused) startSeekPreview();
+});
+player.on('play seeked', () => {
+    const preview = player.previewThumbnails;
+    if (preview?.loaded) preview.toggleThumbContainer(false, true);
+});
+player.on('timeupdate', () => {
+    const preview = player.previewThumbnails;
+    if (preview?.loaded) preview.lastTime = videoElement.currentTime;
+});
+window.addEventListener('pagehide', resetSeekPreview);
+
 const SEEK_STEP_SECONDS = 5;
 const SEEK_FEEDBACK_RESET_MS = 700;
 const seekFeedbackState = {
@@ -475,6 +562,7 @@ function switchEpisode(episodePath, options = {}) {
     if (watchProgressInterval) clearInterval(watchProgressInterval);
 
     isSoftSwitching = true;
+    resetSeekPreview();
     updatePlayerEpisodeState(episodePath);
     showEpisodeSwitchNotice(`Loading ${window.CURRENT_EP_DISPLAY_NAME || `Episode ${window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM}`}...`);
 

@@ -22,7 +22,7 @@
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-8') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='10') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='14') }}">
 </head>
 
 <body class="player-body">
@@ -274,6 +274,7 @@
     data-player-url-template="{{ url_for('player', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-stream-url-template="{{ url_for('stream_video', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-subtitle-url-template="{{ url_for('get_subtitle', anime_name='__ANIME__', episode='__EPISODE__') }}"
+    data-preview-url-template="{{ url_for('seek_preview', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-play-url-template="{{ url_for('play_episode', anime_name='__ANIME__', episode='__EPISODE__') }}">
 </div>
 
@@ -295,6 +296,7 @@
         window.PLAYER_URL_TEMPLATE = config.playerUrlTemplate;
         window.STREAM_URL_TEMPLATE = config.streamUrlTemplate;
         window.SUBTITLE_URL_TEMPLATE = config.subtitleUrlTemplate;
+        window.PREVIEW_URL_TEMPLATE = config.previewUrlTemplate;
         window.PLAY_URL_TEMPLATE = config.playUrlTemplate;
     })();
 </script>
@@ -307,7 +309,7 @@
     });
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-7') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-9') }}"></script>
 
 </body>
 
