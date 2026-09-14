@@ -1,234 +1,88 @@
 # AniBase
 
-AniBase turns your local anime folders into a private streaming library: browse posters, continue episodes, track progress, generate thumbnails/subtitles, and keep everything running quietly from a Windows or Linux tray app.
+A private streaming library for your local anime and movies, with a web dashboard and a Windows/Linux tray launcher. Your media stays on your machine.
 
-It is built for personal collections first. Your media stays on your machine, runtime data lives in your operating-system user profile, and the web dashboard is served locally by the app.
-
-## Preview
-
-<div align="center">
-
-<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-<tr>
-<td width="50%" style="padding: 12px; box-sizing: border-box;">
-
-### Home
-<img src="assets/screenshots/Home.png" alt="Home page" width="100%" style="border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-
-</td>
-<td width="50%" style="padding: 12px; box-sizing: border-box;">
-
-### Anime Detail
-<img src="assets/screenshots/Anime.png" alt="Anime detail page" width="100%" style="border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-
-</td>
-</tr>
-<tr>
-<td colspan="2" style="padding: 12px; box-sizing: border-box; text-align: center;">
-
-### Player
-<img src="assets/screenshots/Player.png" alt="Player" width="120%" style="border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-
-</td>
-</tr>
-</table>
-
-</div>
+[Download releases](https://github.com/anzutm/anibase-local/releases) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Features
 
-* 📁 Scan local anime and movie folders.
-* 🗂️ Organize titles into a browsable dashboard.
-* ⏱️ Preserve watch history, watch status, and resume progress.
-* 📥 Auto-import files into selected library folders
-* 🔎 Fetch AniList metadata for posters, banners, genres, characters, studios, relations, and recommendations.
-* 🧠 Cache poster, banner, metadata, character, seiyuu, thumbnail, subtitle, and episode data locally.
-* 🏢 Show studio pages and airing schedules.
-* ▶️ Stream episodes through the built-in web player.
-* 💬 Support subtitles, generated VTT subtitle cache, thumbnails, auto next episode, and resume playback.
-* 🎞️ Optionally open media in an external Media Player.
-* 🖥️ Modern PySide6 tray launcher.
-* 🔒 Single-instance guard.
-* 📴 Graceful shutdown for server, scanner, sync, watchdog, and auto-import workers.
-* 🟣 Optional Discord Rich Presence.
-* 🌐 LAN access controls and multiple theme presets.
+- Browse anime, movies, seasons, studios, voice actors, and airing schedules.
+- Fetch metadata from AniList, with Tenrai as a fallback and manual matching available.
+- Resume playback, track watch progress, and automatically import downloaded episodes.
+- Render fansub ASS subtitles with positioning, effects, and embedded MKV fonts; use Inter when the requested font is unavailable, or WebVTT when ASS rendering is unavailable.
+- Use theme presets, optional Discord Rich Presence, external players, and controlled LAN access.
 
-## Requirements
+<details>
+<summary>Preview screenshots</summary>
 
-* 🐍 Python 3.12.x for development and release builds.
-* 🌐 Internet connection for metadata.
-* 🟣 Optional: Discord desktop app for Rich Presence.
-* 🎬 Install **K-Lite Codec Pack Full** if videos appear blank or cannot be played in the browser.
+![Home](assets/screenshots/Home.png)
+![Anime detail](assets/screenshots/Anime.png)
+![Player](assets/screenshots/Player.png)
 
-## Installation & Setup
+</details>
 
-Choose one path:
-* 🚀 **Release** if you only want to use AniBase.
-* 🛠️ **Developer** if you want to run from source and use the project-local cache.
-* 📦 **Build Release** if you want to create `AniBase.exe`.
+## Get started
 
-### 🚀 Release
+Download and extract a release, then run `AniBase.exe` on Windows or `./AniBase` on Linux. Windows portable releases include FFmpeg and FFprobe; no separate Python installation is needed for executable releases.
 
-**Step 1: Download or Unpack**
+Open the dashboard from the tray or visit **http://127.0.0.1:5000/**. On first launch, choose your anime folders and theme. Configure movies, auto-import, external players, and LAN access in Settings. Metadata fetching requires internet access.
 
-[**Download AniBase for Windows**](https://github.com/anzutm/anibase-local/releases/tag/v1.3.2)
+If a video cannot play in the browser, try the external-player option. Codec support depends on the browser and operating system. Native fullscreen/PiP may use basic subtitles instead of full ASS styling.
 
-Download the Windows ZIP from the release assets, extract it, then run `AniBase.exe`.
+## Run from source
 
-**Step 2: Run the Application**
-
-```text
-AniBase.exe
-```
-
-**Step 3: Open the Dashboard**
-
-Open the dashboard from the tray, or visit:
-
-```text
-http://127.0.0.1:5000/ or localhost:5000
-```
-
-Release builds store settings, database, watch history/status, cache, logs, and temp files in:
-
-```text
-%LOCALAPPDATA%\AniBase\
-```
-
-### 🛠️ Developer
-
-The setup script creates `.venv`, installs all Python dependencies, and makes
-sure FFmpeg and FFprobe are available:
+Use **Python 3.12.x**. On Windows:
 
 ```powershell
 git clone https://github.com/anzutm/anibase-local.git
 cd anibase-local
 powershell -ExecutionPolicy Bypass -File .\setup_dev.ps1
 .\.venv\Scripts\Activate.ps1
-python --version
+python tray_ui.py
 ```
 
-The final command must report Python `3.12.x`. If an existing `.venv` was made
-with another Python version, remove that `.venv` and run `setup_dev.ps1` again.
+The setup script installs Python dependencies and checks FFmpeg/FFprobe. Recreate an existing virtual environment if it uses another Python version. To run only the web server, use `python main.py`.
 
-Run AniBase from the project folder:
+On Linux, create and activate a Python 3.12 virtual environment, install `requirements.txt`, and ensure `ffmpeg`/`ffprobe` are on `PATH` before running `python tray_ui.py`.
 
-```powershell
-$env:ANIBASE_USE_PROJECT_RUNTIME="1"
-pythonw tray_ui.py
-or
-python main.py
-```
+## Build a release
 
-With `ANIBASE_USE_PROJECT_RUNTIME` enabled, AniBase uses the data stored in
-the repository instead of `%LOCALAPPDATA%\AniBase\`, including:
-
-```text
-cache\
-logs\
-temp\
-```
-
-Open the dashboard from the tray or visit:
-
-```text
-http://127.0.0.1:5000/ or localhost:5000
-```
-
-### 📦 Build Release
-
-**Step 1: Prepare the Developer Environment**
-
-Complete the **Developer** setup first. Builds are validated against Python
-`3.12.x` and PyInstaller `6.11+`. The executable build also requires both
-`ffmpeg` and `ffprobe` on `PATH`; they are copied into the portable release.
-
-**Step 2: Build the Release**
-
-Check prerequisites and runtime assets first (this does not run PyInstaller,
-create an archive, or change existing build/release output):
+Prepare the development environment first. Builds require Python 3.12, PyInstaller 6.11+ (below 7), and FFmpeg/FFprobe on `PATH`. Build on the target operating system.
 
 ```powershell
 python build.py --check
+python build.py v1.3.4 --exe-only
+python release_check.py
 ```
 
-For source-only prerequisites, use `python build.py --source-only --check`.
-To run source validation and unit tests without requiring a built release,
-use `python release_check.py --project-only`.
+Replace `v1.3.4` with your release version. `--check` validates prerequisites without building or changing output. The release checker checks the latest executable release; also launch the app and test playback before distributing it.
+
+Output: `releases/AniBase v<version>/` and a platform-specific ZIP or TAR.GZ archive. Packages include player assets, the ASS renderer, fonts, and licenses, with asset integrity checked before publishing.
+
+If compilation succeeds but packaging fails, reuse `dist/AniBase` without compiling again:
 
 ```powershell
-python build.py v1.0.0 --exe-only
+python build.py v1.3.4 --package-existing --check
+python build.py v1.3.4 --package-existing
 ```
 
-`--exe-only` stops with an error if PyInstaller, FFmpeg, or FFprobe is missing.
-Without that option, `build.py` falls back to a source release. Use
-`python build.py v1.0.0 --source-only` when a source package is intentional.
-The two release modes cannot be combined. Source packages require Python and
-FFmpeg/FFprobe installed on the destination machine.
+Other options:
 
-Executable releases bundle the local ASS renderer (JavaScript + WebAssembly),
-Inter fallback font, licenses, and Home animation assets inside `_internal`.
-The builder validates required assets and compares all packaged templates and
-static files against the source before replacing the previous release folder.
-Compilation uses `build/AniBase` and `dist/AniBase`; other output folders are
-left alone. Windows shared FFmpeg distributions also have their sibling DLLs
-copied to `tools`.
+- `--source-only`: create a source folder; the destination machine needs Python and FFmpeg/FFprobe.
+- `--keep-temp`: retain compilation output. `--package-existing` always preserves `dist`.
+- `python release_check.py --project-only`: check source and unit tests without a built release.
 
-After building, run `python release_check.py` to check the latest executable
-release, including its player assets. A source-only package is not an executable
-release and should be checked with `--project-only` instead.
+Choose only one of `--exe-only`, `--source-only`, or `--package-existing`. Without a mode, failed executable builds fall back to a source package. Failed packaging retains staging output at the path reported in the terminal.
 
-**Step 3: Locate the Release Output**
+## Local data
 
-The build target is `onedir` and `windowed`. The release folder is:
+Settings, cache, database, watch history, logs, and temporary files are stored in:
 
-```text
-releases\AniBase v<version>\
-```
+- **Windows:** `%LOCALAPPDATA%\AniBase\`
+- **Linux:** `$XDG_DATA_HOME/AniBase`, or `~/.local/share/AniBase` by default.
 
-The build is native: run it on Windows for `win64.zip`, or on Linux for
-`linux-x86_64.tar.gz`. PyInstaller does not cross-compile between operating
-systems. This repository does not currently include an automated release
-workflow, so release archives must be built on the target operating system.
-
-On Linux, runtime data is stored under `$XDG_DATA_HOME/AniBase` (normally
-`~/.local/share/AniBase`). After extracting the archive, run:
-
-```bash
-chmod +x AniBase
-./AniBase
-```
-
-## First Setup
-
-On a fresh runtime directory, AniBase opens the setup flow. Add your folders and preferences:
-
-* 📁 Library folder paths.
-* 🎬 Movies folder path.
-* 📥 Auto-import paths, if used.
-* 🎞️ Media Player executable path, if used.
-* 🟣 Discord Rich Presence, if used.
-* 🎨 Theme preset preference.
-* 🌐 LAN access preference.
-
-## Playback Troubleshooting
-
-If the player opens but the video is blank or does not play, install the
-**K-Lite Codec Pack Full**, restart Windows, then try playing the video again.
-This is only required for media formats or codecs that are not already
-supported by the user's Windows/browser configuration.
-
-## Notes
-
-* 🏠 AniBase is intended for personal local-library use only.
-* 🔐 Do not expose the Flask development server directly to the public internet.
-* 🧳 Keep runtime data, cache, logs, and local media out of Git and release bundles.
-* 🎬 Windows releases bundle FFmpeg and FFprobe; the external Media Player remains optional.
-* 💾 Normal release usage stores data in `%LOCALAPPDATA%\AniBase\`.
-* 🛠️ Developer runtime mode stores data in this repository's `cache/` and `logs/` folders.
+For project-local development data, set `ANIBASE_USE_PROJECT_RUNTIME=1` before launching. Keep runtime data and media out of Git and release packages. AniBase is for personal/local use; do not expose its server directly to the public internet.
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-Third-party notices are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+AniBase is [MIT licensed](LICENSE). Bundled libraries, fonts, and media tools retain their own licenses; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).

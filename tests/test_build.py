@@ -115,6 +115,76 @@ class BuildPackagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build.normalize_version(version)
 
+    def test_windows_rename_denied_falls_back_to_copy(self):
+        staged = self.root / '.staging' / 'AniBase'
+        target = self.root / 'AniBase v1.3.4'
+        staged.mkdir(parents=True)
+        (staged / 'app.txt').write_bytes(b'new release')
+        with patch.object(build, 'RELEASES_DIR', self.root), \
+             patch.object(Path, 'rename', side_effect=PermissionError(13, 'Access is denied')) as rename, \
+             patch.object(build.time, 'sleep'):
+            build.publish_release(staged, target)
+        self.assertEqual(rename.call_count, 4)
+        self.assertEqual((target / 'app.txt').read_bytes(), b'new release')
+        self.assertEqual((staged / 'app.txt').read_bytes(), b'new release')
+
+    def test_failed_copy_restores_previous_release_and_preserves_staging(self):
+        staged = self.root / '.staging' / 'AniBase'
+        target = self.root / 'AniBase v1.3.4'
+        staged.mkdir(parents=True)
+        target.mkdir()
+        (staged / 'app.txt').write_bytes(b'new release')
+        (target / 'app.txt').write_bytes(b'previous release')
+        original_rename = Path.rename
+        def rename(path, destination):
+            if path == staged:
+                raise PermissionError(13, 'Access is denied')
+            return original_rename(path, destination)
+        def failed_copy(source, destination):
+            destination.mkdir()
+            (destination / 'partial.txt').write_bytes(b'incomplete')
+            raise OSError('Copy failed')
+        with patch.object(build, 'RELEASES_DIR', self.root), \
+             patch.object(Path, 'rename', rename), \
+             patch.object(build.time, 'sleep'), \
+             patch.object(build.shutil, 'copytree', side_effect=failed_copy):
+            with self.assertRaisesRegex(OSError, 'Copy failed'):
+                build.publish_release(staged, target)
+        self.assertEqual((target / 'app.txt').read_bytes(), b'previous release')
+        self.assertFalse((target / 'partial.txt').exists())
+        self.assertTrue((staged / 'app.txt').is_file())
+
+    def test_locked_existing_release_is_not_deleted(self):
+        staged = self.root / '.staging' / 'AniBase'
+        target = self.root / 'AniBase v1.3.4'
+        staged.mkdir(parents=True)
+        target.mkdir()
+        (target / 'app.txt').write_bytes(b'previous release')
+        with patch.object(build, 'RELEASES_DIR', self.root), \
+             patch.object(Path, 'rename', side_effect=PermissionError(13, 'Access is denied')), \
+             patch.object(build.time, 'sleep'):
+            with self.assertRaises(PermissionError):
+                build.publish_release(staged, target)
+        self.assertEqual((target / 'app.txt').read_bytes(), b'previous release')
+        self.assertTrue(staged.is_dir())
+
+    def test_publication_rejects_paths_outside_releases(self):
+        with patch.object(build, 'RELEASES_DIR', self.root / 'releases'):
+            with self.assertRaises(ValueError):
+                build.publish_release(self.root / 'staged', self.root / 'releases' / 'target')
+
+    def test_package_existing_check_does_not_compile_or_copy(self):
+        with patch.object(build.sys, 'argv', ['build.py', '--package-existing', '--check']), \
+             patch.object(build, 'preflight') as preflight, \
+             patch.object(build, 'validate_existing_build') as validate, \
+             patch.object(build, 'run_pyinstaller') as compile_app, \
+             patch.object(build, 'copy_exe_release_files') as copy:
+            self.assertEqual(build.main(), 0)
+            preflight.assert_called_once_with(source_only=True)
+            validate.assert_called_once_with()
+            compile_app.assert_not_called()
+            copy.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

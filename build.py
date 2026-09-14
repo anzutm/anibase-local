@@ -8,6 +8,7 @@ import sys
 import platform
 import hashlib
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -120,6 +121,68 @@ def remove_path(path):
             shutil.rmtree(path)
         else:
             path.unlink()
+
+
+def rename_with_retry(source, target):
+    for attempt in range(4):
+        try:
+            source.rename(target)
+            return
+        except PermissionError:
+            if attempt == 3:
+                raise
+            time.sleep(.25 * (attempt + 1))
+
+
+def cleanup_output(path):
+    try:
+        remove_path(path)
+    except OSError as error:
+        print(f'Output sementara belum bisa dibersihkan: {path} ({error})', file=sys.stderr)
+
+
+def publish_release(staged_release, release_dir):
+    """Publish validated output, retaining staging and restoring the old release on failure."""
+    root = RELEASES_DIR.resolve()
+    for path in (staged_release, release_dir):
+        resolved = path.resolve()
+        if resolved == root or not resolved.is_relative_to(root):
+            raise ValueError(f'Path publikasi di luar folder releases: {path}')
+    if staged_release.resolve() == release_dir.resolve():
+        raise ValueError('Folder staging dan release harus berbeda.')
+    backup_root = None
+    backup = None
+    if release_dir.exists():
+        backup_root = Path(tempfile.mkdtemp(prefix='.anibase-backup-', dir=RELEASES_DIR))
+        backup = backup_root / APP_NAME
+        try:
+            rename_with_retry(release_dir, backup)
+        except OSError:
+            cleanup_output(backup_root)
+            raise
+    try:
+        try:
+            rename_with_retry(staged_release, release_dir)
+        except PermissionError:
+            # Windows may deny renaming a scanned directory while its files remain readable.
+            print('Rename folder ditolak Windows; menyalin paket tervalidasi ke folder release...')
+            shutil.copytree(staged_release, release_dir)
+    except Exception:
+        try:
+            if release_dir.exists():
+                remove_path(release_dir)
+            if backup is not None:
+                rename_with_retry(backup, release_dir)
+        except OSError as rollback_error:
+            raise RuntimeError(
+                f'Publikasi gagal. Paket baru tetap di {staged_release}; '
+                f'backup release lama: {backup}. Pemulihan otomatis gagal: {rollback_error}'
+            ) from rollback_error
+        if backup_root is not None:
+            cleanup_output(backup_root)
+        raise
+    if backup_root is not None:
+        cleanup_output(backup_root)
 
 
 def parse_version_tuple(version):
@@ -326,6 +389,15 @@ def build_exe_release(release_dir):
     return True
 
 
+def validate_existing_build():
+    executable = DIST_DIR / APP_NAME / (f'{APP_NAME}.exe' if os.name == 'nt' else APP_NAME)
+    if not executable.is_file():
+        raise FileNotFoundError(f'Hasil kompilasi tidak ditemukan: {executable}')
+    validate_packaged_assets(DIST_DIR / APP_NAME)
+    find_media_tool('ffmpeg')
+    find_media_tool('ffprobe')
+
+
 def platform_tag():
     machine = platform.machine().lower()
     arch = "x86_64" if machine in {"amd64", "x86_64"} else machine
@@ -372,6 +444,8 @@ def main():
         action="store_true",
         help="Wajib build executable; jangan fallback ke source release.",
     )
+    mode.add_argument('--package-existing', action='store_true',
+                      help='Kemas ulang dist/AniBase yang sudah ada, tanpa menjalankan PyInstaller.')
     parser.add_argument('--check', action='store_true',
                         help='Periksa syarat build dan aset saja; tidak membuat atau menghapus output.')
     args = parser.parse_args()
@@ -381,7 +455,9 @@ def main():
     release_dir = RELEASES_DIR / f"{APP_NAME} {version}"
 
     if args.check:
-        preflight(source_only=args.source_only)
+        preflight(source_only=args.source_only or args.package_existing)
+        if args.package_existing:
+            validate_existing_build()
         print('Pemeriksaan berhasil. Tidak ada build atau perubahan output.')
         return 0
 
@@ -394,33 +470,42 @@ def main():
     print(f"Building {APP_NAME} {version}...")
     built_exe = False
     RELEASES_DIR.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.anibase-staging-', dir=RELEASES_DIR) as staging:
-        staged_release = Path(staging) / APP_NAME
+    staging = Path(tempfile.mkdtemp(prefix='.anibase-staging-', dir=RELEASES_DIR))
+    staged_release = staging / APP_NAME
+    try:
         if args.source_only:
             create_source_release(staged_release)
+        elif args.package_existing:
+            validate_existing_build()
+            copy_exe_release_files(DIST_DIR / APP_NAME, staged_release)
+            bundle_media_tools(staged_release)
+            built_exe = True
         else:
             try:
                 built_exe = build_exe_release(staged_release)
             except Exception as error:
                 print(f"Build executable gagal: {error}", file=sys.stderr)
                 if args.exe_only:
+                    print(f'Output sementara dipertahankan di {staging}', file=sys.stderr)
                     return 1
                 print("Membuat source release sebagai fallback...")
                 create_source_release(staged_release)
         validate_packaged_assets(staged_release, executable=built_exe)
-        # Keep the previous release until compilation, copying and validation succeed.
-        remove_path(release_dir)
-        staged_release.replace(release_dir)
-
-    if not args.keep_temp:
-        remove_path(BUILD_DIR / APP_NAME)
-        remove_path(DIST_DIR / APP_NAME)
+        publish_release(staged_release, release_dir)
+    except Exception as error:
+        print(f'Pengemasan gagal: {error}', file=sys.stderr)
+        print(f'Output sementara dipertahankan di {staging}. Hasil dist tidak dihapus.', file=sys.stderr)
+        return 1
+    cleanup_output(staging)
 
     release_type = "executable" if built_exe else "source"
     print(f"Build {release_type} selesai: {release_dir}")
     if built_exe:
         archive_path = create_release_archive(release_dir, version)
         print(f"Arsip portable selesai: {archive_path}")
+    if not args.keep_temp and not args.package_existing:
+        cleanup_output(BUILD_DIR / APP_NAME)
+        cleanup_output(DIST_DIR / APP_NAME)
     return 0
 
 
