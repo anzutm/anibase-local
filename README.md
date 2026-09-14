@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="static/logo_transparent_cropped.png" alt="AniBase logo" width="112">
+<img src="static/static/arcana.jpg" alt="AniBase logo" width="112">
 
 # AniBase
 
