@@ -938,6 +938,37 @@ window.addEventListener('keydown', (event) => {
     changePlaybackSpeed(isPlus ? 1 : -1);
 });
 
+// Mouse wheel controls volume inside the video, including fullscreen.
+let volumeScrollDelta = 0;
+let volumeScrollTime = 0;
+player.elements.container.addEventListener('wheel', event => {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
+        || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        || event.target.closest('.plyr__menu__container, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const now = performance.now();
+    // Touchpads emit many small pixel deltas. Accumulate a gesture before
+    // applying a 5% step; conventional wheel ticks still respond immediately.
+    if (now - volumeScrollTime > 200 || Math.sign(volumeScrollDelta) !== Math.sign(event.deltaY)) {
+        volumeScrollDelta = 0;
+    }
+    volumeScrollTime = now;
+    if (event.deltaMode === 0 && Math.abs(event.deltaY) < 40) {
+        volumeScrollDelta += event.deltaY;
+        if (Math.abs(volumeScrollDelta) < 40) return;
+        volumeScrollDelta -= Math.sign(volumeScrollDelta) * 40;
+    } else {
+        volumeScrollDelta = 0;
+    }
+    const percent = Math.max(0, Math.min(100, Math.round(player.volume * 100) + direction * 5));
+    if (direction > 0 && player.muted) player.muted = false;
+    player.volume = percent / 100;
+    const icon = percent === 0 ? '&#128263;' : percent < 33 ? '&#128264;'
+        : percent < 66 ? '&#128265;' : '&#128266;';
+    showScreenshotToast(`Volume: ${percent}%`, { icon, duration: 1500 });
+}, { passive: false });
+
 // Fitur Pengatur Volume dengan ArrowUp / ArrowDown (override Plyr)
 window.addEventListener('keydown', (event) => {
     const target = event.target;
