@@ -161,6 +161,7 @@ class SeekPreviewTests(unittest.TestCase):
         @fixture.get("/")
         def index():
             return '''<!doctype html><html><head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <link rel="stylesheet" href="/static/plyr.css">
             <link rel="stylesheet" href="/static/player-redesign.css">
             <style>body{margin:0} .video-player-container{width:100%;max-width:640px}</style>
@@ -208,6 +209,40 @@ class SeekPreviewTests(unittest.TestCase):
                     page.evaluate("player.muted = true; player.play()")
                     page.wait_for_function("player.previewThumbnails?.loaded === true")
                     page.evaluate("player.pause()")
+                    seeks = page.evaluate('''() => {
+                        const original = applyMediaSeek;
+                        const targets = [];
+                        applyMediaSeek = value => targets.push(value);
+                        try {
+                            for (let i = 0; i < 10; i++) seekByShortcut('forward');
+                            const beforeRelease = targets.length;
+                            window.dispatchEvent(new KeyboardEvent('keyup', {key:'ArrowRight'}));
+                            return {beforeRelease, count:targets.length, target:targets[0],
+                                    duration:player.duration};
+                        } finally { applyMediaSeek = original; }
+                    }''')
+                    self.assertEqual(seeks['beforeRelease'], 0)
+                    self.assertEqual(seeks['count'], 1)
+                    self.assertEqual(seeks['target'], seeks['duration'])
+                    drag = page.evaluate('''() => {
+                        const original = applyMediaSeek;
+                        const targets = [];
+                        applyMediaSeek = value => targets.push(value);
+                        const slider = player.elements.inputs.seek;
+                        try {
+                            slider.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
+                            for (const value of [20, 40, 60]) {
+                                slider.value = value;
+                                slider.dispatchEvent(new Event('input', {bubbles:true}));
+                            }
+                            const during = targets.length;
+                            window.dispatchEvent(new PointerEvent('pointerup'));
+                            return {during, count:targets.length, target:targets[0], duration:player.duration};
+                        } finally { applyMediaSeek = original; }
+                    }''')
+                    self.assertEqual(drag['during'], 0)
+                    self.assertEqual(drag['count'], 1)
+                    self.assertAlmostEqual(drag['target'], drag['duration'] * .6)
                     before = page.evaluate("player.currentTime")
                     progress = page.locator(".plyr__progress").bounding_box()
                     page.locator('.plyr__progress').hover(position={"x": progress["width"] * .6,
@@ -217,7 +252,8 @@ class SeekPreviewTests(unittest.TestCase):
                     except Exception:
                         self.fail(str({"errors": errors, "preview": page.evaluate("({loaded:player.previewThumbnails.loaded, time:player.previewThumbnails.seekTime, html:player.elements.progress.outerHTML})")}))
                     self.assertAlmostEqual(page.evaluate("player.currentTime"), before, delta=.1)
-                    dimensions = page.locator('.plyr__preview-thumb__image-container').bounding_box()
+                    dimensions = page.locator('.plyr__preview-thumb__image-container').evaluate(
+                        "el => ({width:el.offsetWidth, height:el.offsetHeight})")
                     self.assertAlmostEqual(dimensions['width'], 291.2 if mobile else 349.44, delta=1)
                     self.assertAlmostEqual(dimensions['height'], 163.8 if mobile else 196.56, delta=1)
                     if mobile:
@@ -243,6 +279,33 @@ class SeekPreviewTests(unittest.TestCase):
                     page.evaluate("switchEpisode('two.mp4', {autoplay:true, pushState:false})")
                     page.wait_for_function("player.currentTime > 2")
                     self.assertEqual(page.locator(".plyr__preview-thumb").count(), 0)
+                    recovery = page.evaluate('''() => {
+                        const originalTimeout = window.setTimeout;
+                        const originalLoad = videoElement.load;
+                        let callback, loads = 0;
+                        const before = videoElement.currentTime;
+                        window.setTimeout = (fn, ms) => {
+                            if (ms === 15000) { callback = fn; return 0; }
+                            return originalTimeout(fn, ms);
+                        };
+                        videoElement.load = () => { loads++; };
+                        try {
+                            armStreamRecovery();
+                            if (!callback) throw new Error('Recovery was not armed');
+                            callback();
+                            callback = null;
+                            armStreamRecovery();
+                            return {loads, used:recoveryUsed, rearmed:!!callback,
+                                    before, after:videoElement.currentTime};
+                        } finally {
+                            window.setTimeout = originalTimeout;
+                            videoElement.load = originalLoad;
+                        }
+                    }''')
+                    self.assertEqual(recovery['loads'], 1)
+                    self.assertTrue(recovery['used'])
+                    self.assertFalse(recovery['rearmed'])
+                    self.assertAlmostEqual(recovery['before'], recovery['after'], delta=.1)
                     self.assertEqual(errors, [])
                     context.close()
         finally:

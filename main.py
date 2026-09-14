@@ -1471,49 +1471,87 @@ def fetch_tenrai_json(path, params=None):
         app_log(f"Tenrai request error for {path}: {error}", "WARN")
         return None
 
+SEASON_TITLE_PATTERN = re.compile(
+    r"\b(?:season\s*|s)(\d+)\b|\b(\d+)(?:st|nd|rd|th)\s+season\b", re.I)
+
+
+def metadata_title_parts(title):
+    title = str(title or "")
+    match = SEASON_TITLE_PATTERN.search(title)
+    number = int(next(value for value in match.groups() if value)) if match else 0
+    base = SEASON_TITLE_PATTERN.sub(" ", title)
+    return " ".join(re.findall(r"[^\W_]+", base.casefold())), number
+
+
+def select_season_candidate(query, candidates):
+    """Require title identity before considering season numbers; fail closed."""
+    base, season = metadata_title_parts(query)
+    if not base or not season:
+        return None
+    related = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        titles = [item.get(key) for key in ("title", "romaji_title", "native_title")]
+        titles += item.get("synonyms") or []
+        matches = []
+        for title in titles:
+            name, number = metadata_title_parts(title)
+            # Shared generic words such as "Season" are excluded from scoring.
+            if name and (name == base or name.startswith(base + " ")
+                         or SequenceMatcher(None, name, base).ratio() >= .9):
+                matches.append((name, number))
+        if matches:
+            related.append((item, matches))
+    explicit = [item for item, matches in related
+                if any(number == season for _, number in matches)]
+    if len(explicit) == 1:
+        return explicit[0]
+    if explicit:
+        return None
+    originals = [item for item, matches in related
+                 if any(name == base and number == 0 for name, number in matches)
+                 and not any(number > 1 for _, number in matches)
+                 and item.get("format") in ("TV", "TV_SHORT")]
+    if season == 1:
+        return originals[0] if len(originals) == 1 else None
+    # A subtitle is not itself proof of season order. Only accept a unique
+    # second TV installment directly related to the identified original.
+    if season == 2 and len(originals) == 1:
+        original = originals[0]
+        linked = []
+        for item, matches in related:
+            if item is original or item.get("format") != "TV" or any(n for _, n in matches):
+                continue
+            if not item.get("year") or not original.get("year") or item["year"] <= original["year"]:
+                continue
+            edges = original.get("metadata_relations") or []
+            if any(edge.get("relationType") in ("SEQUEL", "SIDE_STORY")
+                   and (edge.get("node") or {}).get("id") == item.get("anilist_id") for edge in edges):
+                linked.append(item)
+        return linked[0] if len(linked) == 1 else None
+    return None
+
+
 def get_tenrai_anime_info(anime_name, mal_id=None):
     """Fetch and adapt one Tenrai/MAL anime record for the AniBase contract."""
     normalized_mal_id = normalize_provider_id(mal_id)
     if normalized_mal_id is not None:
         anime_payload = fetch_tenrai_json(f"/anime/{normalized_mal_id}/full")
     else:
-        search_payload = fetch_tenrai_json("/anime", {"q": anime_name, "limit": 5})
+        base, requested_season = metadata_title_parts(anime_name)
+        search_payload = fetch_tenrai_json("/anime", {"q": base if requested_season else anime_name, "limit": 20})
         candidates = unwrap_tenrai_data(search_payload)
         if not isinstance(candidates, list) or not candidates:
             return None
-        # Search ranking often puts the currently airing sequel before the
-        # original season (for example, Frieren Season 2 before Season 1).
-        # When the query contains a season number, prefer a result whose title
-        # explicitly matches that number and reject an explicit sequel for S1.
-        season_match = re.search(
-            r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
-            anime_name,
-            flags=re.IGNORECASE,
-        )
-        requested_season = int(next((group for group in (season_match.groups() if season_match else ()) if group), 0) or 0)
-
-        def candidate_score(item):
-            if not isinstance(item, dict):
-                return -1000
-            title = " ".join(
-                str(item.get(key) or "")
-                for key in ("title_english", "title")
-            ).lower()
-            if not requested_season:
-                return 0
-            explicit_season = re.search(
-                r"(?:season|s)\s*([0-9]+)|([0-9]+)(?:st|nd|rd|th)\s*season",
-                title,
-                flags=re.IGNORECASE,
-            )
-            title_season = int(next((group for group in (explicit_season.groups() if explicit_season else ()) if group), 0) or 0)
-            if title_season == requested_season:
-                return 100
-            if requested_season == 1 and title_season > 1:
-                return -100
-            return 5 if title_season == 0 else -25
-
-        candidate = max(candidates, key=candidate_score)
+        if requested_season:
+            choices = [{**item, "title": item.get("title_english") or item.get("title"),
+                        "romaji_title": item.get("title"), "synonyms": item.get("title_synonyms") or [],
+                        "format": normalize_tenrai_format(item.get("type"))}
+                       for item in candidates if isinstance(item, dict)]
+            candidate = select_season_candidate(anime_name, choices)
+        else:
+            candidate = candidates[0]
         candidate = candidate if isinstance(candidate, dict) else None
         normalized_mal_id = normalize_provider_id((candidate or {}).get("mal_id"))
         if normalized_mal_id is None:
@@ -1525,7 +1563,10 @@ def get_tenrai_anime_info(anime_name, mal_id=None):
         return None
     characters_payload = fetch_tenrai_json(f"/anime/{normalized_mal_id}/characters")
     recommendations_payload = fetch_tenrai_json(f"/anime/{normalized_mal_id}/recommendations")
-    return adapt_tenrai_anime_metadata(anime_payload, characters_payload, recommendations_payload)
+    info = adapt_tenrai_anime_metadata(anime_payload, characters_payload, recommendations_payload)
+    if info and mal_id is None and metadata_title_parts(anime_name)[1]:
+        info["season_match_version"] = 1
+    return info
 
 def get_metadata_mapping(anime_name, settings=None):
     settings = settings if isinstance(settings, dict) else load_settings()
@@ -2690,6 +2731,17 @@ def get_anilist_info(anime_name, anilist_id=None, mal_id=None):
     # response with no matching title.  A missing title must not put the
     # primary provider into the global outage cooldown.
     ANILIST_CALL_STATE.last_error = True
+    automatic_season = not anilist_id and not mal_id and metadata_title_parts(anime_name)[1]
+    if automatic_season:
+        base, _ = metadata_title_parts(anime_name)
+        candidates, error = search_anilist_anime(base, limit=20)
+        ANILIST_CALL_STATE.last_error = bool(error)
+        if error:
+            return None
+        candidate = select_season_candidate(anime_name, candidates)
+        if not candidate:
+            return None
+        anilist_id = candidate["anilist_id"]
 
     query = """
     query ($search: String, $id: Int) {
@@ -2903,6 +2955,8 @@ def get_anilist_info(anime_name, anilist_id=None, mal_id=None):
         })
         ANILIST_CALL_STATE.last_error = False
         mark_anilist_available()
+        if automatic_season:
+            metadata["season_match_version"] = 1
         return metadata
 
     except Exception as e:
@@ -2921,6 +2975,8 @@ def search_anilist_anime(query_text, limit=12):
           id
           idMal
           title { romaji english native }
+          synonyms
+          relations { edges { relationType node { id } } }
           coverImage { large }
           format
           status
@@ -2973,6 +3029,8 @@ def search_anilist_anime(query_text, limit=12):
                 "title": title,
                 "romaji_title": titles.get("romaji"),
                 "native_title": titles.get("native"),
+                "synonyms": media.get("synonyms") or [],
+                "metadata_relations": (media.get("relations") or {}).get("edges") or [],
                 "poster": (media.get("coverImage") or {}).get("large"),
                 "format": media.get("format"),
                 "status": media.get("status"),
@@ -3172,11 +3230,19 @@ def get_thumbnail_result(video_path):
                 [
                     "ffmpeg",
                     "-y",
+                    "-threads",
+                    "1",
                     "-ss",
                     format_timestamp(seek_point),
                     "-i",
                     video_path,
                     "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=640:-2:force_original_aspect_ratio=decrease",
+                    "-filter_threads",
+                    "1",
+                    "-threads",
                     "1",
                     "-q:v",
                     "2",
@@ -4225,6 +4291,13 @@ def get_cached_anilist_info(
     manual_mapping = get_metadata_mapping(anime_name)
     mapped_anilist_id = manual_mapping.get("anilist_id") if manual_mapping else None
     mapped_mal_id = manual_mapping.get("mal_id") if manual_mapping else None
+    automatic_season = bool(metadata_title_parts(anime_name)[1]
+                            and not (manual_mapping and manual_mapping.get("manual") is True))
+    if automatic_season:
+        # Old automatically persisted provider IDs may themselves be the bad
+        # match. Re-select from titles rather than trusting that ID forever.
+        mapped_anilist_id = None
+        mapped_mal_id = None
     manual_tenrai_override = bool(
         manual_mapping
         and manual_mapping.get("provider") == TENRAI_METADATA_PROVIDER
@@ -4245,7 +4318,11 @@ def get_cached_anilist_info(
                 info = normalize_anime_metadata_identity(info)
                 info, expired_next_airing = remove_expired_next_airing(info)
                 pruned_info = info
-                if mapped_anilist_id and info.get("anilist_id") != mapped_anilist_id:
+                if automatic_season and info.get("season_match_version") != 1:
+                    info = None
+                    pruned_info = None
+                    expired_next_airing = False
+                if mapped_anilist_id and info and info.get("anilist_id") != mapped_anilist_id:
                     info = None
                 if manual_tenrai_override and info and info.get("metadata_provider") != TENRAI_METADATA_PROVIDER:
                     info = None

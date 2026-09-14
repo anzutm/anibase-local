@@ -28,6 +28,7 @@ const player = new Plyr(videoElement, {
     seekTime: 5,
     iconUrl: window.PLYR_ICON_URL || '/static/plyr.svg',
     keyboard: { focused: true, global: true },
+    listeners: { seek: handleTimelineSeek },
     captions: { active: true, update: true, language: 'und' }
 });
 const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
@@ -200,6 +201,36 @@ function applyMediaSeek(targetTime) {
     player.currentTime = targetTime;
 }
 
+let timelineDragging = false;
+let timelineTarget = null;
+function handleTimelineSeek(event) {
+    const input = event.currentTarget;
+    const duration = Number(player.duration);
+    if (!Number.isFinite(duration) || duration <= 0) return false;
+    input.removeAttribute('seek-value');
+    timelineTarget = Math.max(0, Math.min(duration, Number(input.value) / Number(input.max) * duration));
+    clearTimeout(seekFeedbackState.seekTimer);
+    seekFeedbackState.targetTime = null;
+    if (!timelineDragging) commitTimelineSeek();
+    return false; // Suppress Plyr's per-input media seek, preserving its UI.
+}
+function commitTimelineSeek() {
+    timelineDragging = false;
+    if (timelineTarget === null) return;
+    applyMediaSeek(timelineTarget);
+    timelineTarget = null;
+}
+window.addEventListener('pointerdown', event => {
+    if (event.target.matches?.('input[data-plyr="seek"]')) {
+        timelineDragging = true;
+        timelineTarget = null;
+        cancelRecoveryTimer();
+    }
+}, true);
+window.addEventListener('pointerup', commitTimelineSeek, true);
+window.addEventListener('pointercancel', commitTimelineSeek, true);
+window.addEventListener('blur', commitTimelineSeek);
+
 function seekByShortcut(direction) {
     const duration = Number(player.duration || videoElement.duration || 0);
     const currentTime = seekFeedbackState.targetTime === null
@@ -213,26 +244,67 @@ function seekByShortcut(direction) {
 
     const targetIsBuffered = isSeekTargetBuffered(seekFeedbackState.targetTime);
 
-    if (targetIsBuffered) {
-        // A nearby buffered target can move immediately without another Range request.
-        clearTimeout(seekFeedbackState.seekTimer);
-        applyMediaSeek(seekFeedbackState.targetTime);
-        seekFeedbackState.targetTime = null;
-        showSeekFeedback(direction);
-        return;
-    }
-
-    // Coalesce repeated presses into one media seek. This avoids issuing a new
-    // HTTP Range request for every 5-second step when a shortcut is spammed.
+    // Buffered bytes still need decoding. Coalesce BOTH buffered and unbuffered
+    // seeks so keyboard repeat cannot repeatedly interrupt the decoder.
     clearTimeout(seekFeedbackState.seekTimer);
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
             applyMediaSeek(seekFeedbackState.targetTime);
             seekFeedbackState.targetTime = null;
         }
-    }, 140);
+    }, targetIsBuffered ? 100 : 180);
     showSeekFeedback(direction);
 }
+
+window.addEventListener('keyup', event => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    if (seekFeedbackState.targetTime === null) return;
+    clearTimeout(seekFeedbackState.seekTimer);
+    applyMediaSeek(seekFeedbackState.targetTime);
+    seekFeedbackState.targetTime = null;
+});
+
+// Recover one stalled media connection without restarting the server. A second
+// stall in the same episode is left visible rather than entering a reload loop.
+let recoveryTimer = null;
+let recoveryUsed = false;
+let mediaLoadController = new AbortController();
+function cancelRecoveryTimer() {
+    clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+}
+function armStreamRecovery() {
+    if (recoveryUsed || videoElement.paused || videoElement.ended || videoElement.error) return;
+    cancelRecoveryTimer();
+    const episode = window.EPISODE_PATH;
+    const position = videoElement.currentTime;
+    recoveryTimer = setTimeout(() => {
+        if (episode !== window.EPISODE_PATH || videoElement.paused || videoElement.ended
+            || videoElement.error || Math.abs(videoElement.currentTime - position) > .25) return;
+        recoveryUsed = true;
+        const target = seekFeedbackState.targetTime ?? videoElement.currentTime;
+        clearTimeout(seekFeedbackState.seekTimer);
+        seekFeedbackState.targetTime = null;
+        const signal = mediaLoadController.signal;
+        videoElement.addEventListener('loadedmetadata', () => {
+            const duration = videoElement.duration;
+            videoElement.currentTime = Math.max(0, Number.isFinite(duration)
+                ? Math.min(target, Math.max(0, duration - .1)) : target);
+            videoElement.play().catch(() => {});
+        }, { once: true, signal });
+        showScreenshotToast('Reconnecting video…', { duration: 2500 });
+        videoElement.load();
+    }, 15000);
+}
+videoElement.addEventListener('waiting', armStreamRecovery);
+videoElement.addEventListener('stalled', armStreamRecovery);
+videoElement.addEventListener('seeking', armStreamRecovery);
+videoElement.addEventListener('playing', cancelRecoveryTimer);
+videoElement.addEventListener('play', () => {
+    if (videoElement.seeking || videoElement.readyState < 3) armStreamRecovery();
+});
+videoElement.addEventListener('pause', cancelRecoveryTimer);
+window.addEventListener('pagehide', cancelRecoveryTimer);
 
 // Pindahkan toast ke dalam kontainer Plyr agar terlihat saat fullscreen
 player.on('ready', () => {
@@ -248,10 +320,11 @@ player.on('ready', () => {
 
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
     if (window.RESUME_TIME > 0) {
-        // Gunakan event 'canplay' agar seeking dilakukan saat video sudah siap
-        player.once('canplay', () => {
-            player.currentTime = window.RESUME_TIME;
-        });
+        // Seek once metadata is available, before waiting for the first frame.
+        const resume = () => { player.currentTime = window.RESUME_TIME; };
+        if (videoElement.readyState >= 1) resume();
+        else videoElement.addEventListener('loadedmetadata', resume,
+            { once: true, signal: mediaLoadController.signal });
     }
 });
 
@@ -562,19 +635,29 @@ function switchEpisode(episodePath, options = {}) {
     if (watchProgressInterval) clearInterval(watchProgressInterval);
 
     isSoftSwitching = true;
+    timelineDragging = false;
+    timelineTarget = null;
+    cancelRecoveryTimer();
+    recoveryUsed = false;
+    mediaLoadController.abort();
+    mediaLoadController = new AbortController();
+    clearTimeout(seekFeedbackState.seekTimer);
+    seekFeedbackState.targetTime = null;
     resetSeekPreview();
     updatePlayerEpisodeState(episodePath);
     showEpisodeSwitchNotice(`Loading ${window.CURRENT_EP_DISPLAY_NAME || `Episode ${window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM}`}...`);
 
-    player.once('canplay', () => {
+    const resumeTime = window.RESUME_TIME;
+    videoElement.addEventListener('loadedmetadata', () => {
+        if (resumeTime > 0) player.currentTime = resumeTime;
+        if (shouldAutoplay) player.play().catch(() => {});
+    }, { once: true, signal: mediaLoadController.signal });
+    videoElement.addEventListener('canplay', () => {
         isSoftSwitching = false;
         hideEpisodeSwitchNotice();
         const playerContainer = document.querySelector('.video-player-container');
         if (playerContainer) {
             playerContainer.style.borderColor = '';
-        }
-        if (window.RESUME_TIME > 0) {
-            player.currentTime = window.RESUME_TIME;
         }
         updateStatus();
         sendWatchProgress();
@@ -582,13 +665,15 @@ function switchEpisode(episodePath, options = {}) {
         if (shouldAutoplay) {
             player.play().catch(() => {});
         }
-    });
+    }, { once: true, signal: mediaLoadController.signal });
 
     sourceElement.src = getStreamUrl(episodePath);
     replaceSubtitleTrack(getSubtitleUrl(episodePath));
     videoElement.load();
 
+    const switchingEpisode = episodePath;
     window.setTimeout(() => {
+        if (window.EPISODE_PATH !== switchingEpisode) return;
         isSoftSwitching = false;
         hideEpisodeSwitchNotice();
     }, 15000);
