@@ -4,7 +4,7 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='40') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='42') }}">
 {% endblock %}
 {% block content %}
 <div class="home-intro">
@@ -347,69 +347,16 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='home-motion.js', v='2') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const slides = document.querySelectorAll('.featured-slide');
-        const dots = document.querySelectorAll('.dot');
-        let currentSlide = 0;
-
-        function showSlide(index) {
-            if (!slides[currentSlide] || !dots[currentSlide] || !slides[index] || !dots[index]) {
-                return;
-            }
-
-            slides[currentSlide].classList.remove('active');
-            slides[currentSlide].setAttribute('aria-hidden', 'true');
-            slides[currentSlide].inert = true;
-            dots[currentSlide].setAttribute('aria-pressed', 'false');
-            dots[currentSlide].classList.remove('active');
-            currentSlide = index;
-            slides[currentSlide].classList.add('active');
-            slides[currentSlide].setAttribute('aria-hidden', 'false');
-            slides[currentSlide].inert = false;
-            dots[currentSlide].setAttribute('aria-pressed', 'true');
-            dots[currentSlide].classList.add('active');
-        }
-
-        if (slides.length > 1) {
-            let autoplayTimer = null;
-
-            function startAutoplay() {
-                autoplayTimer = setInterval(() => {
-                    showSlide((currentSlide + 1) % slides.length);
-                }, 5000);
-            }
-
-            function stopAutoplay() {
-                clearInterval(autoplayTimer);
-            }
-
-            dots.forEach((dot, idx) => {
-                dot.addEventListener('click', () => {
-                    stopAutoplay();
-                    showSlide(idx);
-                    startAutoplay();
-                });
-            });
-
-            const spotlightEl = document.querySelector('.home-spotlight');
-            if (spotlightEl) {
-                spotlightEl.addEventListener('mouseenter', stopAutoplay);
-                spotlightEl.addEventListener('mouseleave', startAutoplay);
-                spotlightEl.addEventListener('focusin', stopAutoplay);
-                spotlightEl.addEventListener('focusout', startAutoplay);
-            }
-
-            startAutoplay();
-        }
-
         const continueSectionTarget = document.getElementById('continueWatchingSection');
         document.querySelectorAll('.home-secondary-action[href="#continueWatchingSection"]').forEach(link => {
             link.addEventListener('click', function(event) {
                 if (!continueSectionTarget) return;
                 event.preventDefault();
                 const top = continueSectionTarget.getBoundingClientRect().top + window.scrollY - 112;
-                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                window.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
                 history.replaceState(null, '', '#continueWatchingSection');
             });
         });
@@ -541,13 +488,6 @@
 
                 if (matchesSearch && matchesStatus && matchesWatchStatus) {
                     card.style.display = "flex";
-                    card.classList.remove('filter-item');
-                    void card.offsetWidth;
-
-                    const delay = Math.min(visibleCount * 0.05, 0.8);
-                    card.style.animation = `slideUpReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s forwards`;
-                    card.style.opacity = '0';
-                    card.classList.add('filter-item');
                     visibleCount++;
                 } else {
                     card.style.display = "none";
@@ -558,6 +498,7 @@
             if (libraryFilterEmpty) {
                 libraryFilterEmpty.hidden = isLibraryEmpty ? false : visibleCount > 0;
             }
+            document.dispatchEvent(new Event('home:filtered'));
 
         }
 

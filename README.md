@@ -145,6 +145,17 @@ Complete the **Developer** setup first. Builds are validated against Python
 
 **Step 2: Build the Release**
 
+Check prerequisites and runtime assets first (this does not run PyInstaller,
+create an archive, or change existing build/release output):
+
+```powershell
+python build.py --check
+```
+
+For source-only prerequisites, use `python build.py --source-only --check`.
+To run source validation and unit tests without requiring a built release,
+use `python release_check.py --project-only`.
+
 ```powershell
 python build.py v1.0.0 --exe-only
 ```
@@ -152,6 +163,20 @@ python build.py v1.0.0 --exe-only
 `--exe-only` stops with an error if PyInstaller, FFmpeg, or FFprobe is missing.
 Without that option, `build.py` falls back to a source release. Use
 `python build.py v1.0.0 --source-only` when a source package is intentional.
+The two release modes cannot be combined. Source packages require Python and
+FFmpeg/FFprobe installed on the destination machine.
+
+Executable releases bundle the local ASS renderer (JavaScript + WebAssembly),
+Inter fallback font, licenses, and Home animation assets inside `_internal`.
+The builder validates required assets and compares all packaged templates and
+static files against the source before replacing the previous release folder.
+Compilation uses `build/AniBase` and `dist/AniBase`; other output folders are
+left alone. Windows shared FFmpeg distributions also have their sibling DLLs
+copied to `tools`.
+
+After building, run `python release_check.py` to check the latest executable
+release, including its player assets. A source-only package is not an executable
+release and should be checked with `--project-only` instead.
 
 **Step 3: Locate the Release Output**
 

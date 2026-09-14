@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import sys
 import platform
+import hashlib
+import tempfile
 from pathlib import Path
 
 
@@ -26,6 +28,64 @@ SOURCE_RELEASE_FILES = (
     "THIRD_PARTY_NOTICES.md",
 )
 SOURCE_RELEASE_DIRS = ("templates", "static")
+REQUIRED_ASSETS = (
+    'templates/index.html', 'templates/anime.html', 'templates/player.html',
+    'templates/setup.html', 'templates/setup_loading.html',
+    'static/home-motion.js', 'static/home.css', 'static/player.js',
+    'static/subtitles.js', 'static/subtitles.css',
+    'static/plyr.js', 'static/plyr.css', 'static/plyr.svg',
+    'static/vendor/subtitles-octopus/subtitles-octopus.js',
+    'static/vendor/subtitles-octopus/subtitles-octopus-worker.js',
+    'static/vendor/subtitles-octopus/subtitles-octopus-worker.wasm',
+    'static/vendor/subtitles-octopus/InterVariable.woff2',
+    'static/vendor/subtitles-octopus/default.woff2',
+    'static/vendor/subtitles-octopus/LICENSE',
+    'static/vendor/subtitles-octopus/COPYRIGHT',
+    'static/vendor/subtitles-octopus/INTER-OFL.txt',
+)
+
+
+def validate_assets(resource_dir):
+    missing = [name for name in REQUIRED_ASSETS
+               if not (resource_dir / name).is_file() or (resource_dir / name).stat().st_size == 0]
+    if missing:
+        raise FileNotFoundError('Aset aplikasi hilang/kosong: ' + ', '.join(missing))
+    # Catch failed downloads (HTML error pages saved with a binary extension).
+    for name, signature in (
+        ('static/vendor/subtitles-octopus/subtitles-octopus-worker.wasm', b'\x00asm'),
+        ('static/vendor/subtitles-octopus/InterVariable.woff2', b'wOF2'),
+        ('static/vendor/subtitles-octopus/default.woff2', b'wOF2'),
+    ):
+        with (resource_dir / name).open('rb') as handle:
+            if handle.read(4) != signature:
+                raise ValueError(f'Format aset tidak valid: {name}')
+
+
+def validate_packaged_assets(release_dir, executable=True):
+    resource_dir = release_dir / '_internal' if executable else release_dir
+    validate_assets(resource_dir)
+    for dirname in SOURCE_RELEASE_DIRS:
+        for source in (PROJECT_ROOT / dirname).rglob('*'):
+            if not source.is_file():
+                continue
+            target = resource_dir / source.relative_to(PROJECT_ROOT)
+            if not target.is_file():
+                raise FileNotFoundError(f'Aset tidak ikut paket: {source.relative_to(PROJECT_ROOT)}')
+            with source.open('rb') as original, target.open('rb') as bundled:
+                if hashlib.file_digest(original, 'sha256').digest() != hashlib.file_digest(bundled, 'sha256').digest():
+                    raise ValueError(f'Aset paket berbeda dari source: {source.relative_to(PROJECT_ROOT)}')
+
+
+def preflight(source_only=False):
+    ensure_supported_build_python()
+    for filename in SOURCE_RELEASE_FILES:
+        if not (PROJECT_ROOT / filename).is_file():
+            raise FileNotFoundError(f'File project wajib hilang: {filename}')
+    validate_assets(PROJECT_ROOT)
+    if not source_only:
+        ensure_pyinstaller()
+        find_media_tool('ffmpeg')
+        find_media_tool('ffprobe')
 
 
 def default_version():
@@ -42,12 +102,19 @@ def normalize_version(version):
         normalized in {".", ".."}
         or ".." in normalized
         or re.search(r'[<>:"/\\|?*]', normalized)
+        or any(ord(char) < 32 for char in normalized)
+        or normalized.endswith('.')
     ):
         raise ValueError("Versi release mengandung karakter path Windows yang tidak aman.")
     return normalized
 
 
 def remove_path(path):
+    path = Path(path)
+    resolved = path.resolve()
+    roots = [root.resolve() for root in (BUILD_DIR, DIST_DIR, RELEASES_DIR)]
+    if resolved in roots or not any(resolved.is_relative_to(root) for root in roots):
+        raise ValueError(f'Menolak menghapus path di luar output AniBase: {path}')
     if path.exists():
         if path.is_dir():
             shutil.rmtree(path)
@@ -97,10 +164,6 @@ def ensure_pyinstaller():
         )
 
 
-def pyinstaller_data_arg(path):
-    return f"{path}{os.pathsep}{path}"
-
-
 def run_pyinstaller():
     command = [
         sys.executable,
@@ -110,18 +173,22 @@ def run_pyinstaller():
         "--clean",
         "--onedir",
         "--windowed",
+        "--contents-directory", "_internal",
+        "--workpath", str(BUILD_DIR / APP_NAME),
+        "--specpath", str(BUILD_DIR / APP_NAME),
+        "--distpath", str(DIST_DIR),
         "--name",
         APP_NAME,
         "--add-data",
-        pyinstaller_data_arg("templates"),
+        f"{PROJECT_ROOT / 'templates'}{os.pathsep}templates",
         "--add-data",
-        pyinstaller_data_arg("static"),
-        ENTRYPOINT,
+        f"{PROJECT_ROOT / 'static'}{os.pathsep}static",
+        str(PROJECT_ROOT / ENTRYPOINT),
     ]
 
     icon_path = PROJECT_ROOT / "static" / "favicon.ico"
     if icon_path.exists():
-        command[command.index(ENTRYPOINT):command.index(ENTRYPOINT)] = [
+        command[-1:-1] = [
             "--icon",
             str(icon_path),
         ]
@@ -148,9 +215,21 @@ def bundle_media_tools(release_dir):
     suffix = ".exe" if os.name == "nt" else ""
     shutil.copy2(ffmpeg, tools_dir / f"ffmpeg{suffix}")
     shutil.copy2(ffprobe, tools_dir / f"ffprobe{suffix}")
+    # Shared Windows FFmpeg builds need the DLLs shipped alongside their executables.
+    if os.name == 'nt':
+        for directory in {ffmpeg.parent, ffprobe.parent}:
+            for library in directory.glob('*.dll'):
+                target = tools_dir / library.name
+                if target.exists() and target.read_bytes() != library.read_bytes():
+                    raise RuntimeError(f'FFmpeg/FFprobe memakai DLL yang berbeda: {library.name}')
+                shutil.copy2(library, target)
 
     license_candidates = (
         ffmpeg.parent.parent / "LICENSE",
+        ffmpeg.parent / "LICENSE",
+        ffmpeg.parent.parent / "LICENSE.txt",
+        ffmpeg.parent / "LICENSE.txt",
+        ffmpeg.parent.parent / "COPYING.GPLv3",
         Path("/usr/share/doc/ffmpeg/copyright"),
     )
     license_path = next((path for path in license_candidates if path.is_file()), None)
@@ -203,9 +282,12 @@ def create_source_release(release_dir):
         "cd /d \"%~dp0\"\n"
         "if not exist .venv (\n"
         "  py -3.12 -m venv .venv\n"
+        "  if errorlevel 1 exit /b 1\n"
         ")\n"
         "call .venv\\Scripts\\activate.bat\n"
+        "if errorlevel 1 exit /b 1\n"
         "python -m pip install -r requirements.txt\n"
+        "if errorlevel 1 exit /b 1\n"
         "python main.py\n",
     )
 
@@ -216,18 +298,21 @@ def create_source_release(release_dir):
         "cd /d \"%~dp0\"\n"
         "if not exist .venv (\n"
         "  py -3.12 -m venv .venv\n"
+        "  if errorlevel 1 exit /b 1\n"
         ")\n"
         "call .venv\\Scripts\\activate.bat\n"
+        "if errorlevel 1 exit /b 1\n"
         "python -m pip install -r requirements.txt\n"
+        "if errorlevel 1 exit /b 1\n"
         "pythonw tray_ui.py\n",
     )
 
 
 def build_exe_release(release_dir):
-    ensure_pyinstaller()
+    preflight()
 
-    remove_path(BUILD_DIR)
-    remove_path(DIST_DIR)
+    remove_path(BUILD_DIR / APP_NAME)
+    remove_path(DIST_DIR / APP_NAME)
 
     run_pyinstaller()
 
@@ -237,6 +322,7 @@ def build_exe_release(release_dir):
 
     copy_exe_release_files(built_app_dir, release_dir)
     bundle_media_tools(release_dir)
+    validate_packaged_assets(release_dir)
     return True
 
 
@@ -275,43 +361,60 @@ def main():
         action="store_true",
         help="Jangan hapus folder build/dist sementara setelah selesai.",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--source-only",
         action="store_true",
         help="Buat release source siap jalan tanpa PyInstaller.",
     )
-    parser.add_argument(
+    mode.add_argument(
         "--exe-only",
         action="store_true",
         help="Wajib build executable; jangan fallback ke source release.",
     )
+    parser.add_argument('--check', action='store_true',
+                        help='Periksa syarat build dan aset saja; tidak membuat atau menghapus output.')
     args = parser.parse_args()
 
     ensure_supported_build_python()
     version = normalize_version(args.version)
     release_dir = RELEASES_DIR / f"{APP_NAME} {version}"
 
+    if args.check:
+        preflight(source_only=args.source_only)
+        print('Pemeriksaan berhasil. Tidak ada build atau perubahan output.')
+        return 0
+
+    # Validate shared inputs before starting a build or replacing an existing release.
+    preflight(source_only=True)
+
     if not (PROJECT_ROOT / ENTRYPOINT).exists():
         raise FileNotFoundError(f"Entry point tidak ditemukan: {ENTRYPOINT}")
 
     print(f"Building {APP_NAME} {version}...")
     built_exe = False
-    if args.source_only:
-        create_source_release(release_dir)
-    else:
-        try:
-            built_exe = build_exe_release(release_dir)
-        except Exception as error:
-            print(f"Build executable gagal: {error}", file=sys.stderr)
-            if args.exe_only:
-                return 1
-            print("Membuat source release sebagai fallback...")
-            create_source_release(release_dir)
+    RELEASES_DIR.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.anibase-staging-', dir=RELEASES_DIR) as staging:
+        staged_release = Path(staging) / APP_NAME
+        if args.source_only:
+            create_source_release(staged_release)
+        else:
+            try:
+                built_exe = build_exe_release(staged_release)
+            except Exception as error:
+                print(f"Build executable gagal: {error}", file=sys.stderr)
+                if args.exe_only:
+                    return 1
+                print("Membuat source release sebagai fallback...")
+                create_source_release(staged_release)
+        validate_packaged_assets(staged_release, executable=built_exe)
+        # Keep the previous release until compilation, copying and validation succeed.
+        remove_path(release_dir)
+        staged_release.replace(release_dir)
 
     if not args.keep_temp:
-        remove_path(BUILD_DIR)
-        remove_path(DIST_DIR)
-        remove_path(PROJECT_ROOT / f"{APP_NAME}.spec")
+        remove_path(BUILD_DIR / APP_NAME)
+        remove_path(DIST_DIR / APP_NAME)
 
     release_type = "executable" if built_exe else "source"
     print(f"Build {release_type} selesai: {release_dir}")

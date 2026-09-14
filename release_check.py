@@ -2,7 +2,10 @@ import py_compile
 import subprocess
 import sys
 import os
+import argparse
 from pathlib import Path
+
+from build import validate_assets
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -16,7 +19,7 @@ REQUIRED_PORTABLE_TOOLS = (
     f"tools/ffprobe{TOOL_SUFFIX}",
     "tools/FFMPEG_LICENSE.txt",
 )
-COMPILE_TARGETS = ("main.py", "tray_ui.py", "build.py")
+COMPILE_TARGETS = ("main.py", "tray_ui.py", "build.py", "release_check.py")
 PRIVATE_RUNTIME_FILES = {
     "settings.json",
     "library.db",
@@ -137,19 +140,38 @@ def check_portable_media_tools():
     return ", ".join(REQUIRED_PORTABLE_TOOLS)
 
 
+def check_project_assets():
+    validate_assets(PROJECT_ROOT)
+    return 'template, Home motion, player ASS/WASM, font Inter dan lisensi lengkap'
+
+
+def check_release_assets():
+    validate_assets(latest_release_dir() / '_internal')
+    return 'aset runtime _internal lengkap; header WASM/WOFF2 valid'
+
+
 def main():
+    parser = argparse.ArgumentParser(description='Periksa project atau release AniBase tanpa menjalankan build.')
+    parser.add_argument('--project-only', action='store_true',
+                        help='Periksa source dan unit test tanpa memerlukan folder release.')
+    args = parser.parse_args()
     print("AniBase release check")
     print("=" * 22)
 
     checks = [
         ("py_compile", compile_targets),
         ("unit tests", run_unit_tests),
-        ("latest release folder", check_latest_release_folder),
-        (f"{EXE_NAME} exists", check_executable),
-        ("portable FFmpeg/FFprobe exist", check_portable_media_tools),
-        ("no private runtime files bundled", check_no_private_runtime_files),
-        ("release docs/licenses exist", check_required_release_files),
+        ("project runtime assets", check_project_assets),
     ]
+    if not args.project_only:
+        checks += [
+            ("latest release folder", check_latest_release_folder),
+            (f"{EXE_NAME} exists", check_executable),
+            ("portable FFmpeg/FFprobe exist", check_portable_media_tools),
+            ("no private runtime files bundled", check_no_private_runtime_files),
+            ("release docs/licenses exist", check_required_release_files),
+            ("release player/Home assets", check_release_assets),
+        ]
 
     results = [run_step(label, func) for label, func in checks]
     passed = sum(1 for ok in results if ok)
@@ -157,7 +179,8 @@ def main():
 
     print("=" * 22)
     if all(results):
-        print(f"SUMMARY: PASS ({passed}/{total}) - release aman untuk dicek sebelum GitHub Release.")
+        detail = 'source project tervalidasi; paket release belum diperiksa' if args.project_only else 'pemeriksaan paket release berhasil'
+        print(f"SUMMARY: PASS ({passed}/{total}) - {detail}.")
         return 0
 
     print(f"SUMMARY: FAIL ({passed}/{total}) - perbaiki item FAIL sebelum membuat GitHub Release.")
