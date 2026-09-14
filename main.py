@@ -4259,7 +4259,7 @@ def get_subtitle_vtt_path(anime_name, episode_path):
     
     # Bump this when subtitle sanitising changes, so old generated VTT files
     # with unsupported fansub effects are not served from cache.
-    vtt_filename = f"{safe_episode}.clean-v2.vtt"
+    vtt_filename = f"{safe_episode}.clean-v3.vtt"
     return os.path.join(SUBTITLE_CACHE, safe_anime, vtt_filename)
 
 def make_library_sync_skipped_result(trigger_label):
@@ -4295,7 +4295,7 @@ def is_non_subtitle_text(text):
     if not normalized:
         return True
 
-    if re.search(r'\b(?:https?://|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+\b', normalized):
+    if re.fullmatch(r'(?:https?://|www\.)\S+|[a-z0-9-]+(?:\.[a-z0-9-]+)+/?', normalized):
         return True
 
     numeric_tokens = re.findall(r'-?\d+(?:\.\d+)?', normalized)
@@ -4323,7 +4323,7 @@ def is_stylized_karaoke_subtitle(text):
 
     # Vector drawings are never dialogue and can otherwise produce large
     # malformed overlays in the browser subtitle renderer.
-    return bool(re.search(r'\{[^}]*\\p\d+', raw_text, flags=re.IGNORECASE))
+    return bool(re.search(r'\{[^}]*\\p[1-9]\d*', raw_text, flags=re.IGNORECASE))
 
 def _vtt_timestamp_seconds(value):
     parts = value.strip().replace(',', '.').split(':')
@@ -4342,7 +4342,7 @@ def _subtitle_text_key(text):
     return " ".join(plain_text.casefold().split())
 
 def clean_generated_subtitle_vtt(vtt_path):
-    with open(vtt_path, "r", encoding="utf-8") as f:
+    with open(vtt_path, "r", encoding="utf-8-sig") as f:
         lines = f.readlines()
 
     cues = []
@@ -4353,18 +4353,28 @@ def clean_generated_subtitle_vtt(vtt_path):
             i += 1
             continue
 
-        start_raw, end_raw = (part.strip().split()[0] for part in timestamp.split("-->", 1))
+        timing = re.fullmatch(r'(\d{2,}:\d{2}(?::\d{2})?[.,]\d{3})\s+-->\s+(\d{2,}:\d{2}(?::\d{2})?[.,]\d{3})(?:\s+.*)?', timestamp)
+        if not timing:
+            i += 1
+            continue
+        start_raw, end_raw = timing.groups()
         start = _vtt_timestamp_seconds(start_raw)
         end = _vtt_timestamp_seconds(end_raw)
         cue_text = []
         i += 1
         while i < len(lines) and lines[i].strip() != "" and "-->" not in lines[i]:
             raw_text_line = lines[i].strip()
-            text_line = re.sub(r'\{.*?\}', '', raw_text_line)
+            text_line = re.sub(r'\{[^}]*\\[^}]*\}', '', raw_text_line)
+            text_line = text_line.replace(r'\N', '\n').replace(r'\n', '\n').replace(r'\h', ' ')
+            text_line = re.sub(r'<br\s*/?>', '\n', text_line, flags=re.I)
+            # Keep only browser-safe emphasis; drop ASS/HTML font styling.
+            text_line = re.sub(r'<(?!/?(?:b|i|u)>)[^>]*>', '', text_line, flags=re.I)
             if not is_stylized_karaoke_subtitle(raw_text_line) and not is_non_subtitle_text(text_line):
                 cue_text.append(text_line)
             i += 1
-        cues.append({"timestamp": timestamp, "start": start, "end": end, "text": cue_text})
+        if start is not None and end is not None and 0 <= start < end:
+            # Only the basic-caption fallback omits ASS positioning.
+            cues.append({"timestamp": f"{start_raw.replace(',', '.')} --> {end_raw.replace(',', '.')}", "start": start, "end": end, "text": cue_text})
 
     # Fansub watermarks are commonly one very long cue, or the same line copied
     # into many cues. Remove only that line so dialogue sharing its cue survives.
@@ -4392,17 +4402,172 @@ def clean_generated_subtitle_vtt(vtt_path):
             watermark_keys.add(key)
 
     cleaned_lines = ["WEBVTT\n"]
-    for cue in cues:
+    seen_cues = set()
+    for cue in sorted(cues, key=lambda item: (item['start'], item['end'])):
         cue_text = [line for line in cue["text"] if _subtitle_text_key(line) not in watermark_keys]
-        if cue_text:
+        cue_key = (cue['start'], cue['end'], tuple(_subtitle_text_key(line) for line in cue_text))
+        if cue_text and cue_key not in seen_cues:
+            seen_cues.add(cue_key)
             cleaned_lines.append("\n" + cue["timestamp"] + "\n")
             cleaned_lines.append("\n".join(cue_text) + "\n")
 
     with open(vtt_path, "w", encoding="utf-8") as f:
         f.writelines(cleaned_lines)
+    return len(seen_cues)
+
+def find_external_subtitle(video_path):
+    """Only accept same-episode sidecars, never another episode's subtitle."""
+    folder = os.path.dirname(os.path.abspath(video_path))
+    stem = os.path.splitext(os.path.basename(video_path))[0].casefold()
+    candidates = []
+    for name in sorted(os.listdir(folder)):
+        base, ext = os.path.splitext(name)
+        if ext.casefold() not in {'.ass', '.ssa', '.srt', '.vtt'}:
+            continue
+        base = base.casefold()
+        if base != stem and not base.startswith(stem + '.'):
+            continue
+        suffix = base[len(stem):].strip('.')
+        tokens = set(suffix.split('.')) if suffix else set()
+        if tokens - {'id', 'ind', 'indonesian', 'en', 'eng', 'english', 'default', 'forced', 'sdh', 'full'}:
+            continue
+        path = os.path.join(folder, name)
+        if not os.path.isfile(path) or not is_resolved_path_inside(os.path.realpath(folder), os.path.realpath(path)):
+            continue
+        rank = (bool('forced' in tokens), 0 if tokens & {'id', 'ind', 'indonesian'} else 1 if not tokens else 2, name)
+        candidates.append((rank, path))
+    return min(candidates)[1] if candidates else None
+
+
+def select_subtitle_stream(video_path, streams=None, details=False):
+    """Prefer full Indonesian dialogue, then default text tracks, avoiding bitmap tracks."""
+    if streams is None:
+        result = run_hidden_subprocess(
+            [get_media_tool_path('ffprobe'), '-v', 'error', '-select_streams', 's',
+             '-show_streams', '-of', 'json', video_path],
+            capture_output=True, text=True, timeout=MEDIA_PROBE_TIMEOUT_SECONDS)
+        streams = json.loads(result.stdout).get('streams', [])
+    supported = {'ass', 'ssa', 'subrip', 'webvtt', 'mov_text', 'text'}
+    def rank(stream):
+        tags = stream.get('tags') or {}
+        disposition = stream.get('disposition') or {}
+        title = str(tags.get('title', '')).casefold()
+        partial = bool(disposition.get('forced') or re.search(r'\b(signs?|songs?|karaoke)\b', title))
+        language = str(tags.get('language', '')).casefold()
+        return (partial, language not in {'id', 'ind', 'indonesian'}, not disposition.get('default'), language not in {'en', 'eng'}, int(stream['index']))
+    candidates = [s for s in streams if s.get('codec_name') in supported and isinstance(s.get('index'), int)]
+    selected = min(candidates, key=rank) if candidates else None
+    if details or selected is None:
+        return selected
+    return f"0:{selected['index']}"
+
+
+def get_ass_subtitle_assets(video_path, cache_root):
+    """Keep original typesetting and embedded fonts; never pass ASS through VTT cleanup."""
+    external = find_external_subtitle(video_path)
+    identity = [(os.path.realpath(path), media_source_fingerprint(path))
+                for path in (video_path, external) if path]
+    cache_key = hashlib.sha256(json.dumps(identity).encode('utf-8')).hexdigest()
+    folder = os.path.join(cache_root, 'ass-v1', cache_key)
+    manifest_path = os.path.join(folder, 'manifest.json')
+
+    def cached_manifest():
+        try:
+            with open(manifest_path, encoding='utf-8') as handle:
+                manifest = json.load(handle)
+            names = ([manifest['subtitle']] + manifest['fonts']) if manifest['renderer'] == 'ass' else []
+            if all(is_valid_cache_file(os.path.join(folder, name)) for name in names):
+                return manifest
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        return None
+
+    cached = cached_manifest()
+    if cached is not None:
+        return folder, cached
+    lock_key = ('subtitle-ass', cache_key)
+    lock = acquire_ffmpeg_media_lock(lock_key)
+    if lock is None:
+        raise RuntimeError('Subtitle extraction is busy; try again shortly.')
+    temp_manifest = ''
+    try:
+        cached = cached_manifest()
+        if cached is not None:
+            return folder, cached
+        streams = []
+        # Probe attachments too: a fansub font's metrics affect position and wrapping.
+        if not external or os.path.splitext(external)[1].lower() in {'.ass', '.ssa'}:
+            result = run_hidden_subprocess(
+                [get_media_tool_path('ffprobe'), '-v', 'error', '-show_streams', '-of', 'json', video_path],
+                capture_output=True, text=True, timeout=MEDIA_PROBE_TIMEOUT_SECONDS)
+            if result.returncode:
+                raise RuntimeError('Unable to inspect subtitle tracks.')
+            streams = json.loads(result.stdout).get('streams', [])
+        selected = select_subtitle_stream(video_path, streams=streams, details=True)
+        is_ass = (os.path.splitext(external)[1].lower() in {'.ass', '.ssa'} if external
+                  else bool(selected and selected.get('codec_name') in {'ass', 'ssa'}))
+        manifest = {'renderer': 'vtt', 'fonts': []}
+        os.makedirs(folder, exist_ok=True)
+        if is_ass:
+            ass_path = os.path.join(folder, 'track.ass')
+            source = external or video_path
+            stream_map = '0:s:0' if external else f"0:{selected['index']}"
+            # The ASS muxer retains script resolution, styles, overrides and event layers.
+            result = run_ffmpeg_command(
+                ['ffmpeg', '-y', '-i', source, '-map', stream_map, '-c:s', 'copy', '-f', 'ass', ass_path],
+                timeout=SUBTITLE_GENERATION_TIMEOUT_SECONDS)
+            if not result['ok'] or not is_valid_cache_file(ass_path):
+                raise RuntimeError('Unable to extract the original ASS subtitle.')
+            manifest = {'renderer': 'ass', 'subtitle': 'track.ass', 'fonts': []}
+            font_args = []
+            font_names = []
+            total_font_bytes = 0
+            for stream in streams:
+                tags = stream.get('tags') or {}
+                ext = os.path.splitext(str(tags.get('filename', '')))[1].lower()
+                if stream.get('codec_type') != 'attachment' or ext not in {'.ttf', '.otf', '.ttc', '.woff', '.woff2'}:
+                    continue
+                size = int(stream.get('extradata_size') or 0)
+                if len(font_names) >= 32 or size > 16 * 1024 * 1024 or total_font_bytes + size > 64 * 1024 * 1024:
+                    continue
+                index = int(stream['index'])
+                # Never use an attachment's filename as an output path.
+                name = f'font-{index}{ext}'
+                font_names.append(name)
+                total_font_bytes += size
+                font_args.extend([f'-dump_attachment:{index}', os.path.join(folder, name)])
+            if font_args:
+                result = run_ffmpeg_command(
+                    ['ffmpeg', '-y', *font_args, '-i', video_path, '-map', '0:v:0?',
+                     '-t', '0', '-an', '-sn', '-f', 'null', '-'],
+                    timeout=SUBTITLE_GENERATION_TIMEOUT_SECONDS)
+                for name in font_names:
+                    path = os.path.join(folder, name)
+                    if is_valid_cache_file(path) and os.path.getsize(path) <= 16 * 1024 * 1024:
+                        manifest['fonts'].append(name)
+        temp_manifest = temporary_media_cache_path(manifest_path, '.json')
+        with open(temp_manifest, 'w', encoding='utf-8') as handle:
+            json.dump(manifest, handle)
+        os.replace(temp_manifest, manifest_path)
+        return folder, manifest
+    finally:
+        remove_file_quietly(temp_manifest)
+        release_ffmpeg_media_lock(lock_key, lock)
+
+
+def subtitle_cache_is_current(video_path, vtt_path):
+    if not is_valid_cache_file(vtt_path):
+        return False
+    try:
+        external = find_external_subtitle(video_path)
+        newest = max(os.stat(path).st_mtime_ns for path in (video_path, external) if path)
+        return os.stat(vtt_path).st_mtime_ns >= newest
+    except OSError:
+        return False
+
 
 def generate_subtitle_vtt_result(video_path, vtt_path):
-    if is_valid_cache_file(vtt_path):
+    if subtitle_cache_is_current(video_path, vtt_path):
         return make_media_generation_result(
             True,
             vtt_path,
@@ -4420,6 +4585,9 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
         )
 
     failure_key = ("subtitle", vtt_path, fingerprint)
+    external = find_external_subtitle(video_path)
+    if external:
+        failure_key += (external, media_source_fingerprint(external))
     cached_failure = get_ffmpeg_failure_cache(failure_key)
     if cached_failure:
         return cached_failure
@@ -4437,7 +4605,7 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
     last_result = None
 
     try:
-        if is_valid_cache_file(vtt_path):
+        if subtitle_cache_is_current(video_path, vtt_path):
             return make_media_generation_result(
                 True,
                 vtt_path,
@@ -4453,26 +4621,33 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
         temp_path = temporary_media_cache_path(vtt_path, ".vtt")
         app_log(f"Starting subtitle generation for {os.path.basename(video_path)}", "INFO")
 
+        subtitle_source = find_external_subtitle(video_path) or video_path
+        stream_map = '0:s:0'
+        if subtitle_source == video_path:
+            try:
+                stream_map = select_subtitle_stream(video_path)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                stream_map = '0:s:0'
+            if stream_map is None:
+                return make_media_generation_result(False, '', 'not_found', 'No supported text subtitle found. Bitmap subtitles require an external player.')
+
         last_result = run_ffmpeg_command(
             [
                 "ffmpeg",
                 "-y",
                 "-i",
-                video_path,
+                subtitle_source,
                 "-map",
-                "0:s:0",
+                stream_map,
+                '-c:s', 'webvtt',
                 temp_path
             ],
             timeout=SUBTITLE_GENERATION_TIMEOUT_SECONDS
         )
 
         if last_result["ok"] and is_valid_cache_file(temp_path):
-            try:
-                clean_generated_subtitle_vtt(temp_path)
-            except Exception as clean_err:
-                app_log(f"Unable to clean subtitle cache: {clean_err}", "WARN")
-
-            if is_valid_cache_file(temp_path):
+            cue_count = clean_generated_subtitle_vtt(temp_path)
+            if cue_count and is_valid_cache_file(temp_path):
                 os.replace(temp_path, vtt_path)
                 clear_ffmpeg_failure_cache(failure_key)
                 return make_media_generation_result(
@@ -8785,9 +8960,33 @@ def get_subtitle(anime_name, episode):
         abort(404)
         
     vtt_path = get_subtitle_vtt_path(anime_name, episode)
+
+    subtitle_format = request.args.get('format', 'vtt')
+    if subtitle_format in {'manifest', 'asset'}:
+        try:
+            folder, manifest = get_ass_subtitle_assets(video_path, os.path.dirname(vtt_path))
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+            app_log(f'ASS subtitle preparation failed: {error}', 'WARN')
+            return json_error('subtitle_unavailable', 'Original subtitle is unavailable.', 503)
+        if subtitle_format == 'manifest':
+            payload = {'renderer': manifest['renderer'], 'fonts': []}
+            if manifest['renderer'] == 'ass':
+                def asset_url(name):
+                    return url_for('get_subtitle', anime_name=anime_name, episode=episode,
+                                   format='asset', asset=name, version=os.path.basename(folder))
+                payload['subtitle'] = asset_url(manifest['subtitle'])
+                payload['fonts'] = [asset_url(name) for name in manifest['fonts']]
+            response = jsonify(payload)
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        name = request.args.get('asset', '')
+        allowed = [manifest.get('subtitle')] + manifest['fonts']
+        if not name or name not in allowed:
+            abort(404)
+        return send_file(os.path.join(folder, name), mimetype='text/plain' if name == 'track.ass' else 'application/octet-stream')
     
     # 1. Cek apakah cache VTT sudah ada
-    if is_valid_cache_file(vtt_path):
+    if subtitle_cache_is_current(video_path, vtt_path):
         debug_log(f"Subtitle cache found: {vtt_path}")
         return send_file(vtt_path, mimetype="text/vtt")
         

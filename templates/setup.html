@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block title %}Setup - AniBase{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v='1') }}">{% endblock %}
-{% block body_class %}setup-body{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v='3') }}">{% endblock %}
+{% block body_class %}setup-body setup-onboarding{% endblock %}
 {% block topbar %}{% endblock %}
 {% block footer %}{% endblock %}
 
@@ -20,7 +20,7 @@
         <div class="setup-layout">
             <aside class="setup-intro">
                 <span class="setup-kicker">YOUR PRIVATE SCREENING ROOM</span>
-                <h1>Make your library feel like home.</h1>
+                <h1>Your collection.<br>Your own <em>cinema.</em></h1>
                 <p class="setup-intro-copy">Connect your local anime folders, pick a look, and AniBase will take care of the rest.</p>
 
                 <div class="setup-art" aria-hidden="true">
@@ -54,7 +54,7 @@
                         <div class="setup-step-heading"><span class="setup-step-number">01</span><div><h3 id="setupLibraryTitle">Connect your library</h3><p>Tell AniBase where your anime folders live.</p></div></div>
                         <div class="setup-step-content">
                             <label class="setup-field-label" for="setup_library_path_0">Anime library folders</label>
-                            <p class="setup-field-helper">Choose a root folder containing your anime folders.</p>
+                            <p class="setup-field-helper" id="setupFolderHelp">Choose a root folder containing your anime folders, for example D:/Anime.</p>
                             <div class="settings-path-list" id="setupLibraryPathList">
                                 {% set library_paths = settings.library_paths if settings.library_paths else [''] %}
                                 {% for path in library_paths %}
@@ -83,6 +83,11 @@
                                     <input type="radio" name="theme_preset" value="dark-orange" {% if settings.theme_preset == 'dark-orange' %}checked{% endif %}>
                                     <span class="theme-preview theme-preview-orange"><i></i><i></i><i></i><b>GOLDEN HOUR</b></span>
                                     <span class="theme-card-copy"><strong>Dark Orange</strong><small>Warm, vivid, and inviting.</small></span><span class="theme-radio" aria-hidden="true"></span>
+                                </label>
+                                <label class="theme-preset-card" data-theme-choice="dark-green">
+                                    <input type="radio" name="theme_preset" value="dark-green" {% if settings.theme_preset == 'dark-green' %}checked{% endif %}>
+                                    <span class="theme-preview theme-preview-green"><i></i><i></i><i></i><b>FOREST NIGHT</b></span>
+                                    <span class="theme-card-copy"><strong>Dark Green</strong><small>Fresh and understated.</small></span><span class="theme-radio" aria-hidden="true"></span>
                                 </label>
                             </div>
                         </div>
@@ -122,28 +127,32 @@ document.addEventListener('DOMContentLoaded', function() {
         rows.forEach((row) => {
             const removeButton = row.querySelector('.settings-remove-path-btn');
             if (removeButton) removeButton.disabled = rows.length <= 1;
+            const input = row.querySelector('input');
+            input.setAttribute('aria-label', `Anime library folder ${Array.from(rows).indexOf(row) + 1}`);
+            input.setAttribute('aria-describedby', 'setupFolderHelp');
         });
+        document.querySelector('.setup-field-label').htmlFor = rows[0].querySelector('input').id;
     }
 
     function addPathRow(value = '') {
         if (!list) return null;
         const index = pathIndex;
         pathIndex += 1;
-        const row = document.createElement('div');
-        row.className = 'settings-path-row';
-        row.innerHTML = `
-            <input class="settings-input settings-path-input" id="setup_library_path_${index}" type="text" name="library_paths" autocomplete="off" placeholder="D:/Anime/Library">
-            <button class="settings-browse-btn" type="button" data-picker="folder" data-target="setup_library_path_${index}">Browse</button>
-            <button class="settings-remove-path-btn" type="button">Remove</button>
-        `;
-        row.querySelector('input').value = value;
+        const row = list.firstElementChild.cloneNode(true);
+        const input = row.querySelector('input');
+        input.id = `setup_library_path_${index}`;
+        input.value = value;
+        const browse = row.querySelector('[data-target]');
+        browse.dataset.target = input.id;
+        browse.disabled = false;
+        browse.textContent = 'Browse';
         list.appendChild(row);
         updateRemoveButtons();
         return row;
     }
 
     async function openPathPicker(button, target) {
-        const originalText = button.textContent;
+        const originalContent = Array.from(button.childNodes);
 
         showPickerMessage('', false);
         button.disabled = true;
@@ -163,18 +172,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return '';
         } finally {
             button.disabled = false;
-            button.textContent = originalText;
+            button.replaceChildren(...originalContent);
         }
     }
 
     if (addButton) {
-        addButton.addEventListener('click', async function() {
+        addButton.addEventListener('click', function() {
             if (!list) return;
 
             const emptyInput = Array.from(list.querySelectorAll('input[name="library_paths"]'))
                 .find((input) => !input.value.trim());
-            const selectedPath = await openPathPicker(addButton, emptyInput || null);
-            if (selectedPath && !emptyInput) addPathRow(selectedPath);
+            const input = emptyInput || addPathRow().querySelector('input');
+            input.focus();
         });
     }
 
@@ -206,6 +215,25 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('change', function() {
             if (this.checked) document.documentElement.dataset.theme = this.value || 'dark-blue';
         });
+    });
+    const selectedTheme = document.querySelector('input[name="theme_preset"]:checked');
+    if (selectedTheme) document.documentElement.dataset.theme = selectedTheme.value;
+    document.querySelector('.setup-card').addEventListener('submit', function(event) {
+        const inputs = Array.from(list.querySelectorAll('input[name="library_paths"]'));
+        if (!inputs.some(input => input.value.trim())) {
+            event.preventDefault();
+            showPickerMessage('Add at least one anime library folder to continue.', true);
+            inputs[0].focus();
+            return;
+        }
+        const submit = this.querySelector('[type="submit"]');
+        submit.disabled = true;
+        submit.textContent = 'Preparing your library...';
+    });
+    window.addEventListener('pageshow', function() {
+        const submit = document.querySelector('.setup-start-btn');
+        submit.disabled = false;
+        submit.textContent = 'Enter AniBase \u2192';
     });
 });
 </script>

@@ -109,6 +109,25 @@ html[data-theme="dark-green"] .movies-page {
     padding-right: 30px;
 }
 
+/* Match the staged content reveal used by the Home spotlight. */
+.movies-page .movies-hero-content > :not(.movies-hero-actions) {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+    transition:
+        opacity .4s ease,
+        transform .58s cubic-bezier(.16, 1, .3, 1);
+}
+
+.movies-page .movies-hero-slide.active .movies-hero-content > :not(.movies-hero-actions) {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+}
+
+.movies-page .movies-hero-slide.active .movies-kicker { transition-delay: .06s; }
+.movies-page .movies-hero-slide.active .movies-hero-content h2 { transition-delay: .10s; }
+.movies-page .movies-hero-slide.active .movies-hero-meta { transition-delay: .16s; }
+.movies-page .movies-hero-slide.active .movies-hero-description { transition-delay: .21s; }
+
 .movies-page .movies-kicker {
     display: flex;
     align-items: center;
@@ -721,6 +740,7 @@ html[data-theme="dark-green"] .movies-page {
 @media (prefers-reduced-motion: reduce) {
     .movies-page .movies-hero-slide,
     .movies-page .movies-hero-slide .movies-hero-backdrop,
+    .movies-page .movies-hero-content > :not(.movies-hero-actions),
     .movies-page .movie-poster-card,
     .movies-page .movie-poster-art,
     .movies-page .movie-card-content,

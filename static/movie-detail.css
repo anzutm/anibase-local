@@ -1,6 +1,7 @@
 /* Movie-only presentation; shared series detail styles stay in style.css. */
 body.movie-detail-body {
     --cinema-accent: var(--primary-hover, #74b9ff);
+    --hero-info-accent: var(--cinema-accent);
     --cinema-muted: #a0a7b5;
     --cinema-line: rgba(255,255,255,.12);
     padding-top: 0;

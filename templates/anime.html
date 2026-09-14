@@ -10,11 +10,12 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='subtitles.css', v='1') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='65') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='67') }}">
     {% if is_movie %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='12') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='13') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
 </head>
@@ -359,9 +360,10 @@
                 >
                 <track
                     kind="subtitles"
-                    src="{{ url_for('get_subtitle', anime_name=folder_name or anime_name, episode=episodes[0].file) }}"
-                    srclang="id"
-                    label="Indonesian"
+                    src="data:text/vtt,WEBVTT%0A%0A"
+                    data-subtitle-src="{{ url_for('get_subtitle', anime_name=folder_name or anime_name, episode=episodes[0].file) }}"
+                    srclang="und"
+                    label="Auto subtitles"
                     default
                 >
             </video>
@@ -1094,6 +1096,7 @@ window.addEventListener('pageshow', () => {
 </script>
 {% if is_movie and episodes %}
 <script src="{{ url_for('static', filename='plyr.js') }}"></script>
+<script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
 <script>
 (function() {
     const video = document.getElementById('movieDetailPlayer');
@@ -1110,8 +1113,9 @@ window.addEventListener('pageshow', () => {
         title: config.displayName || config.animeName,
         iconUrl: config.plyrIconUrl,
         keyboard: { focused: true, global: false },
-        captions: { active: true, update: true, language: 'id' }
+        captions: { active: true, update: true, language: 'und' }
     });
+    new window.AniBaseSubtitles(video, player);
 
     document.getElementById('movieHeroPlay')?.addEventListener('click', () => {
         const playRequest = player.play();

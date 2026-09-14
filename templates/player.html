@@ -16,6 +16,7 @@
 
     <!-- Plyr & SubtitlesOctopus Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='subtitles.css', v='1') }}" />
     <style>html{background-color:var(--bg2, #0b0907);} body{background-color:transparent !important; color:var(--text, #F3F4F5);}</style>
     <meta name="theme-color" content="#0b0907">
 
@@ -75,9 +76,10 @@
                     <source src="{{ url_for('stream_video', anime_name=anime_name, episode=episode) }}" type="video/mp4">
                     <track
                         kind="subtitles" 
-                        src="{{ url_for('get_subtitle', anime_name=anime_name, episode=episode) }}"
-                        srclang="id" 
-                        label="Indonesian" 
+                        src="data:text/vtt,WEBVTT%0A%0A"
+                        data-subtitle-src="{{ url_for('get_subtitle', anime_name=anime_name, episode=episode) }}"
+                        srclang="und"
+                        label="Auto subtitles"
                         default
                     >
                     <p>Your browser does not support this video codec (H.265/10-bit). Use <b>Open in Media Player</b> to watch.</p>
@@ -304,7 +306,8 @@
         if (fill) fill.style.width = `${value}%`;
     });
 </script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-5') }}"></script>
+<script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-7') }}"></script>
 
 </body>
 

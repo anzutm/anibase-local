@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block body_class %}support-page{% endblock %}
+{% block body_class %}support-page seiyuu-body{% endblock %}
 
 {% block title %}{{ seiyuu_data.name_full if seiyuu_data else 'Voice Actor Profile' }} - AniBase{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='seiyuu.css', v='3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='seiyuu.css', v='4') }}">
 {% endblock %}
 
 {% macro stat(value, label) %}
@@ -39,7 +39,7 @@
 {% endmacro %}
 
 {% block content %}
-<main class="sy-page">
+<div class="sy-page">
     {% if not seiyuu_data %}
     <section class="sy-error">
         <span class="sy-eyebrow">Voice Actor</span>
@@ -96,7 +96,7 @@
                 <p>{% for segment in paragraph %}{% if segment.kind == 'strong' %}<strong>{{ segment.text }}</strong>{% elif segment.kind == 'em' %}<em>{{ segment.text }}</em>{% elif segment.kind == 'link' %}<a href="{{ segment.url }}" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>{% else %}{{ segment.text }}{% endif %}{% endfor %}</p>
                 {% endfor %}
             </div>
-            <button class="sy-bio-toggle" id="seiyuuBioToggle" type="button" aria-expanded="false">Show more</button>
+            <button class="sy-bio-toggle" id="seiyuuBioToggle" type="button" aria-expanded="false" aria-controls="seiyuuBio">Show more</button>
             {% endif %}
 
             {% if social_links %}
@@ -140,6 +140,6 @@
         {% endif %}
     </section>
     {% endif %}
-</main>
+</div>
 <script src="{{ url_for('static', filename='seiyuu.js') }}" defer></script>
 {% endblock %}

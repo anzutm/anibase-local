@@ -3083,6 +3083,8 @@ class MediaGenerationConcurrencyTests(unittest.TestCase):
         lock = threading.Lock()
 
         def fake_run(args, **_kwargs):
+            if 'ffprobe' in os.path.basename(args[0]).lower():
+                return main.subprocess.CompletedProcess(args, 0, stdout='{"streams": [{"index": 2, "codec_name": "ass"}]}', stderr='')
             output_path = args[-1]
             with lock:
                 calls.append(tuple(args))
@@ -3739,7 +3741,7 @@ class SubtitleSanitisingTests(unittest.TestCase):
 
     def test_subtitle_cache_path_uses_current_sanitiser_version(self):
         path = main.get_subtitle_vtt_path("Anime", "Episode 01.mkv")
-        self.assertTrue(path.endswith("Episode 01.mkv.clean-v2.vtt"))
+        self.assertTrue(path.endswith("Episode 01.mkv.clean-v3.vtt"))
 
 
 if __name__ == "__main__":

@@ -28,8 +28,9 @@ const player = new Plyr(videoElement, {
     seekTime: 5,
     iconUrl: window.PLYR_ICON_URL || '/static/plyr.svg',
     keyboard: { focused: true, global: true },
-    captions: { active: true, update: true, language: 'id' }
+    captions: { active: true, update: true, language: 'und' }
 });
+const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
 
 const SEEK_STEP_SECONDS = 5;
 const SEEK_FEEDBACK_RESET_MS = 700;
@@ -434,10 +435,12 @@ function replaceSubtitleTrack(src) {
     if (!subtitleTrack) return;
 
     const newTrack = subtitleTrack.cloneNode(false);
-    newTrack.src = src;
+    newTrack.src = 'data:text/vtt,WEBVTT%0A%0A';
+    newTrack.dataset.subtitleSrc = src;
     subtitleTrack.remove();
     videoElement.appendChild(newTrack);
     subtitleTrack = newTrack;
+    fansubSubtitles.load(src);
 }
 
 function showEpisodeSwitchNotice(message) {
