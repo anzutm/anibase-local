@@ -368,9 +368,42 @@ videoElement.addEventListener('error', () => {
     }
 });
 
+// Countdown follows media time, so pausing/buffering never skips the ending.
+const nextOverlay = document.createElement('section');
+nextOverlay.className = 'player-next-overlay';
+nextOverlay.hidden = true;
+nextOverlay.setAttribute('aria-label', 'Next episode');
+nextOverlay.innerHTML = '<span class="player-next-label">UP NEXT</span><strong class="player-next-title"></strong><span class="player-next-countdown"></span><div class="player-next-actions"><button type="button" class="player-next-play">Play next →</button><button type="button" class="player-next-cancel">Cancel</button></div>';
+player.elements.container.appendChild(nextOverlay);
+let nextEpisodeCancelled = false;
+const nextTitle = nextOverlay.querySelector('.player-next-title');
+const nextCountdown = nextOverlay.querySelector('.player-next-countdown');
+function updateNextOverlay() {
+    const duration = Number(videoElement.duration);
+    const remaining = duration - videoElement.currentTime;
+    const next = getEpisodeState(window.EPISODE_PATH).next;
+    const show = !nextEpisodeCancelled && next && Number.isFinite(duration) && duration > 0
+        && remaining >= 0 && remaining <= Math.min(10, duration / 4);
+    nextOverlay.hidden = !show;
+    if (!show) return;
+    nextTitle.textContent = next.dataset.episodeDisplayName || `Episode ${next.dataset.episodeLabel || next.dataset.episodeNum || ''}`;
+    nextCountdown.textContent = `Starts in ${Math.ceil(remaining)}s${videoElement.paused ? ' · Paused' : ''}`;
+}
+nextOverlay.addEventListener('click', event => event.stopPropagation());
+nextOverlay.addEventListener('keydown', event => event.stopPropagation());
+nextOverlay.querySelector('.player-next-play').addEventListener('click', () => {
+    const next = getEpisodeState(window.EPISODE_PATH).next;
+    if (next) switchEpisode(next.dataset.episodePath, { autoplay: true });
+});
+nextOverlay.querySelector('.player-next-cancel').addEventListener('click', () => {
+    nextEpisodeCancelled = true;
+    nextOverlay.hidden = true;
+});
+player.on('timeupdate seeking play pause loadedmetadata', updateNextOverlay);
+
 // Auto Next
 player.on('ended', () => {
-    if (window.NEXT_EP_PATH && window.NEXT_EP_PATH !== 'None') {
+    if (!nextEpisodeCancelled && window.NEXT_EP_PATH && window.NEXT_EP_PATH !== 'None') {
         switchEpisode(window.NEXT_EP_PATH, { autoplay: true });
     }
 });
@@ -635,6 +668,8 @@ function switchEpisode(episodePath, options = {}) {
     if (watchProgressInterval) clearInterval(watchProgressInterval);
 
     isSoftSwitching = true;
+    nextEpisodeCancelled = false;
+    nextOverlay.hidden = true;
     timelineDragging = false;
     timelineTarget = null;
     cancelRecoveryTimer();

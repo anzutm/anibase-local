@@ -831,6 +831,37 @@ body.player-body .plyr__preview-thumb__image-container {
     }
 }
 
+body.player-body .player-next-overlay {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 4;
+    width: min(270px, calc(100% - 32px));
+    box-sizing: border-box;
+    padding: 16px;
+    border: 1px solid rgb(255 255 255 / 14%);
+    border-radius: 14px;
+    background: rgb(12 12 12 / 94%);
+    color: #f5f5f5;
+    box-shadow: 0 8px 30px rgb(0 0 0 / 30%);
+    display: grid;
+    gap: 8px;
+}
+body.player-body .player-next-overlay[hidden] { display: none; }
+body.player-body .player-next-label { color: var(--primary, #ffb12b); font-size: 10px; letter-spacing: .12em; }
+body.player-body .player-next-title { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+body.player-body .player-next-countdown { color: #aaa; font-size: 12px; }
+body.player-body .player-next-actions { display: flex; gap: 8px; }
+body.player-body .player-next-actions button { border: 0; border-radius: 8px; padding: 10px 12px; cursor: pointer; font-size: 12px; }
+body.player-body .player-next-play { background: var(--primary, #ffb12b); color: #090909; font-weight: 700; }
+body.player-body .player-next-cancel { background: #292929; color: #eee; }
+body.player-body .player-next-actions button:hover { filter: brightness(1.15); }
+body.player-body .player-next-actions button:focus-visible { outline: 2px solid var(--primary, #ffb12b); outline-offset: 3px; }
+@media (max-width: 600px) {
+    body.player-body .player-next-overlay { top: 8px; right: 8px; width: 215px; padding: 10px; gap: 5px; }
+    body.player-body .player-next-title { font-size: 13px; }
+}
+
 @media (max-width: 380px) {
     body.player-body .player-page,
     body.player-body .player-episodes {

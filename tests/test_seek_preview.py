@@ -209,6 +209,16 @@ class SeekPreviewTests(unittest.TestCase):
                     page.evaluate("player.muted = true; player.play()")
                     page.wait_for_function("player.previewThumbnails?.loaded === true")
                     page.evaluate("player.pause()")
+                    page.evaluate("videoElement.currentTime = videoElement.duration - 1")
+                    page.wait_for_selector('.player-next-overlay:not([hidden])')
+                    self.assertIn('Episode 2', page.locator('.player-next-title').inner_text())
+                    page.locator('.player-next-cancel').click()
+                    page.evaluate("videoElement.dispatchEvent(new Event('ended'))")
+                    self.assertEqual(page.evaluate('window.EPISODE_PATH'), 'one.mp4')
+                    self.assertTrue(page.locator('.player-next-overlay').is_hidden())
+                    page.evaluate("videoElement.currentTime = 1")
+                    page.wait_for_function('!videoElement.seeking')
+                    page.evaluate("player.pause(); nextEpisodeCancelled = false")
                     seeks = page.evaluate('''() => {
                         const original = applyMediaSeek;
                         const targets = [];
