@@ -548,8 +548,11 @@
 
         <img
             class="episode-thumbnail"
-            src="{{ ep.thumbnail }}"
+            src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+            data-thumbnail-src="{{ ep.thumbnail }}"
+            alt="{{ ep.display_name }}"
             loading="lazy"
+            decoding="async"
         >
 
         <div class="duration-badge">
@@ -1097,6 +1100,7 @@ window.addEventListener('pageshow', () => {
 {% if is_movie and episodes %}
 <script src="{{ url_for('static', filename='plyr.js') }}"></script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
 <script>
 (function() {
     const video = document.getElementById('movieDetailPlayer');
@@ -1116,6 +1120,10 @@ window.addEventListener('pageshow', () => {
         captions: { active: true, update: true, language: 'und' }
     });
     new window.AniBaseSubtitles(video, player);
+    new window.AniBaseDiscordPresence(video, () => ({
+        anime_name: config.animeName, episode: config.episodePath,
+        title: config.displayName || config.animeName, label: 'Movie'
+    }));
 
     document.getElementById('movieHeroPlay')?.addEventListener('click', () => {
         const playRequest = player.play();
@@ -1327,14 +1335,6 @@ window.addEventListener('pageshow', () => {
     player.on('pause ended', () => {
         clearInterval(progressInterval);
         sendProgress(false);
-        fetch('/clear_rpc', {
-            method: 'POST',
-            headers: actionHeaders({ 'X-AniBase-RPC-Session': rpcSessionId })
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error('Clear RPC failed');
-            }
-        }).catch(() => {});
     });
 
     if (screenshotBtn) {
@@ -1423,15 +1423,6 @@ window.addEventListener('pageshow', () => {
 
     window.addEventListener('beforeunload', () => {
         sendProgress(true);
-        fetch('/clear_rpc', {
-            method: 'POST',
-            headers: actionHeaders({ 'X-AniBase-RPC-Session': rpcSessionId }),
-            keepalive: true
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error('Clear RPC failed');
-            }
-        }).catch(() => {});
     });
 
 })();
@@ -1729,5 +1720,6 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
 };
 window.initializeMetadataMatch();
 </script>
+<script src="{{ url_for('static', filename='episode-thumbnails.js', v='1') }}"></script>
 </body>
 </html>

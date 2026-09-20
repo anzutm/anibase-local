@@ -117,12 +117,12 @@ class DiscordRpcLifecycleTests(unittest.TestCase):
         main.DISCORD_RPC_ENABLED = self.original_enabled
         main.DISCORD_CLIENT_ID = self.original_client_id
 
-    def test_update_sets_elapsed_timer_and_local_button(self):
+    def test_update_sets_elapsed_timer_without_localhost_button(self):
         main.update_discord_rpc("Demo", 2, "01:00 / 24:00", owner_id="tab-a")
 
         payload = main.rpc.updates[-1]
         self.assertIsInstance(payload["start"], int)
-        self.assertEqual(payload["buttons"][0]["url"], "http://127.0.0.1:5000")
+        self.assertNotIn("buttons", payload)
         self.assertEqual(main.CURRENT_RPC_OWNER, "tab-a")
 
     def test_stale_tab_cannot_clear_current_owner(self):
@@ -3001,6 +3001,19 @@ class HttpStatusConsistencyTests(unittest.TestCase):
         stream_response.close()
 
 
+class ThumbnailSeekPointTests(unittest.TestCase):
+    def test_unknown_duration_includes_near_start_fallbacks(self):
+        with patch.object(main, "get_video_duration_seconds", return_value=0):
+            self.assertEqual(
+                main.get_thumbnail_seek_points("episode.mkv"),
+                [60, 30, 10, 3, 1, 0]
+            )
+
+    def test_short_video_can_capture_first_frame(self):
+        with patch.object(main, "get_video_duration_seconds", return_value=1):
+            self.assertEqual(main.get_thumbnail_seek_points("short.mkv"), [0])
+
+
 class MediaGenerationConcurrencyTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -3243,6 +3256,9 @@ class MediaGenerationConcurrencyTests(unittest.TestCase):
                 main.FFMPEG_SEMAPHORE.release()
 
         self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(response.headers.get("Retry-After"), "2")
+        self.assertEqual(response.headers.get("X-AniBase-Media-Status"), "busy")
         self.assertEqual(calls, [])
 
     def test_source_missing_returns_404(self):

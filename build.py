@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 APP_NAME = "AniBase"
+APP_PUBLISHER = "Anzutm"
 ENTRYPOINT = "tray_ui.py"
 MIN_PYINSTALLER_VERSION = (6, 11, 0)
 REQUIRED_BUILD_PYTHON_SERIES = (3, 12)
@@ -33,6 +34,7 @@ REQUIRED_ASSETS = (
     'templates/index.html', 'templates/anime.html', 'templates/player.html',
     'templates/setup.html', 'templates/setup_loading.html',
     'static/home-motion.js', 'static/home.css', 'static/player.js',
+    'static/discord-presence.js', 'static/episode-thumbnails.js',
     'static/subtitles.js', 'static/subtitles.css',
     'static/plyr.js', 'static/plyr.css', 'static/plyr.svg',
     'static/vendor/subtitles-octopus/subtitles-octopus.js',
@@ -196,6 +198,52 @@ def format_version(version_tuple):
     return ".".join(str(part) for part in version_tuple)
 
 
+def make_version_info(version):
+    """Return a PyInstaller version-resource with AniBase publisher metadata.
+
+    This populates the executable's Details/Properties fields. It does not
+    replace Authenticode signing; Windows will still show ``Publisher:
+    Unknown`` in security dialogs until the executable is signed.
+    """
+    numeric = parse_version_tuple(str(version).lstrip("v"))
+    numeric = (numeric + (0, 0, 0))[:3]
+    version_text = format_version(numeric)
+    return f'''VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=({numeric[0]}, {numeric[1]}, {numeric[2]}, 0),
+    prodvers=({numeric[0]}, {numeric[1]}, {numeric[2]}, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x4,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable('040904B0', [
+        StringStruct('CompanyName', '{APP_PUBLISHER}'),
+        StringStruct('FileDescription', 'AniBase desktop application'),
+        StringStruct('FileVersion', '{version_text}'),
+        StringStruct('InternalName', '{APP_NAME}.exe'),
+        StringStruct('OriginalFilename', '{APP_NAME}.exe'),
+        StringStruct('ProductName', '{APP_NAME}'),
+        StringStruct('ProductVersion', '{version_text}'),
+        StringStruct('LegalCopyright', 'Copyright (C) {APP_PUBLISHER}')
+      ])
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)'''
+
+
+def write_version_info(version):
+    version_file = BUILD_DIR / APP_NAME / "version_info.txt"
+    version_file.parent.mkdir(parents=True, exist_ok=True)
+    write_text(version_file, make_version_info(version))
+    return version_file
+
+
 def ensure_supported_build_python(version_info=None):
     version = tuple(version_info or sys.version_info[:3])
     if version[:2] == REQUIRED_BUILD_PYTHON_SERIES:
@@ -227,7 +275,8 @@ def ensure_pyinstaller():
         )
 
 
-def run_pyinstaller():
+def run_pyinstaller(version="0.0.0"):
+    version_file = write_version_info(version)
     command = [
         sys.executable,
         "-m",
@@ -242,6 +291,8 @@ def run_pyinstaller():
         "--distpath", str(DIST_DIR),
         "--name",
         APP_NAME,
+        "--version-file",
+        str(version_file),
         "--add-data",
         f"{PROJECT_ROOT / 'templates'}{os.pathsep}templates",
         "--add-data",
@@ -371,13 +422,13 @@ def create_source_release(release_dir):
     )
 
 
-def build_exe_release(release_dir):
+def build_exe_release(release_dir, version="0.0.0"):
     preflight()
 
     remove_path(BUILD_DIR / APP_NAME)
     remove_path(DIST_DIR / APP_NAME)
 
-    run_pyinstaller()
+    run_pyinstaller(version)
 
     built_app_dir = DIST_DIR / APP_NAME
     if not built_app_dir.exists():
@@ -482,7 +533,7 @@ def main():
             built_exe = True
         else:
             try:
-                built_exe = build_exe_release(staged_release)
+                built_exe = build_exe_release(staged_release, version)
             except Exception as error:
                 print(f"Build executable gagal: {error}", file=sys.stderr)
                 if args.exe_only:

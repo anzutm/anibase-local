@@ -84,13 +84,16 @@ class BuildPackagingTests(unittest.TestCase):
     def test_pyinstaller_command_has_explicit_resource_and_work_paths(self):
         # No compiler or build process is executed.
         with patch.object(build.subprocess, 'run') as run:
-            build.run_pyinstaller()
+            build.run_pyinstaller('v1.4.0')
         command = run.call_args.args[0]
         self.assertEqual(command[command.index('--contents-directory') + 1], '_internal')
         self.assertEqual(command[command.index('--workpath') + 1], str(build.BUILD_DIR / build.APP_NAME))
         self.assertEqual(command[command.index('--specpath') + 1], str(build.BUILD_DIR / build.APP_NAME))
         self.assertIn(f"{build.PROJECT_ROOT / 'static'}{build.os.pathsep}static", command)
         self.assertEqual(command[-1], str(build.PROJECT_ROOT / build.ENTRYPOINT))
+        version_file = Path(command[command.index('--version-file') + 1])
+        self.assertIn("StringStruct('CompanyName', 'Anzutm')", version_file.read_text(encoding='utf-8'))
+        self.assertIn("StringStruct('ProductVersion', '1.4.0')", version_file.read_text(encoding='utf-8'))
 
     def test_check_mode_never_builds_or_cleans(self):
         with patch.object(build.sys, 'argv', ['build.py', '--check']), \

@@ -32,6 +32,11 @@ const player = new Plyr(videoElement, {
     captions: { active: true, update: true, language: 'und' }
 });
 const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
+if (window.AniBaseDiscordPresence) new window.AniBaseDiscordPresence(videoElement, () => ({
+    anime_name: window.ANIME_NAME, episode: window.EPISODE_PATH,
+    title: window.ANIME_NAME,
+    label: window.ANIME_NAME === 'Movies' ? 'Movie' : window.CURRENT_EP_DISPLAY_NAME
+}));
 
 // Preview data arrives independently of playback and subtitle preparation.
 let previewGeneration = 0;
@@ -721,23 +726,12 @@ function switchEpisode(episodePath, options = {}) {
 }
 
 // Fungsi untuk menghapus status Discord
-function clearStatus() {
-    fetch('/clear_rpc', {
-        method: 'POST',
-        headers: actionHeaders({ 'X-AniBase-RPC-Session': RPC_SESSION_ID })
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error('Clear RPC failed');
-        }
-    }).catch(() => {});
-}
-
 player.on('play', () => {
     updateStatus();
     sendWatchProgress();
     if (rpcInterval) clearInterval(rpcInterval);
     if (watchProgressInterval) clearInterval(watchProgressInterval);
-    // Update status ke Discord setiap 15 detik agar sinkron (Limit Discord RPC)
+    // Save the resume position independently of Discord presence.
     rpcInterval = setInterval(updateStatus, 15000);
     watchProgressInterval = setInterval(sendWatchProgress, 30000);
 });
@@ -750,21 +744,11 @@ player.on('pause', () => {
     if (rpcInterval) clearInterval(rpcInterval);
     if (watchProgressInterval) clearInterval(watchProgressInterval);
     sendWatchProgress();
-    clearStatus();
 });
 
 // Hapus status Discord saat pengguna menutup tab atau pindah halaman
 window.addEventListener('beforeunload', () => {
     sendWatchProgress(true);
-    fetch('/clear_rpc', {
-        method: 'POST',
-        headers: actionHeaders({ 'X-AniBase-RPC-Session': RPC_SESSION_ID }),
-        keepalive: true
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error('Clear RPC failed');
-        }
-    }).catch(() => {});
 });
 
 history.replaceState({ episodePath: window.EPISODE_PATH }, '', window.location.href);

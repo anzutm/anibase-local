@@ -178,9 +178,11 @@
                     class="player-thumb"
                     alt="{{ ep.display_name }}"
 
-                    src="{{ ep.thumbnail }}"
+                    src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+                    data-thumbnail-src="{{ ep.thumbnail }}"
 
                     loading="lazy"
+                    decoding="async"
                 >
 
                 <div class="duration-badge">
@@ -309,7 +311,9 @@
     });
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-15') }}"></script>
+<script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-16') }}"></script>
+<script src="{{ url_for('static', filename='episode-thumbnails.js', v='1') }}"></script>
 
 </body>
 
