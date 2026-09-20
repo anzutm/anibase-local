@@ -616,6 +616,15 @@
                                 placeholder="Discord application client ID"
                             >
                         </div>
+                        <div class="settings-field">
+                            <label class="settings-label" for="discord_timer_mode">Discord playback timer</label>
+                            <p class="settings-helper">Choose the timer shown while watching. Paused playback keeps its status without a timer. The compact status displays the anime title.</p>
+                            <select class="settings-input" id="discord_timer_mode" name="discord_timer_mode">
+                                <option value="remaining" {% if settings.discord_timer_mode != 'elapsed' %}selected{% endif %}>Time remaining</option>
+                                <option value="elapsed" {% if settings.discord_timer_mode == 'elapsed' %}selected{% endif %}>Elapsed playback time</option>
+                            </select>
+                            <p class="settings-helper">Applies on the next playback update. External players show session time because playback position is unavailable.</p>
+                        </div>
                     </section>
 
                     <section class="settings-card settings-card-compact theme-settings-card" id="settings-appearance">

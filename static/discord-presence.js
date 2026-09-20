@@ -28,10 +28,14 @@ window.AniBaseDiscordPresence = class {
             send('playing');
             clearInterval(timer);
             timer = setInterval(() => {
-                if (!video.paused && !video.ended) send('heartbeat');
+                if (started && !video.ended) send('heartbeat');
             }, 15000);
         });
-        ['pause', 'ended', 'waiting', 'emptied', 'error'].forEach(event => {
+        video.addEventListener('pause', () => {
+            clearTimeout(syncTimer);
+            if (started && !video.ended) send('pause');
+        });
+        ['ended', 'waiting', 'emptied', 'error'].forEach(event => {
             video.addEventListener(event, () => stop(event === 'emptied' || event === 'error' ? 'stop' : event));
         });
         ['seeked', 'ratechange'].forEach(event => video.addEventListener(event, () => {

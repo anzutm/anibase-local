@@ -12,6 +12,7 @@ class DiscordPresenceTests(unittest.TestCase):
         for name, value in {
             'RPC_DESIRED': None, 'RPC_SESSION_VERSIONS': {},
             'DISCORD_RPC_ENABLED': True, 'DISCORD_CLIENT_ID': 'test',
+            'DISCORD_TIMER_MODE': 'remaining', 'RPC_CONNECTION_STATUS': 'idle',
             'Presence': history_tests.DiscordRpcLifecycleTests.FakePresence,
             'rpc': None, 'rpc_connected': False, 'CURRENT_RPC_OWNER': None,
             'CURRENT_RPC_ANIME': None, 'RPC_START_TIME': None,
@@ -35,7 +36,9 @@ class DiscordPresenceTests(unittest.TestCase):
         self.event()
         self.event(sequence=3, event='pause')
         self.assertFalse(self.event(sequence=2))
-        self.assertIsNone(main.RPC_DESIRED)
+        self.assertTrue(main.RPC_DESIRED['paused'])
+        self.assertNotIn('start', main.RPC_DESIRED['payload'])
+        self.assertNotIn('end', main.RPC_DESIRED['payload'])
 
     def test_old_tab_heartbeat_and_stop_cannot_steal_owner(self):
         self.event()
@@ -100,9 +103,47 @@ class DiscordPresenceTests(unittest.TestCase):
         main.reconcile_discord_presence()
         main.reconcile_discord_presence()
         self.assertEqual(len(main.rpc.updates), 1)
+        self.assertEqual(main.rpc.updates[0]['activity_type'], main.ActivityType.WATCHING)
+        self.assertEqual(main.rpc.updates[0]['status_display_type'], main.StatusDisplayType.DETAILS)
         self.event(sequence=2, event='pause')
         main.reconcile_discord_presence()
+        self.assertEqual(main.rpc.clear_count, 0)
+        self.assertTrue(main.rpc.updates[-1]['state'].startswith('Paused'))
+        self.event(sequence=3, event='stop')
+        main.reconcile_discord_presence()
         self.assertEqual(main.rpc.clear_count, 1)
+
+    def test_paused_heartbeat_renews_lease_without_timer_and_resume_restores_it(self):
+        self.event()
+        self.event(sequence=2, event='pause')
+        main.RPC_DESIRED['expires'] = 0
+        self.event(sequence=3, event='heartbeat')
+        self.assertGreater(main.RPC_DESIRED['expires'], main.time.monotonic())
+        self.assertNotIn('start', main.RPC_DESIRED['payload'])
+        self.event(sequence=4, event='playing')
+        self.assertIn('end', main.RPC_DESIRED['payload'])
+        self.assertFalse(main.RPC_DESIRED.get('paused'))
+
+    def test_switch_timer_to_elapsed_removes_countdown_on_heartbeat(self):
+        self.event()
+        with patch.object(main, 'DISCORD_TIMER_MODE', 'elapsed'):
+            self.event(sequence=2, event='heartbeat')
+        self.assertIn('start', main.RPC_DESIRED['payload'])
+        self.assertNotIn('end', main.RPC_DESIRED['payload'])
+
+    def test_external_presence_uses_watching_and_anime_title(self):
+        with patch.object(main, 'discord_media_description', return_value=('Film', 'Movie')):
+            main.start_external_discord_presence('Movies', 'film.mkv', 'external')
+        main.reconcile_discord_presence()
+        self.assertEqual(main.rpc.updates[-1]['details'], 'Film')
+        self.assertEqual(main.rpc.updates[-1]['status_display_type'], main.StatusDisplayType.DETAILS)
+
+    def test_season_and_custom_episode_title_are_normalized(self):
+        with patch.object(main, 'discord_media_metadata', return_value={'title': 'Demo'}), \
+             patch.object(main, 'get_episode_display_override', return_value='The Journey'):
+            title, label = main.discord_media_description('Demo', 'S02/04.mkv')
+        self.assertEqual(title, 'Demo')
+        self.assertEqual(label, 'Season 2 · Episode 4 · The Journey')
 
     def test_connection_failure_uses_backoff_and_recovers(self):
         self.event()
@@ -116,6 +157,15 @@ class DiscordPresenceTests(unittest.TestCase):
         main.RPC_RETRY_AT = 0
         main.reconcile_discord_presence()
         self.assertTrue(main.rpc_connected)
+
+    def test_settings_distinguish_connection_states(self):
+        settings = {'discord_rpc_enabled': True, 'discord_client_id': '123456789012345678'}
+        diagnostics = {'vlc': {'status': 'available', 'message': 'Available'}}
+        for connection, expected in [('idle', 'Ready'), ('unavailable', 'Discord not available'),
+                                     ('retrying', 'Reconnecting'), ('invalid_id', 'Invalid Client ID')]:
+            with self.subTest(connection=connection), patch.object(main, 'RPC_CONNECTION_STATUS', connection):
+                cards = main.build_settings_status_cards(settings, diagnostics)
+                self.assertEqual(next(c for c in cards if c['label'] == 'Discord')['text'], expected)
 
     def test_invalid_timing_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -167,6 +217,7 @@ class DiscordPresenceBrowserTests(unittest.TestCase):
             page.set_content('<video id="video"></video>')
             page.evaluate('''() => {
                 window.sent = [];
+                window.setInterval = callback => { window.presenceHeartbeat = callback; return 1; };
                 window.fetch = async (url, options) => {
                     sent.push({...JSON.parse(options.body), keepalive: options.keepalive});
                     return {ok:true};
@@ -183,13 +234,14 @@ class DiscordPresenceBrowserTests(unittest.TestCase):
                 const video = document.querySelector('video');
                 for (const event of ['playing', 'pause', 'playing', 'waiting', 'playing']) {
                     video.dispatchEvent(new Event(event));
+                    if (event === 'pause') window.presenceHeartbeat();
                 }
                 window.dispatchEvent(new PageTransitionEvent('pagehide'));
             }''')
             events = page.evaluate('sent')
             self.assertEqual([x['event'] for x in events],
-                             ['playing', 'pause', 'playing', 'waiting', 'playing', 'stop'])
-            self.assertEqual([x['sequence'] for x in events], list(range(1, 7)))
+                             ['playing', 'pause', 'heartbeat', 'playing', 'waiting', 'playing', 'stop'])
+            self.assertEqual([x['sequence'] for x in events], list(range(1, 8)))
             self.assertEqual(len({x['session'] for x in events}), 1)
             self.assertTrue(events[-1]['keepalive'])
 

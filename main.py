@@ -33,10 +33,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
  
 try:
     from pypresence import Presence
+    from pypresence.types import ActivityType
+    from pypresence.types import StatusDisplayType
 except ImportError:
     Presence = None
+    ActivityType = None
+    StatusDisplayType = None
 
 DISCORD_CLIENT_ID = ""
+DISCORD_TIMER_MODE = "remaining"
+RPC_CONNECTION_STATUS = "idle"
 rpc = None
 rpc_connected = False
 RPC_LOCK = threading.RLock()
@@ -527,6 +533,7 @@ def get_default_settings():
         "screenshot_filename_prefix": "vlcsnap",
         "discord_rpc_enabled": False,
         "discord_client_id": "",
+        "discord_timer_mode": "remaining",
         "lan_access_enabled": False,
         "theme_preset": "dark-blue",
         "auto_import_enabled": False,
@@ -1016,6 +1023,8 @@ def is_configured_movie_folder_name(folder_name):
     return False
 
 def reset_discord_rpc():
+    global RPC_CONNECTION_STATUS
+    RPC_CONNECTION_STATUS = "idle"
     global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME, CURRENT_RPC_OWNER
     global RPC_DESIRED, RPC_RETRY_AT, RPC_RETRY_DELAY, RPC_LAST_PAYLOAD
 
@@ -1052,11 +1061,13 @@ def get_discord_rpc_client():
     return rpc
 
 def apply_settings(settings):
+    global DISCORD_TIMER_MODE
     global ANIME_PATHS, MOVIE_PATH, VLC_PATH, DISCORD_RPC_ENABLED, DISCORD_CLIENT_ID
 
     defaults = get_default_settings()
     merged = defaults.copy()
     merged.update(settings or {})
+    DISCORD_TIMER_MODE = "elapsed" if merged.get("discord_timer_mode") == "elapsed" else "remaining"
 
     ANIME_PATHS = get_settings_library_paths(merged)
     MOVIE_PATH = normalize_library_path(merged["movie_path"])
@@ -4181,6 +4192,7 @@ def get_schedule_alert_payload(processed, now_ts, now_iso, timezone_offset_minut
     }
 
 def update_discord_rpc(anime_name, episode_num, time_str=None, owner_id=None, payload=None):
+    global RPC_CONNECTION_STATUS
     global rpc, rpc_connected, RPC_START_TIME, CURRENT_RPC_ANIME, CURRENT_RPC_OWNER
     global RPC_RETRY_AT, RPC_RETRY_DELAY, RPC_LAST_PAYLOAD, RPC_LAST_SENT_AT
     if not DISCORD_RPC_ENABLED or time.monotonic() < RPC_RETRY_AT:
@@ -4198,6 +4210,7 @@ def update_discord_rpc(anime_name, episode_num, time_str=None, owner_id=None, pa
             CURRENT_RPC_OWNER = owner_id
 
             if not rpc_connected:
+                RPC_CONNECTION_STATUS = "connecting"
                 rpc_client.connect()
                 rpc_connected = True
 
@@ -4206,15 +4219,24 @@ def update_discord_rpc(anime_name, episode_num, time_str=None, owner_id=None, pa
             if time_str:
                 state_text += f" ({time_str})"
 
-            presence = payload or dict(details=str(anime_name)[:128], state=state_text[:128],
-                                       start=RPC_START_TIME, large_image="anibase_logo")
+            presence = dict(payload) if payload else dict(
+                details=str(anime_name)[:128], state=state_text[:128],
+                start=RPC_START_TIME, large_image="anibase_logo",
+            )
+            presence["activity_type"] = ActivityType.WATCHING
+            presence["status_display_type"] = StatusDisplayType.DETAILS
             if presence != RPC_LAST_PAYLOAD or time.monotonic() - RPC_LAST_SENT_AT >= 30:
                 rpc_client.update(**presence)
                 RPC_LAST_PAYLOAD = dict(presence)
                 RPC_LAST_SENT_AT = time.monotonic()
             RPC_RETRY_AT = 0.0
             RPC_RETRY_DELAY = 2.0
+            RPC_CONNECTION_STATUS = "connected"
         except Exception as e:
+            RPC_CONNECTION_STATUS = (
+                "unavailable" if type(e).__name__ in {"DiscordNotFound", "InvalidPipe", "FileNotFoundError"}
+                else "invalid_id" if type(e).__name__ == "InvalidID" else "retrying"
+            )
             app_log(f"Discord RPC error: {e}", "WARN")
             try:
                 rpc_client.close()
@@ -4300,9 +4322,18 @@ def discord_media_description(anime_name, episode, label=""):
     title = get_watch_history_display_name(anime_name, episode)
     metadata = discord_media_metadata(anime_name, episode)
     title = metadata.get("title") or title
-    label = "Movie" if movie else (label or get_episode_default_display_name(os.path.basename(episode)))
+    filename = os.path.basename(str(episode).replace("\\", "/"))
+    label = "Movie" if movie else (label or get_episode_default_display_name(filename))
+    if not movie:
+        number = format_episode_number(get_episode_number(filename))
+        episode_title = get_episode_display_override(anime_name, episode) or label
+        label = f"Episode {number}" if number else label
+        if episode_title and episode_title != label:
+            label += f" · {episode_title}"
     if season and not movie:
-        label = f"{season} · {label}"
+        match = re.fullmatch(r"(?:season\s*|s)(\d+)", os.path.basename(season), re.I)
+        season_label = f"Season {int(match.group(1))}" if match else season.replace("/", " · ")
+        label = f"{season_label} · {label}"
     return str(title)[:128], str(label)[:128]
 
 def discord_media_artwork(anime_name, episode, title):
@@ -4381,7 +4412,18 @@ def accept_discord_presence_event(data):
             RPC_SESSION_VERSIONS.pop(next(iter(RPC_SESSION_VERSIONS)))
         RPC_SESSION_VERSIONS[session] = sequence
         owner = RPC_DESIRED.get("session") if RPC_DESIRED else None
-        if event in {"pause", "ended", "waiting", "stop"}:
+        if event == "pause":
+            if owner != session:
+                return False
+            RPC_DESIRED["paused"] = True
+            presence = RPC_DESIRED["payload"]
+            presence["state"] = ("Paused · " + RPC_DESIRED.get("label", presence["state"]))[:128]
+            presence.pop("start", None)
+            presence.pop("end", None)
+            RPC_DESIRED["expires"] = time.monotonic() + 90
+        elif event == "heartbeat" and owner == session and RPC_DESIRED.get("paused"):
+            RPC_DESIRED["expires"] = time.monotonic() + 90
+        elif event in {"ended", "waiting", "stop"}:
             if owner != session:
                 return False
             RPC_DESIRED = None
@@ -4400,17 +4442,18 @@ def accept_discord_presence_event(data):
                            **discord_media_artwork(data.get("anime_name"), data.get("episode"), title))
             if duration > 0:
                 position = min(duration, max(0, position))
-                payload.update(start=int(now - position / speed),
-                               end=int(now + (duration - position) / speed))
+                payload["start"] = int(now - position / speed)
+                if DISCORD_TIMER_MODE == "remaining":
+                    payload["end"] = int(now + (duration - position) / speed)
             # Heartbeats renew the lease without rewriting unchanged timestamps.
             previous = RPC_DESIRED.get("payload", {}) if RPC_DESIRED else {}
             if event == "heartbeat" and previous.get("state") == label and previous.get("details") == title:
                 if abs(previous.get("start", 0) - payload.get("start", 0)) <= 2:
                     # Preserve the stable timer, but allow newly cached artwork/links.
                     for key in ("start", "end"):
-                        if key in previous:
+                        if key in previous and key in payload:
                             payload[key] = previous[key]
-            RPC_DESIRED = dict(session=session, title=title, episode_num=0,
+            RPC_DESIRED = dict(session=session, title=title, episode_num=0, label=label,
                                payload=payload, expires=time.monotonic() + 90)
     dispatch_discord_rpc_task("reconcile")
     start_discord_presence_monitor()
@@ -6117,9 +6160,19 @@ def build_settings_status_cards(settings, media_diagnostics=None):
     discord_client_id = str(settings.get("discord_client_id", "")).strip()
 
     if discord_enabled and discord_client_id:
-        discord_state = "valid"
-        discord_text = "Connected" if rpc_connected else "Waiting for Discord"
-        discord_detail = "Discord is connected" if rpc_connected else "Enabled; connects during playback on this computer"
+        discord_state = "valid" if rpc_connected else "off"
+        if Presence is None:
+            discord_state, discord_text, discord_detail = "invalid", "Update required", "Install the project dependencies to enable Discord Presence."
+        elif not discord_client_id.isdigit() or RPC_CONNECTION_STATUS == "invalid_id":
+            discord_state, discord_text, discord_detail = "invalid", "Invalid Client ID", "Copy the Application ID from the Discord Developer Portal."
+        elif rpc_connected:
+            discord_text, discord_detail = "Connected", "Discord is connected; playback updates are enabled."
+        elif RPC_CONNECTION_STATUS == "unavailable":
+            discord_text, discord_detail = "Discord not available", "Open Discord Desktop on this computer. AniBase retries automatically during playback."
+        elif RPC_CONNECTION_STATUS in {"connecting", "retrying"}:
+            discord_text, discord_detail = "Reconnecting", "Trying to connect to Discord again automatically."
+        else:
+            discord_text, discord_detail = "Ready", "Start playback on this computer to connect to Discord."
     elif discord_enabled:
         discord_state = "invalid"
         discord_text = "Needs Client ID"
@@ -6516,6 +6569,7 @@ def update_settings():
         ),
         "discord_rpc_enabled": "discord_rpc_enabled" in request.form,
         "discord_client_id": request.form.get("discord_client_id", "").strip(),
+        "discord_timer_mode": "elapsed" if request.form.get("discord_timer_mode", existing_settings.get("discord_timer_mode")) == "elapsed" else "remaining",
         "lan_access_enabled": "lan_access_enabled" in request.form,
         "theme_preset": request.form.get("theme_preset", "dark-blue").strip(),
         "auto_import_enabled": "auto_import_enabled" in request.form,
