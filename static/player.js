@@ -915,6 +915,7 @@ const videoZoomRange = document.getElementById('videoZoomRange');
 const videoZoomValue = document.getElementById('videoZoomValue');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 const zoomInBtn = document.getElementById('zoomInBtn');
+const videoZoomControl = document.querySelector('.player-zoom-control');
 
 function setVideoZoom(value, announce = false) {
     const numericValue = Number(value);
@@ -924,7 +925,9 @@ function setVideoZoom(value, announce = false) {
     );
     const roundedZoom = Math.round(zoom / VIDEO_ZOOM_STEP) * VIDEO_ZOOM_STEP;
 
-    videoElement.style.setProperty('--video-zoom', String(roundedZoom / 100));
+    const zoomScale = String(roundedZoom / 100);
+    videoElement.style.setProperty('--video-zoom', zoomScale);
+    player.elements.container.style.setProperty('--video-zoom', zoomScale);
     if (videoZoomRange) videoZoomRange.value = String(roundedZoom);
     if (videoZoomValue) {
         videoZoomValue.textContent = `${roundedZoom}%`;
@@ -945,6 +948,17 @@ videoZoomRange?.addEventListener('change', () => setVideoZoom(videoZoomRange.val
 zoomOutBtn?.addEventListener('click', () => changeVideoZoom(-1));
 zoomInBtn?.addEventListener('click', () => changeVideoZoom(1));
 videoZoomValue?.addEventListener('click', () => setVideoZoom(VIDEO_ZOOM_MIN, true));
+videoZoomControl?.addEventListener('keydown', event => {
+    const isPlus = event.key === '+' || event.code === 'NumpadAdd';
+    const isMinus = event.key === '-' || event.code === 'NumpadSubtract';
+    if (!isPlus && !isMinus) return;
+
+    // +/- belongs to zoom while one of its controls is focused. Elsewhere,
+    // the existing global shortcut continues to adjust playback speed.
+    event.preventDefault();
+    event.stopPropagation();
+    changeVideoZoom(isPlus ? 1 : -1);
+});
 setVideoZoom(VIDEO_ZOOM_MIN);
 
 function changePlaybackSpeed(direction) {

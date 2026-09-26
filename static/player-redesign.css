@@ -181,6 +181,20 @@ body.player-body .plyr__video-wrapper video {
     transition: transform .18s ease;
 }
 
+/* Keep both ASS canvas subtitles and Plyr's VTT fallback aligned with the
+   enlarged picture. Independent `scale` preserves Plyr's caption translation. */
+body.player-body .plyr__video-wrapper .libassjs-canvas {
+    scale: var(--video-zoom, 1);
+    transform-origin: center center;
+    transition: scale .18s ease;
+}
+
+body.player-body .plyr__captions {
+    scale: var(--video-zoom, 1);
+    transform-origin: center bottom;
+    transition: scale .18s ease, transform .4s ease-in-out;
+}
+
 body.player-body .player-status-bar {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -505,6 +519,8 @@ body.player-body .player-episode-card.active .watch-status-badge{
     body.player-body .player-episode-card,
     body.player-body .player-episode-card .player-thumb,
     body.player-body .plyr__video-wrapper video,
+    body.player-body .plyr__video-wrapper .libassjs-canvas,
+    body.player-body .plyr__captions,
     body.player-body :is(.player-back, .nav-btn) {
         transition: none !important;
     }

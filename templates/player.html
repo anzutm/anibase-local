@@ -22,7 +22,7 @@
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-8') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='16') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='17') }}">
 </head>
 
 <body class="player-body">
@@ -96,7 +96,7 @@
                     <span class="live-badge">Local Stream</span>
                     <div class="player-zoom-control" role="group" aria-label="Video zoom">
                         <span class="player-zoom-label">Zoom</span>
-                        <button type="button" id="zoomOutBtn" class="player-zoom-step" aria-label="Zoom out 5 percent">&minus;</button>
+                        <button type="button" id="zoomOutBtn" class="player-zoom-step" title="Zoom out 5%" aria-label="Zoom out 5 percent">&minus;</button>
                         <input
                             type="range"
                             id="videoZoomRange"
@@ -107,7 +107,7 @@
                             aria-label="Video zoom percentage"
                         >
                         <button type="button" id="videoZoomValue" class="player-zoom-value" title="Reset zoom to 100%" aria-label="Video zoom 100 percent. Reset zoom">100%</button>
-                        <button type="button" id="zoomInBtn" class="player-zoom-step" aria-label="Zoom in 5 percent">+</button>
+                        <button type="button" id="zoomInBtn" class="player-zoom-step" title="Zoom in 5%" aria-label="Zoom in 5 percent">+</button>
                     </div>
                 </div>
                 <div class="player-navigation">
@@ -328,7 +328,7 @@
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
 <script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-17') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-19') }}"></script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='1') }}"></script>
 
 </body>
