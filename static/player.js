@@ -262,12 +262,7 @@ function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
 }
 
 window.addEventListener('keyup', event => {
-    const isArrowSeek = ['ArrowLeft', 'ArrowRight'].includes(event.key);
-    const isThirtySecondSeek = event.ctrlKey && (
-        event.key === '<' || event.key === '>' ||
-        (event.shiftKey && ['Comma', 'Period'].includes(event.code))
-    );
-    if (!isArrowSeek && !isThirtySecondSeek) return;
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     if (seekFeedbackState.targetTime === null) return;
     clearTimeout(seekFeedbackState.seekTimer);
     applyMediaSeek(seekFeedbackState.targetTime);
@@ -358,24 +353,22 @@ window.addEventListener('keydown', (event) => {
     seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward');
 }, true);
 
-// Ctrl+< / Ctrl+> skips 30 seconds. `code` keeps the shortcut reliable
-// across keyboard layouts where the angle brackets share comma/period keys.
+// Ctrl+Left / Ctrl+Right skips 30 seconds; unmodified arrows remain at 5 seconds.
 window.addEventListener('keydown', (event) => {
     const target = event.target;
     const isTyping = target && (
         target.isContentEditable ||
         (target.matches && target.matches('input, textarea, select'))
     );
-    const isBackward = event.key === '<' || (event.shiftKey && event.code === 'Comma');
-    const isForward = event.key === '>' || (event.shiftKey && event.code === 'Period');
+    const isArrow = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
 
-    if (!event.ctrlKey || event.metaKey || event.altKey || isTyping || (!isBackward && !isForward)) {
+    if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || isTyping || !isArrow) {
         return;
     }
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    seekByShortcut(isForward ? 'forward' : 'backward', 30);
+    seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward', 30);
 }, true);
 
 videoElement.addEventListener('error', () => {
