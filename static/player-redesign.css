@@ -171,6 +171,16 @@ body.player-body .plyr--video {
     --plyr-color-main: var(--player-accent-hover);
 }
 
+body.player-body .plyr__video-wrapper {
+    overflow: hidden;
+}
+
+body.player-body .plyr__video-wrapper video {
+    transform: scale(var(--video-zoom, 1));
+    transform-origin: center center;
+    transition: transform .18s ease;
+}
+
 body.player-body .player-status-bar {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -186,7 +196,73 @@ body.player-body .player-status-bar {
 }
 
 body.player-body .status-left {
-    gap: 0;
+    gap: 10px;
+    min-width: 0;
+}
+
+body.player-body .player-zoom-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, .10);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, .025);
+}
+
+body.player-body .player-zoom-label {
+    color: rgba(214, 223, 233, .68);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+body.player-body .player-zoom-control button {
+    display: inline-grid;
+    place-items: center;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: rgba(230, 235, 242, .86);
+    cursor: pointer;
+}
+
+body.player-body .player-zoom-step {
+    width: 22px;
+    font-size: 15px;
+}
+
+body.player-body .player-zoom-value {
+    min-width: 42px;
+    font-size: 9px;
+    font-weight: 750;
+}
+
+body.player-body .player-zoom-control button:hover,
+body.player-body .player-zoom-control button:focus-visible {
+    background: color-mix(in srgb, var(--player-accent-hover) 12%, transparent);
+    color: color-mix(in srgb, var(--player-accent-hover) 78%, white);
+    outline: none;
+}
+
+body.player-body .player-zoom-control button:focus-visible,
+body.player-body .player-zoom-control input:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--player-accent-hover) 55%, transparent);
+}
+
+body.player-body .player-zoom-control button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+body.player-body #videoZoomRange {
+    width: clamp(58px, 7vw, 92px);
+    height: 4px;
+    margin: 0 2px;
+    accent-color: var(--player-accent-hover);
+    cursor: pointer;
 }
 
 body.player-body .live-badge {
@@ -401,6 +477,11 @@ body.player-body .player-episode-card.active .watch-status-badge{
         padding: 9px;
     }
 
+    body.player-body .status-left {
+        justify-content: space-between;
+        width: 100%;
+    }
+
     body.player-body .player-navigation {
         justify-content: flex-start;
         overflow-x: auto;
@@ -423,6 +504,7 @@ body.player-body .player-episode-card.active .watch-status-badge{
 @media (prefers-reduced-motion: reduce) {
     body.player-body .player-episode-card,
     body.player-body .player-episode-card .player-thumb,
+    body.player-body .plyr__video-wrapper video,
     body.player-body :is(.player-back, .nav-btn) {
         transition: none !important;
     }

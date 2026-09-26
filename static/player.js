@@ -155,7 +155,7 @@ function getSeekFeedback(direction) {
     return container.querySelector(selector) || createSeekFeedback(container, direction);
 }
 
-function showSeekFeedback(direction) {
+function showSeekFeedback(direction, stepSeconds = SEEK_STEP_SECONDS) {
     const feedback = getSeekFeedback(direction);
     if (!feedback) return;
 
@@ -167,7 +167,7 @@ function showSeekFeedback(direction) {
         seekFeedbackState.total = 0;
     }
     seekFeedbackState.direction = direction;
-    seekFeedbackState.total += SEEK_STEP_SECONDS;
+    seekFeedbackState.total += stepSeconds;
 
     const amount = direction === 'forward'
         ? `+${seekFeedbackState.total}`
@@ -236,12 +236,12 @@ window.addEventListener('pointerup', commitTimelineSeek, true);
 window.addEventListener('pointercancel', commitTimelineSeek, true);
 window.addEventListener('blur', commitTimelineSeek);
 
-function seekByShortcut(direction) {
+function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
     const duration = Number(player.duration || videoElement.duration || 0);
     const currentTime = seekFeedbackState.targetTime === null
         ? Number(player.currentTime || 0)
         : seekFeedbackState.targetTime;
-    const delta = direction === 'forward' ? SEEK_STEP_SECONDS : -SEEK_STEP_SECONDS;
+    const delta = direction === 'forward' ? stepSeconds : -stepSeconds;
     seekFeedbackState.targetTime = Math.max(
         0,
         duration ? Math.min(duration, currentTime + delta) : currentTime + delta
@@ -258,11 +258,16 @@ function seekByShortcut(direction) {
             seekFeedbackState.targetTime = null;
         }
     }, targetIsBuffered ? 100 : 180);
-    showSeekFeedback(direction);
+    showSeekFeedback(direction, stepSeconds);
 }
 
 window.addEventListener('keyup', event => {
-    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    const isArrowSeek = ['ArrowLeft', 'ArrowRight'].includes(event.key);
+    const isThirtySecondSeek = event.ctrlKey && (
+        event.key === '<' || event.key === '>' ||
+        (event.shiftKey && ['Comma', 'Period'].includes(event.code))
+    );
+    if (!isArrowSeek && !isThirtySecondSeek) return;
     if (seekFeedbackState.targetTime === null) return;
     clearTimeout(seekFeedbackState.seekTimer);
     applyMediaSeek(seekFeedbackState.targetTime);
@@ -351,6 +356,26 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
     seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward');
+}, true);
+
+// Ctrl+< / Ctrl+> skips 30 seconds. `code` keeps the shortcut reliable
+// across keyboard layouts where the angle brackets share comma/period keys.
+window.addEventListener('keydown', (event) => {
+    const target = event.target;
+    const isTyping = target && (
+        target.isContentEditable ||
+        (target.matches && target.matches('input, textarea, select'))
+    );
+    const isBackward = event.key === '<' || (event.shiftKey && event.code === 'Comma');
+    const isForward = event.key === '>' || (event.shiftKey && event.code === 'Period');
+
+    if (!event.ctrlKey || event.metaKey || event.altKey || isTyping || (!isBackward && !isForward)) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    seekByShortcut(isForward ? 'forward' : 'backward', 30);
 }, true);
 
 videoElement.addEventListener('error', () => {
@@ -882,6 +907,45 @@ function showVlcToast(message, options = {}) {
 }
 
 const PLAYBACK_SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2];
+
+const VIDEO_ZOOM_MIN = 100;
+const VIDEO_ZOOM_MAX = 200;
+const VIDEO_ZOOM_STEP = 5;
+const videoZoomRange = document.getElementById('videoZoomRange');
+const videoZoomValue = document.getElementById('videoZoomValue');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const zoomInBtn = document.getElementById('zoomInBtn');
+
+function setVideoZoom(value, announce = false) {
+    const numericValue = Number(value);
+    const zoom = Math.max(
+        VIDEO_ZOOM_MIN,
+        Math.min(VIDEO_ZOOM_MAX, Number.isFinite(numericValue) ? numericValue : VIDEO_ZOOM_MIN)
+    );
+    const roundedZoom = Math.round(zoom / VIDEO_ZOOM_STEP) * VIDEO_ZOOM_STEP;
+
+    videoElement.style.setProperty('--video-zoom', String(roundedZoom / 100));
+    if (videoZoomRange) videoZoomRange.value = String(roundedZoom);
+    if (videoZoomValue) {
+        videoZoomValue.textContent = `${roundedZoom}%`;
+        videoZoomValue.setAttribute('aria-label', `Video zoom ${roundedZoom} percent. Reset zoom`);
+    }
+    if (zoomOutBtn) zoomOutBtn.disabled = roundedZoom <= VIDEO_ZOOM_MIN;
+    if (zoomInBtn) zoomInBtn.disabled = roundedZoom >= VIDEO_ZOOM_MAX;
+    if (announce) showScreenshotToast(`Video zoom: ${roundedZoom}%`, { icon: '&#128269;', duration: 1400 });
+}
+
+function changeVideoZoom(direction) {
+    const currentZoom = Number(videoZoomRange?.value || VIDEO_ZOOM_MIN);
+    setVideoZoom(currentZoom + direction * VIDEO_ZOOM_STEP, true);
+}
+
+videoZoomRange?.addEventListener('input', () => setVideoZoom(videoZoomRange.value));
+videoZoomRange?.addEventListener('change', () => setVideoZoom(videoZoomRange.value, true));
+zoomOutBtn?.addEventListener('click', () => changeVideoZoom(-1));
+zoomInBtn?.addEventListener('click', () => changeVideoZoom(1));
+videoZoomValue?.addEventListener('click', () => setVideoZoom(VIDEO_ZOOM_MIN, true));
+setVideoZoom(VIDEO_ZOOM_MIN);
 
 function changePlaybackSpeed(direction) {
     const currentSpeed = Number(player.speed || videoElement.playbackRate || 1);
