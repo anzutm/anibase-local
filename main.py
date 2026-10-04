@@ -10213,10 +10213,16 @@ def get_episode_skip_times(anime_name, episode):
 
 # --- MyAnimeList OAuth & Scrobble Endpoints ---
 
-@app.route("/api/mal/login", endpoint="mal_oauth_login")
+@app.route("/api/mal/login", methods=["GET", "POST"], endpoint="mal_oauth_login")
 @host_only
 def mal_oauth_login():
     settings = load_settings()
+    if request.method == "POST":
+        submitted_id = str(request.form.get("mal_client_id", "")).strip()
+        if submitted_id:
+            settings["mal_client_id"] = submitted_id
+            save_settings(settings)
+
     client_id = get_effective_mal_client_id(settings)
     if not client_id:
         return redirect("/settings?mal_error=Please+configure+MyAnimeList+Client+ID+first")

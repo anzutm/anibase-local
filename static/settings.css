@@ -712,12 +712,15 @@
     gap: 8px;
     min-height: 40px;
     padding: 9px 18px;
+    border: 0;
     border-radius: 10px;
     background: #2e51a2;
     color: #ffffff;
+    font: inherit;
     font-size: 13px;
     font-weight: 700;
     text-decoration: none;
+    cursor: pointer;
     transition: filter 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
 }
 

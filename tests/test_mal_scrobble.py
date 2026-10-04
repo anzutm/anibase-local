@@ -183,6 +183,28 @@ class MalScrobbleTests(unittest.TestCase):
             self.assertIn("code_challenge_method=plain", location)
             self.assertIn("response_type=code", location)
 
+    def test_oauth_login_post_saves_client_id_and_redirects(self):
+        settings_store = {}
+        def mock_save(s):
+            settings_store.update(s)
+        with patch.object(main, "is_setup_complete", return_value=True), \
+             patch.object(main, "load_settings", side_effect=lambda: dict(settings_store)), \
+             patch.object(main, "save_settings", side_effect=mock_save):
+            client = main.app.test_client()
+            resp = client.post("/api/mal/login", data={"mal_client_id": "fresh_posted_client_id"})
+            self.assertEqual(resp.status_code, 302)
+            location = resp.headers.get("Location", "")
+            self.assertIn("client_id=fresh_posted_client_id", location)
+            self.assertEqual(settings_store.get("mal_client_id"), "fresh_posted_client_id")
+
+    def test_oauth_login_missing_client_id_redirects_with_error(self):
+        with patch.object(main, "is_setup_complete", return_value=True), \
+             patch.object(main, "load_settings", return_value={}):
+            client = main.app.test_client()
+            resp = client.get("/api/mal/login")
+            self.assertEqual(resp.status_code, 302)
+            self.assertIn("/settings?mal_error=", resp.headers.get("Location", ""))
+
     def test_oauth_callback_endpoint_exchanges_token(self):
         main.MAL_OAUTH_SESSIONS["state_123"] = {
             "verifier": "verifier_abc",
