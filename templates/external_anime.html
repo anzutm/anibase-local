@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}{{ anime.name }} - AniBase Discovery{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='2') }}">
+{% endblock %}
+
+{% block body_class %}external-anime-body support-page{% endblock %}
+
+{% block content %}
+<div class="ext-page">
+    <!-- Ambient Glow Background -->
+    <div class="ext-ambient-glow" style="--accent-color: {{ anime.cover_color or '#3b82f6' }};"></div>
+
+    <!-- Top Return & Status Navigation -->
+    <nav class="ext-nav-bar" aria-label="Page navigation">
+        <a href="{{ return_to }}" class="ext-back-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>{{ return_label }}</span>
+        </a>
+        <div class="ext-status-pill">
+            <span class="ext-status-dot"></span>
+            <span>Discovery Catalog &middot; Outside Local Library</span>
+        </div>
+    </nav>
+
+    <!-- Hero Showcase Section -->
+    <header class="ext-hero">
+        <div class="ext-backdrop-shell">
+            {% if anime.banner %}
+            <img class="ext-backdrop-img" src="{{ anime.banner }}" alt="" loading="lazy">
+            {% else %}
+            <img class="ext-backdrop-img is-blurred-poster" src="{{ anime.poster }}" alt="" loading="lazy">
+            {% endif %}
+            <div class="ext-backdrop-gradient"></div>
+        </div>
+
+        <div class="ext-hero-inner">
+            <div class="ext-poster-column">
+                <div class="ext-poster-frame">
+                    <img class="ext-poster-img" src="{{ anime.poster }}" alt="{{ anime.name }}" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                    <div class="ext-poster-badge">{{ anime.format or 'ANIME' }}</div>
+                </div>
+            </div>
+
+            <div class="ext-hero-info">
+                <div class="ext-eyebrow">
+                    <span>ANIBASE DISCOVERY</span>
+                    <span class="ext-sep">&bull;</span>
+                    <span>ANILIST #{{ anime.id }}</span>
+                    {% if anime.id_mal %}
+                    <span class="ext-sep">&bull;</span>
+                    <span>MAL #{{ anime.id_mal }}</span>
+                    {% endif %}
+                </div>
+
+                <h1 class="ext-title">{{ anime.name }}</h1>
+
+                {% if anime.title_romaji and anime.title_romaji != anime.name %}
+                <p class="ext-subtitle-romaji">{{ anime.title_romaji }}</p>
+                {% endif %}
+                {% if anime.title_native %}
+                <p class="ext-subtitle-native">{{ anime.title_native }}</p>
+                {% endif %}
+
+                <!-- Meta Badges Bar -->
+                <div class="ext-meta-chips">
+                    {% if anime.score %}
+                    <div class="ext-chip ext-chip-score" title="AniList Community Score">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>{{ "%.1f"|format(anime.score / 10) }}</span>
+                        <small>/ 10</small>
+                    </div>
+                    {% endif %}
+
+                    {% if anime.format %}
+                    <span class="ext-chip">{{ anime.format }}</span>
+                    {% endif %}
+
+                    {% if anime.year %}
+                    <span class="ext-chip">
+                        {% if anime.season %}{{ anime.season|title }} {% endif %}{{ anime.year }}
+                    </span>
+                    {% endif %}
+
+                    {% if anime.episodes %}
+                    <span class="ext-chip">{{ anime.episodes }} Episodes</span>
+                    {% endif %}
+
+                    {% if anime.duration %}
+                    <span class="ext-chip">{{ anime.duration }} min/ep</span>
+                    {% endif %}
+
+                    {% if anime.status %}
+                    <span class="ext-chip ext-chip-status is-{{ anime.status|lower }}">{{ anime.status }}</span>
+                    {% endif %}
+
+                    {% if anime.studio %}
+                    <a href="{{ url_for('studio_page', studio_name=anime.studio, return_to=request.full_path if request.full_path else request.path) }}" class="ext-chip ext-chip-studio" title="Lihat karya studio {{ anime.studio }}">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                        <span>Studio {{ anime.studio }} &nearr;</span>
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- Genres List -->
+                {% if anime.genres %}
+                <div class="ext-genres-row">
+                    {% for genre in anime.genres %}
+                    <span class="ext-genre-pill">{{ genre }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Next Airing Countdown Banner -->
+                {% if anime.next_airing %}
+                <div class="ext-airing-alert">
+                    <span class="ext-airing-pulse"></span>
+                    <div>
+                        <strong>Episode {{ anime.next_airing.episode }} sedang tayang:</strong>
+                        <span>Tayang dalam {{ anime.next_airing.countdown_text }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Smart Local Library Bridge Banner -->
+    <section class="ext-section ext-bridge-section">
+        {% if local_match %}
+        <div class="ext-bridge-card is-matched">
+            <div class="ext-bridge-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+            <div class="ext-bridge-content">
+                <span class="ext-bridge-tag">DITEMUKAN DI LIBRARY LOKAL</span>
+                <h3>Tersedia di Koleksi Anda: <em>{{ local_match.name }}</em></h3>
+                <p>Anime ini sudah Anda miliki di disk lokal. Anda dapat langsung menonton episode, melihat subjudul lokal, atau mengelola progres tonton.</p>
+            </div>
+            <div class="ext-bridge-action">
+                <a href="{{ url_for('anime_detail', anime_name=local_match.name) }}" class="ext-btn ext-btn-primary ext-btn-glow">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Buka & Tonton di Library</span>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <div class="ext-bridge-card is-not-matched">
+            <div class="ext-bridge-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="ext-bridge-content">
+                <span class="ext-bridge-tag">BELUM ADA DI LIBRARY LOKAL</span>
+                <h3>Belum Tersimpan di Koleksi Lokal</h3>
+                <p>Anime ini ditampilkan sebagai informasi katalog. Gunakan pintasan aksi di bawah untuk mencari atau menyalin judul.</p>
+            </div>
+            <div class="ext-action-toolbar">
+                <button type="button" class="ext-btn ext-btn-secondary" id="extCopyTitleBtn" data-title="{{ anime.name }}">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Salin Judul</span>
+                </button>
+                <a href="https://www.google.com/search?q={{ anime.name|urlencode }}+anime" target="_blank" rel="noopener noreferrer" class="ext-btn ext-btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <span>Google &nearr;</span>
+                </a>
+                <a href="https://nyaa.si/?f=0&c=1_2&q={{ anime.name|urlencode }}" target="_blank" rel="noopener noreferrer" class="ext-btn ext-btn-secondary">
+                    <span>Nyaa &nearr;</span>
+                </a>
+                {% if anime.anilist_url %}
+                <a href="{{ anime.anilist_url }}" target="_blank" rel="noopener noreferrer" class="ext-btn ext-btn-secondary">
+                    <span>AniList &nearr;</span>
+                </a>
+                {% endif %}
+                {% if anime.mal_url %}
+                <a href="{{ anime.mal_url }}" target="_blank" rel="noopener noreferrer" class="ext-btn ext-btn-secondary">
+                    <span>MyAnimeList &nearr;</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Main Grid Content: Synopsis, Trailer, Characters, Relations -->
+    <div class="ext-main-layout">
+        <!-- Left / Primary Column -->
+        <main class="ext-main-col">
+            <!-- Synopsis Section -->
+            <section class="ext-card-section" aria-labelledby="synopsisHeading">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h2 id="synopsisHeading">Sinopsis Cerita</h2>
+                </div>
+                <div class="ext-synopsis-body">
+                    {% if anime.description %}
+                        {% for paragraph in anime.description.split('\n') %}
+                            {% if paragraph.strip() %}
+                            <p>{{ paragraph.strip() }}</p>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <p class="ext-synopsis-empty">Belum ada deskripsi sinopsis untuk anime ini.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Official Trailer Section -->
+            {% if anime.trailer and anime.trailer.embed_url %}
+            <section class="ext-card-section" aria-labelledby="trailerHeading">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h2 id="trailerHeading">Trailer Resmi</h2>
+                </div>
+                <div class="ext-trailer-wrapper">
+                    <iframe
+                        src="{{ anime.trailer.embed_url }}"
+                        title="Trailer {{ anime.name }}"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                        loading="lazy"
+                    ></iframe>
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Characters & Voice Actors Section -->
+            {% if anime.characters %}
+            <section class="ext-card-section" aria-labelledby="charactersHeading">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h2 id="charactersHeading">Karakter & Pengisi Suara (Seiyuu)</h2>
+                    <span class="ext-count-pill">{{ anime.characters|length }} Karakter</span>
+                </div>
+
+                <div class="ext-characters-grid">
+                    {% for char in anime.characters %}
+                    <div class="ext-char-card">
+                        <div class="ext-char-avatar">
+                            {% if char.character_image %}
+                            <img src="{{ char.character_image }}" alt="{{ char.character_name }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                            {% else %}
+                            <div class="ext-avatar-fallback">{{ char.character_name[:1] }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="ext-char-meta">
+                            <span class="ext-char-role">{{ char.role }}</span>
+                            <h4 class="ext-char-name">{{ char.character_name }}</h4>
+
+                            {% if char.va_name %}
+                            <div class="ext-va-box">
+                                {% if char.va_image %}
+                                <img src="{{ char.va_image }}" alt="{{ char.va_name }}" class="ext-va-avatar" loading="lazy">
+                                {% endif %}
+                                <div class="ext-va-text">
+                                    {% if char.va_id %}
+                                    <a href="{{ url_for('seiyuu_page', staff_id=char.va_id, return_to=request.full_path if request.full_path else request.path) }}" class="ext-va-link" title="Lihat profil seiyuu {{ char.va_name }}">
+                                        {{ char.va_name }} &nearr;
+                                    </a>
+                                    {% else %}
+                                    <span class="ext-va-name">{{ char.va_name }}</span>
+                                    {% endif %}
+                                    <small>Japanese VA</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Franchise Relations Section -->
+            {% if relations %}
+            <section class="ext-card-section" aria-labelledby="relationsHeading">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h2 id="relationsHeading">Relasi Franchise & Prekuel/Sekuel</h2>
+                    <span class="ext-count-pill">{{ relations|length }} Terhubung</span>
+                </div>
+
+                <div class="ext-relations-grid">
+                    {% for rel in relations %}
+                    <div class="ext-relation-card{% if rel.in_library %} is-in-library{% endif %}">
+                        <div class="ext-rel-poster-shell">
+                            <img src="{{ rel.poster }}" alt="{{ rel.title }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                            {% if rel.in_library %}
+                            <div class="ext-rel-badge ext-badge-library">In Library</div>
+                            {% else %}
+                            <div class="ext-rel-badge ext-badge-external">Catalog</div>
+                            {% endif %}
+                        </div>
+                        <div class="ext-rel-info">
+                            <span class="ext-rel-type">{{ rel.relation_type }}</span>
+                            <h4 class="ext-rel-title">{{ rel.title }}</h4>
+                            <div class="ext-rel-meta">
+                                {% if rel.format %}<span>{{ rel.format }}</span>{% endif %}
+                                {% if rel.status %}<span>&bull; {{ rel.status }}</span>{% endif %}
+                            </div>
+                            {% if rel.detail_url %}
+                            <a href="{{ rel.detail_url }}" class="ext-rel-action-btn">
+                                {% if rel.in_library %}
+                                &#9654; Tonton di Library
+                                {% else %}
+                                &#8505; Info Anime &rarr;
+                                {% endif %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Similar Recommendations Section -->
+            {% if recommendations %}
+            <section class="ext-card-section" aria-labelledby="recsHeading">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h2 id="recsHeading">Anime Serupa & Rekomendasi</h2>
+                </div>
+
+                <div class="ext-recs-grid">
+                    {% for rec in recommendations %}
+                    <div class="ext-rec-card">
+                        {% if rec.detail_url %}
+                        <a href="{{ rec.detail_url }}" class="ext-rec-link">
+                        {% endif %}
+                            <div class="ext-rec-poster-frame">
+                                <img src="{{ rec.poster }}" alt="{{ rec.title }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                                {% if rec.in_library %}
+                                <div class="ext-rel-badge ext-badge-library">In Library</div>
+                                {% endif %}
+                                {% if rec.score %}
+                                <div class="ext-rec-score">&starf; {{ "%.1f"|format(rec.score / 10) }}</div>
+                                {% endif %}
+                            </div>
+                            <h4 class="ext-rec-title">{{ rec.title }}</h4>
+                        {% if rec.detail_url %}
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </main>
+
+        <!-- Right / Sidebar Information Column -->
+        <aside class="ext-sidebar-col">
+            <div class="ext-card-section ext-details-card">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h3>Detail Informasi</h3>
+                </div>
+
+                <dl class="ext-details-list">
+                    <div>
+                        <dt>Format</dt>
+                        <dd>{{ anime.format or 'TV' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Status Tayang</dt>
+                        <dd>{{ anime.status or 'Unknown' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Total Episode</dt>
+                        <dd>{{ anime.episodes or 'Unknown' }} Ep</dd>
+                    </div>
+                    <div>
+                        <dt>Durasi per Episode</dt>
+                        <dd>{{ anime.duration or 'Unknown' }} menit</dd>
+                    </div>
+                    <div>
+                        <dt>Musim Rilis</dt>
+                        <dd>{% if anime.season %}{{ anime.season|title }} {% endif %}{{ anime.year or 'TBA' }}</dd>
+                    </div>
+                    {% if anime.start_date %}
+                    <div>
+                        <dt>Tanggal Mulai</dt>
+                        <dd>{{ anime.start_date }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if anime.end_date %}
+                    <div>
+                        <dt>Tanggal Selesai</dt>
+                        <dd>{{ anime.end_date }}</dd>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <dt>Studio Utama</dt>
+                        <dd>
+                            {% if anime.studio %}
+                            <a href="{{ url_for('studio_page', studio_name=anime.studio, return_to=request.full_path if request.full_path else request.path) }}">
+                                {{ anime.studio }} &nearr;
+                            </a>
+                            {% else %}
+                            Tidak diketahui
+                            {% endif %}
+                        </dd>
+                    </div>
+                    {% if anime.popularity %}
+                    <div>
+                        <dt>Peringkat Popularitas</dt>
+                        <dd>#{{ "{:,}".format(anime.popularity) }} di AniList</dd>
+                    </div>
+                    {% endif %}
+                    {% if anime.favourites %}
+                    <div>
+                        <dt>Favorit Komunitas</dt>
+                        <dd>{{ "{:,}".format(anime.favourites) }} pengguna</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+
+            <!-- Tags Cloud -->
+            {% if anime.tags %}
+            <div class="ext-card-section ext-tags-card">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h3>Tagar & Tema</h3>
+                </div>
+                <div class="ext-tags-cloud">
+                    {% for tag in anime.tags %}
+                    <span class="ext-tag-item">#{{ tag }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- External Databases Links -->
+            <div class="ext-card-section ext-links-card">
+                <div class="ext-section-header">
+                    <div class="ext-header-line"></div>
+                    <h3>Tautan Eksternal</h3>
+                </div>
+                <div class="ext-links-list">
+                    {% if anime.anilist_url %}
+                    <a href="{{ anime.anilist_url }}" target="_blank" rel="noopener noreferrer" class="ext-db-link">
+                        <span class="ext-db-icon">AL</span>
+                        <div>
+                            <strong>AniList</strong>
+                            <small>Buka halaman resmi AniList</small>
+                        </div>
+                        <span class="ext-db-arrow">&nearr;</span>
+                    </a>
+                    {% endif %}
+                    {% if anime.mal_url %}
+                    <a href="{{ anime.mal_url }}" target="_blank" rel="noopener noreferrer" class="ext-db-link">
+                        <span class="ext-db-icon is-mal">MAL</span>
+                        <div>
+                            <strong>MyAnimeList</strong>
+                            <small>Buka entri anime di MyAnimeList</small>
+                        </div>
+                        <span class="ext-db-arrow">&nearr;</span>
+                    </a>
+                    {% endif %}
+                    <a href="https://www.google.com/search?q={{ anime.name|urlencode }}" target="_blank" rel="noopener noreferrer" class="ext-db-link">
+                        <span class="ext-db-icon is-google">G</span>
+                        <div>
+                            <strong>Google Search</strong>
+                            <small>Cari berita & artikel anime ini</small>
+                        </div>
+                        <span class="ext-db-arrow">&nearr;</span>
+                    </a>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- Copy Title Toast Script -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const copyBtn = document.getElementById("extCopyTitleBtn");
+    if (!copyBtn) return;
+
+    copyBtn.addEventListener("click", function () {
+        const title = copyBtn.getAttribute("data-title") || "";
+        if (!title) return;
+
+        navigator.clipboard.writeText(title).then(() => {
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#34d399" stroke-width="2.5">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span style="color: #34d399;">Judul Disalin!</span>
+            `;
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(() => {
+            alert("Judul: " + title);
+        });
+    });
+});
+</script>
+{% endblock %}

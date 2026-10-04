@@ -268,7 +268,11 @@
                          data-score="{{ anime.score or 0 }}"
                          data-year="{{ anime.year or 0 }}"
                          data-title="{{ anime.name | lower }}">
+                        {% if anime.id %}
+                        <a href="{{ url_for('external_anime_detail', anilist_id=anime.id, return_to=request.full_path if request.full_path else request.path) }}" class="studio-card-link" title="Lihat Informasi {{ anime.name }}">
+                        {% else %}
                         <div class="studio-card-static">
+                        {% endif %}
                             <div class="studio-poster-frame">
                                 <img
                                     class="poster"
@@ -277,6 +281,7 @@
                                     loading="lazy"
                                     onerror="this.src='/static/arcana.jpg'; this.onerror=null;"
                                 >
+                                <div class="card-top-badge card-top-badge--external">Outside Library</div>
                             </div>
                             <div class="poster-overlay">
                                 <h3>{{ anime.name }}</h3>
@@ -302,9 +307,17 @@
                                     <span class="meta-status">{{ anime.status.replace('_', ' ').title() }}</span>
                                     {% endif %}
                                 </div>
+                                {% if anime.id %}
+                                <span class="play-hover-btn studio-explore-btn">&#8505; Info Anime</span>
+                                {% else %}
                                 <span class="play-hover-btn is-disabled">Not in Library</span>
+                                {% endif %}
                             </div>
+                        {% if anime.id %}
+                        </a>
+                        {% else %}
                         </div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 {% endfor %}

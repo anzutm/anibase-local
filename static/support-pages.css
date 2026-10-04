@@ -92,6 +92,11 @@
 .support-page .studio-grid .play-hover-btn { display: inline-flex; position: static; align-items: center; justify-content: center; width: fit-content; min-height: 27px; margin-top: auto; padding: 0 9px; border: 1px solid color-mix(in srgb,var(--cyan) 24%,var(--support-border)); border-radius: 7px; background: color-mix(in srgb,var(--cyan) 7%,transparent); color: color-mix(in srgb,var(--cyan) 78%,white); font-size: 9px; font-weight: 700; line-height: 1; text-align: center; white-space: nowrap; opacity: 1; transform: none; }
 .support-page .studio-grid .play-hover-btn:hover { border-color: color-mix(in srgb,var(--cyan) 42%,var(--support-border)); background: color-mix(in srgb,var(--cyan) 15%,transparent); }
 .support-page .studio-grid .card-top-badge { top: 9px; left: 9px; border-radius: 5px; font-size: 8px; }
+.support-page .studio-grid .card-top-badge--external { background: rgba(30, 41, 59, 0.88); border: 1px solid rgba(255, 255, 255, 0.12); color: #cbd5e1; }
+.support-page .studio-grid .studio-explore-btn { border-color: rgba(96, 165, 250, 0.35); background: rgba(59, 130, 246, 0.12); color: #93c5fd; }
+.support-page .studio-grid .card:hover .studio-explore-btn { border-color: #60a5fa; background: rgba(59, 130, 246, 0.28); color: #ffffff; }
+.support-page .sy-role-action--external { border-color: rgba(96, 165, 250, 0.35); background: rgba(59, 130, 246, 0.12); color: #93c5fd; text-decoration: none; }
+.support-page .sy-role-action--external:hover { border-color: #60a5fa; background: rgba(59, 130, 246, 0.25); color: #ffffff; }
 .support-page .studio-grid .library-badge-indicator { top: 9px; right: 9px; width: 24px; height: 24px; }
 .support-page .studio-grid .library-badge-indicator svg { width: 13px; height: 13px; }
 .support-page .sy-hero { background: #0c111b; }

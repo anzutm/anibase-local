@@ -1,0 +1,1150 @@
+/* ==========================================================================
+   External Anime Detail Page Styles (AniBase Discovery)
+   Modern Dark-Glassmorphism Theme
+   ========================================================================== */
+
+.external-anime-body {
+    background-color: #08090b;
+    color: #e2e8f0;
+    font-family: inherit;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.ext-page {
+    position: relative;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 24px 28px 80px;
+}
+
+/* Ambient glow accent */
+.ext-ambient-glow {
+    position: absolute;
+    top: 0;
+    left: 20%;
+    width: 60%;
+    height: 500px;
+    background: radial-gradient(circle, var(--accent-color, rgba(59, 130, 246, 0.18)) 0%, rgba(8, 9, 11, 0) 70%);
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(60px);
+    opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Top Navigation Bar
+   -------------------------------------------------------------------------- */
+.ext-nav-bar {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.ext-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    background: rgba(22, 27, 34, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: #f1f5f9;
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-decoration: none;
+    backdrop-filter: blur(12px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ext-back-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+    color: #ffffff;
+    transform: translateX(-2px);
+}
+
+.ext-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #94a3b8;
+    backdrop-filter: blur(10px);
+}
+
+.ext-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 8px #38bdf8;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Showcase Section
+   -------------------------------------------------------------------------- */
+.ext-hero {
+    position: relative;
+    z-index: 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: rgba(15, 20, 30, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    margin-bottom: 24px;
+}
+
+.ext-backdrop-shell {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.ext-backdrop-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+    opacity: 0.35;
+    filter: brightness(0.85);
+}
+
+.ext-backdrop-img.is-blurred-poster {
+    filter: blur(35px) brightness(0.6);
+    transform: scale(1.15);
+}
+
+.ext-backdrop-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, #08090b 20%, rgba(8, 9, 11, 0.88) 55%, rgba(8, 9, 11, 0.6) 100%),
+                linear-gradient(to top, #08090b 5%, transparent 60%);
+}
+
+.ext-hero-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 36px;
+    padding: 40px 44px;
+    align-items: flex-start;
+}
+
+/* Poster Column */
+.ext-poster-column {
+    flex-shrink: 0;
+    width: 250px;
+}
+
+.ext-poster-frame {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    background: #0f172a;
+    aspect-ratio: 2 / 3;
+}
+
+.ext-poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ext-poster-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 10px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 0.05em;
+    backdrop-filter: blur(8px);
+}
+
+/* Hero Info */
+.ext-hero-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #60a5fa;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.ext-sep {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.ext-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #f8fafc;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.02em;
+}
+
+.ext-subtitle-romaji {
+    font-size: 1.08rem;
+    font-weight: 500;
+    color: #94a3b8;
+    margin: 0 0 4px 0;
+}
+
+.ext-subtitle-native {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #64748b;
+    margin: 0 0 18px 0;
+}
+
+/* Meta Chips */
+.ext-meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 18px;
+}
+
+.ext-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(30, 41, 59, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #cbd5e1;
+    backdrop-filter: blur(8px);
+}
+
+.ext-chip-score {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.ext-chip-score small {
+    color: #fcd34d;
+    opacity: 0.7;
+    font-weight: 500;
+}
+
+.ext-chip-studio {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #93c5fd;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.ext-chip-studio:hover {
+    background: rgba(59, 130, 246, 0.28);
+    border-color: #60a5fa;
+    color: #ffffff;
+}
+
+.ext-chip-status.is-finished {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.25);
+    background: rgba(52, 211, 153, 0.1);
+}
+
+.ext-chip-status.is-releasing {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.1);
+}
+
+/* Genres */
+.ext-genres-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.ext-genre-pill {
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #cbd5e1;
+}
+
+/* Next Airing Alert */
+.ext-airing-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 10px;
+    color: #e0f2fe;
+    font-size: 0.85rem;
+    max-width: 480px;
+}
+
+.ext-airing-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8;
+    animation: extPulse 2s infinite;
+}
+
+@keyframes extPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* --------------------------------------------------------------------------
+   Smart Local Library Bridge Section
+   -------------------------------------------------------------------------- */
+.ext-bridge-section {
+    margin-bottom: 24px;
+}
+
+.ext-bridge-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 22px 28px;
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+}
+
+.ext-bridge-card.is-matched {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.06) 100%);
+    border: 1px solid rgba(52, 211, 153, 0.38);
+}
+
+.ext-bridge-card.is-matched .ext-bridge-icon {
+    color: #34d399;
+}
+
+.ext-bridge-card.is-matched .ext-bridge-tag {
+    color: #6ee7b7;
+}
+
+.ext-bridge-card.is-not-matched {
+    background: rgba(22, 27, 34, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ext-bridge-card.is-not-matched .ext-bridge-icon {
+    color: #94a3b8;
+}
+
+.ext-bridge-card.is-not-matched .ext-bridge-tag {
+    color: #94a3b8;
+}
+
+.ext-bridge-icon {
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ext-bridge-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ext-bridge-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+}
+
+.ext-bridge-content h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.ext-bridge-content h3 em {
+    font-style: normal;
+    color: #60a5fa;
+}
+
+.ext-bridge-content p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+.ext-bridge-action {
+    flex-shrink: 0;
+}
+
+.ext-action-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Buttons */
+.ext-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ext-btn-primary {
+    background: #3b82f6;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.ext-btn-primary:hover {
+    background: #2563eb;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+    transform: translateY(-1px);
+}
+
+.ext-btn-glow {
+    background: #10b981;
+    color: #ffffff;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+}
+
+.ext-btn-glow:hover {
+    background: #059669;
+    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.55);
+    transform: translateY(-1px);
+}
+
+.ext-btn-secondary {
+    background: rgba(30, 41, 59, 0.8);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ext-btn-secondary:hover {
+    background: rgba(51, 65, 85, 0.9);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* --------------------------------------------------------------------------
+   Main Content Layout (2-Columns)
+   -------------------------------------------------------------------------- */
+.ext-main-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.ext-main-col {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+
+.ext-sidebar-col {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Card Sections */
+.ext-card-section {
+    background: rgba(16, 21, 30, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 26px 30px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.ext-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.ext-header-line {
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(to bottom, #60a5fa, #3b82f6);
+    border-radius: 4px;
+}
+
+.ext-section-header h2,
+.ext-section-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.ext-count-pill {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+/* Synopsis */
+.ext-synopsis-body p {
+    margin: 0 0 14px 0;
+    font-size: 0.96rem;
+    line-height: 1.7;
+    color: #cbd5e1;
+}
+
+.ext-synopsis-body p:last-child {
+    margin-bottom: 0;
+}
+
+.ext-synopsis-empty {
+    font-style: italic;
+    color: #64748b;
+}
+
+/* Trailer */
+.ext-trailer-wrapper {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%; /* 16:9 Aspect Ratio */
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+}
+
+.ext-trailer-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Characters Grid */
+.ext-characters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.ext-char-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: rgba(25, 32, 45, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.ext-char-card:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(96, 165, 250, 0.3);
+    transform: translateY(-2px);
+}
+
+.ext-char-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #0f172a;
+}
+
+.ext-char-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ext-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #64748b;
+    background: #1e293b;
+}
+
+.ext-char-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.ext-char-role {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.ext-char-name {
+    margin: 0 0 6px 0;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ext-va-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ext-va-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.ext-va-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-va-link {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #60a5fa;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ext-va-link:hover {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+.ext-va-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ext-va-text small {
+    font-size: 0.65rem;
+    color: #64748b;
+}
+
+/* Franchise Relations */
+.ext-relations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.ext-relation-card {
+    display: flex;
+    gap: 14px;
+    padding: 12px;
+    background: rgba(25, 32, 45, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.ext-relation-card:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-2px);
+}
+
+.ext-relation-card.is-in-library {
+    border-color: rgba(52, 211, 153, 0.35);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.ext-rel-poster-shell {
+    position: relative;
+    width: 65px;
+    height: 92px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #0f172a;
+}
+
+.ext-rel-poster-shell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ext-rel-badge {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.03em;
+    backdrop-filter: blur(6px);
+}
+
+.ext-badge-library {
+    background: rgba(5, 150, 105, 0.9);
+    color: #ffffff;
+}
+
+.ext-badge-external {
+    background: rgba(30, 41, 59, 0.9);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ext-rel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-rel-type {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.ext-rel-title {
+    margin: 0 0 4px 0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ext-rel-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: auto;
+}
+
+.ext-rel-action-btn {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #60a5fa;
+    text-decoration: none;
+    margin-top: 6px;
+    transition: color 0.15s ease;
+}
+
+.ext-rel-action-btn:hover {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+/* Recommendations */
+.ext-recs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+}
+
+.ext-rec-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-rec-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-rec-poster-frame {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 2 / 3;
+    background: #0f172a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    margin-bottom: 6px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ext-rec-card:hover .ext-rec-poster-frame {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.6);
+}
+
+.ext-rec-poster-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ext-rec-score {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    background: rgba(15, 23, 42, 0.85);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fbbf24;
+    backdrop-filter: blur(6px);
+}
+
+.ext-rec-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar Information Column
+   -------------------------------------------------------------------------- */
+.ext-details-list div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.86rem;
+}
+
+.ext-details-list div:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.ext-details-list dt {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.ext-details-list dd {
+    margin: 0;
+    color: #f1f5f9;
+    font-weight: 600;
+    text-align: right;
+}
+
+.ext-details-list dd a {
+    color: #60a5fa;
+    text-decoration: none;
+}
+
+.ext-details-list dd a:hover {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+/* Tags Cloud */
+.ext-tags-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ext-tag-item {
+    padding: 4px 10px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    font-size: 0.76rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* External Links */
+.ext-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ext-db-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(25, 32, 45, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+}
+
+.ext-db-link:hover {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(96, 165, 250, 0.35);
+    transform: translateX(3px);
+}
+
+.ext-db-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: #0284c7;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.ext-db-icon.is-mal {
+    background: #2e51a2;
+}
+
+.ext-db-icon.is-google {
+    background: #475569;
+}
+
+.ext-db-link div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ext-db-link strong {
+    font-size: 0.88rem;
+    color: #f1f5f9;
+}
+
+.ext-db-link small {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.ext-db-arrow {
+    color: #64748b;
+    font-size: 1rem;
+}
+
+.ext-db-link:hover .ext-db-arrow {
+    color: #60a5fa;
+}
+
+/* --------------------------------------------------------------------------
+   Error State Page
+   -------------------------------------------------------------------------- */
+.ext-error-container {
+    max-width: 540px;
+    margin: 80px auto;
+    padding: 0 20px;
+}
+
+.ext-error-card {
+    background: rgba(17, 24, 39, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 44px 36px;
+    text-align: center;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.ext-error-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    margin-bottom: 20px;
+}
+
+.ext-error-card h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.ext-error-card p {
+    margin: 0 0 26px 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #94a3b8;
+}
+
+.ext-error-card code {
+    background: rgba(0, 0, 0, 0.35);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #60a5fa;
+}
+
+.ext-error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .ext-main-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .ext-hero-inner {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 24px;
+        padding: 30px 24px;
+    }
+
+    .ext-poster-column {
+        width: 180px;
+    }
+
+    .ext-hero-info {
+        align-items: center;
+    }
+
+    .ext-meta-chips,
+    .ext-genres-row {
+        justify-content: center;
+    }
+
+    .ext-bridge-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .ext-action-toolbar {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .ext-page {
+        padding: 16px 16px 60px;
+    }
+
+    .ext-title {
+        font-size: 1.6rem;
+    }
+
+    .ext-card-section {
+        padding: 20px 18px;
+    }
+
+    .ext-characters-grid,
+    .ext-relations-grid {
+        grid-template-columns: 1fr;
+    }
+}

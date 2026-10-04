@@ -33,6 +33,10 @@
         <p>{{ role.media_title or 'Unknown Anime' }}</p>
         {% if local %}
         <a href="{{ role.local_detail_url }}" class="sy-role-action">Open anime</a>
+        {% elif role.media_id and role.source == 'AniList' %}
+        <a href="{{ url_for('external_anime_detail', anilist_id=role.media_id, return_to=request.full_path if request.full_path else request.path) }}" class="sy-role-action sy-role-action--external">View Anime Info &nearr;</a>
+        {% elif role.media_id %}
+        <a href="{{ url_for('external_anime_detail', mal_id=role.media_id, return_to=request.full_path if request.full_path else request.path) }}" class="sy-role-action sy-role-action--external">View Anime Info &nearr;</a>
         {% endif %}
     </div>
 </article>

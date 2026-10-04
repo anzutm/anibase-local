@@ -9028,6 +9028,481 @@ def seiyuu_page(staff_id):
         seiyuu_return_label=return_label
     )
 
+EXTERNAL_ANIME_QUERY = """
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    idMal
+    title {
+      romaji
+      english
+      native
+    }
+    synonyms
+    description(asHtml: false)
+    format
+    status
+    season
+    seasonYear
+    episodes
+    duration
+    startDate { year month day }
+    endDate { year month day }
+    averageScore
+    meanScore
+    popularity
+    favourites
+    genres
+    tags {
+      name
+      rank
+      isMediaSpoiler
+    }
+    bannerImage
+    coverImage {
+      extraLarge
+      large
+      color
+    }
+    trailer {
+      id
+      site
+      thumbnail
+    }
+    studios(isMain: true) {
+      nodes {
+        id
+        name
+      }
+    }
+    nextAiringEpisode {
+      episode
+      airingAt
+      timeUntilAiring
+    }
+    characters(sort: [ROLE, FAVOURITES_DESC], perPage: 18) {
+      edges {
+        role
+        node {
+          id
+          name { full native }
+          image { large }
+        }
+        voiceActors(language: JAPANESE) {
+          id
+          name { full native }
+          image { large }
+        }
+      }
+    }
+    relations {
+      edges {
+        relationType
+        node {
+          id
+          type
+          format
+          status
+          title { romaji english native }
+          coverImage { extraLarge large }
+        }
+      }
+    }
+    recommendations(sort: [RATING_DESC], perPage: 12) {
+      nodes {
+        mediaRecommendation {
+          id
+          type
+          format
+          status
+          averageScore
+          title { romaji english native }
+          coverImage { extraLarge large }
+        }
+      }
+    }
+  }
+}
+"""
+
+def format_time_until_airing(seconds):
+    if not seconds or seconds <= 0:
+        return None
+    days = seconds // 86400
+    hours = (seconds % 86400) // 3600
+    minutes = (seconds % 3600) // 60
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0 and days == 0:
+        parts.append(f"{minutes}m")
+    return " ".join(parts) if parts else "< 1m"
+
+def fetch_external_anime_metadata(anilist_id=None, mal_id=None):
+    """Fetch rich external anime metadata from AniList GraphQL by Media ID or MAL ID."""
+    if not can_attempt_anilist():
+        return None
+
+    try:
+        if anilist_id:
+            variables = {"id": int(anilist_id)}
+            query_str = EXTERNAL_ANIME_QUERY
+        elif mal_id:
+            variables = {"idMal": int(mal_id)}
+            query_str = EXTERNAL_ANIME_QUERY.replace("query ($id: Int)", "query ($idMal: Int)").replace("Media(id: $id,", "Media(idMal: $idMal,")
+        else:
+            return None
+
+        response = requests.post(
+            "https://graphql.anilist.co",
+            json={
+                "query": query_str,
+                "variables": variables
+            },
+            timeout=15
+        )
+
+        if response.status_code >= 400:
+            mark_anilist_unavailable()
+            app_log(f"External anime AniList HTTP {response.status_code} for id {anilist_id}", "WARN")
+            return None
+
+        data = response.json()
+        errors = data.get("errors")
+        if errors:
+            mark_anilist_unavailable()
+            app_log(f"External anime AniList GraphQL error for id {anilist_id}: {errors}", "WARN")
+            return None
+
+        media = (data.get("data") or {}).get("Media")
+        if not media or not isinstance(media, dict):
+            return None
+
+        title = media.get("title") or {}
+        romaji_title = title.get("romaji")
+        english_title = title.get("english")
+        native_title = title.get("native")
+        display_name = english_title or romaji_title or native_title or f"Anime #{anilist_id}"
+
+        cover = media.get("coverImage") or {}
+        poster_url = cover.get("extraLarge") or cover.get("large") or url_for("static", filename="arcana.jpg")
+        banner_url = media.get("bannerImage")
+
+        studios = (media.get("studios") or {}).get("nodes") or []
+        main_studio = studios[0].get("name") if studios and studios[0] else None
+
+        trailer_raw = media.get("trailer") or {}
+        trailer = None
+        if trailer_raw and trailer_raw.get("id"):
+            site = (trailer_raw.get("site") or "").lower()
+            t_id = trailer_raw.get("id")
+            if site == "youtube":
+                trailer = {
+                    "site": "youtube",
+                    "id": t_id,
+                    "embed_url": f"https://www.youtube-nocookie.com/embed/{t_id}",
+                    "watch_url": f"https://www.youtube.com/watch?v={t_id}",
+                    "thumbnail": trailer_raw.get("thumbnail") or f"https://img.youtube.com/vi/{t_id}/hqdefault.jpg"
+                }
+
+        next_airing_raw = media.get("nextAiringEpisode")
+        next_airing = None
+        if next_airing_raw and isinstance(next_airing_raw, dict):
+            time_until = next_airing_raw.get("timeUntilAiring", 0)
+            next_airing = {
+                "episode": next_airing_raw.get("episode"),
+                "airing_at": next_airing_raw.get("airingAt"),
+                "time_until_airing": time_until,
+                "countdown_text": format_time_until_airing(time_until)
+            }
+
+        # Characters & Seiyuu
+        characters = []
+        for edge in (media.get("characters") or {}).get("edges") or []:
+            char_node = edge.get("node") or {}
+            va_list = edge.get("voiceActors") or []
+            va = va_list[0] if va_list else {}
+            char_name_obj = char_node.get("name") or {}
+            va_name_obj = va.get("name") or {}
+            characters.append({
+                "character_id": char_node.get("id"),
+                "character_name": char_name_obj.get("full") or "Unknown Character",
+                "character_native": char_name_obj.get("native"),
+                "character_image": (char_node.get("image") or {}).get("large"),
+                "role": (edge.get("role") or "SUPPORTING").capitalize(),
+                "va_id": va.get("id"),
+                "va_name": va_name_obj.get("full"),
+                "va_native": va_name_obj.get("native"),
+                "va_image": (va.get("image") or {}).get("large"),
+            })
+
+        # Relations
+        relations = []
+        for edge in (media.get("relations") or {}).get("edges") or []:
+            rel_node = edge.get("node") or {}
+            if rel_node.get("type") != "ANIME":
+                continue
+            rel_title = rel_node.get("title") or {}
+            rel_cover = rel_node.get("coverImage") or {}
+            rel_name = rel_title.get("english") or rel_title.get("romaji") or rel_title.get("native") or "Untitled"
+            relations.append({
+                "id": rel_node.get("id"),
+                "relation_type": (edge.get("relationType") or "OTHER").replace("_", " ").title(),
+                "format": rel_node.get("format"),
+                "status": (rel_node.get("status") or "").replace("_", " ").title(),
+                "title": rel_name,
+                "title_romaji": rel_title.get("romaji"),
+                "poster": rel_cover.get("extraLarge") or rel_cover.get("large") or url_for("static", filename="arcana.jpg"),
+            })
+
+        # Recommendations
+        recommendations = []
+        for node in (media.get("recommendations") or {}).get("nodes") or []:
+            rec_media = node.get("mediaRecommendation") or {}
+            if not rec_media or rec_media.get("type") != "ANIME":
+                continue
+            rec_title = rec_media.get("title") or {}
+            rec_cover = rec_media.get("coverImage") or {}
+            rec_name = rec_title.get("english") or rec_title.get("romaji") or rec_title.get("native") or "Untitled"
+            recommendations.append({
+                "id": rec_media.get("id"),
+                "format": rec_media.get("format"),
+                "status": (rec_media.get("status") or "").replace("_", " ").title(),
+                "score": rec_media.get("averageScore"),
+                "title": rec_name,
+                "title_romaji": rec_title.get("romaji"),
+                "poster": rec_cover.get("extraLarge") or rec_cover.get("large") or url_for("static", filename="arcana.jpg"),
+            })
+
+        # Tags (excluding spoilers)
+        tags = [
+            tag.get("name")
+            for tag in (media.get("tags") or [])
+            if isinstance(tag, dict) and not tag.get("isMediaSpoiler") and tag.get("name")
+        ][:12]
+
+        start_date = media.get("startDate") or {}
+        start_date_str = None
+        if start_date.get("year"):
+            start_date_str = f"{start_date.get('year')}-{start_date.get('month', 1):02d}-{start_date.get('day', 1):02d}"
+
+        end_date = media.get("endDate") or {}
+        end_date_str = None
+        if end_date.get("year"):
+            end_date_str = f"{end_date.get('year')}-{end_date.get('month', 1):02d}-{end_date.get('day', 1):02d}"
+
+        # Clean description (remove HTML tags or replace <br> with newline)
+        raw_desc = media.get("description") or ""
+        clean_desc = re.sub(r'<br\s*/?>', '\n', raw_desc, flags=re.IGNORECASE)
+        clean_desc = re.sub(r'<[^>]+>', '', clean_desc).strip()
+
+        result = {
+            "id": media.get("id"),
+            "id_mal": media.get("idMal"),
+            "name": display_name,
+            "title_english": english_title,
+            "title_romaji": romaji_title,
+            "title_native": native_title,
+            "synonyms": [s for s in (media.get("synonyms") or []) if s],
+            "description": clean_desc,
+            "format": media.get("format") or "TV",
+            "status": (media.get("status") or "UNKNOWN").replace("_", " ").title(),
+            "season": media.get("season"),
+            "year": media.get("seasonYear"),
+            "episodes": media.get("episodes"),
+            "duration": media.get("duration"),
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+            "score": media.get("averageScore"),
+            "mean_score": media.get("meanScore"),
+            "popularity": media.get("popularity"),
+            "favourites": media.get("favourites"),
+            "genres": media.get("genres") or [],
+            "tags": tags,
+            "poster": poster_url,
+            "banner": banner_url,
+            "cover_color": cover.get("color") or "#3b82f6",
+            "studio": main_studio,
+            "trailer": trailer,
+            "next_airing": next_airing,
+            "characters": characters,
+            "relations": relations,
+            "recommendations": recommendations,
+            "anilist_url": f"https://anilist.co/anime/{media.get('id')}",
+            "mal_url": f"https://myanimelist.net/anime/{media.get('idMal')}" if media.get("idMal") else None,
+            "fetched_at": datetime.now().astimezone().isoformat(),
+            "provider": ANILIST_METADATA_PROVIDER
+        }
+
+        mark_anilist_available()
+        return result
+
+    except Exception as e:
+        mark_anilist_unavailable()
+        app_log(f"Error fetching external anime metadata for id {anilist_id}: {e}", "ERROR")
+        return None
+
+def get_cached_external_anime_info(anilist_id=None, mal_id=None, force=False):
+    """Retrieve external anime metadata from disk cache or fetch from AniList."""
+    if anilist_id:
+        cache_key = f"external_{int(anilist_id)}.json"
+    elif mal_id:
+        cache_key = f"external_mal_{int(mal_id)}.json"
+    else:
+        return None
+
+    cache_file = os.path.join(METADATA_CACHE, cache_key)
+
+    if not force and os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                if isinstance(cached_data, dict):
+                    return cached_data
+        except Exception as e:
+            app_log(f"Failed reading external anime cache {cache_key}: {e}", "WARN")
+
+    data = fetch_external_anime_metadata(anilist_id=anilist_id, mal_id=mal_id)
+    if data:
+        try:
+            atomic_write_json_file(cache_file, data, f"External anime metadata {cache_key}")
+            if anilist_id and data.get("id_mal"):
+                alt_cache = os.path.join(METADATA_CACHE, f"external_mal_{data['id_mal']}.json")
+                atomic_write_json_file(alt_cache, data, f"External anime metadata mal_{data['id_mal']}")
+            elif mal_id and data.get("id"):
+                alt_cache = os.path.join(METADATA_CACHE, f"external_{data['id']}.json")
+                atomic_write_json_file(alt_cache, data, f"External anime metadata anilist_{data['id']}")
+        except Exception as e:
+            app_log(f"Failed writing external anime cache {cache_key}: {e}", "WARN")
+    elif os.path.exists(cache_file):
+        # Stale cache fallback if network fails
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    return data
+
+@app.route("/anime/external/<int:anilist_id>")
+@app.route("/anime/external/mal/<int:mal_id>")
+def external_anime_detail(anilist_id=None, mal_id=None):
+    """Informational detail page for anime outside user's local library."""
+    return_to = request.args.get("return_to", "").strip()
+    parsed_return_to = urlparse(return_to)
+    if (
+        parsed_return_to.scheme
+        or parsed_return_to.netloc
+        or not (
+            parsed_return_to.path.startswith("/studio/")
+            or parsed_return_to.path.startswith("/seiyuu/")
+            or parsed_return_to.path.startswith("/anime/")
+            or parsed_return_to.path == "/"
+        )
+    ):
+        return_to = url_for("index")
+
+    return_label = "Back to Library"
+    if parsed_return_to.path.startswith("/studio/"):
+        studio_part = unquote(parsed_return_to.path.split("/studio/")[-1])
+        return_label = f"Back to {studio_part}" if studio_part else "Back to Studio"
+    elif parsed_return_to.path.startswith("/seiyuu/"):
+        return_label = "Back to Seiyuu"
+    elif parsed_return_to.path.startswith("/anime/"):
+        return_label = "Back to Anime"
+
+    anime_info = get_cached_external_anime_info(anilist_id=anilist_id, mal_id=mal_id)
+    if not anime_info:
+        return render_template(
+            "external_anime_error.html",
+            anilist_id=anilist_id or f"MAL-{mal_id}",
+            return_to=return_to,
+            return_label=return_label,
+            current_theme=load_settings().get("theme_preset", "dark-blue")
+        ), 404
+
+    # Bridge with local library: check if user already has this anime locally
+    local_anime = get_anime()
+    local_match_index = build_local_anime_match_index(local_anime)
+
+    local_match = None
+    title_candidates = [
+        anime_info.get("title_english"),
+        anime_info.get("title_romaji"),
+        anime_info.get("name"),
+    ] + (anime_info.get("synonyms") or [])
+
+    for candidate in title_candidates:
+        if not candidate:
+            continue
+        normalized = normalize_anime_match_name(candidate)
+        if normalized and normalized in local_match_index:
+            local_match = local_match_index[normalized]
+            break
+
+    # Enrich relations with local library info or external link
+    enriched_relations = []
+    for rel in anime_info.get("relations", []):
+        r_item = dict(rel)
+        rel_match = None
+        for r_cand in [r_item.get("title"), r_item.get("title_romaji")]:
+            if not r_cand:
+                continue
+            norm_rel = normalize_anime_match_name(r_cand)
+            if norm_rel and norm_rel in local_match_index:
+                rel_match = local_match_index[norm_rel]
+                break
+
+        r_item["in_library"] = rel_match is not None
+        if rel_match:
+            r_item["detail_url"] = url_for("anime_detail", anime_name=rel_match["name"])
+            r_item["local_name"] = rel_match["name"]
+        elif r_item.get("id"):
+            r_item["detail_url"] = url_for("external_anime_detail", anilist_id=r_item["id"], return_to=request.full_path if hasattr(request, "full_path") else request.path)
+            r_item["local_name"] = None
+        else:
+            r_item["detail_url"] = None
+            r_item["local_name"] = None
+        enriched_relations.append(r_item)
+
+    # Enrich recommendations with local library info or external link
+    enriched_recommendations = []
+    for rec in anime_info.get("recommendations", []):
+        rec_item = dict(rec)
+        rec_match = None
+        for rec_cand in [rec_item.get("title"), rec_item.get("title_romaji")]:
+            if not rec_cand:
+                continue
+            norm_rec = normalize_anime_match_name(rec_cand)
+            if norm_rec and norm_rec in local_match_index:
+                rec_match = local_match_index[norm_rec]
+                break
+
+        rec_item["in_library"] = rec_match is not None
+        if rec_match:
+            rec_item["detail_url"] = url_for("anime_detail", anime_name=rec_match["name"])
+            rec_item["local_name"] = rec_match["name"]
+        elif rec_item.get("id"):
+            rec_item["detail_url"] = url_for("external_anime_detail", anilist_id=rec_item["id"], return_to=request.full_path if hasattr(request, "full_path") else request.path)
+            rec_item["local_name"] = None
+        else:
+            rec_item["detail_url"] = None
+            rec_item["local_name"] = None
+        enriched_recommendations.append(rec_item)
+
+    return render_template(
+        "external_anime.html",
+        anime=anime_info,
+        local_match=local_match,
+        relations=enriched_relations,
+        recommendations=enriched_recommendations,
+        return_to=return_to,
+        return_label=return_label,
+        current_theme=load_settings().get("theme_preset", "dark-blue")
+    )
+
 @app.route("/movies")
 def movies():
     movies = get_movies()
