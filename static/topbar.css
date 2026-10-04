@@ -190,6 +190,7 @@
 #anibaseTopbar .search-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 #anibaseTopbar .notification-shell,
 #anibaseTopbar .user-action { position: relative; flex: 0 0 auto; }
+#anibaseTopbar .user-action { display: flex; align-items: center; gap: 4px; }
 
 #anibaseTopbar :is(.notification-button, .profile-circle) {
     position: relative;
@@ -225,17 +226,18 @@
 }
 
 #anibaseTopbar .topbar-user-avatar-btn {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    border: 1px solid var(--border);
+    border: 1.5px solid color-mix(in srgb, var(--topbar-accent) 45%, var(--border));
     border-radius: 50%;
     overflow: hidden;
     background: var(--card);
     text-decoration: none;
+    flex-shrink: 0;
     transition: transform .2s var(--ease), border-color .2s ease, box-shadow .2s ease;
 }
 
@@ -243,7 +245,7 @@
 #anibaseTopbar .topbar-user-avatar-btn.active {
     border-color: var(--topbar-accent);
     transform: translateY(-1px);
-    box-shadow: 0 0 12px var(--topbar-accent-soft);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--topbar-accent) 35%, transparent);
 }
 
 #anibaseTopbar .topbar-user-avatar-btn img {
@@ -251,12 +253,14 @@
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
+    display: block;
 }
 
 #anibaseTopbar .topbar-avatar-initial {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 750;
     color: var(--topbar-accent);
+    line-height: 1;
 }
 
 #anibaseTopbar :is(.notification-button, .profile-circle) svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
