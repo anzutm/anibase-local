@@ -52,7 +52,7 @@ def validate_assets(resource_dir):
     missing = [name for name in REQUIRED_ASSETS
                if not (resource_dir / name).is_file() or (resource_dir / name).stat().st_size == 0]
     if missing:
-        raise FileNotFoundError('Aset aplikasi hilang/kosong: ' + ', '.join(missing))
+        raise FileNotFoundError('Missing or empty application assets: ' + ', '.join(missing))
     # Catch failed downloads (HTML error pages saved with a binary extension).
     for name, signature in (
         ('static/vendor/subtitles-octopus/subtitles-octopus-worker.wasm', b'\x00asm'),
@@ -61,7 +61,7 @@ def validate_assets(resource_dir):
     ):
         with (resource_dir / name).open('rb') as handle:
             if handle.read(4) != signature:
-                raise ValueError(f'Format aset tidak valid: {name}')
+                raise ValueError(f'Invalid asset format: {name}')
 
 
 def validate_packaged_assets(release_dir, executable=True):
@@ -73,17 +73,17 @@ def validate_packaged_assets(release_dir, executable=True):
                 continue
             target = resource_dir / source.relative_to(PROJECT_ROOT)
             if not target.is_file():
-                raise FileNotFoundError(f'Aset tidak ikut paket: {source.relative_to(PROJECT_ROOT)}')
+                raise FileNotFoundError(f'Asset omitted from package: {source.relative_to(PROJECT_ROOT)}')
             with source.open('rb') as original, target.open('rb') as bundled:
                 if hashlib.file_digest(original, 'sha256').digest() != hashlib.file_digest(bundled, 'sha256').digest():
-                    raise ValueError(f'Aset paket berbeda dari source: {source.relative_to(PROJECT_ROOT)}')
+                    raise ValueError(f'Packaged asset differs from source: {source.relative_to(PROJECT_ROOT)}')
 
 
 def preflight(source_only=False):
     ensure_supported_build_python()
     for filename in SOURCE_RELEASE_FILES:
         if not (PROJECT_ROOT / filename).is_file():
-            raise FileNotFoundError(f'File project wajib hilang: {filename}')
+            raise FileNotFoundError(f'Required project file missing: {filename}')
     validate_assets(PROJECT_ROOT)
     if not source_only:
         ensure_pyinstaller()
@@ -108,7 +108,7 @@ def normalize_version(version):
         or any(ord(char) < 32 for char in normalized)
         or normalized.endswith('.')
     ):
-        raise ValueError("Versi release mengandung karakter path Windows yang tidak aman.")
+        raise ValueError("Release version contains unsafe Windows path characters.")
     return normalized
 
 
@@ -117,7 +117,7 @@ def remove_path(path):
     resolved = path.resolve()
     roots = [root.resolve() for root in (BUILD_DIR, DIST_DIR, RELEASES_DIR)]
     if resolved in roots or not any(resolved.is_relative_to(root) for root in roots):
-        raise ValueError(f'Menolak menghapus path di luar output AniBase: {path}')
+        raise ValueError(f'Refusing to delete path outside AniBase build output: {path}')
     if path.exists():
         if path.is_dir():
             shutil.rmtree(path)
@@ -140,7 +140,7 @@ def cleanup_output(path):
     try:
         remove_path(path)
     except OSError as error:
-        print(f'Output sementara belum bisa dibersihkan: {path} ({error})', file=sys.stderr)
+        print(f'Temporary output could not be cleaned up yet: {path} ({error})', file=sys.stderr)
 
 
 def publish_release(staged_release, release_dir):
@@ -149,9 +149,9 @@ def publish_release(staged_release, release_dir):
     for path in (staged_release, release_dir):
         resolved = path.resolve()
         if resolved == root or not resolved.is_relative_to(root):
-            raise ValueError(f'Path publikasi di luar folder releases: {path}')
+            raise ValueError(f'Publish path is outside the releases folder: {path}')
     if staged_release.resolve() == release_dir.resolve():
-        raise ValueError('Folder staging dan release harus berbeda.')
+        raise ValueError('Staging and release folders must be different.')
     backup_root = None
     backup = None
     if release_dir.exists():
@@ -167,7 +167,7 @@ def publish_release(staged_release, release_dir):
             rename_with_retry(staged_release, release_dir)
         except PermissionError:
             # Windows may deny renaming a scanned directory while its files remain readable.
-            print('Rename folder ditolak Windows; menyalin paket tervalidasi ke folder release...')
+            print('Windows denied directory rename; copying validated package to release folder...')
             shutil.copytree(staged_release, release_dir)
     except Exception:
         try:
@@ -177,8 +177,8 @@ def publish_release(staged_release, release_dir):
                 rename_with_retry(backup, release_dir)
         except OSError as rollback_error:
             raise RuntimeError(
-                f'Publikasi gagal. Paket baru tetap di {staged_release}; '
-                f'backup release lama: {backup}. Pemulihan otomatis gagal: {rollback_error}'
+                f'Publish failed. New package remains at {staged_release}; '
+                f'previous release backup: {backup}. Automatic rollback failed: {rollback_error}'
             ) from rollback_error
         if backup_root is not None:
             cleanup_output(backup_root)
@@ -250,9 +250,9 @@ def ensure_supported_build_python(version_info=None):
         return
 
     raise RuntimeError(
-        f"Build AniBase memerlukan Python 3.12.x; versi aktif adalah "
-        f"{format_version(version)}. Buat ulang .venv dengan Python 3.12, "
-        "lalu install ulang requirements."
+        f"AniBase build requires Python 3.12.x; active version is "
+        f"{format_version(version)}. Recreate .venv with Python 3.12, "
+        "then reinstall requirements."
     )
 
 
@@ -261,16 +261,16 @@ def ensure_pyinstaller():
         import PyInstaller
     except ImportError as error:
         raise RuntimeError(
-            "PyInstaller belum terinstall. "
-            "Install dulu dengan: python -m pip install -U "
+            "PyInstaller is not installed. "
+            "Install it with: python -m pip install -U "
             f"\"PyInstaller>={format_version(MIN_PYINSTALLER_VERSION)},<7.0\""
         ) from error
 
     installed_version = getattr(PyInstaller, "__version__", "")
     if parse_version_tuple(installed_version) < MIN_PYINSTALLER_VERSION:
         raise RuntimeError(
-            f"PyInstaller {installed_version or 'unknown'} terlalu lama untuk build PySide6. "
-            "Upgrade dulu dengan: python -m pip install -U "
+            f"PyInstaller {installed_version or 'unknown'} is too old to build PySide6. "
+            "Upgrade it with: python -m pip install -U "
             f"\"PyInstaller>={format_version(MIN_PYINSTALLER_VERSION)},<7.0\""
         )
 
@@ -314,8 +314,8 @@ def find_media_tool(name):
     path = shutil.which(name)
     if not path:
         raise FileNotFoundError(
-            f"{name} tidak ditemukan di PATH mesin build. "
-            "Install FFmpeg pada mesin build sebelum membuat release portable."
+            f"{name} was not found on PATH on the build machine. "
+            "Install FFmpeg on the build machine before creating a portable release."
         )
     return Path(path).resolve()
 
@@ -335,7 +335,7 @@ def bundle_media_tools(release_dir):
             for library in directory.glob('*.dll'):
                 target = tools_dir / library.name
                 if target.exists() and target.read_bytes() != library.read_bytes():
-                    raise RuntimeError(f'FFmpeg/FFprobe memakai DLL yang berbeda: {library.name}')
+                    raise RuntimeError(f'FFmpeg/FFprobe DLL mismatch: {library.name}')
                 shutil.copy2(library, target)
 
     license_candidates = (
@@ -432,7 +432,7 @@ def build_exe_release(release_dir, version="0.0.0"):
 
     built_app_dir = DIST_DIR / APP_NAME
     if not built_app_dir.exists():
-        raise FileNotFoundError(f"Hasil build tidak ditemukan: {built_app_dir}")
+        raise FileNotFoundError(f"Build output not found: {built_app_dir}")
 
     copy_exe_release_files(built_app_dir, release_dir)
     bundle_media_tools(release_dir)
@@ -443,7 +443,7 @@ def build_exe_release(release_dir, version="0.0.0"):
 def validate_existing_build():
     executable = DIST_DIR / APP_NAME / (f'{APP_NAME}.exe' if os.name == 'nt' else APP_NAME)
     if not executable.is_file():
-        raise FileNotFoundError(f'Hasil kompilasi tidak ditemukan: {executable}')
+        raise FileNotFoundError(f'Compiled output not found: {executable}')
     validate_packaged_assets(DIST_DIR / APP_NAME)
     find_media_tool('ffmpeg')
     find_media_tool('ffprobe')
@@ -472,33 +472,33 @@ def create_release_archive(release_dir, version):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Build AniBase dan simpan hasilnya ke folder releases."
+        description="Build AniBase and store output in the releases folder."
     )
     parser.add_argument(
         "version",
         nargs="?",
-        help="Versi release, contoh: 1.0.0 atau v1.0.0. Default: vYYYY.MM.DD.",
+        help="Release version, e.g. 1.0.0 or v1.0.0. Default: vYYYY.MM.DD.",
     )
     parser.add_argument(
         "--keep-temp",
         action="store_true",
-        help="Jangan hapus folder build/dist sementara setelah selesai.",
+        help="Retain temporary build/dist output after completion.",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--source-only",
         action="store_true",
-        help="Buat release source siap jalan tanpa PyInstaller.",
+        help="Create a runnable source release without PyInstaller.",
     )
     mode.add_argument(
         "--exe-only",
         action="store_true",
-        help="Wajib build executable; jangan fallback ke source release.",
+        help="Require an executable build; do not fall back to source release.",
     )
     mode.add_argument('--package-existing', action='store_true',
-                      help='Kemas ulang dist/AniBase yang sudah ada, tanpa menjalankan PyInstaller.')
+                      help='Repackage existing dist/AniBase without re-running PyInstaller.')
     parser.add_argument('--check', action='store_true',
-                        help='Periksa syarat build dan aset saja; tidak membuat atau menghapus output.')
+                        help='Validate build prerequisites and assets only; do not create or delete outputs.')
     args = parser.parse_args()
 
     ensure_supported_build_python()
@@ -509,14 +509,14 @@ def main():
         preflight(source_only=args.source_only or args.package_existing)
         if args.package_existing:
             validate_existing_build()
-        print('Pemeriksaan berhasil. Tidak ada build atau perubahan output.')
+        print('Checks passed. No build or output modified.')
         return 0
 
     # Validate shared inputs before starting a build or replacing an existing release.
     preflight(source_only=True)
 
     if not (PROJECT_ROOT / ENTRYPOINT).exists():
-        raise FileNotFoundError(f"Entry point tidak ditemukan: {ENTRYPOINT}")
+        raise FileNotFoundError(f"Entry point not found: {ENTRYPOINT}")
 
     print(f"Building {APP_NAME} {version}...")
     built_exe = False
@@ -535,25 +535,25 @@ def main():
             try:
                 built_exe = build_exe_release(staged_release, version)
             except Exception as error:
-                print(f"Build executable gagal: {error}", file=sys.stderr)
+                print(f"Executable build failed: {error}", file=sys.stderr)
                 if args.exe_only:
-                    print(f'Output sementara dipertahankan di {staging}', file=sys.stderr)
+                    print(f'Temporary output retained at {staging}', file=sys.stderr)
                     return 1
-                print("Membuat source release sebagai fallback...")
+                print("Creating source release as fallback...")
                 create_source_release(staged_release)
         validate_packaged_assets(staged_release, executable=built_exe)
         publish_release(staged_release, release_dir)
     except Exception as error:
-        print(f'Pengemasan gagal: {error}', file=sys.stderr)
-        print(f'Output sementara dipertahankan di {staging}. Hasil dist tidak dihapus.', file=sys.stderr)
+        print(f'Packaging failed: {error}', file=sys.stderr)
+        print(f'Temporary output retained at {staging}. Dist output not removed.', file=sys.stderr)
         return 1
     cleanup_output(staging)
 
     release_type = "executable" if built_exe else "source"
-    print(f"Build {release_type} selesai: {release_dir}")
+    print(f"{release_type.capitalize()} build complete: {release_dir}")
     if built_exe:
         archive_path = create_release_archive(release_dir, version)
-        print(f"Arsip portable selesai: {archive_path}")
+        print(f"Portable archive complete: {archive_path}")
     if not args.keep_temp and not args.package_existing:
         cleanup_output(BUILD_DIR / APP_NAME)
         cleanup_output(DIST_DIR / APP_NAME)

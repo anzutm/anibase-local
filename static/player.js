@@ -743,7 +743,7 @@ function switchEpisode(episodePath, options = {}) {
     return true;
 }
 
-// Fungsi untuk menghapus status Discord
+// Manage Discord status on playback
 player.on('play', () => {
     updateStatus();
     sendWatchProgress();
@@ -1059,7 +1059,7 @@ player.elements.container.addEventListener('wheel', event => {
     showScreenshotToast(`Volume: ${percent}%`, { icon, duration: 1500 });
 }, { passive: false });
 
-// Fitur Pengatur Volume dengan ArrowUp / ArrowDown (override Plyr)
+// Volume control with ArrowUp / ArrowDown (overrides Plyr)
 window.addEventListener('keydown', (event) => {
     const target = event.target;
     const isTyping = target && (
@@ -1112,11 +1112,11 @@ window.addEventListener('keydown', (event) => {
     showScreenshotToast(`Volume: ${volPercent}%`, { icon: volIcon, duration: 1500 });
 }, true);
 
-// Fitur Screenshot dengan tombol 's'
+// Screenshot feature via 's' key
 window.addEventListener('keydown', (e) => {
-    // Pastikan tidak sedang mengetik di input search
+    // Ensure user is not typing in a search input
     if (e.key.toLowerCase() === 's' && e.target.tagName !== 'INPUT') {
-        e.preventDefault(); // Mencegah perilaku default browser (misal: search)
+        e.preventDefault(); // Prevent default browser behavior (e.g. search)
         const canvas = document.createElement('canvas');
         canvas.width = videoElement.videoWidth;
         canvas.height = videoElement.videoHeight;

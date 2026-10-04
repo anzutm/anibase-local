@@ -50,7 +50,7 @@ def compile_targets():
     for filename in COMPILE_TARGETS:
         path = PROJECT_ROOT / filename
         if not path.exists():
-            raise FileNotFoundError(f"{filename} tidak ditemukan")
+            raise FileNotFoundError(f"{filename} not found")
         py_compile.compile(str(path), doraise=True)
     return ", ".join(COMPILE_TARGETS)
 
@@ -58,7 +58,7 @@ def compile_targets():
 def run_unit_tests():
     tests_dir = PROJECT_ROOT / "tests"
     if not tests_dir.is_dir():
-        raise FileNotFoundError("folder tests tidak ditemukan")
+        raise FileNotFoundError("tests directory not found")
 
     command = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"]
     result = subprocess.run(
@@ -72,8 +72,8 @@ def run_unit_tests():
         output = (result.stdout or "").strip()
         if output:
             print(output)
-        raise RuntimeError(f"unit test gagal dengan exit code {result.returncode}")
-    return "unittest discover lulus"
+        raise RuntimeError(f"unit tests failed with exit code {result.returncode}")
+    return "unittest discover passed"
 
 
 def release_dirs():
@@ -89,7 +89,7 @@ def release_dirs():
 def latest_release_dir():
     candidates = release_dirs()
     if not candidates:
-        raise FileNotFoundError(f"folder release tidak ditemukan di {RELEASES_DIR}")
+        raise FileNotFoundError(f"release directory not found in {RELEASES_DIR}")
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
@@ -102,7 +102,7 @@ def check_executable():
     release_dir = latest_release_dir()
     exe_path = release_dir / EXE_NAME
     if not exe_path.is_file():
-        raise FileNotFoundError(f"{exe_path.relative_to(PROJECT_ROOT)} tidak ditemukan")
+        raise FileNotFoundError(f"{exe_path.relative_to(PROJECT_ROOT)} not found")
     return str(exe_path.relative_to(PROJECT_ROOT))
 
 
@@ -113,8 +113,8 @@ def check_no_private_runtime_files():
         if path.is_file() and path.name in PRIVATE_RUNTIME_FILES:
             found.append(str(path.relative_to(PROJECT_ROOT)))
     if found:
-        raise RuntimeError("file runtime pribadi ikut release: " + ", ".join(found))
-    return "tidak ada settings/db/history/status/log runtime"
+        raise RuntimeError("private runtime files found in release package: " + ", ".join(found))
+    return "no private runtime files (settings/db/history/status/log) bundled"
 
 
 def check_required_release_files():
@@ -125,7 +125,7 @@ def check_required_release_files():
         if not (release_dir / filename).is_file()
     ]
     if missing:
-        raise FileNotFoundError("file release wajib hilang: " + ", ".join(missing))
+        raise FileNotFoundError("required release files missing: " + ", ".join(missing))
     return ", ".join(REQUIRED_PROJECT_FILES)
 
 
@@ -136,24 +136,24 @@ def check_portable_media_tools():
         if not (release_dir / filename).is_file()
     ]
     if missing:
-        raise FileNotFoundError("portable tool hilang: " + ", ".join(missing))
+        raise FileNotFoundError("portable tools missing: " + ", ".join(missing))
     return ", ".join(REQUIRED_PORTABLE_TOOLS)
 
 
 def check_project_assets():
     validate_assets(PROJECT_ROOT)
-    return 'template, Home motion, player ASS/WASM, font Inter dan lisensi lengkap'
+    return 'templates, Home motion, player ASS/WASM, Inter font, and licenses complete'
 
 
 def check_release_assets():
     validate_assets(latest_release_dir() / '_internal')
-    return 'aset runtime _internal lengkap; header WASM/WOFF2 valid'
+    return '_internal runtime assets complete; valid WASM/WOFF2 headers'
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Periksa project atau release AniBase tanpa menjalankan build.')
+    parser = argparse.ArgumentParser(description='Validate AniBase project or release package without running a build.')
     parser.add_argument('--project-only', action='store_true',
-                        help='Periksa source dan unit test tanpa memerlukan folder release.')
+                        help='Validate source and unit tests without requiring a release folder.')
     args = parser.parse_args()
     print("AniBase release check")
     print("=" * 22)
@@ -179,11 +179,11 @@ def main():
 
     print("=" * 22)
     if all(results):
-        detail = 'source project tervalidasi; paket release belum diperiksa' if args.project_only else 'pemeriksaan paket release berhasil'
+        detail = 'project source validated; release package not checked' if args.project_only else 'release package check succeeded'
         print(f"SUMMARY: PASS ({passed}/{total}) - {detail}.")
         return 0
 
-    print(f"SUMMARY: FAIL ({passed}/{total}) - perbaiki item FAIL sebelum membuat GitHub Release.")
+    print(f"SUMMARY: FAIL ({passed}/{total}) - resolve FAIL items before creating a GitHub release.")
     return 1
 
 

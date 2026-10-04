@@ -1,4 +1,4 @@
-﻿from flask import Flask, render_template, redirect, jsonify, send_file, request, abort, url_for
+from flask import Flask, render_template, redirect, jsonify, send_file, request, abort, url_for
 import flask.cli
 import logging
 from logging.handlers import RotatingFileHandler
@@ -2710,7 +2710,7 @@ def get_anilist_poster(anime_name):
     ):
         return poster_path
 
-    # Gunakan info dari metadata cache jika tersedia untuk menghindari API call ganda
+    # Use cached metadata info if available to avoid duplicate API calls
     info = get_cached_anilist_info(anime_name)
     if not info:
         return None
@@ -4564,10 +4564,10 @@ def get_cached_anilist_info(
                     info = None
                 if manual_tenrai_override and info and info.get("metadata_provider") != TENRAI_METADATA_PROVIDER:
                     info = None
-                # Jika metadata ditemukan tapi tidak punya informasi karakter atau relations, paksa ambil ulang
+                # If metadata was found but lacks character or relations information, force refetch
                 if info and ("characters" not in info or "relations" not in info or "recommendations" not in info):
                     info = None
-                # Jika ada character dengan va_name tapi tidak ada va_staff_id, upgrade metadata
+                # If any character has va_name but lacks va_staff_id, upgrade metadata
                 elif info and "characters" in info and any(char.get("va_name") and "va_staff_id" not in char for char in info.get("characters", [])):
                     info = None
                 # Releasing anime needs next episode metadata for the airing countdown.
@@ -4599,7 +4599,7 @@ def get_cached_anilist_info(
         except:
             info = None
 
-    # 2. Jika tidak ada di cache atau data tidak lengkap, ambil dari AniList API
+    # 2. If missing from cache or incomplete, fetch from AniList API
     if not info:
         if can_attempt_anilist():
             # Preserve the distinction between a provider outage and a valid
@@ -4717,7 +4717,7 @@ def get_cached_anilist_info(
     return info
 
 def get_subtitle_vtt_path(anime_name, episode_path):
-    # Membuat nama folder dan file yang aman untuk sistem file Windows
+    # Create safe folder and file names for the Windows filesystem
     safe_anime = re.sub(r'[<>:"/\\|?*]', '_', anime_name)
     safe_episode = re.sub(r'[<>:"|?*]', '_', episode_path).replace('/', '_').replace('\\', '_')
     
@@ -5520,14 +5520,14 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
                         continue
                     
                     if enrich_metadata:
-                        # Batasi laju permintaan AniList untuk metadata yang belum di-cache.
+                        # Rate limit AniList requests for uncached metadata.
                         cache_file = os.path.join(METADATA_CACHE, f"{name}.json")
                         info = get_cached_anilist_info(name)
                         if not os.path.exists(cache_file) and wait_for_shutdown(0.7):
                             break
                     else:
-                        # Setup pertama hanya perlu mengindeks file lokal. Metadata yang
-                        # sudah ada tetap dipakai tanpa melakukan permintaan jaringan.
+                        # Initial setup only needs to index local files. Existing metadata
+                        # is reused without making additional network requests.
                         info = get_cached_metadata_only(name)
 
                     found_data.append((
@@ -5600,14 +5600,14 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
                     if row and row[0]
                 ]
 
-            # Update/Insert data yang ditemukan
+            # Update/insert detected data
             if found_data:
                 conn.executemany("""
                     INSERT OR REPLACE INTO anime_library (name, episodes, score, genres, year, season, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, found_data)
 
-            # Hapus entri di DB jika foldernya sudah tidak ada di disk
+            # Remove DB entry if the folder no longer exists on disk
             if can_delete_stale and found_names:
                 placeholders = ','.join(['?'] * len(found_names))
                 conn.execute(f"DELETE FROM anime_library WHERE name NOT IN ({placeholders})", found_names)
@@ -8310,8 +8310,8 @@ def movie_detail_page(filename):
 
     return render_template(
         "anime.html",
-        anime_name=clean_title,      # Digunakan untuk metadata/poster
-        folder_name="Movies",       # Digunakan untuk mencari file di disk
+        anime_name=clean_title,      # Used for metadata/poster
+        folder_name="Movies",       # Used for searching files on disk
         episodes=episodes,
         anime_info=anime_info,
         anilist_mapping=get_anilist_mapping(clean_title),
@@ -8349,7 +8349,7 @@ def index():
 
     featured_slides = []
     if anime_list:
-        # Ambil maksimal 5 anime acak untuk slider
+        # Pick up to 5 random anime for the hero slider
         slider_candidates = random.sample(
             anime_list, 
             min(len(anime_list), 5)
@@ -9303,7 +9303,7 @@ def player(
         episode
     )
 
-    # Ambil waktu tonton terakhir untuk fitur resume
+    # Get last watch time for resume feature
     history = load_history_data()
     resume_time = 0
     h_data = history.get(watch_history_key)
@@ -9313,7 +9313,7 @@ def player(
             h_data = legacy_data
 
     if h_data:
-        # Hanya resume jika episode yang dibuka sama dengan yang terakhir ditonton
+        # Only resume if opened episode matches last watched
         if h_data.get("episode") == episode:
             resume_time = h_data.get("last_seconds", 0)
 
@@ -9405,8 +9405,8 @@ def stream_video(
         debug_log(f"Invalid video path: {video_path}")
         abort(404)
 
-    # Kembali menggunakan send_file untuk mendukung Range Requests (Seeking & Duration)
-    # Kita set mimetype secara manual untuk mengelabui browser agar mencoba memutar .mkv sebagai mp4
+    # Return using send_file to support HTTP Range Requests (Seeking & Duration)
+    # Set mimetype manually so browsers attempt playing .mkv as video/mp4
     mime_type = "video/mp4"
     if not video_path.lower().endswith('.mkv'):
         mime_type = mimetypes.guess_type(video_path)[0] or "video/mp4"
@@ -9418,8 +9418,8 @@ def stream_video(
         etag=True,
         max_age=3600,
     )
-    # Media tetap hanya disimpan pada cache browser pengguna. Range support
-    # memungkinkan browser mengambil bagian file yang dibutuhkan saat seeking.
+    # Media is cached only in the user browser cache. Range support
+    # enables the browser to request arbitrary file chunks when seeking.
     response.cache_control.public = False
     response.cache_control.private = True
     return response
@@ -9507,17 +9507,17 @@ def get_subtitle(anime_name, episode):
             abort(404)
         return send_file(os.path.join(folder, name), mimetype='text/plain' if name == 'track.ass' else 'application/octet-stream')
     
-    # 1. Cek apakah cache VTT sudah ada
+    # 1. Check if VTT cache is current
     if subtitle_cache_is_current(video_path, vtt_path):
         debug_log(f"Subtitle cache found: {vtt_path}")
         return send_file(vtt_path, mimetype="text/vtt")
         
-    # 2. Jika tidak ada, buat menggunakan FFmpeg
+    # 2. If not found, generate using FFmpeg
     subtitle_result = generate_subtitle_vtt_result(video_path, vtt_path)
     if subtitle_result.get("ok"):
         return send_file(subtitle_result["path"], mimetype="text/vtt")
         
-    # 3. Jika gagal/tidak ada subtitle, abaikan (404 tidak akan menghentikan video)
+    # 3. If generation fails or no subtitle exists, return error (404 will not stop video)
     return media_generation_error_response(subtitle_result)
 
 @app.route("/anime/<anime_name>/seasons")
@@ -10013,7 +10013,7 @@ def api_delete_anime():
 @host_only
 @require_action_token
 def clear_rpc_route():
-    """Endpoint untuk menghapus status Discord secara manual."""
+    """Endpoint for clearing Discord status manually."""
     owner_id = request.headers.get("X-AniBase-RPC-Session", "").strip() or None
     global RPC_DESIRED
     with RPC_STATE_LOCK:
@@ -10110,14 +10110,14 @@ class LibraryHandler(FileSystemEventHandler):
         self.process_event(event.src_path) # Old path might be a deletion
         self.process_event(event.dest_path) # New path might be a creation/modification
     def on_modified(self, event):
-        # Proses jika ada perubahan pada folder atau file video
+        # Process if directory or video file changed
         if event.is_directory:
             self.process_event(event.src_path)
         elif any(event.src_path.lower().endswith(ext) for ext in VIDEO_EXTENSIONS):
             self.process_event(event.src_path)
 
 def start_scanner():
-    """Menjalankan sinkronisasi awal dan memulai observer watchdog."""
+    """Run initial sync and start the watchdog observer."""
     app_log("Performing initial full library sync...")
     sync_all_library("Initial library sync") # Initial full sync
     app_log("Initial full library sync complete.")
