@@ -224,6 +224,41 @@
     background: var(--topbar-accent-soft);
 }
 
+#anibaseTopbar .topbar-user-avatar-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--card);
+    text-decoration: none;
+    transition: transform .2s var(--ease), border-color .2s ease, box-shadow .2s ease;
+}
+
+#anibaseTopbar .topbar-user-avatar-btn:hover,
+#anibaseTopbar .topbar-user-avatar-btn.active {
+    border-color: var(--topbar-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px var(--topbar-accent-soft);
+}
+
+#anibaseTopbar .topbar-user-avatar-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+#anibaseTopbar .topbar-avatar-initial {
+    font-size: 13px;
+    font-weight: 750;
+    color: var(--topbar-accent);
+}
+
 #anibaseTopbar :is(.notification-button, .profile-circle) svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #anibaseTopbar :is(a, button, input):focus-visible { outline: 2px solid var(--topbar-accent); outline-offset: 3px; }
 

@@ -18,6 +18,9 @@
     {% if request.endpoint == 'studio_page' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='studio-redesign.css', v='4') }}">
     {% endif %}
+    {% if request.endpoint in ['mal_profile_page', 'mal_profile_page_alias'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='mal-profile.css', v='1') }}">
+    {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='topbar.css', v='8') }}">
 </head>
@@ -35,6 +38,7 @@
                 <li><a href="{{ url_for('index') }}" class="nav-link {% if request.path == '/' %}active{% endif %}" {% if request.path == '/' %}aria-current="page"{% endif %}>Home</a></li>
                 <li><a href="{{ url_for('movies') }}" class="nav-link {% if request.path == '/movies' %}active{% endif %}" {% if request.path == '/movies' %}aria-current="page"{% endif %}>Movies</a></li>
                 <li><a href="{{ url_for('schedule') }}" class="nav-link {% if request.path == '/schedule' %}active{% endif %}" {% if request.path == '/schedule' %}aria-current="page"{% endif %}>Schedule</a></li>
+                <li><a href="{{ url_for('mal_profile_page') }}" class="nav-link {% if request.path in ['/profile', '/mal/profile'] %}active{% endif %}" {% if request.path in ['/profile', '/mal/profile'] %}aria-current="page"{% endif %}>MAL Profile</a></li>
                 <li><a href="{{ url_for('about') }}" class="nav-link {% if request.path == '/about' %}active{% endif %}" {% if request.path == '/about' %}aria-current="page"{% endif %}>About</a></li>
             </ul>
         </nav>
@@ -76,6 +80,15 @@
                 </div>
             </div>
             <div class="user-action">
+                {% if mal_authenticated %}
+                <a href="{{ url_for('mal_profile_page') }}" class="topbar-user-avatar-btn {% if request.path in ['/profile', '/mal/profile'] %}active{% endif %}" aria-label="MyAnimeList Profile" title="MAL Profile ({{ mal_username }})">
+                    {% if mal_picture %}
+                    <img src="{{ mal_picture }}" alt="{{ mal_username }}" loading="lazy" />
+                    {% else %}
+                    <span class="topbar-avatar-initial">{{ mal_username[:1].upper() if mal_username else 'M' }}</span>
+                    {% endif %}
+                </a>
+                {% endif %}
                 <a href="{{ url_for('settings_page') }}" class="profile-circle {% if request.path == '/settings' %}active{% endif %}" aria-label="Settings" title="Settings" {% if request.path == '/settings' %}aria-current="page"{% endif %}>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <circle cx="12" cy="12" r="3"></circle>

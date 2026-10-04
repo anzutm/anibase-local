@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if authenticated and user and user.name %}{{ user.name }} - MyAnimeList Profile{% else %}MyAnimeList Profile{% endif %} - AniBase
+{% endblock %}
+
+{% block content %}
+<div class="mal-profile-container">
+
+    {% if not authenticated %}
+    <!-- Guest / Not Connected State -->
+    <div class="mal-hero">
+        <div class="mal-hero-backdrop"></div>
+        <div class="mal-hero-content" style="align-items: center; justify-content: center; text-align: center; padding: 60px 24px;">
+            <div style="max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 16px;">
+                <div class="mal-avatar-wrapper" style="width: 80px; height: 80px;">
+                    <div class="mal-avatar-fallback">
+                        <svg viewBox="0 0 24 24" style="width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 2;">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                </div>
+                <h1 style="font-size: 28px; font-weight: 800; color: var(--text); margin: 0;">Connect Your MyAnimeList Account</h1>
+                <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                    Hubungkan akun MyAnimeList Anda untuk melihat profil personal, statistik waktu tonton, koleksi anime, serta integrasi otomatis dengan pustaka lokal AniBase Anda.
+                </p>
+                <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center;">
+                    <a href="{{ url_for('mal_oauth_login') }}" class="mal-btn mal-btn-primary" style="font-size: 14px; padding: 12px 24px;">
+                        <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                        Hubungkan MyAnimeList Sekarang
+                    </a>
+                    <a href="{{ url_for('settings_page') }}" class="mal-btn mal-btn-secondary">
+                        Pengaturan
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Logged In / Profile View -->
+
+    <!-- Profile Hero -->
+    <div class="mal-hero">
+        <div class="mal-hero-backdrop"></div>
+        <div class="mal-hero-content">
+            <div class="mal-user-identity">
+                <div class="mal-avatar-wrapper">
+                    {% if user.picture %}
+                    <img src="{{ user.picture }}" alt="{{ user.name }}" class="mal-avatar-img" />
+                    {% else %}
+                    <div class="mal-avatar-fallback">{{ user.name[:1].upper() if user.name else 'M' }}</div>
+                    {% endif %}
+                </div>
+                <div class="mal-user-info">
+                    <div class="mal-badge-row">
+                        <span class="mal-tag">MyAnimeList</span>
+                        {% if user.is_supporter %}
+                        <span class="mal-tag supporter">★ Supporter</span>
+                        {% endif %}
+                        {% if is_stale %}
+                        <span class="mal-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">Offline Cache</span>
+                        {% endif %}
+                    </div>
+                    <h1 class="mal-username-title">
+                        {{ user.name }}
+                    </h1>
+                    <div class="mal-user-meta-items">
+                        {% if user.joined_at %}
+                        <span>
+                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                            Bergabung: {{ user.joined_at[:10] }}
+                        </span>
+                        {% endif %}
+                        {% if user.location %}
+                        <span>
+                            <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                            {{ user.location }}
+                        </span>
+                        {% endif %}
+                        {% if user.time_zone %}
+                        <span>
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            {{ user.time_zone }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mal-hero-actions">
+                <button type="button" class="mal-btn mal-btn-secondary" id="malRefreshBtn" title="Sinkronisasi data terbaru dari MyAnimeList">
+                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <span>Refresh Stats</span>
+                </button>
+                <a href="https://myanimelist.net/profile/{{ user.name }}" target="_blank" rel="noopener noreferrer" class="mal-btn mal-btn-primary">
+                    <span>Lihat di MAL</span>
+                    <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview Cards -->
+    {% set stats = user.anime_statistics or {} %}
+    {% set total_items = stats.num_items|default(0) %}
+    <div class="mal-stats-grid">
+        <div class="mal-stat-card">
+            <div class="mal-stat-icon blue">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="mal-stat-info">
+                <span class="mal-stat-label">Waktu Menonton</span>
+                <span class="mal-stat-value">{{ "%.1f"|format(stats.num_days_watched|default(0)) }} <span style="font-size: 15px; font-weight: 600; color: var(--text-secondary);">Hari</span></span>
+                <span class="mal-stat-sub">~{{ (stats.num_days_watched|default(0) * 24)|round|int }} Jam Menonton</span>
+            </div>
+        </div>
+
+        <div class="mal-stat-card">
+            <div class="mal-stat-icon green">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div class="mal-stat-info">
+                <span class="mal-stat-label">Episode Ditonton</span>
+                <span class="mal-stat-value">{{ "{:,}".format(stats.num_episodes|default(0)) }}</span>
+                <span class="mal-stat-sub">Total riwayat tontonan</span>
+            </div>
+        </div>
+
+        <div class="mal-stat-card">
+            <div class="mal-stat-icon amber">
+                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </div>
+            <div class="mal-stat-info">
+                <span class="mal-stat-label">Rata-rata Skor</span>
+                <span class="mal-stat-value">{{ "%.2f"|format(stats.mean_score|default(0)) }} <span style="font-size: 15px; font-weight: 600; color: #fbbf24;">★</span></span>
+                <span class="mal-stat-sub">Berdasarkan rating anime</span>
+            </div>
+        </div>
+
+        <div class="mal-stat-card">
+            <div class="mal-stat-icon purple">
+                <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            </div>
+            <div class="mal-stat-info">
+                <span class="mal-stat-label">Total Koleksi</span>
+                <span class="mal-stat-value">{{ "{:,}".format(total_items) }}</span>
+                <span class="mal-stat-sub">Judul terdaftar di MAL</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collection Distribution Bar -->
+    {% if total_items > 0 %}
+    {% set pct_completed = (stats.num_items_completed|default(0) / total_items * 100)|round(1) %}
+    {% set pct_watching = (stats.num_items_watching|default(0) / total_items * 100)|round(1) %}
+    {% set pct_plan = (stats.num_items_plan_to_watch|default(0) / total_items * 100)|round(1) %}
+    {% set pct_hold = (stats.num_items_on_hold|default(0) / total_items * 100)|round(1) %}
+    {% set pct_dropped = (stats.num_items_dropped|default(0) / total_items * 100)|round(1) %}
+
+    <div class="mal-dist-container">
+        <div class="mal-dist-header">
+            <span class="mal-dist-title">Distribusi Koleksi Anime</span>
+            <span class="mal-dist-total">{{ total_items }} Total Anime</span>
+        </div>
+        <div class="mal-dist-bar">
+            {% if stats.num_items_completed %}<div class="mal-dist-segment completed" style="width: {{ pct_completed }}%;" title="Completed: {{ stats.num_items_completed }} ({{ pct_completed }}%)"></div>{% endif %}
+            {% if stats.num_items_watching %}<div class="mal-dist-segment watching" style="width: {{ pct_watching }}%;" title="Watching: {{ stats.num_items_watching }} ({{ pct_watching }}%)"></div>{% endif %}
+            {% if stats.num_items_plan_to_watch %}<div class="mal-dist-segment plan_to_watch" style="width: {{ pct_plan }}%;" title="Plan to Watch: {{ stats.num_items_plan_to_watch }} ({{ pct_plan }}%)"></div>{% endif %}
+            {% if stats.num_items_on_hold %}<div class="mal-dist-segment on_hold" style="width: {{ pct_hold }}%;" title="On-Hold: {{ stats.num_items_on_hold }} ({{ pct_hold }}%)"></div>{% endif %}
+            {% if stats.num_items_dropped %}<div class="mal-dist-segment dropped" style="width: {{ pct_dropped }}%;" title="Dropped: {{ stats.num_items_dropped }} ({{ pct_dropped }}%)"></div>{% endif %}
+        </div>
+        <div class="mal-dist-legend">
+            <div class="mal-legend-item"><span class="mal-legend-dot completed"></span> Completed: <strong>{{ stats.num_items_completed|default(0) }}</strong></div>
+            <div class="mal-legend-item"><span class="mal-legend-dot watching"></span> Watching: <strong>{{ stats.num_items_watching|default(0) }}</strong></div>
+            <div class="mal-legend-item"><span class="mal-legend-dot plan_to_watch"></span> Plan to Watch: <strong>{{ stats.num_items_plan_to_watch|default(0) }}</strong></div>
+            <div class="mal-legend-item"><span class="mal-legend-dot on_hold"></span> On-Hold: <strong>{{ stats.num_items_on_hold|default(0) }}</strong></div>
+            <div class="mal-legend-item"><span class="mal-legend-dot dropped"></span> Dropped: <strong>{{ stats.num_items_dropped|default(0) }}</strong></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Tabs -->
+    <div class="mal-tabs-container">
+        <a href="{{ url_for('mal_profile_page', status='watching') }}" class="mal-tab-item {% if status_filter == 'watching' %}active{% endif %}">
+            <span>Currently Watching</span>
+            <span class="mal-tab-count">{{ stats.num_items_watching|default(0) }}</span>
+        </a>
+        <a href="{{ url_for('mal_profile_page', status='plan_to_watch') }}" class="mal-tab-item {% if status_filter == 'plan_to_watch' %}active{% endif %}">
+            <span>Plan to Watch</span>
+            <span class="mal-tab-count">{{ stats.num_items_plan_to_watch|default(0) }}</span>
+        </a>
+        <a href="{{ url_for('mal_profile_page', status='completed') }}" class="mal-tab-item {% if status_filter == 'completed' %}active{% endif %}">
+            <span>Completed</span>
+            <span class="mal-tab-count">{{ stats.num_items_completed|default(0) }}</span>
+        </a>
+        <a href="{{ url_for('mal_profile_page', status='on_hold') }}" class="mal-tab-item {% if status_filter == 'on_hold' %}active{% endif %}">
+            <span>On-Hold</span>
+            <span class="mal-tab-count">{{ stats.num_items_on_hold|default(0) }}</span>
+        </a>
+        <a href="{{ url_for('mal_profile_page', status='dropped') }}" class="mal-tab-item {% if status_filter == 'dropped' %}active{% endif %}">
+            <span>Dropped</span>
+            <span class="mal-tab-count">{{ stats.num_items_dropped|default(0) }}</span>
+        </a>
+        <a href="{{ url_for('mal_profile_page', status='all') }}" class="mal-tab-item {% if status_filter == 'all' %}active{% endif %}">
+            <span>All Entries</span>
+            <span class="mal-tab-count">{{ total_items }}</span>
+        </a>
+    </div>
+
+    <!-- Anime List Grid -->
+    {% if animelist and animelist|length > 0 %}
+    <div class="mal-anime-grid">
+        {% for item in animelist %}
+        {% set node = item.node %}
+        {% set list_status = item.list_status %}
+        {% set mal_id = node.id %}
+        {% set poster = (node.main_picture.large or node.main_picture.medium) if node.main_picture else '' %}
+        {% set total_ep = node.num_episodes or 0 %}
+        {% set watched_ep = list_status.num_episodes_watched or 0 %}
+        {% set progress_pct = (watched_ep / total_ep * 100) if total_ep > 0 else 0 %}
+
+        <div class="mal-card" data-mal-id="{{ mal_id }}">
+            <div class="mal-poster-wrap">
+                {% if poster %}
+                <img src="{{ poster }}" alt="{{ node.title }}" class="mal-poster-img" loading="lazy" />
+                {% else %}
+                <div class="mal-poster-img" style="display: grid; place-items: center; color: var(--text-secondary); font-size: 11px;">No Poster</div>
+                {% endif %}
+
+                {% if list_status.score and list_status.score > 0 %}
+                <div class="mal-score-badge">
+                    <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    <span>{{ list_status.score }}</span>
+                </div>
+                {% endif %}
+
+                <div class="mal-status-badge">
+                    {{ (list_status.status or status_filter)|replace('_', ' ') }}
+                </div>
+
+                {% if total_ep > 0 %}
+                <div class="mal-ep-progress-bar">
+                    <div class="mal-ep-progress-fill" style="width: {{ progress_pct }}%;"></div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="mal-card-body">
+                <div class="mal-card-titles">
+                    <a href="{{ item.external_url or ('https://myanimelist.net/anime/' ~ mal_id) }}" class="mal-anime-title" title="{{ node.title }}">
+                        {{ node.title }}
+                    </a>
+                    <div class="mal-anime-sub">
+                        <span>Ep <strong id="ep-count-{{ mal_id }}">{{ watched_ep }}</strong> / {{ total_ep if total_ep > 0 else '?' }}</span>
+                        {% if node.media_type %} • {{ node.media_type|upper }}{% endif %}
+                    </div>
+                </div>
+
+                <!-- Local Library Bridge Status -->
+                <div class="mal-library-status">
+                    {% if item.in_library %}
+                    <span class="mal-lib-badge in-library" title="Tersedia di pustaka lokal">
+                        ✔ In Library
+                    </span>
+                    <div class="mal-card-actions">
+                        {% if item.play_url %}
+                        <a href="{{ item.play_url }}" class="mal-mini-btn play" title="Putar langsung dari pustaka lokal">
+                            ▶ Play
+                        </a>
+                        {% endif %}
+                        <a href="{{ item.local_url }}" class="mal-mini-btn info" title="Buka detail anime lokal">
+                            Detail
+                        </a>
+                    </div>
+                    {% else %}
+                    <span class="mal-lib-badge external" title="Belum ada di pustaka lokal">
+                        External
+                    </span>
+                    <div class="mal-card-actions">
+                        {% if status_filter == 'watching' %}
+                        <button type="button" class="mal-quick-inc" data-mal-id="{{ mal_id }}" data-current-ep="{{ watched_ep }}" title="Tambah 1 Episode">+1</button>
+                        {% endif %}
+                        <a href="{{ item.external_url }}" class="mal-mini-btn info" title="Jelajahi info lengkap & trailer">
+                            Info
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- Empty tab state -->
+    <div class="mal-empty-state">
+        <svg class="mal-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        <div class="mal-empty-title">Tidak ada anime dalam kategori ini</div>
+        <p class="mal-empty-desc">
+            Kategori "{{ status_filter|replace('_', ' ')|title }}" belum memiliki judul di akun MyAnimeList Anda.
+        </p>
+        <a href="{{ url_for('mal_profile_page', status='all') }}" class="mal-btn mal-btn-secondary">
+            Lihat Semua Koleksi
+        </a>
+    </div>
+    {% endif %}
+
+    {% endif %}
+
+</div>
+
+<!-- Client-side Interactive Behaviors -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const refreshBtn = document.getElementById("malRefreshBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", async function () {
+            refreshBtn.classList.add("spinning");
+            refreshBtn.disabled = true;
+            try {
+                const response = await fetch("{{ url_for('mal_refresh_profile') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Action-Token": window.ANIBASE_ACTION_TOKEN || ""
+                    },
+                    body: JSON.stringify({ action_token: window.ANIBASE_ACTION_TOKEN || "" })
+                });
+                const res = await response.json();
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    alert("Gagal memperbarui profil: " + (res.error || "Kesalahan jaringan"));
+                    refreshBtn.classList.remove("spinning");
+                    refreshBtn.disabled = false;
+                }
+            } catch (err) {
+                alert("Gagal menghubungi server AniBase.");
+                refreshBtn.classList.remove("spinning");
+                refreshBtn.disabled = false;
+            }
+        });
+    }
+
+    // Quick Increment (+1) episode buttons
+    document.querySelectorAll(".mal-quick-inc").forEach(btn => {
+        btn.addEventListener("click", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const malId = btn.getAttribute("data-mal-id");
+            const currentEp = parseInt(btn.getAttribute("data-current-ep") || "0", 10);
+            const newEp = currentEp + 1;
+
+            btn.disabled = true;
+            btn.textContent = "…";
+
+            try {
+                const response = await fetch("{{ url_for('mal_update_progress') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Action-Token": window.ANIBASE_ACTION_TOKEN || ""
+                    },
+                    body: JSON.stringify({
+                        mal_id: malId,
+                        num_watched: newEp,
+                        action_token: window.ANIBASE_ACTION_TOKEN || ""
+                    })
+                });
+                const result = await response.json();
+                if (result.ok) {
+                    btn.setAttribute("data-current-ep", newEp);
+                    btn.textContent = "+1";
+                    btn.disabled = false;
+                    const countElem = document.getElementById("ep-count-" + malId);
+                    if (countElem) {
+                        countElem.textContent = newEp;
+                    }
+                } else {
+                    alert("Gagal update episode: " + (result.error || ""));
+                    btn.textContent = "+1";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert("Kesalahan jaringan saat update status.");
+                btn.textContent = "+1";
+                btn.disabled = false;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

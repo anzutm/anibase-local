@@ -190,12 +190,17 @@ ANISKIP_BASE_URL = "https://api.aniskip.com/v2"
 ANISKIP_TIMEOUT_SECONDS = 5
 MAL_AUTH_FILE = os.path.join(CACHE_DIR, "mal_auth.json")
 MAL_SCROBBLE_CACHE = os.path.join(CACHE_DIR, "mal_scrobble_cache.json")
+MAL_PROFILE_CACHE = os.path.join(CACHE_DIR, "mal_profile_cache.json")
 MAL_API_BASE_URL = "https://api.myanimelist.net/v2"
 MAL_OAUTH_AUTH_URL = "https://myanimelist.net/v1/oauth2/authorize"
 MAL_OAUTH_TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"
 DEFAULT_MAL_CLIENT_ID = "cc3c671a6202a3ef9c6fd9383c6f3160"
 MAL_AUTH_LOCK = threading.RLock()
 MAL_SCROBBLE_LOCK = threading.RLock()
+MAL_PROFILE_LOCK = threading.RLock()
+MAL_ANIMELIST_LOCK = threading.RLock()
+MAL_PROFILE_CACHE_TTL = 1800  # 30 minutes
+MAL_ANIMELIST_CACHE_TTL = 900  # 15 minutes
 MAL_OAUTH_SESSIONS = {}
 
 def get_effective_mal_client_id(settings=None):
@@ -835,7 +840,7 @@ def get_action_token():
     return token
 
 def get_submitted_action_token():
-    token = request.headers.get("X-AniBase-Action-Token", "")
+    token = request.headers.get("X-AniBase-Action-Token", "") or request.headers.get("X-Action-Token", "")
 
     if token:
         return token
@@ -1292,6 +1297,16 @@ def inject_shortcuts():
     return {
         "player_shortcuts": settings.get("shortcuts", DEFAULT_PLAYER_SHORTCUTS),
         "shortcut_definitions": SHORTCUT_DEFINITIONS
+    }
+
+@app.context_processor
+def inject_mal_user():
+    auth = load_mal_auth()
+    is_authed = bool(auth.get("access_token"))
+    return {
+        "mal_authenticated": is_authed,
+        "mal_username": auth.get("username", "") if is_authed else "",
+        "mal_picture": auth.get("picture", "") if is_authed else "",
     }
 
 def get_existing_anime_names():
@@ -5119,12 +5134,12 @@ def get_valid_mal_token():
             app_log(f"MAL token refresh network error: {e}", "WARN")
             return auth.get("access_token")
 
-def fetch_mal_user_profile(access_token):
+def fetch_mal_user_profile(access_token, fields="id,name,picture"):
     try:
         resp = requests.get(
             f"{MAL_API_BASE_URL}/users/@me",
             headers={"Authorization": f"Bearer {access_token}"},
-            params={"fields": "id,name,picture"},
+            params={"fields": fields},
             timeout=10
         )
         if resp.status_code == 200:
@@ -5132,6 +5147,281 @@ def fetch_mal_user_profile(access_token):
     except Exception as e:
         app_log(f"Failed to fetch MAL user profile: {e}", "WARN")
     return None
+
+def load_mal_profile_cache():
+    with MAL_PROFILE_LOCK:
+        if not os.path.exists(MAL_PROFILE_CACHE):
+            return None
+        try:
+            with open(MAL_PROFILE_CACHE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return data
+        except (OSError, ValueError):
+            pass
+        return None
+
+def save_mal_profile_cache(profile_data):
+    with MAL_PROFILE_LOCK:
+        atomic_write_json_file(MAL_PROFILE_CACHE, profile_data or {}, "MAL Profile Cache")
+
+def clear_mal_profile_cache():
+    with MAL_PROFILE_LOCK:
+        if os.path.exists(MAL_PROFILE_CACHE):
+            try:
+                os.remove(MAL_PROFILE_CACHE)
+            except OSError:
+                pass
+    with MAL_ANIMELIST_LOCK:
+        try:
+            for fname in os.listdir(CACHE_DIR):
+                if fname.startswith("mal_animelist_") and fname.endswith(".json"):
+                    try:
+                        os.remove(os.path.join(CACHE_DIR, fname))
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+
+def get_mal_user_full_profile(force=False):
+    now = time.time()
+    cached = load_mal_profile_cache()
+    if not force and cached and (now - cached.get("cached_at", 0) < MAL_PROFILE_CACHE_TTL):
+        return cached
+
+    token = get_valid_mal_token()
+    if not token:
+        if cached:
+            cached["is_stale"] = True
+            return cached
+        auth = load_mal_auth()
+        return {
+            "cached_at": now,
+            "is_stale": True,
+            "user": {
+                "name": auth.get("username", "MAL User"),
+                "picture": auth.get("picture", ""),
+                "id": auth.get("user_id"),
+                "anime_statistics": {}
+            }
+        }
+
+    try:
+        resp = requests.get(
+            f"{MAL_API_BASE_URL}/users/@me",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "id,name,picture,gender,birthday,location,joined_at,anime_statistics,time_zone,is_supporter"},
+            timeout=12
+        )
+        if resp.status_code == 200:
+            user_data = resp.json()
+            payload = {
+                "cached_at": now,
+                "is_stale": False,
+                "user": user_data
+            }
+            save_mal_profile_cache(payload)
+            auth = load_mal_auth()
+            pic = user_data.get("picture")
+            uname = user_data.get("name")
+            if (pic and pic != auth.get("picture")) or (uname and uname != auth.get("username")):
+                auth["picture"] = pic
+                auth["username"] = uname
+                save_mal_auth(auth)
+            return payload
+    except Exception as e:
+        app_log(f"Failed to fetch MAL full profile: {e}", "WARN")
+
+    if cached:
+        cached["is_stale"] = True
+        return cached
+
+    auth = load_mal_auth()
+    return {
+        "cached_at": now,
+        "is_stale": True,
+        "user": {
+            "name": auth.get("username", "MAL User"),
+            "picture": auth.get("picture", ""),
+            "id": auth.get("user_id"),
+            "anime_statistics": {}
+        }
+    }
+
+def get_mal_animelist_cache_path(status):
+    safe_status = "".join(c for c in (status or "all") if c.isalnum() or c in "_-")
+    return os.path.join(CACHE_DIR, f"mal_animelist_{safe_status}.json")
+
+def load_mal_animelist_cache(status):
+    cache_path = get_mal_animelist_cache_path(status)
+    with MAL_ANIMELIST_LOCK:
+        if not os.path.exists(cache_path):
+            return None
+        try:
+            with open(cache_path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return data
+        except (OSError, ValueError):
+            pass
+        return None
+
+def save_mal_animelist_cache(status, items_data):
+    cache_path = get_mal_animelist_cache_path(status)
+    with MAL_ANIMELIST_LOCK:
+        atomic_write_json_file(cache_path, items_data or {}, "MAL Animelist Cache")
+
+def get_mal_user_animelist(status="watching", limit=100, offset=0, force=False):
+    now = time.time()
+    cached = load_mal_animelist_cache(status)
+    if not force and cached and (now - cached.get("cached_at", 0) < MAL_ANIMELIST_CACHE_TTL):
+        return cached.get("items", [])
+
+    token = get_valid_mal_token()
+    if not token:
+        return cached.get("items", []) if cached else []
+
+    params = {
+        "limit": min(max(1, limit), 100),
+        "offset": max(0, offset),
+        "sort": "list_updated_at",
+        "fields": "list_status{score,num_episodes_watched,is_rewatching,updated_at,status},num_episodes,mean,media_type,status,genres,main_picture,alternative_titles"
+    }
+    if status and status != "all":
+        params["status"] = status
+
+    try:
+        resp = requests.get(
+            f"{MAL_API_BASE_URL}/users/@me/animelist",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params,
+            timeout=15
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            items = data.get("data", [])
+            save_mal_animelist_cache(status, {
+                "cached_at": now,
+                "items": items,
+                "paging": data.get("paging", {})
+            })
+            return items
+        else:
+            app_log(f"MAL animelist API error {resp.status_code}: {resp.text}", "WARN")
+    except Exception as e:
+        app_log(f"MAL animelist API exception: {e}", "WARN")
+
+    return cached.get("items", []) if cached else []
+
+def enrich_mal_list_with_local_library(items, local_index=None):
+    local_anime = get_anime()
+    if local_index is None:
+        local_index = build_local_anime_match_index(local_anime)
+
+    mal_id_to_local = {}
+    for anim in local_anime:
+        name = anim.get("name")
+        if not name:
+            continue
+        cached_info = get_cached_anilist_info(name) or {}
+        m_id = normalize_provider_id(cached_info.get("mal_id"))
+        if not m_id:
+            m_map = get_metadata_mapping(name) or {}
+            m_id = normalize_provider_id(m_map.get("mal_id"))
+        if m_id:
+            mal_id_to_local[str(m_id)] = anim
+
+    enriched = []
+    for item in (items or []):
+        node = item.get("node", {})
+        list_status = item.get("list_status", {})
+        mal_id = str(node.get("id")) if node.get("id") else ""
+
+        local_match = mal_id_to_local.get(mal_id) if mal_id else None
+        if not local_match:
+            alt_titles = node.get("alternative_titles") or {}
+            candidates = [
+                node.get("title"),
+                alt_titles.get("en"),
+                alt_titles.get("ja"),
+            ]
+            for syn in alt_titles.get("synonyms") or []:
+                candidates.append(syn)
+
+            for cand in candidates:
+                if not cand:
+                    continue
+                norm = normalize_anime_match_name(cand)
+                if norm and norm in local_index:
+                    local_match = local_index[norm]
+                    break
+
+        local_url = None
+        play_url = None
+        if local_match:
+            try:
+                local_url = url_for("anime_detail", anime_name=local_match["name"])
+                play_url = url_for("player", anime=local_match["name"])
+            except Exception:
+                local_url = f"/anime/{quote_plus(local_match['name'])}"
+                play_url = f"/play/{quote_plus(local_match['name'])}"
+
+        try:
+            return_to = request.full_path if request else "/profile"
+            external_url = url_for("external_anime_detail", mal_id=mal_id, return_to=return_to) if mal_id else None
+        except Exception:
+            external_url = f"/anime/external/mal/{mal_id}" if mal_id else None
+
+        enriched.append({
+            "node": node,
+            "list_status": list_status,
+            "in_library": local_match is not None,
+            "local_anime": local_match,
+            "local_url": local_url,
+            "external_url": external_url,
+            "play_url": play_url,
+        })
+    return enriched
+
+def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=None):
+    token = get_valid_mal_token()
+    if not token:
+        return {"ok": False, "reason": "not_authenticated"}
+
+    mal_id = normalize_provider_id(mal_id)
+    if not mal_id:
+        return {"ok": False, "reason": "invalid_mal_id"}
+
+    payload = {}
+    if num_watched is not None:
+        try:
+            payload["num_watched_episodes"] = max(0, int(num_watched))
+        except (ValueError, TypeError):
+            pass
+    if score is not None:
+        try:
+            payload["score"] = max(0, min(10, int(score)))
+        except (ValueError, TypeError):
+            pass
+    if status is not None and status in ["watching", "completed", "on_hold", "dropped", "plan_to_watch"]:
+        payload["status"] = status
+
+    if not payload:
+        return {"ok": False, "reason": "no_updates"}
+
+    url = f"{MAL_API_BASE_URL}/anime/{int(mal_id)}/my_list_status"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    try:
+        resp = requests.patch(url, data=payload, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            clear_mal_profile_cache()
+            return {"ok": True, "data": resp.json()}
+        return {"ok": False, "reason": f"http_{resp.status_code}", "text": resp.text}
+    except Exception as e:
+        return {"ok": False, "reason": "network_error", "error": str(e)}
 
 def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
     settings = load_settings()
@@ -11007,6 +11297,89 @@ def mal_status():
         "threshold": settings.get("mal_scrobble_threshold", 90),
         "client_id_configured": bool(get_effective_mal_client_id(settings))
     })
+
+@app.route("/profile", endpoint="mal_profile_page")
+@app.route("/mal/profile", endpoint="mal_profile_page_alias")
+def mal_profile_page():
+    auth = load_mal_auth()
+    authenticated = bool(auth.get("access_token"))
+    settings = load_settings()
+    theme = get_current_theme()
+
+    if not authenticated:
+        return render_template(
+            "mal_profile.html",
+            authenticated=False,
+            client_id_configured=bool(get_effective_mal_client_id(settings)),
+            current_theme=theme,
+            user=None,
+            animelist=[],
+            status_filter="watching"
+        )
+
+    force_refresh = request.args.get("refresh") == "1"
+    status_filter = request.args.get("status", "watching").strip().lower()
+    valid_statuses = ["watching", "plan_to_watch", "completed", "on_hold", "dropped", "all"]
+    if status_filter not in valid_statuses:
+        status_filter = "watching"
+
+    # Fetch user profile & statistics
+    profile_data = get_mal_user_full_profile(force=force_refresh)
+    user_info = profile_data.get("user") or {}
+
+    # Fetch animelist for current status
+    raw_animelist = get_mal_user_animelist(status=status_filter, force=force_refresh)
+
+    # Enrich with local library info
+    enriched_list = enrich_mal_list_with_local_library(raw_animelist)
+
+    return render_template(
+        "mal_profile.html",
+        authenticated=True,
+        client_id_configured=True,
+        user=user_info,
+        status_filter=status_filter,
+        animelist=enriched_list,
+        current_theme=theme,
+        cached_at=profile_data.get("cached_at"),
+        is_stale=profile_data.get("is_stale", False)
+    )
+
+@app.route("/api/mal/refresh-profile", methods=["POST"], endpoint="mal_refresh_profile")
+@host_only
+@require_action_token
+def mal_refresh_profile():
+    if not is_mal_authenticated():
+        return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
+
+    clear_mal_profile_cache()
+    profile = get_mal_user_full_profile(force=True)
+    return jsonify({
+        "ok": True,
+        "message": "Profile refreshed successfully",
+        "user": profile.get("user")
+    })
+
+@app.route("/api/mal/update-progress", methods=["POST"], endpoint="mal_update_progress")
+@host_only
+@require_action_token
+def mal_update_progress():
+    if not is_mal_authenticated():
+        return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = request.form.to_dict()
+
+    mal_id = payload.get("mal_id")
+    num_watched = payload.get("num_watched")
+    score = payload.get("score")
+    status = payload.get("status")
+
+    res = update_mal_user_anime_status(mal_id, num_watched=num_watched, score=score, status=status)
+    if res.get("ok"):
+        return jsonify({"ok": True, "result": res.get("data")})
+    return jsonify({"ok": False, "error": res.get("reason", "Update failed")}), 400
 
 @app.route("/anime/<anime_name>/seasons")
 def season_list(anime_name):
