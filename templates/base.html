@@ -80,6 +80,12 @@
                 </div>
             </div>
             <div class="user-action">
+                <a href="{{ url_for('settings_page') }}" class="profile-circle {% if request.path == '/settings' %}active{% endif %}" aria-label="Settings" title="Settings" {% if request.path == '/settings' %}aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.42 1.42-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55V20h-2v-.09A1.7 1.7 0 0 0 12.35 18a1.7 1.7 0 0 0-1.88.34l-.06.06-1.42-1.42.06-.06A1.7 1.7 0 0 0 9.4 15a1.7 1.7 0 0 0-1.55-1.03H7.8v-2h.09A1.7 1.7 0 0 0 9.4 10.9a1.7 1.7 0 0 0-.34-1.88L9 8.96l1.42-1.42.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 13.4 6.4V6h2v.09a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.42 1.42-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.03H21v2h-.09A1.7 1.7 0 0 0 19.4 15Z"></path>
+                    </svg>
+                </a>
                 {% if mal_authenticated %}
                 <a href="{{ url_for('mal_profile_page') }}" class="topbar-user-avatar-btn {% if request.path in ['/profile', '/mal/profile'] %}active{% endif %}" aria-label="MyAnimeList Profile" title="MAL Profile ({{ mal_username }})">
                     {% if mal_picture %}
@@ -89,12 +95,6 @@
                     {% endif %}
                 </a>
                 {% endif %}
-                <a href="{{ url_for('settings_page') }}" class="profile-circle {% if request.path == '/settings' %}active{% endif %}" aria-label="Settings" title="Settings" {% if request.path == '/settings' %}aria-current="page"{% endif %}>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.42 1.42-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55V20h-2v-.09A1.7 1.7 0 0 0 12.35 18a1.7 1.7 0 0 0-1.88.34l-.06.06-1.42-1.42.06-.06A1.7 1.7 0 0 0 9.4 15a1.7 1.7 0 0 0-1.55-1.03H7.8v-2h.09A1.7 1.7 0 0 0 9.4 10.9a1.7 1.7 0 0 0-.34-1.88L9 8.96l1.42-1.42.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 13.4 6.4V6h2v.09a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.42 1.42-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.03H21v2h-.09A1.7 1.7 0 0 0 19.4 15Z"></path>
-                    </svg>
-                </a>
             </div>
         </div>
     </header>
