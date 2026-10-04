@@ -64,9 +64,9 @@
                 {{ "Media Player Ready" if vlc_available else "Media Player Not Set" }}
             </span>
             {% if previous_episode or next_episode %}
-            <span title="Previous / next episode shortcuts">Shift+P / Shift+N</span>
+            <span title="Previous / next episode shortcuts">{{ player_shortcuts.previous_episode }} / {{ player_shortcuts.next_episode }}</span>
             {% endif %}
-            <span title="Skip backward / forward 30 seconds">Ctrl+&larr; / Ctrl+&rarr;</span>
+            <span title="Skip backward / forward 30 seconds">{{ player_shortcuts.seek_backward_large }} / {{ player_shortcuts.seek_forward_large }}</span>
         </div>
     </header>
 
@@ -124,6 +124,11 @@
                     <button type="button" id="playerAutoSkipBtn" class="player-sub-btn player-autoskip-btn" title="Toggle automatic skip for opening and ending (AniSkip)">
                         <span class="sub-icon" aria-hidden="true">&#9197;</span>
                         <span id="playerAutoSkipLabel">Auto-Skip: OFF</span>
+                    </button>
+
+                    <button type="button" id="playerShortcutsBtn" class="player-sub-btn player-shortcuts-btn" title="Keyboard shortcuts ({{ player_shortcuts.shortcut_help }})">
+                        <span class="sub-icon" aria-hidden="true">&#9000;</span>
+                        <span>Shortcuts</span>
                     </button>
                 </div>
                 <div class="player-navigation">
@@ -311,6 +316,37 @@
     </div>
 </div>
 
+<!-- Keyboard Shortcuts Cheatsheet Modal -->
+<div id="playerShortcutsModal" class="player-shortcuts-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="playerShortcutsModalTitle">
+    <div class="player-shortcuts-modal-card">
+        <div class="player-shortcuts-modal-header">
+            <div class="modal-title-stack">
+                <span class="modal-kicker">Controls</span>
+                <h3 id="playerShortcutsModalTitle">Keyboard Shortcuts</h3>
+            </div>
+            <button type="button" id="closeShortcutsModalBtn" class="modal-close-btn" aria-label="Close shortcuts overlay">&times;</button>
+        </div>
+        <div class="player-shortcuts-modal-body">
+            {% for cat in shortcut_definitions %}
+            <div class="modal-shortcuts-category">
+                <h4>{{ cat.category }}</h4>
+                <div class="modal-shortcuts-grid">
+                    {% for action in cat.actions %}
+                    <div class="modal-shortcut-row">
+                        <span class="modal-shortcut-label">{{ action.label }}</span>
+                        <kbd class="modal-shortcut-key">{{ player_shortcuts.get(action.id, action.default) }}</kbd>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="player-shortcuts-modal-footer">
+            <span>Press <kbd>Esc</kbd> or <kbd>{{ player_shortcuts.shortcut_help }}</kbd> to close &bull; Customize anytime in <a href="{{ url_for('settings_page') }}#settings-shortcuts" target="_blank">Settings</a></span>
+        </div>
+    </div>
+</div>
+
 <!-- Player Libraries -->
 <script src="{{ url_for('static', filename='plyr.js') }}"></script>
 
@@ -332,7 +368,8 @@
     data-subtitles-list-url-template="{{ url_for('get_available_subtitles', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-skip-times-url-template="{{ url_for('get_episode_skip_times', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-preview-url-template="{{ url_for('seek_preview', anime_name='__ANIME__', episode='__EPISODE__') }}"
-    data-play-url-template="{{ url_for('play_episode', anime_name='__ANIME__', episode='__EPISODE__') }}">
+    data-play-url-template="{{ url_for('play_episode', anime_name='__ANIME__', episode='__EPISODE__') }}"
+    data-shortcuts='{{ player_shortcuts | tojson | e }}'>
 </div>
 
 <script>
@@ -357,6 +394,7 @@
         window.SKIP_TIMES_URL_TEMPLATE = config.skipTimesUrlTemplate;
         window.PREVIEW_URL_TEMPLATE = config.previewUrlTemplate;
         window.PLAY_URL_TEMPLATE = config.playUrlTemplate;
+        window.PLAYER_SHORTCUTS = JSON.parse(config.shortcuts || '{}');
     })();
 </script>
 

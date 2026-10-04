@@ -542,6 +542,159 @@ def log_startup_summary(mode, host, port, scanner_enabled, periodic_sync_enabled
         "INFO"
     )
 
+SHORTCUT_DEFINITIONS = [
+    {
+        "category": "Playback",
+        "category_id": "playback",
+        "icon": "&#9654;",
+        "description": "Basic player playback and display controls.",
+        "actions": [
+            {
+                "id": "toggle_play",
+                "label": "Play / Pause",
+                "description": "Start or pause video playback",
+                "default": "Space",
+            },
+            {
+                "id": "toggle_fullscreen",
+                "label": "Fullscreen",
+                "description": "Enter or exit fullscreen cinema mode",
+                "default": "f",
+            },
+            {
+                "id": "toggle_mute",
+                "label": "Mute / Unmute",
+                "description": "Silence audio or restore previous volume",
+                "default": "m",
+            },
+            {
+                "id": "toggle_subtitles",
+                "label": "Toggle Subtitles",
+                "description": "Turn soft subtitles on or off",
+                "default": "c",
+            },
+        ],
+    },
+    {
+        "category": "Seeking & Navigation",
+        "category_id": "seeking",
+        "icon": "&#9197;",
+        "description": "Jump forward, backward, or switch between episodes.",
+        "actions": [
+            {
+                "id": "seek_backward",
+                "label": "Seek Backward (5s)",
+                "description": "Rewind playback by 5 seconds",
+                "default": "ArrowLeft",
+            },
+            {
+                "id": "seek_forward",
+                "label": "Seek Forward (5s)",
+                "description": "Fast-forward playback by 5 seconds",
+                "default": "ArrowRight",
+            },
+            {
+                "id": "seek_backward_large",
+                "label": "Seek Backward (30s)",
+                "description": "Rewind playback by 30 seconds",
+                "default": "Ctrl+ArrowLeft",
+            },
+            {
+                "id": "seek_forward_large",
+                "label": "Seek Forward (30s)",
+                "description": "Fast-forward playback by 30 seconds",
+                "default": "Ctrl+ArrowRight",
+            },
+            {
+                "id": "previous_episode",
+                "label": "Previous Episode",
+                "description": "Switch immediately to previous episode",
+                "default": "Shift+P",
+            },
+            {
+                "id": "next_episode",
+                "label": "Next Episode",
+                "description": "Switch immediately to next episode",
+                "default": "Shift+N",
+            },
+        ],
+    },
+    {
+        "category": "Volume & Speed",
+        "category_id": "audio_speed",
+        "icon": "&#128266;",
+        "description": "Control audio loudness and playback rate.",
+        "actions": [
+            {
+                "id": "volume_up",
+                "label": "Volume Up (+5%)",
+                "description": "Increase sound volume by 5%",
+                "default": "ArrowUp",
+            },
+            {
+                "id": "volume_down",
+                "label": "Volume Down (-5%)",
+                "description": "Decrease sound volume by 5%",
+                "default": "ArrowDown",
+            },
+            {
+                "id": "speed_up",
+                "label": "Speed Up (+0.25x)",
+                "description": "Increase playback speed up to 2x",
+                "default": "+",
+            },
+            {
+                "id": "speed_down",
+                "label": "Speed Down (-0.25x)",
+                "description": "Decrease playback speed down to 0.25x",
+                "default": "-",
+            },
+        ],
+    },
+    {
+        "category": "Special Features",
+        "category_id": "special",
+        "icon": "&#10024;",
+        "description": "AniSkip markers, instant screenshots, and help overlay.",
+        "actions": [
+            {
+                "id": "aniskip",
+                "label": "Skip Intro / Outro",
+                "description": "Skip anime opening or ending when detected",
+                "default": "s",
+            },
+            {
+                "id": "screenshot",
+                "label": "Capture Screenshot",
+                "description": "Save crisp frame to configured folder",
+                "default": "s",
+            },
+            {
+                "id": "shortcut_help",
+                "label": "Shortcuts Overlay",
+                "description": "Display keyboard shortcuts cheat sheet",
+                "default": "?",
+            },
+        ],
+    },
+]
+
+DEFAULT_PLAYER_SHORTCUTS = {
+    action["id"]: action["default"]
+    for cat in SHORTCUT_DEFINITIONS
+    for action in cat["actions"]
+}
+
+def normalize_shortcuts(raw_shortcuts):
+    if not isinstance(raw_shortcuts, dict):
+        return DEFAULT_PLAYER_SHORTCUTS.copy()
+    normalized = DEFAULT_PLAYER_SHORTCUTS.copy()
+    for key, default_val in DEFAULT_PLAYER_SHORTCUTS.items():
+        val = raw_shortcuts.get(key)
+        if isinstance(val, str) and val.strip():
+            normalized[key] = val.strip()
+    return normalized
+
 def get_default_settings():
     return {
         "setup_completed": False,
@@ -571,7 +724,8 @@ def get_default_settings():
         "action_token": "",
         "mal_scrobble_enabled": False,
         "mal_client_id": "",
-        "mal_scrobble_threshold": 90
+        "mal_scrobble_threshold": 90,
+        "shortcuts": DEFAULT_PLAYER_SHORTCUTS.copy()
     }
 
 def load_settings():
@@ -661,6 +815,7 @@ def load_settings():
         50,
         100
     )
+    merged["shortcuts"] = normalize_shortcuts(merged.get("shortcuts"))
     return merged
 
 def save_settings(settings):
@@ -1129,6 +1284,14 @@ def get_current_theme():
 def inject_theme():
     return {
         "current_theme": get_current_theme()
+    }
+
+@app.context_processor
+def inject_shortcuts():
+    settings = load_settings()
+    return {
+        "player_shortcuts": settings.get("shortcuts", DEFAULT_PLAYER_SHORTCUTS),
+        "shortcut_definitions": SHORTCUT_DEFINITIONS
     }
 
 def get_existing_anime_names():
@@ -7147,6 +7310,20 @@ def update_settings():
 
     library_paths = normalize_library_paths(request.form.getlist("library_paths"))
 
+    submitted_shortcuts = {}
+    has_shortcut_fields = False
+    for action_id in DEFAULT_PLAYER_SHORTCUTS:
+        field_name = f"shortcut_{action_id}"
+        if field_name in request.form:
+            has_shortcut_fields = True
+            val = request.form.get(field_name, "").strip()
+            if val:
+                submitted_shortcuts[action_id] = val
+    if has_shortcut_fields:
+        effective_shortcuts = normalize_shortcuts(submitted_shortcuts)
+    else:
+        effective_shortcuts = normalize_shortcuts(existing_settings.get("shortcuts"))
+
     settings = {
         "setup_completed": True,
         "library_paths": library_paths,
@@ -7193,7 +7370,8 @@ def update_settings():
             existing_settings.get("mal_scrobble_threshold", 90),
             50,
             100
-        )
+        ),
+        "shortcuts": effective_shortcuts
     }
 
     if settings["theme_preset"] not in THEME_PRESETS:

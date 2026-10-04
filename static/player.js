@@ -27,10 +27,121 @@ const player = new Plyr(videoElement, {
     autoplay: true,
     seekTime: 5,
     iconUrl: window.PLYR_ICON_URL || '/static/plyr.svg',
-    keyboard: { focused: true, global: true },
+    keyboard: { focused: false, global: false },
     listeners: { seek: handleTimelineSeek },
     captions: { active: true, update: true, language: 'und' }
 });
+
+const DEFAULT_SHORTCUTS = {
+    toggle_play: 'Space',
+    toggle_fullscreen: 'f',
+    toggle_mute: 'm',
+    toggle_subtitles: 'c',
+    seek_backward: 'ArrowLeft',
+    seek_forward: 'ArrowRight',
+    seek_backward_large: 'Ctrl+ArrowLeft',
+    seek_forward_large: 'Ctrl+ArrowRight',
+    previous_episode: 'Shift+P',
+    next_episode: 'Shift+N',
+    volume_up: 'ArrowUp',
+    volume_down: 'ArrowDown',
+    speed_up: '+',
+    speed_down: '-',
+    aniskip: 's',
+    screenshot: 's',
+    shortcut_help: '?'
+};
+
+const userShortcuts = Object.assign({}, DEFAULT_SHORTCUTS, window.PLAYER_SHORTCUTS || {});
+
+function parseShortcutString(str) {
+    if (!str || typeof str !== 'string') return null;
+    str = str.trim();
+    if (!str) return null;
+
+    let key = '';
+    let hasCtrl = false;
+    let hasAlt = false;
+    let hasShift = false;
+    let hasMeta = false;
+
+    if (str === '+' || str.endsWith('++')) {
+        key = '+';
+        const modParts = str.slice(0, str.lastIndexOf('+')).split('+').map(p => p.trim()).filter(Boolean);
+        for (const p of modParts) {
+            const lower = p.toLowerCase();
+            if (lower === 'ctrl' || lower === 'control') hasCtrl = true;
+            if (lower === 'alt') hasAlt = true;
+            if (lower === 'shift') hasShift = true;
+            if (lower === 'meta' || lower === 'cmd') hasMeta = true;
+        }
+    } else {
+        const parts = str.split('+').map(p => p.trim()).filter(Boolean);
+        if (!parts.length) return null;
+        key = parts[parts.length - 1];
+        for (let i = 0; i < parts.length - 1; i++) {
+            const p = parts[i].toLowerCase();
+            if (p === 'ctrl' || p === 'control') hasCtrl = true;
+            if (p === 'alt') hasAlt = true;
+            if (p === 'shift') hasShift = true;
+            if (p === 'meta' || p === 'cmd') hasMeta = true;
+        }
+    }
+
+    return { key, hasCtrl, hasAlt, hasShift, hasMeta };
+}
+
+function matchesShortcut(event, shortcutStr) {
+    if (!shortcutStr) return false;
+    const parsed = parseShortcutString(shortcutStr);
+    if (!parsed) return false;
+
+    if (Boolean(event.ctrlKey) !== parsed.hasCtrl) return false;
+    if (Boolean(event.altKey) !== parsed.hasAlt) return false;
+    if (Boolean(event.metaKey) !== parsed.hasMeta) return false;
+
+    if (parsed.key === '?' || parsed.key === '+') {
+        // Shift modifier accepted for characters naturally requiring shift
+    } else {
+        if (Boolean(event.shiftKey) !== parsed.hasShift) return false;
+    }
+
+    const targetKey = parsed.key.toLowerCase();
+    const eventKey = (event.key || '').toLowerCase();
+    const eventCode = event.code || '';
+
+    if (targetKey === 'space') {
+        return eventKey === ' ' || eventKey === 'space' || eventCode === 'Space';
+    }
+    if (targetKey === '+') {
+        return event.key === '+' || eventCode === 'NumpadAdd' || (event.key === '=' && event.shiftKey);
+    }
+    if (targetKey === '-') {
+        return event.key === '-' || eventCode === 'NumpadSubtract';
+    }
+    if (targetKey === 'arrowleft' || targetKey === 'left') {
+        return eventKey === 'arrowleft';
+    }
+    if (targetKey === 'arrowright' || targetKey === 'right') {
+        return eventKey === 'arrowright';
+    }
+    if (targetKey === 'arrowup' || targetKey === 'up') {
+        return eventKey === 'arrowup';
+    }
+    if (targetKey === 'arrowdown' || targetKey === 'down') {
+        return eventKey === 'arrowdown';
+    }
+    if (targetKey === '?') {
+        return event.key === '?';
+    }
+
+    return eventKey === targetKey || eventCode.toLowerCase() === `key${targetKey}`;
+}
+
+function isShortcutPressed(event, actionId) {
+    const keyStr = userShortcuts[actionId];
+    return matchesShortcut(event, keyStr);
+}
 const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
 if (window.AniBaseDiscordPresence) new window.AniBaseDiscordPresence(videoElement, () => ({
     anime_name: window.ANIME_NAME, episode: window.EPISODE_PATH,
@@ -337,42 +448,261 @@ player.on('ready', () => {
     }
 });
 
-// Override seek kiri/kanan Plyr agar selalu 5 detik dan menampilkan akumulasi.
+// Master Keyboard Shortcut Dispatcher
+const shortcutsModal = document.getElementById('playerShortcutsModal');
+const shortcutsBtn = document.getElementById('playerShortcutsBtn');
+const closeShortcutsModalBtn = document.getElementById('closeShortcutsModalBtn');
+
+function toggleShortcutsModal(show) {
+    if (!shortcutsModal) return;
+    const shouldOpen = (typeof show === 'boolean') ? show : shortcutsModal.hidden;
+    shortcutsModal.hidden = !shouldOpen;
+}
+
+if (shortcutsBtn) {
+    shortcutsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleShortcutsModal(true);
+    });
+}
+
+if (closeShortcutsModalBtn) {
+    closeShortcutsModalBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleShortcutsModal(false);
+    });
+}
+
+if (shortcutsModal) {
+    shortcutsModal.addEventListener('click', (e) => {
+        if (e.target === shortcutsModal) {
+            toggleShortcutsModal(false);
+        }
+    });
+}
+
+function adjustVolume(delta) {
+    if (delta > 0 && player.muted) {
+        player.muted = false;
+    }
+    const newVol = Math.max(0, Math.min(1, (player.volume || 1) + delta));
+    player.volume = newVol;
+    const volPercent = Math.round(newVol * 100);
+    let volIcon = '&#128266;';
+    if (volPercent === 0) volIcon = '&#128263;';
+    else if (volPercent < 33) volIcon = '&#128264;';
+    else if (volPercent < 66) volIcon = '&#128265;';
+    showScreenshotToast(`Volume: ${volPercent}%`, { icon: volIcon, duration: 1500 });
+}
+
+function toggleSubtitlesShortcut() {
+    if (typeof currentSubtitleTrackId !== 'undefined' && typeof disableSubtitles === 'function') {
+        if (currentSubtitleTrackId !== 'off') {
+            disableSubtitles();
+            showScreenshotToast('Subtitles: Off', { icon: '&#128172;', duration: 1500 });
+        } else {
+            const preferredLang = typeof getPreferredSubtitleLang === 'function' ? getPreferredSubtitleLang() : null;
+            const track = (preferredLang && availableSubtitleTracks.find(t => t.language === preferredLang)) ||
+                          availableSubtitleTracks.find(t => t.is_default) ||
+                          availableSubtitleTracks[0];
+            if (track && typeof selectSubtitleTrack === 'function') {
+                selectSubtitleTrack(track.id, track.language);
+                showScreenshotToast(`Subtitles: ${track.title || track.language || 'On'}`, { icon: '&#128172;', duration: 1500 });
+            } else {
+                player.toggleCaptions();
+            }
+        }
+    } else {
+        player.toggleCaptions();
+    }
+}
+
+function navigateEpisodeShortcut(direction) {
+    const state = getEpisodeState(window.EPISODE_PATH);
+    const destination = direction === 'next' ? state.next : state.previous;
+    const directionLabel = direction === 'next' ? 'next' : 'previous';
+    if (!destination || !destination.dataset.episodePath) {
+        showScreenshotToast(`No ${directionLabel} episode available`, {
+            icon: direction === 'next' ? '&#8250;' : '&#8249;',
+            duration: 1800
+        });
+        return;
+    }
+    if (!switchEpisode(destination.dataset.episodePath)) {
+        window.location.href = destination.href;
+    }
+}
+
+function takeScreenshotShortcut() {
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth;
+    canvas.height = videoElement.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL('image/png');
+
+    fetch('/screenshot', {
+        method: 'POST',
+        headers: actionHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ image: imageData })
+    })
+    .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw data;
+        return data;
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            showScreenshotToast('Screenshot saved', { icon: '&#128247;' });
+        } else {
+            showScreenshotToast(data.message || 'Unable to save screenshot');
+        }
+    })
+    .catch(err => {
+        showScreenshotToast(err && err.message ? err.message : 'Unable to save screenshot', { isError: true });
+    });
+}
+
 window.addEventListener('keydown', (event) => {
     const target = event.target;
     const isTyping = target && (
         target.isContentEditable ||
         (target.matches && target.matches('input, textarea, select'))
     );
-    if (
-        isTyping ||
-        (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') ||
-        event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
-    ) {
+    if (isTyping) return;
+
+    if (event.key === 'Escape') {
+        if (shortcutsModal && !shortcutsModal.hidden) {
+            event.preventDefault();
+            toggleShortcutsModal(false);
+            return;
+        }
+    }
+
+    if (isShortcutPressed(event, 'shortcut_help')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toggleShortcutsModal();
         return;
     }
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward');
-}, true);
-
-// Ctrl+Left / Ctrl+Right skips 30 seconds; unmodified arrows remain at 5 seconds.
-window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    const isTyping = target && (
-        target.isContentEditable ||
-        (target.matches && target.matches('input, textarea, select'))
-    );
-    const isArrow = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
-
-    if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || isTyping || !isArrow) {
+    if (isShortcutPressed(event, 'toggle_play')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        player.togglePlay();
         return;
     }
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    seekByShortcut(event.key === 'ArrowRight' ? 'forward' : 'backward', 30);
+    if (isShortcutPressed(event, 'toggle_fullscreen')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        player.fullscreen.toggle();
+        return;
+    }
+
+    if (isShortcutPressed(event, 'toggle_mute')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        player.muted = !player.muted;
+        const icon = player.muted ? '&#128263;' : '&#128266;';
+        showScreenshotToast(player.muted ? 'Muted' : `Volume: ${Math.round(player.volume * 100)}%`, { icon, duration: 1200 });
+        return;
+    }
+
+    if (isShortcutPressed(event, 'toggle_subtitles')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toggleSubtitlesShortcut();
+        return;
+    }
+
+    if (isShortcutPressed(event, 'seek_backward_large')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        seekByShortcut('backward', 30);
+        return;
+    }
+    if (isShortcutPressed(event, 'seek_forward_large')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        seekByShortcut('forward', 30);
+        return;
+    }
+    if (isShortcutPressed(event, 'seek_backward')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        seekByShortcut('backward', 5);
+        return;
+    }
+    if (isShortcutPressed(event, 'seek_forward')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        seekByShortcut('forward', 5);
+        return;
+    }
+
+    if (isShortcutPressed(event, 'volume_up')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        adjustVolume(0.05);
+        return;
+    }
+    if (isShortcutPressed(event, 'volume_down')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        adjustVolume(-0.05);
+        return;
+    }
+
+    if (isShortcutPressed(event, 'speed_up')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        changePlaybackSpeed(1);
+        return;
+    }
+    if (isShortcutPressed(event, 'speed_down')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        changePlaybackSpeed(-1);
+        return;
+    }
+
+    if (isShortcutPressed(event, 'next_episode')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        navigateEpisodeShortcut('next');
+        return;
+    }
+    if (isShortcutPressed(event, 'previous_episode')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        navigateEpisodeShortcut('previous');
+        return;
+    }
+
+    const isAniSkipKey = isShortcutPressed(event, 'aniskip');
+    const isScreenshotKey = isShortcutPressed(event, 'screenshot');
+    if (isAniSkipKey && typeof currentActiveSkipInterval !== 'undefined' && currentActiveSkipInterval && typeof skipOverlay !== 'undefined' && !skipOverlay.hidden) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        performSkip();
+        return;
+    }
+    if (isScreenshotKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        takeScreenshotShortcut();
+        return;
+    }
+
+    // Number keys 0 - 9 percentage seeking
+    if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && event.key >= '0' && event.key <= '9') {
+        const pct = parseInt(event.key, 10) * 10;
+        if (player.duration) {
+            player.currentTime = (player.duration * pct) / 100;
+            showScreenshotToast(`Seek: ${pct}%`, { icon: '&#9201;', duration: 1200 });
+        }
+    }
 }, true);
 
 videoElement.addEventListener('error', () => {
@@ -1041,63 +1371,6 @@ function changePlaybackSpeed(direction) {
     showScreenshotToast(`Playback speed: ${nextSpeed}x`, { icon: '&#9889;' });
 }
 
-// Episode navigation: Shift+N for next, Shift+P for previous.
-window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    const isTyping = target && (
-        target.isContentEditable ||
-        (target.matches && target.matches('input, textarea, select'))
-    );
-    const key = event.key.toLowerCase();
-
-    if (
-        !event.shiftKey ||
-        (key !== 'n' && key !== 'p') ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        event.repeat ||
-        isTyping
-    ) {
-        return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const state = getEpisodeState(window.EPISODE_PATH);
-    const destination = key === 'n' ? state.next : state.previous;
-    const directionLabel = key === 'n' ? 'next' : 'previous';
-    if (!destination || !destination.dataset.episodePath) {
-        showScreenshotToast(`No ${directionLabel} episode available`, {
-            icon: key === 'n' ? '&#8250;' : '&#8249;',
-            duration: 1800
-        });
-        return;
-    }
-
-    if (!switchEpisode(destination.dataset.episodePath)) {
-        window.location.href = destination.href;
-    }
-}, true);
-
-window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    const isTyping = target && (
-        target.isContentEditable ||
-        (target.matches && target.matches('input, textarea, select'))
-    );
-    const isPlus = event.key === '+' || event.code === 'NumpadAdd';
-    const isMinus = event.key === '-' || event.code === 'NumpadSubtract';
-
-    if ((!isPlus && !isMinus) || event.ctrlKey || event.metaKey || event.altKey || event.repeat || isTyping) {
-        return;
-    }
-
-    event.preventDefault();
-    changePlaybackSpeed(isPlus ? 1 : -1);
-});
-
 // Mouse wheel controls volume inside the video, including fullscreen.
 let volumeScrollDelta = 0;
 let volumeScrollTime = 0;
@@ -1128,99 +1401,6 @@ player.elements.container.addEventListener('wheel', event => {
         : percent < 66 ? '&#128265;' : '&#128266;';
     showScreenshotToast(`Volume: ${percent}%`, { icon, duration: 1500 });
 }, { passive: false });
-
-// Volume control with ArrowUp / ArrowDown (overrides Plyr)
-window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    const isTyping = target && (
-        target.isContentEditable ||
-        (target.matches && target.matches('input, textarea, select'))
-    );
-
-    if (isTyping) {
-        return;
-    }
-
-    const isUp = event.key === 'ArrowUp';
-    const isDown = event.key === 'ArrowDown';
-
-    if (!isUp && !isDown) {
-        return;
-    }
-
-    // Abaikan jika menekan tombol modifikasi (Ctrl, Alt, Shift, Meta)
-    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
-        return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation(); // Mencegah event mencapai listener default Plyr
-
-    const step = 0.05; // Mengubah volume 5% per klik (0.05)
-    let currentVol = player.volume;
-    let newVol = isUp ? currentVol + step : currentVol - step;
-    newVol = Math.max(0, Math.min(1, newVol));
-    
-    // Jika volume dinaikkan dan sedang di-mute, unmute otomatis
-    if (isUp && player.muted) {
-        player.muted = false;
-    }
-
-    player.volume = newVol;
-
-    // Tentukan icon volume dinamis berdasarkan persentase
-    const volPercent = Math.round(newVol * 100);
-    let volIcon = '&#128266;'; // 🔊 (Volume High)
-    if (volPercent === 0) {
-        volIcon = '&#128263;'; // 🔇 (Mute)
-    } else if (volPercent < 33) {
-        volIcon = '&#128264;'; // 🔈 (Volume Low)
-    } else if (volPercent < 66) {
-        volIcon = '&#128265;'; // 🔉 (Volume Medium)
-    }
-
-    showScreenshotToast(`Volume: ${volPercent}%`, { icon: volIcon, duration: 1500 });
-}, true);
-
-// Screenshot feature via 's' key
-window.addEventListener('keydown', (e) => {
-    // Ensure user is not typing in a search input
-    if (e.key.toLowerCase() === 's' && e.target.tagName !== 'INPUT') {
-        e.preventDefault(); // Prevent default browser behavior (e.g. search)
-        const canvas = document.createElement('canvas');
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        
-        const imageData = canvas.toDataURL('image/png');
-        
-        fetch('/screenshot', {
-            method: 'POST',
-            headers: actionHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ image: imageData })
-        })
-        .then(async res => {
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw data;
-            }
-            return data;
-        })
-        .then(data => {
-            if(data.status === 'success') {
-                showScreenshotToast('Screenshot saved');
-                console.log('Screenshot saved to:', data.path);
-            } else {
-                showScreenshotToast(data.message || 'Unable to save screenshot');
-            }
-        })
-        .catch(err => {
-            showScreenshotToast(err && err.message ? err.message : 'A system error occurred while saving');
-            console.error('Unable to save screenshot:', err);
-        });
-    }
-});
 
 const grid = document.getElementById("episodeGrid");
 
@@ -1507,10 +1687,10 @@ const skipOverlay = document.createElement('div');
 skipOverlay.className = 'player-skip-overlay';
 skipOverlay.hidden = true;
 skipOverlay.innerHTML = `
-    <button type="button" class="player-skip-btn" title="Skip (Press S)">
+    <button type="button" class="player-skip-btn" title="Skip (Press ${userShortcuts.aniskip || 'S'})">
         <span class="player-skip-icon" aria-hidden="true">&#9197;</span>
         <span class="player-skip-text">Skip Opening</span>
-        <kbd class="player-skip-key">S</kbd>
+        <kbd class="player-skip-key">${userShortcuts.aniskip || 'S'}</kbd>
     </button>
 `;
 player.elements.container.appendChild(skipOverlay);
@@ -1642,18 +1822,6 @@ function initAniSkip() {
 
     player.on('timeupdate', checkSkipIntervals);
     player.on('loadedmetadata durationchange', renderTimelineMarkers);
-
-    window.addEventListener('keydown', (event) => {
-        if (event.target && event.target.matches && event.target.matches('input, textarea, select')) {
-            return;
-        }
-        if (event.key && event.key.toLowerCase() === 's' && !event.ctrlKey && !event.altKey && !event.metaKey) {
-            if (currentActiveSkipInterval && !skipOverlay.hidden) {
-                event.preventDefault();
-                performSkip();
-            }
-        }
-    });
 
     if (window.EPISODE_PATH) {
         fetchSkipTimes(window.EPISODE_PATH);

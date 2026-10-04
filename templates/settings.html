@@ -27,11 +27,12 @@
         <a href="#settings-library"><span>01</span> Library folders</a>
         <a href="#settings-appearance"><span>02</span> Appearance</a>
         <a href="#settings-playback"><span>03</span> Playback</a>
-        <a href="#settings-integrations"><span>04</span> Integrations</a>
-        <a href="#settings-myanimelist"><span>05</span> MyAnimeList</a>
-        <a href="#settings-automation"><span>06</span> Auto import</a>
-        <a href="#settings-maintenance"><span>07</span> Maintenance</a>
-        <a href="#settings-backup"><span>08</span> Backup & restore</a>
+        <a href="#settings-shortcuts"><span>04</span> Shortcuts</a>
+        <a href="#settings-integrations"><span>05</span> Integrations</a>
+        <a href="#settings-myanimelist"><span>06</span> MyAnimeList</a>
+        <a href="#settings-automation"><span>07</span> Auto import</a>
+        <a href="#settings-maintenance"><span>08</span> Maintenance</a>
+        <a href="#settings-backup"><span>09</span> Backup & restore</a>
         <p>Your library, your preferences.<br>Everything is stored locally.</p>
     </nav>
     <div class="settings-shell">
@@ -254,6 +255,77 @@
                                 Browse Folder
                             </button>
                         </div>
+                    </div>
+                </section>
+
+                <section class="settings-card" id="settings-shortcuts">
+                    <div class="settings-card-head settings-shortcuts-head">
+                        <div>
+                            <span class="settings-kicker">Controls</span>
+                            <h3>Keyboard Shortcuts</h3>
+                            <p>Customize player keyboard controls. Click any key badge to record a new key combination.</p>
+                        </div>
+                        <button type="button" class="settings-shortcuts-reset-all-btn" id="resetAllShortcutsBtn" title="Reset all shortcuts to default">
+                            <span aria-hidden="true">&#8635;</span> Reset All Defaults
+                        </button>
+                    </div>
+
+                    <div class="settings-shortcuts-container">
+                        {% for cat in shortcut_definitions %}
+                        <div class="shortcuts-group">
+                            <div class="shortcuts-group-header">
+                                <span class="shortcuts-group-icon" aria-hidden="true">{{ cat.icon | safe }}</span>
+                                <div>
+                                    <h4 class="shortcuts-group-title">{{ cat.category }}</h4>
+                                    <p class="shortcuts-group-desc">{{ cat.description }}</p>
+                                </div>
+                            </div>
+
+                            <div class="shortcuts-list">
+                                {% for action in cat.actions %}
+                                {% set current_val = player_shortcuts.get(action.id, action.default) %}
+                                <div class="shortcut-item" data-action-id="{{ action.id }}" data-default-key="{{ action.default }}">
+                                    <div class="shortcut-info">
+                                        <span class="shortcut-name">{{ action.label }}</span>
+                                        <span class="shortcut-desc">{{ action.description }}</span>
+                                    </div>
+                                    <div class="shortcut-control">
+                                        <input
+                                            type="hidden"
+                                            name="shortcut_{{ action.id }}"
+                                            id="shortcut_input_{{ action.id }}"
+                                            value="{{ current_val }}"
+                                        >
+                                        <button
+                                            type="button"
+                                            class="shortcut-key-btn"
+                                            id="shortcut_btn_{{ action.id }}"
+                                            data-action-id="{{ action.id }}"
+                                            title="Click to rebind (Esc to cancel)"
+                                            aria-label="Rebind {{ action.label }} shortcut"
+                                        >
+                                            <kbd class="shortcut-key-display">{{ current_val }}</kbd>
+                                            <span class="shortcut-recording-indicator">Press keys...</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="shortcut-reset-btn"
+                                            data-action-id="{{ action.id }}"
+                                            data-default-key="{{ action.default }}"
+                                            title="Reset to default ({{ action.default }})"
+                                            aria-label="Reset {{ action.label }} to default"
+                                        >
+                                            &#8635;
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="settings-shortcuts-footer-hint">
+                        <span>Tip: Press <kbd>?</kbd> while watching to open the player shortcuts reference overlay anytime.</span>
                     </div>
                 </section>
 
@@ -1291,5 +1363,177 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// Keyboard Shortcuts Manager
+(function() {
+    let activeRecorderBtn = null;
+    let recordingActionId = null;
+
+    const shortcutItems = document.querySelectorAll('.shortcut-item');
+    const resetAllBtn = document.getElementById('resetAllShortcutsBtn');
+
+    function checkShortcutDuplicates() {
+        const keyMap = {};
+        shortcutItems.forEach(item => {
+            const input = item.querySelector('input[type="hidden"]');
+            const key = input ? input.value.trim().toLowerCase() : '';
+            if (!key) return;
+            if (!keyMap[key]) keyMap[key] = [];
+            keyMap[key].push(item);
+        });
+
+        shortcutItems.forEach(item => {
+            const btn = item.querySelector('.shortcut-key-btn');
+            const input = item.querySelector('input[type="hidden"]');
+            const key = input ? input.value.trim().toLowerCase() : '';
+            const actionId = item.dataset.actionId;
+            const isIntentionalShare = (actionId === 'aniskip' || actionId === 'screenshot') && key === 's';
+            if (keyMap[key] && keyMap[key].length > 1 && !isIntentionalShare) {
+                btn.classList.add('has-conflict');
+                btn.setAttribute('title', 'Duplicate key combo detected');
+            } else {
+                btn.classList.remove('has-conflict');
+                btn.setAttribute('title', 'Click to rebind (Esc to cancel)');
+            }
+        });
+    }
+
+    function stopRecording() {
+        if (!activeRecorderBtn) return;
+        activeRecorderBtn.classList.remove('is-recording');
+        window.removeEventListener('keydown', handleRecordKeyDown, true);
+        window.removeEventListener('click', handleOutsideClick, true);
+        activeRecorderBtn = null;
+        recordingActionId = null;
+    }
+
+    function handleOutsideClick(e) {
+        if (activeRecorderBtn && !activeRecorderBtn.contains(e.target)) {
+            stopRecording();
+        }
+    }
+
+    function formatRecordedCombo(e) {
+        const parts = [];
+        if (e.ctrlKey) parts.push('Ctrl');
+        if (e.altKey) parts.push('Alt');
+        if (e.shiftKey) parts.push('Shift');
+        if (e.metaKey) parts.push('Meta');
+
+        let key = e.key;
+        if (e.code === 'Space' || key === ' ') {
+            key = 'Space';
+        } else if (key === '+' || e.code === 'NumpadAdd' || (key === '=' && e.shiftKey)) {
+            key = '+';
+        } else if (key === '-' || e.code === 'NumpadSubtract') {
+            key = '-';
+        } else if (key === '?') {
+            key = '?';
+        } else if (key.startsWith('Arrow')) {
+            // Keep ArrowLeft, ArrowRight, ArrowUp, ArrowDown
+        } else if (key.length === 1) {
+            if (parts.length > 0) {
+                key = key.toUpperCase();
+            } else {
+                key = key.toLowerCase();
+            }
+        }
+
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
+            return null;
+        }
+
+        parts.push(key);
+        return parts.join('+');
+    }
+
+    function handleRecordKeyDown(e) {
+        if (!activeRecorderBtn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.key === 'Escape') {
+            stopRecording();
+            return;
+        }
+
+        const combo = formatRecordedCombo(e);
+        if (!combo) return;
+
+        const input = document.getElementById(`shortcut_input_${recordingActionId}`);
+        const display = activeRecorderBtn.querySelector('.shortcut-key-display');
+
+        if (input && display) {
+            input.value = combo;
+            display.textContent = combo;
+        }
+
+        stopRecording();
+        checkShortcutDuplicates();
+    }
+
+    function startRecording(btn, actionId) {
+        if (activeRecorderBtn) {
+            stopRecording();
+        }
+
+        activeRecorderBtn = btn;
+        recordingActionId = actionId;
+        btn.classList.add('is-recording');
+
+        setTimeout(() => {
+            window.addEventListener('keydown', handleRecordKeyDown, true);
+            window.addEventListener('click', handleOutsideClick, true);
+        }, 10);
+    }
+
+    shortcutItems.forEach(item => {
+        const actionId = item.dataset.actionId;
+        const defaultKey = item.dataset.defaultKey;
+        const btn = item.querySelector('.shortcut-key-btn');
+        const resetBtn = item.querySelector('.shortcut-reset-btn');
+        const input = item.querySelector('input[type="hidden"]');
+        const display = item.querySelector('.shortcut-key-display');
+
+        if (btn) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (btn.classList.contains('is-recording')) {
+                    stopRecording();
+                } else {
+                    startRecording(btn, actionId);
+                }
+            });
+        }
+
+        if (resetBtn) {
+            resetBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (input && display) {
+                    input.value = defaultKey;
+                    display.textContent = defaultKey;
+                }
+                checkShortcutDuplicates();
+            });
+        }
+    });
+
+    if (resetAllBtn) {
+        resetAllBtn.addEventListener('click', () => {
+            shortcutItems.forEach(item => {
+                const defaultKey = item.dataset.defaultKey;
+                const input = item.querySelector('input[type="hidden"]');
+                const display = item.querySelector('.shortcut-key-display');
+                if (input && display && defaultKey) {
+                    input.value = defaultKey;
+                    display.textContent = defaultKey;
+                }
+            });
+            checkShortcutDuplicates();
+        });
+    }
+
+    checkShortcutDuplicates();
+})();
 </script>
 {% endblock %}
