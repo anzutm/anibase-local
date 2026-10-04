@@ -1,14 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('settingsPreferencesForm');
     if (!form) return;
-    const layout = form.querySelector('.settings-layout');
-    ['library', 'appearance', 'playback', 'integrations', 'automation', 'maintenance'].forEach(name => {
-        layout.appendChild(document.getElementById(`settings-${name}`));
-    });
-    layout.querySelector('.settings-main-column').remove();
-    layout.querySelector('.settings-side').remove();
+    const layout = form.querySelector('.settings-layout') || form;
     const backup = document.getElementById('settings-backup');
-    form.after(backup);
+    if (backup && form.nextElementSibling !== backup) {
+        form.after(backup);
+    }
 
     const links = [...document.querySelectorAll('.settings-nav a')];
     function highlight(id) {
