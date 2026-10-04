@@ -199,6 +199,7 @@ class MalScrobbleTests(unittest.TestCase):
 
     def test_oauth_login_missing_client_id_redirects_with_error(self):
         with patch.object(main, "is_setup_complete", return_value=True), \
+             patch.object(main, "DEFAULT_MAL_CLIENT_ID", ""), \
              patch.object(main, "load_settings", return_value={}):
             client = main.app.test_client()
             resp = client.get("/api/mal/login")

@@ -738,7 +738,7 @@
 
                         <details class="mal-custom-client-box" {% if not has_mal_client_id %}open{% endif %}>
                             <summary class="mal-custom-client-summary">
-                                Custom MyAnimeList Client ID {% if has_mal_client_id %}(Configured){% else %}(Required for setup){% endif %}
+                                Custom MyAnimeList Client ID {% if settings.mal_client_id %}(Custom ID Active){% else %}(Built-in Default Active){% endif %}
                             </summary>
                             <div class="settings-field" style="margin-top: 12px;">
                                 <label class="settings-label" for="mal_client_id">Client ID</label>

@@ -193,7 +193,7 @@ MAL_SCROBBLE_CACHE = os.path.join(CACHE_DIR, "mal_scrobble_cache.json")
 MAL_API_BASE_URL = "https://api.myanimelist.net/v2"
 MAL_OAUTH_AUTH_URL = "https://myanimelist.net/v1/oauth2/authorize"
 MAL_OAUTH_TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"
-DEFAULT_MAL_CLIENT_ID = ""
+DEFAULT_MAL_CLIENT_ID = "cc3c671a6202a3ef9c6fd9383c6f3160"
 MAL_AUTH_LOCK = threading.RLock()
 MAL_SCROBBLE_LOCK = threading.RLock()
 MAL_OAUTH_SESSIONS = {}
@@ -10230,13 +10230,17 @@ def mal_oauth_login():
     verifier = secrets.token_urlsafe(64)[:128]
     state = secrets.token_urlsafe(32)
 
+    if client_id == DEFAULT_MAL_CLIENT_ID:
+        redirect_uri = "http://localhost:5000/api/mal/callback"
+    else:
+        redirect_uri = url_for("mal_oauth_callback", _external=True)
+
     cleanup_mal_oauth_sessions()
     MAL_OAUTH_SESSIONS[state] = {
         "verifier": verifier,
+        "redirect_uri": redirect_uri,
         "timestamp": time.time()
     }
-
-    redirect_uri = url_for("mal_oauth_callback", _external=True)
 
     auth_url = (
         f"{MAL_OAUTH_AUTH_URL}?"
@@ -10273,7 +10277,11 @@ def mal_oauth_callback():
     if not client_id:
         return redirect("/settings?mal_error=MAL+Client+ID+not+configured")
 
-    redirect_uri = url_for("mal_oauth_callback", _external=True)
+    redirect_uri = session.get("redirect_uri") or (
+        "http://localhost:5000/api/mal/callback"
+        if client_id == DEFAULT_MAL_CLIENT_ID
+        else url_for("mal_oauth_callback", _external=True)
+    )
 
     try:
         resp = requests.post(
