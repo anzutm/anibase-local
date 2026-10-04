@@ -10720,7 +10720,9 @@ def api_update_watch_status_progress():
         "ok": True,
         "watched": status.get("watched", False),
         "progress": status.get("progress", 0),
-        "scrobbled": scrobbled
+        "scrobbled": scrobbled,
+        "anime_name": anime_name,
+        "episode": episode
     })
 
 @app.route("/api/watch-history/remove", methods=["POST"])

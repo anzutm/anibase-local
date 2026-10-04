@@ -729,6 +729,26 @@
     <span class="toast-icon">&#128247;</span>
     <span id="toastMessage">Screenshot saved</span>
 </div>
+<div id="malScrobbleToast" class="mal-scrobble-toast" role="status" aria-live="polite">
+    <div class="mal-scrobble-icon-wrap">
+        <div class="mal-scrobble-badge">MAL</div>
+    </div>
+    <div class="mal-scrobble-body">
+        <div class="mal-scrobble-header">
+            <span class="mal-scrobble-service">MyAnimeList</span>
+            <span class="mal-scrobble-status-pill">
+                <span class="mal-scrobble-dot"></span>
+                <span>Scrobbled</span>
+            </span>
+        </div>
+        <div class="mal-scrobble-title" id="malScrobbleEpisode">Movie marked as watched</div>
+    </div>
+    <div class="mal-scrobble-check" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+    </div>
+</div>
 {% endif %}
 
 <script
@@ -1239,13 +1259,34 @@ window.addEventListener('pageshow', () => {
             if (!response.ok) {
                 throw new Error('Watch status update failed');
             }
+            return response.json();
+        }).then((data) => {
+            if (data && data.scrobbled) {
+                showMovieMalScrobbleToast('Movie marked as watched', 4500);
+            }
         }).catch(() => {});
+    }
+
+    function showMovieMalScrobbleToast(detail, duration = 4500) {
+        const malToast = document.getElementById('malScrobbleToast');
+        if (!malToast) return;
+        const detailEl = document.getElementById('malScrobbleEpisode');
+        if (detailEl && detail) detailEl.textContent = detail;
+        malToast.classList.add('show');
+        window.clearTimeout(showMovieMalScrobbleToast.timer);
+        showMovieMalScrobbleToast.timer = window.setTimeout(() => {
+            malToast.classList.remove('show');
+        }, duration);
     }
 
     player.on('ready', () => {
         const plyrContainer = document.querySelector('.movie-screen > .plyr');
         if (plyrContainer && toast) {
             plyrContainer.appendChild(toast);
+        }
+        const malToast = document.getElementById('malScrobbleToast');
+        if (plyrContainer && malToast) {
+            plyrContainer.appendChild(malToast);
         }
     });
 

@@ -315,8 +315,12 @@ window.addEventListener('pagehide', cancelRecoveryTimer);
 player.on('ready', () => {
     const plyrContainer = document.querySelector('.plyr');
     const toast = document.getElementById('screenshotToast');
+    const malToast = document.getElementById('malScrobbleToast');
     if (plyrContainer && toast) {
         plyrContainer.appendChild(toast);
+    }
+    if (plyrContainer && malToast) {
+        plyrContainer.appendChild(malToast);
     }
     if (plyrContainer) {
         getSeekFeedback('backward');
@@ -500,7 +504,9 @@ function sendWatchProgress(useKeepalive = false) {
         return response.json();
     }).then((data) => {
         if (data && data.scrobbled) {
-            showScreenshotToast('Scrobbled to MyAnimeList \u2705', { icon: '&#128214;', duration: 3200 });
+            const epLabel = window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM;
+            const detailText = epLabel ? `Episode ${epLabel} marked as watched` : 'Marked as watched';
+            showMalScrobbleToast(detailText, { duration: 4500 });
         }
     }).catch(() => {});
 }
@@ -942,6 +948,25 @@ function showScreenshotToast(message, options = {}) {
 
 function showVlcToast(message, options = {}) {
     showToast('vlcToast', 'vlcToastMessage', vlcToastActionBtn, message, options);
+}
+
+function showMalScrobbleToast(message, options = {}) {
+    const toast = document.getElementById('malScrobbleToast');
+    if (!toast) {
+        showScreenshotToast(message || 'Scrobbled to MyAnimeList', { icon: '&#128214;', duration: 3500 });
+        return;
+    }
+    const epEl = document.getElementById('malScrobbleEpisode');
+    if (epEl && message) {
+        epEl.textContent = message;
+    }
+    toast.classList.add('show');
+    if (toast.hideTimer) {
+        clearTimeout(toast.hideTimer);
+    }
+    toast.hideTimer = setTimeout(() => {
+        toast.classList.remove('show');
+    }, options.duration || 4500);
 }
 
 const PLAYBACK_SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2];

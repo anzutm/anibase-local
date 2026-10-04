@@ -21,7 +21,7 @@
     <meta name="theme-color" content="#0b0907">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-8') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='detail-9') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='17') }}">
 </head>
 
@@ -290,6 +290,27 @@
     <button type="button" id="vlcToastActionBtn" class="toast-action-btn" hidden></button>
 </div>
 
+<div id="malScrobbleToast" class="mal-scrobble-toast" role="status" aria-live="polite">
+    <div class="mal-scrobble-icon-wrap">
+        <div class="mal-scrobble-badge">MAL</div>
+    </div>
+    <div class="mal-scrobble-body">
+        <div class="mal-scrobble-header">
+            <span class="mal-scrobble-service">MyAnimeList</span>
+            <span class="mal-scrobble-status-pill">
+                <span class="mal-scrobble-dot"></span>
+                <span>Scrobbled</span>
+            </span>
+        </div>
+        <div class="mal-scrobble-title" id="malScrobbleEpisode">Episode marked as watched</div>
+    </div>
+    <div class="mal-scrobble-check" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+    </div>
+</div>
+
 <!-- Player Libraries -->
 <script src="{{ url_for('static', filename='plyr.js') }}"></script>
 
@@ -348,7 +369,7 @@
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
 <script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-20') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-21') }}"></script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='1') }}"></script>
 
 </body>
