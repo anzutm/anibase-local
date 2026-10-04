@@ -112,6 +112,55 @@ class AssSubtitleTests(unittest.TestCase):
             self.assertEqual(client.get('/subtitle/Example/Episode.mkv?format=asset&asset=../../main.py').status_code, 404)
             self.assertEqual(client.get('/subtitle/Example/../outside.mkv?format=manifest').status_code, 404)
 
+    def test_multi_track_enumeration_and_api(self):
+        streams = [
+            {'index': 2, 'codec_name': 'ass', 'codec_type': 'subtitle', 'tags': {'language': 'ind', 'title': 'Indonesian Dialogue'}},
+            {'index': 3, 'codec_name': 'hdmv_pgs_subtitle', 'codec_type': 'subtitle'},
+            {'index': 4, 'codec_name': 'ass', 'codec_type': 'subtitle', 'tags': {'language': 'eng', 'title': 'English Signs'}},
+        ]
+        sidecar = self.root / 'Episode.ind.ass'
+        sidecar.write_text(ASS_FIXTURE, encoding='utf-8')
+
+        with patch.object(main, 'run_hidden_subprocess', return_value=SimpleNamespace(returncode=0, stdout=json.dumps({'streams': streams}))):
+            info = main.get_available_subtitle_tracks(str(self.video))
+            self.assertEqual(len(info['tracks']), 3)  # 1 sidecar + 2 supported streams (pgs excluded)
+            self.assertEqual(info['default_track_id'], 'sidecar:Episode.ind.ass')
+            self.assertTrue(info['tracks'][0]['is_default'])
+            self.assertEqual(info['tracks'][0]['language'], 'id')
+            self.assertEqual(info['tracks'][1]['id'], '0:2')
+            self.assertEqual(info['tracks'][2]['id'], '0:4')
+
+        # Test API endpoint
+        with patch.object(main, 'is_setup_complete', return_value=True), \
+             patch.object(main, 'find_media_path', return_value=str(self.root)), \
+             patch.object(main, 'run_hidden_subprocess', return_value=SimpleNamespace(returncode=0, stdout=json.dumps({'streams': streams}))):
+            client = main.app.test_client()
+            resp = client.get('/api/media/Example/Episode.mkv/subtitles')
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data['status'], 'success')
+            self.assertEqual(len(data['tracks']), 3)
+
+    def test_multi_track_extraction_cache_isolation(self):
+        streams = [
+            {'index': 2, 'codec_name': 'ass', 'codec_type': 'subtitle', 'tags': {'language': 'ind'}},
+            {'index': 4, 'codec_name': 'ass', 'codec_type': 'subtitle', 'tags': {'language': 'eng'}},
+        ]
+        with patch.object(main, 'run_hidden_subprocess', return_value=SimpleNamespace(returncode=0, stdout=json.dumps({'streams': streams}))), \
+             patch.object(main, 'run_ffmpeg_command', side_effect=self.convert):
+            folder_track2, manifest2 = main.get_ass_subtitle_assets(str(self.video), str(self.cache), track_id='0:2')
+            folder_track4, manifest4 = main.get_ass_subtitle_assets(str(self.video), str(self.cache), track_id='0:4')
+            self.assertNotEqual(folder_track2, folder_track4)
+            self.assertTrue(os.path.isfile(os.path.join(folder_track2, 'manifest.json')))
+            self.assertTrue(os.path.isfile(os.path.join(folder_track4, 'manifest.json')))
+
+    def test_invalid_track_id_is_rejected(self):
+        with patch.object(main, 'is_setup_complete', return_value=True), \
+             patch.object(main, 'find_media_path', return_value=str(self.root)):
+            client = main.app.test_client()
+            resp = client.get('/subtitle/Example/Episode.mkv?track=../../etc/passwd')
+            self.assertEqual(resp.status_code, 400)
+
 
 if __name__ == '__main__':
     unittest.main()

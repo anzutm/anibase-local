@@ -21,7 +21,7 @@ import functools
 import html
 from io import BytesIO
 from contextlib import contextmanager
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, quote_plus
 from difflib import SequenceMatcher
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -185,6 +185,25 @@ EPISODE_CACHE = os.path.join(CACHE_DIR, "episodes")
 SUBTITLE_CACHE = os.path.join(CACHE_DIR, "subtitles")
 SEIYUU_CACHE = os.path.join(CACHE_DIR, "seiyuu")
 IMAGE_PROXY_CACHE = os.path.join(CACHE_DIR, "image_proxy")
+ANISKIP_CACHE = os.path.join(CACHE_DIR, "aniskip")
+ANISKIP_BASE_URL = "https://api.aniskip.com/v2"
+ANISKIP_TIMEOUT_SECONDS = 5
+MAL_AUTH_FILE = os.path.join(CACHE_DIR, "mal_auth.json")
+MAL_SCROBBLE_CACHE = os.path.join(CACHE_DIR, "mal_scrobble_cache.json")
+MAL_API_BASE_URL = "https://api.myanimelist.net/v2"
+MAL_OAUTH_AUTH_URL = "https://myanimelist.net/v1/oauth2/authorize"
+MAL_OAUTH_TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"
+DEFAULT_MAL_CLIENT_ID = ""
+MAL_AUTH_LOCK = threading.RLock()
+MAL_SCROBBLE_LOCK = threading.RLock()
+MAL_OAUTH_SESSIONS = {}
+
+def get_effective_mal_client_id(settings=None):
+    if settings is None:
+        settings = load_settings()
+    custom_id = str(settings.get("mal_client_id", "")).strip() if isinstance(settings, dict) else ""
+    return custom_id or DEFAULT_MAL_CLIENT_ID
+
 DB_PATH = os.path.join(CACHE_DIR, "library.db")
 WATCH_HISTORY_FILE = os.path.join(CACHE_DIR, "watch_history.json")
 WATCH_STATUS_FILE = os.path.join(CACHE_DIR, "watch_status.json")
@@ -262,6 +281,8 @@ def get_protected_cache_files():
         os.path.abspath(WATCH_STATUS_FILE),
         os.path.abspath(f"{WATCH_HISTORY_FILE}.bak"),
         os.path.abspath(f"{WATCH_STATUS_FILE}.bak"),
+        os.path.abspath(MAL_AUTH_FILE),
+        os.path.abspath(MAL_SCROBBLE_CACHE),
     }
 
 def get_active_cache_dir():
@@ -547,7 +568,10 @@ def get_default_settings():
         "auto_import_unmatched": [],
         "anilist_mappings": {},
         "episode_display_names": {},
-        "action_token": ""
+        "action_token": "",
+        "mal_scrobble_enabled": False,
+        "mal_client_id": "",
+        "mal_scrobble_threshold": 90
     }
 
 def load_settings():
@@ -626,6 +650,17 @@ def load_settings():
         merged["episode_display_names"] = {}
     if not isinstance(merged.get("action_token"), str):
         merged["action_token"] = ""
+    merged["mal_scrobble_enabled"] = normalize_bool_setting(
+        merged.get("mal_scrobble_enabled"),
+        defaults["mal_scrobble_enabled"]
+    )
+    merged["mal_client_id"] = str(merged.get("mal_client_id", "")).strip()
+    merged["mal_scrobble_threshold"] = normalize_int_setting(
+        merged.get("mal_scrobble_threshold"),
+        defaults["mal_scrobble_threshold"],
+        50,
+        100
+    )
     return merged
 
 def save_settings(settings):
@@ -4716,14 +4751,321 @@ def get_cached_anilist_info(
 
     return info
 
-def get_subtitle_vtt_path(anime_name, episode_path):
+def get_aniskip_times(mal_id, episode_num, episode_length=0):
+    """Retrieve opening and ending skip times from AniSkip with disk caching."""
+    if not mal_id or episode_num is None or episode_num <= 0:
+        return {"found": False, "results": [], "reason": "invalid_parameters"}
+
+    os.makedirs(ANISKIP_CACHE, exist_ok=True)
+    cache_file = os.path.join(ANISKIP_CACHE, f"{mal_id}_{int(episode_num)}.json")
+
+    # 1. Check local cache
+    if os.path.isfile(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as handle:
+                cached = json.load(handle)
+            cached_at = cached.get("cached_at", 0)
+            if cached.get("found") or (time.time() - cached_at < 7 * 86400):
+                return cached
+        except (OSError, ValueError, KeyError):
+            pass
+
+    # 2. Query AniSkip API
+    url = f"{ANISKIP_BASE_URL}/skip-times/{int(mal_id)}/{int(episode_num)}"
+    params = [
+        ("types[]", "op"),
+        ("types[]", "ed"),
+        ("types[]", "mixed-op"),
+        ("types[]", "mixed-ed"),
+        ("types[]", "recap")
+    ]
+    if episode_length and episode_length > 0:
+        params.append(("episodeLength", str(int(episode_length))))
+
+    try:
+        response = requests.get(url, params=params, timeout=ANISKIP_TIMEOUT_SECONDS)
+        if response.status_code == 200:
+            data = response.json()
+            raw_results = data.get("results") or []
+            results = []
+            for item in raw_results:
+                interval = item.get("interval") or {}
+                start = float(interval.get("startTime", 0))
+                end = float(interval.get("endTime", 0))
+                skip_type = str(item.get("skipType", "")).lower()
+                name_map = {
+                    "op": "Opening",
+                    "ed": "Ending",
+                    "mixed-op": "Opening",
+                    "mixed-ed": "Ending",
+                    "recap": "Recap"
+                }
+                name = name_map.get(skip_type, "Segment")
+                if end > start:
+                    results.append({
+                        "type": skip_type,
+                        "name": name,
+                        "start": start,
+                        "end": end
+                    })
+
+            payload = {
+                "found": bool(results),
+                "results": results,
+                "cached_at": time.time()
+            }
+            try:
+                with open(cache_file, "w", encoding="utf-8") as handle:
+                    json.dump(payload, handle)
+            except OSError:
+                pass
+            return payload
+
+        elif response.status_code == 404:
+            payload = {
+                "found": False,
+                "results": [],
+                "cached_at": time.time()
+            }
+            try:
+                with open(cache_file, "w", encoding="utf-8") as handle:
+                    json.dump(payload, handle)
+            except OSError:
+                pass
+            return payload
+
+    except (requests.RequestException, ValueError) as error:
+        app_log(f"AniSkip request failed for mal_id={mal_id}, ep={episode_num}: {error}", "WARN")
+
+    return {"found": False, "results": [], "reason": "network_unavailable"}
+
+# --- MyAnimeList Auto-Scrobble & OAuth Helper Functions ---
+
+def load_mal_auth():
+    with MAL_AUTH_LOCK:
+        if not os.path.exists(MAL_AUTH_FILE):
+            return {}
+        try:
+            with open(MAL_AUTH_FILE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+def save_mal_auth(auth_data):
+    with MAL_AUTH_LOCK:
+        atomic_write_json_file(MAL_AUTH_FILE, auth_data or {}, "MyAnimeList Auth")
+
+def clear_mal_auth():
+    with MAL_AUTH_LOCK:
+        if os.path.exists(MAL_AUTH_FILE):
+            try:
+                os.remove(MAL_AUTH_FILE)
+            except OSError:
+                pass
+
+def is_mal_authenticated():
+    return bool(load_mal_auth().get("access_token"))
+
+def load_mal_scrobble_history():
+    with MAL_SCROBBLE_LOCK:
+        if not os.path.exists(MAL_SCROBBLE_CACHE):
+            return {}
+        try:
+            with open(MAL_SCROBBLE_CACHE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+def record_mal_scrobble(mal_id, ep_num, status="watching"):
+    with MAL_SCROBBLE_LOCK:
+        history = load_mal_scrobble_history()
+        history[f"{mal_id}_{int(ep_num)}"] = {
+            "timestamp": time.time(),
+            "status": status
+        }
+        atomic_write_json_file(MAL_SCROBBLE_CACHE, history, "MAL Scrobble History")
+
+def clear_mal_scrobble_record(anime_name, episode):
+    info = get_cached_anilist_info(anime_name) or {}
+    mal_id = normalize_provider_id(info.get("mal_id"))
+    if not mal_id:
+        mapping = get_metadata_mapping(anime_name)
+        if mapping:
+            mal_id = normalize_provider_id(mapping.get("mal_id"))
+    if not mal_id:
+        return
+    ep_num = get_episode_number(os.path.basename(episode))
+    if ep_num and ep_num > 0:
+        with MAL_SCROBBLE_LOCK:
+            history = load_mal_scrobble_history()
+            key = f"{mal_id}_{int(ep_num)}"
+            if key in history:
+                history.pop(key, None)
+                atomic_write_json_file(MAL_SCROBBLE_CACHE, history, "MAL Scrobble History")
+
+def cleanup_mal_oauth_sessions():
+    now = time.time()
+    expired = [k for k, v in MAL_OAUTH_SESSIONS.items() if now - v.get("timestamp", 0) > 600]
+    for k in expired:
+        MAL_OAUTH_SESSIONS.pop(k, None)
+
+def get_valid_mal_token():
+    with MAL_AUTH_LOCK:
+        auth = load_mal_auth()
+        if not auth or not auth.get("access_token"):
+            return None
+
+        expires_at = auth.get("expires_at", 0)
+        if expires_at - time.time() > 300:
+            return auth.get("access_token")
+
+        refresh_token = auth.get("refresh_token")
+        if not refresh_token:
+            return auth.get("access_token")
+
+        settings = load_settings()
+        client_id = get_effective_mal_client_id(settings)
+        if not client_id:
+            return auth.get("access_token")
+
+        try:
+            resp = requests.post(
+                MAL_OAUTH_TOKEN_URL,
+                data={
+                    "client_id": client_id,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=10
+            )
+            if resp.status_code == 200:
+                token_data = resp.json()
+                auth["access_token"] = token_data["access_token"]
+                auth["refresh_token"] = token_data.get("refresh_token", refresh_token)
+                auth["expires_at"] = time.time() + float(token_data.get("expires_in", 2592000))
+                save_mal_auth(auth)
+                app_log(f"MyAnimeList token refreshed successfully for {auth.get('username')}.", "INFO")
+                return auth["access_token"]
+            else:
+                app_log(f"Failed to refresh MAL token: {resp.status_code} {resp.text}", "WARN")
+                return None
+        except Exception as e:
+            app_log(f"MAL token refresh network error: {e}", "WARN")
+            return auth.get("access_token")
+
+def fetch_mal_user_profile(access_token):
+    try:
+        resp = requests.get(
+            f"{MAL_API_BASE_URL}/users/@me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"fields": "id,name,picture"},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        app_log(f"Failed to fetch MAL user profile: {e}", "WARN")
+    return None
+
+def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
+    settings = load_settings()
+    if not settings.get("mal_scrobble_enabled") or not is_mal_authenticated():
+        return {"ok": False, "reason": "not_enabled"}
+
+    token = get_valid_mal_token()
+    if not token:
+        return {"ok": False, "reason": "token_unavailable"}
+
+    info = get_cached_anilist_info(anime_name) or {}
+    mal_id = normalize_provider_id(info.get("mal_id"))
+    if not mal_id:
+        manual_mapping = get_metadata_mapping(anime_name)
+        if manual_mapping:
+            mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+    if not mal_id:
+        app_log(f"Cannot scrobble {anime_name}: MAL ID not found in metadata.", "INFO")
+        return {"ok": False, "reason": "no_mal_id"}
+
+    if ep_num is None:
+        ep_num = get_episode_number(os.path.basename(episode))
+    if not ep_num or ep_num <= 0:
+        app_log(f"Cannot scrobble {anime_name}/{episode}: episode number could not be determined.", "INFO")
+        return {"ok": False, "reason": "invalid_episode_number"}
+
+    cache_key = f"{mal_id}_{int(ep_num)}"
+    history = load_mal_scrobble_history()
+    if not force and cache_key in history:
+        return {"ok": True, "already_scrobbled": True, "mal_id": mal_id, "ep_num": int(ep_num)}
+
+    total_episodes = 0
+    try:
+        with db_connection() as conn:
+            row = conn.execute("SELECT episodes FROM anime_library WHERE name = ?", (anime_name,)).fetchone()
+            if row and row[0]:
+                total_episodes = int(row[0])
+    except Exception:
+        pass
+    if not total_episodes and info.get("episodes"):
+        try:
+            total_episodes = int(info["episodes"])
+        except (ValueError, TypeError):
+            total_episodes = 0
+
+    if total_episodes > 0 and ep_num >= total_episodes:
+        mal_status = "completed"
+    else:
+        mal_status = "watching"
+
+    url = f"{MAL_API_BASE_URL}/anime/{int(mal_id)}/my_list_status"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    payload = {
+        "num_watched_episodes": int(ep_num),
+        "status": mal_status
+    }
+    try:
+        resp = requests.patch(url, data=payload, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            record_mal_scrobble(mal_id, ep_num, mal_status)
+            app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}) to MyAnimeList successfully.", "INFO")
+            return {"ok": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": mal_status}
+        else:
+            app_log(f"MAL scrobble failed ({resp.status_code}) for {anime_name} Ep {ep_num}: {resp.text}", "WARN")
+            return {"ok": False, "status_code": resp.status_code, "reason": resp.text}
+    except Exception as error:
+        app_log(f"MAL scrobble network error for {anime_name} Ep {ep_num}: {error}", "WARN")
+        return {"ok": False, "reason": str(error)}
+
+def trigger_mal_scrobble_if_enabled(anime_name, episode):
+    settings = load_settings()
+    if settings.get("mal_scrobble_enabled") and is_mal_authenticated():
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', anime_name)[:20]
+        threading.Thread(
+            target=scrobble_episode_to_mal,
+            args=(anime_name, episode),
+            name=f"mal-scrobble-{safe_name}",
+            daemon=True
+        ).start()
+        return True
+    return False
+
+def get_subtitle_vtt_path(anime_name, episode_path, track_id=None):
     # Create safe folder and file names for the Windows filesystem
     safe_anime = re.sub(r'[<>:"/\\|?*]', '_', anime_name)
     safe_episode = re.sub(r'[<>:"|?*]', '_', episode_path).replace('/', '_').replace('\\', '_')
     
     # Bump this when subtitle sanitising changes, so old generated VTT files
     # with unsupported fansub effects are not served from cache.
-    vtt_filename = f"{safe_episode}.clean-v3.vtt"
+    if track_id:
+        safe_track = re.sub(r'[^a-zA-Z0-9_-]', '_', track_id)
+        vtt_filename = f"{safe_episode}_track_{safe_track}.clean-v3.vtt"
+    else:
+        vtt_filename = f"{safe_episode}.clean-v3.vtt"
     return os.path.join(SUBTITLE_CACHE, safe_anime, vtt_filename)
 
 def make_library_sync_skipped_result(trigger_label):
@@ -4879,6 +5221,7 @@ def clean_generated_subtitle_vtt(vtt_path):
         f.writelines(cleaned_lines)
     return len(seen_cues)
 
+
 def find_external_subtitle(video_path):
     """Only accept same-episode sidecars, never another episode's subtitle."""
     folder = os.path.dirname(os.path.abspath(video_path))
@@ -4901,6 +5244,47 @@ def find_external_subtitle(video_path):
         rank = (bool('forced' in tokens), 0 if tokens & {'id', 'ind', 'indonesian'} else 1 if not tokens else 2, name)
         candidates.append((rank, path))
     return min(candidates)[1] if candidates else None
+
+
+def find_all_external_subtitles(video_path):
+    """List all valid same-episode sidecar subtitles."""
+    folder = os.path.dirname(os.path.abspath(video_path))
+    stem = os.path.splitext(os.path.basename(video_path))[0].casefold()
+    candidates = []
+    try:
+        filenames = sorted(os.listdir(folder))
+    except OSError:
+        return []
+    for name in filenames:
+        base, ext = os.path.splitext(name)
+        ext_lower = ext.casefold()
+        if ext_lower not in {'.ass', '.ssa', '.srt', '.vtt'}:
+            continue
+        base_clean = base.casefold()
+        if base_clean != stem and not base_clean.startswith(stem + '.'):
+            continue
+        path = os.path.join(folder, name)
+        if not os.path.isfile(path) or not is_resolved_path_inside(os.path.realpath(folder), os.path.realpath(path)):
+            continue
+        suffix = base_clean[len(stem):].strip('.')
+        tokens = set(suffix.split('.')) if suffix else set()
+        if tokens - {'id', 'ind', 'indonesian', 'en', 'eng', 'english', 'default', 'forced', 'sdh', 'full'}:
+            continue
+
+        lang = 'und'
+        if tokens & {'id', 'ind', 'indonesian'}:
+            lang = 'id'
+        elif tokens & {'en', 'eng', 'english'}:
+            lang = 'en'
+
+        candidates.append({
+            'path': path,
+            'name': name,
+            'format': ext_lower.lstrip('.'),
+            'tokens': tokens,
+            'language': lang,
+        })
+    return candidates
 
 
 def select_subtitle_stream(video_path, streams=None, details=False):
@@ -4926,13 +5310,139 @@ def select_subtitle_stream(video_path, streams=None, details=False):
     return f"0:{selected['index']}"
 
 
-def get_ass_subtitle_assets(video_path, cache_root):
+def get_available_subtitle_tracks(video_path):
+    """Enumerate external sidecars and supported embedded subtitle streams."""
+    tracks = []
+    
+    # 1. External sidecars
+    sidecars = find_all_external_subtitles(video_path)
+    for sc in sidecars:
+        name = sc['name']
+        fmt = sc['format']
+        lang = sc['language']
+        tokens = sc['tokens']
+        lang_name = 'Indonesian' if lang == 'id' else ('English' if lang == 'en' else 'External')
+        title = f"{lang_name} (External {fmt.upper()})"
+        if 'forced' in tokens:
+            title += " [Forced]"
+        
+        tracks.append({
+            'id': f"sidecar:{name}",
+            'title': title,
+            'language': lang,
+            'format': fmt,
+            'is_external': True,
+            'is_default': False,
+        })
+
+    # 2. Embedded streams in video
+    supported = {'ass', 'ssa', 'subrip', 'webvtt', 'mov_text', 'text'}
+    streams = []
+    try:
+        result = run_hidden_subprocess(
+            [get_media_tool_path('ffprobe'), '-v', 'error', '-select_streams', 's',
+             '-show_streams', '-of', 'json', video_path],
+            capture_output=True, text=True, timeout=MEDIA_PROBE_TIMEOUT_SECONDS)
+        if result.returncode == 0:
+            streams = json.loads(result.stdout).get('streams', [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        streams = []
+
+    for s in streams:
+        codec = str(s.get('codec_name', '')).lower()
+        if codec not in supported:
+            continue
+        idx = s.get('index')
+        if not isinstance(idx, int):
+            continue
+            
+        tags = s.get('tags') or {}
+        disposition = s.get('disposition') or {}
+        lang_raw = str(tags.get('language', '')).lower().strip()
+        raw_title = str(tags.get('title', '')).strip()
+        
+        if lang_raw in {'id', 'ind', 'in', 'indonesian'}:
+            lang = 'id'
+            lang_label = 'Indonesian'
+        elif lang_raw in {'en', 'eng', 'english'}:
+            lang = 'en'
+            lang_label = 'English'
+        elif lang_raw in {'ja', 'jpn', 'japanese', 'jp'}:
+            lang = 'ja'
+            lang_label = 'Japanese'
+        else:
+            lang = lang_raw if lang_raw else 'und'
+            lang_label = lang_raw.upper() if lang_raw and lang_raw != 'und' else ''
+
+        if raw_title:
+            if lang_label and lang_label.lower() not in raw_title.lower():
+                display_title = f"{lang_label} - {raw_title}"
+            else:
+                display_title = raw_title
+        elif lang_label:
+            display_title = lang_label
+            if disposition.get('forced'):
+                display_title += " (Forced)"
+        else:
+            display_title = f"Track {idx} ({codec.upper()})"
+
+        tracks.append({
+            'id': f"0:{idx}",
+            'title': display_title,
+            'language': lang,
+            'format': codec,
+            'is_external': False,
+            'is_default': False,
+        })
+
+    # 3. Default track matching
+    external_default = find_external_subtitle(video_path)
+    default_track_id = None
+    if external_default:
+        default_track_id = f"sidecar:{os.path.basename(external_default)}"
+    else:
+        selected = select_subtitle_stream(video_path, streams=streams, details=True)
+        if selected and isinstance(selected.get('index'), int):
+            default_track_id = f"0:{selected['index']}"
+            
+    if not default_track_id and tracks:
+        default_track_id = tracks[0]['id']
+
+    for track in tracks:
+        if track['id'] == default_track_id:
+            track['is_default'] = True
+
+    return {
+        'tracks': tracks,
+        'default_track_id': default_track_id
+    }
+
+
+def get_ass_subtitle_assets(video_path, cache_root, track_id=None):
     """Keep original typesetting and embedded fonts; never pass ASS through VTT cleanup."""
-    external = find_external_subtitle(video_path)
+    external = None
+    if track_id:
+        if track_id.startswith('sidecar:'):
+            sidecar_name = track_id[len('sidecar:'):]
+            folder_dir = os.path.dirname(os.path.abspath(video_path))
+            candidate = os.path.join(folder_dir, sidecar_name)
+            if not os.path.isfile(candidate) or not is_resolved_path_inside(os.path.realpath(folder_dir), os.path.realpath(candidate)):
+                raise RuntimeError(f'External subtitle {sidecar_name} not found.')
+            external = candidate
+    else:
+        external = find_external_subtitle(video_path)
+
     identity = [(os.path.realpath(path), media_source_fingerprint(path))
                 for path in (video_path, external) if path]
+    if track_id:
+        identity.append(('track', track_id))
     cache_key = hashlib.sha256(json.dumps(identity).encode('utf-8')).hexdigest()
-    folder = os.path.join(cache_root, 'ass-v1', cache_key)
+
+    if track_id:
+        clean_track = re.sub(r'[^a-zA-Z0-9_-]', '_', track_id)
+        folder = os.path.join(cache_root, 'ass-v1', f"{cache_key}_track_{clean_track}")
+    else:
+        folder = os.path.join(cache_root, 'ass-v1', cache_key)
     manifest_path = os.path.join(folder, 'manifest.json')
 
     def cached_manifest():
@@ -4949,7 +5459,7 @@ def get_ass_subtitle_assets(video_path, cache_root):
     cached = cached_manifest()
     if cached is not None:
         return folder, cached
-    lock_key = ('subtitle-ass', cache_key)
+    lock_key = ('subtitle-ass', cache_key, track_id or 'default')
     lock = acquire_ffmpeg_media_lock(lock_key)
     if lock is None:
         raise RuntimeError('Subtitle extraction is busy; try again shortly.')
@@ -4967,15 +5477,28 @@ def get_ass_subtitle_assets(video_path, cache_root):
             if result.returncode:
                 raise RuntimeError('Unable to inspect subtitle tracks.')
             streams = json.loads(result.stdout).get('streams', [])
-        selected = select_subtitle_stream(video_path, streams=streams, details=True)
-        is_ass = (os.path.splitext(external)[1].lower() in {'.ass', '.ssa'} if external
-                  else bool(selected and selected.get('codec_name') in {'ass', 'ssa'}))
+
+        if track_id and not track_id.startswith('sidecar:'):
+            target_idx = int(track_id.split(':')[-1])
+            selected = next((s for s in streams if s.get('index') == target_idx), None)
+            if not selected:
+                raise RuntimeError(f'Subtitle track {track_id} not found.')
+            is_ass = bool(selected.get('codec_name') in {'ass', 'ssa'})
+            stream_map = f"0:{selected['index']}"
+        elif external:
+            selected = None
+            is_ass = bool(os.path.splitext(external)[1].lower() in {'.ass', '.ssa'})
+            stream_map = '0:s:0'
+        else:
+            selected = select_subtitle_stream(video_path, streams=streams, details=True)
+            is_ass = bool(selected and selected.get('codec_name') in {'ass', 'ssa'})
+            stream_map = f"0:{selected['index']}" if selected else '0:s:0'
+
         manifest = {'renderer': 'vtt', 'fonts': []}
         os.makedirs(folder, exist_ok=True)
         if is_ass:
             ass_path = os.path.join(folder, 'track.ass')
             source = external or video_path
-            stream_map = '0:s:0' if external else f"0:{selected['index']}"
             # The ASS muxer retains script resolution, styles, overrides and event layers.
             result = run_ffmpeg_command(
                 ['ffmpeg', '-y', '-i', source, '-map', stream_map, '-c:s', 'copy', '-f', 'ass', ass_path],
@@ -5019,19 +5542,30 @@ def get_ass_subtitle_assets(video_path, cache_root):
         release_ffmpeg_media_lock(lock_key, lock)
 
 
-def subtitle_cache_is_current(video_path, vtt_path):
+def subtitle_cache_is_current(video_path, vtt_path, track_id=None):
     if not is_valid_cache_file(vtt_path):
         return False
     try:
-        external = find_external_subtitle(video_path)
-        newest = max(os.stat(path).st_mtime_ns for path in (video_path, external) if path)
+        if track_id and track_id.startswith('sidecar:'):
+            sidecar_name = track_id[len('sidecar:'):]
+            folder = os.path.dirname(os.path.abspath(video_path))
+            external = os.path.join(folder, sidecar_name)
+            if not os.path.isfile(external):
+                return False
+            sources = (video_path, external)
+        elif track_id:
+            sources = (video_path,)
+        else:
+            external = find_external_subtitle(video_path)
+            sources = (video_path, external)
+        newest = max(os.stat(path).st_mtime_ns for path in sources if path)
         return os.stat(vtt_path).st_mtime_ns >= newest
     except OSError:
         return False
 
 
-def generate_subtitle_vtt_result(video_path, vtt_path):
-    if subtitle_cache_is_current(video_path, vtt_path):
+def generate_subtitle_vtt_result(video_path, vtt_path, track_id=None):
+    if subtitle_cache_is_current(video_path, vtt_path, track_id=track_id):
         return make_media_generation_result(
             True,
             vtt_path,
@@ -5049,7 +5583,18 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
         )
 
     failure_key = ("subtitle", vtt_path, fingerprint)
-    external = find_external_subtitle(video_path)
+    if track_id:
+        failure_key += (track_id,)
+    external = None
+    if track_id and track_id.startswith('sidecar:'):
+        sidecar_name = track_id[len('sidecar:'):]
+        folder = os.path.dirname(os.path.abspath(video_path))
+        candidate = os.path.join(folder, sidecar_name)
+        if os.path.isfile(candidate) and is_resolved_path_inside(os.path.realpath(folder), os.path.realpath(candidate)):
+            external = candidate
+    elif not track_id:
+        external = find_external_subtitle(video_path)
+
     if external:
         failure_key += (external, media_source_fingerprint(external))
     cached_failure = get_ffmpeg_failure_cache(failure_key)
@@ -5069,7 +5614,7 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
     last_result = None
 
     try:
-        if subtitle_cache_is_current(video_path, vtt_path):
+        if subtitle_cache_is_current(video_path, vtt_path, track_id=track_id):
             return make_media_generation_result(
                 True,
                 vtt_path,
@@ -5083,17 +5628,28 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
 
         os.makedirs(os.path.dirname(vtt_path), exist_ok=True)
         temp_path = temporary_media_cache_path(vtt_path, ".vtt")
-        app_log(f"Starting subtitle generation for {os.path.basename(video_path)}", "INFO")
+        app_log(f"Starting subtitle generation for {os.path.basename(video_path)}" + (f" (track {track_id})" if track_id else ""), "INFO")
 
-        subtitle_source = find_external_subtitle(video_path) or video_path
-        stream_map = '0:s:0'
-        if subtitle_source == video_path:
-            try:
-                stream_map = select_subtitle_stream(video_path)
-            except (OSError, ValueError, subprocess.SubprocessError):
+        if track_id:
+            if track_id.startswith('sidecar:'):
+                if not external:
+                    return make_media_generation_result(False, '', 'not_found', 'Sidecar subtitle file not found.')
+                subtitle_source = external
                 stream_map = '0:s:0'
-            if stream_map is None:
-                return make_media_generation_result(False, '', 'not_found', 'No supported text subtitle found. Bitmap subtitles require an external player.')
+            else:
+                subtitle_source = video_path
+                idx = track_id.split(':')[-1]
+                stream_map = f"0:{idx}"
+        else:
+            subtitle_source = external or video_path
+            stream_map = '0:s:0'
+            if subtitle_source == video_path:
+                try:
+                    stream_map = select_subtitle_stream(video_path)
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    stream_map = '0:s:0'
+                if stream_map is None:
+                    return make_media_generation_result(False, '', 'not_found', 'No supported text subtitle found. Bitmap subtitles require an external player.')
 
         last_result = run_ffmpeg_command(
             [
@@ -5156,8 +5712,9 @@ def generate_subtitle_vtt_result(video_path, vtt_path):
         set_ffmpeg_failure_cache(failure_key, last_result)
     return last_result
 
-def generate_subtitle_vtt(video_path, vtt_path):
-    return generate_subtitle_vtt_result(video_path, vtt_path).get("ok", False)
+
+def generate_subtitle_vtt(video_path, vtt_path, track_id=None):
+    return generate_subtitle_vtt_result(video_path, vtt_path, track_id=track_id).get("ok", False)
 
 def get_watch_backup_file(path):
     return f"{path}.bak"
@@ -5374,7 +5931,7 @@ def update_episode_watch_status(anime_name, episode, data):
         return episode_status
 
 def mark_episode_watched(anime_name, episode):
-    return update_episode_watch_status(
+    result = update_episode_watch_status(
         anime_name,
         episode,
         {
@@ -5382,8 +5939,11 @@ def mark_episode_watched(anime_name, episode):
             "progress": 100
         }
     )
+    trigger_mal_scrobble_if_enabled(anime_name, episode)
+    return result
 
 def mark_episode_unwatched(anime_name, episode):
+    clear_mal_scrobble_record(anime_name, episode)
     return update_episode_watch_status(
         anime_name,
         episode,
@@ -6182,6 +6742,26 @@ def build_settings_status_cards(settings, media_diagnostics=None):
         discord_text = "Off"
         discord_detail = "Rich Presence is disabled"
 
+    mal_auth = load_mal_auth()
+    mal_enabled = bool(settings.get("mal_scrobble_enabled"))
+    mal_client_id = get_effective_mal_client_id(settings)
+    if mal_enabled and mal_auth.get("access_token"):
+        mal_state = "valid"
+        mal_text = f"Connected ({mal_auth.get('username', 'User')})"
+        mal_detail = f"Auto-scrobbles when {settings.get('mal_scrobble_threshold', 90)}% watched"
+    elif mal_enabled and mal_client_id:
+        mal_state = "invalid"
+        mal_text = "Not Connected"
+        mal_detail = "Click 'Connect MyAnimeList Account' in Settings"
+    elif mal_enabled:
+        mal_state = "invalid"
+        mal_text = "Needs Client ID"
+        mal_detail = "Configure MAL Client ID to connect"
+    else:
+        mal_state = "off"
+        mal_text = "Off"
+        mal_detail = "Auto-scrobble is disabled"
+
     return [
         {
             "label": "Anime Library",
@@ -6206,6 +6786,12 @@ def build_settings_status_cards(settings, media_diagnostics=None):
             "state": discord_state,
             "text": discord_text,
             "detail": discord_detail
+        },
+        {
+            "label": "MyAnimeList",
+            "state": mal_state,
+            "text": mal_text,
+            "detail": mal_detail
         },
         {
             "label": "Auto Import",
@@ -6478,7 +7064,13 @@ def settings_page():
         cache_removed_watch_entries=request.args.get("removed_watch_entries", "0"),
         cache_skipped=request.args.get("skipped", "0"),
         sync_busy=request.args.get("sync_busy") == "1",
-        diagnostics_refreshed=request.args.get("diagnostics_refreshed") == "1"
+        diagnostics_refreshed=request.args.get("diagnostics_refreshed") == "1",
+        mal_auth=load_mal_auth(),
+        mal_connected=request.args.get("mal_connected") == "1",
+        mal_disconnected=request.args.get("mal_disconnected") == "1",
+        mal_error=request.args.get("mal_error"),
+        has_mal_client_id=bool(get_effective_mal_client_id(settings)),
+        default_mal_client_id=DEFAULT_MAL_CLIENT_ID
     )
 
 @app.route("/settings/backup/export")
@@ -6593,7 +7185,15 @@ def update_settings():
         "auto_import_unmatched": existing_settings.get("auto_import_unmatched", []),
         "anilist_mappings": existing_settings.get("anilist_mappings", {}),
         "episode_display_names": existing_settings.get("episode_display_names", {}),
-        "action_token": existing_settings.get("action_token", "")
+        "action_token": existing_settings.get("action_token", ""),
+        "mal_scrobble_enabled": "mal_scrobble_enabled" in request.form,
+        "mal_client_id": request.form.get("mal_client_id", "").strip(),
+        "mal_scrobble_threshold": normalize_int_setting(
+            request.form.get("mal_scrobble_threshold"),
+            existing_settings.get("mal_scrobble_threshold", 90),
+            50,
+            100
+        )
     }
 
     if settings["theme_preset"] not in THEME_PRESETS:
@@ -9480,13 +10080,25 @@ def get_subtitle(anime_name, episode):
     video_path = safe_join_media_path(anime_path, episode)
     if not video_path or not os.path.isfile(video_path):
         abort(404)
+
+    track_id = request.args.get('track')
+    if track_id:
+        clean_track = track_id.strip()
+        is_sidecar = clean_track.startswith('sidecar:') and not any(c in clean_track for c in ('/', '\\', '..'))
+        is_stream = bool(re.match(r'^(?:0:)?\d+$', clean_track))
+        if not (is_sidecar or is_stream):
+            abort(400)
+        track_id = clean_track
         
-    vtt_path = get_subtitle_vtt_path(anime_name, episode)
+    vtt_path = get_subtitle_vtt_path(anime_name, episode, track_id=track_id)
 
     subtitle_format = request.args.get('format', 'vtt')
     if subtitle_format in {'manifest', 'asset'}:
         try:
-            folder, manifest = get_ass_subtitle_assets(video_path, os.path.dirname(vtt_path))
+            if track_id:
+                folder, manifest = get_ass_subtitle_assets(video_path, os.path.dirname(vtt_path), track_id=track_id)
+            else:
+                folder, manifest = get_ass_subtitle_assets(video_path, os.path.dirname(vtt_path))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             app_log(f'ASS subtitle preparation failed: {error}', 'WARN')
             return json_error('subtitle_unavailable', 'Original subtitle is unavailable.', 503)
@@ -9494,8 +10106,10 @@ def get_subtitle(anime_name, episode):
             payload = {'renderer': manifest['renderer'], 'fonts': []}
             if manifest['renderer'] == 'ass':
                 def asset_url(name):
+                    extra = {'track': track_id} if track_id else {}
                     return url_for('get_subtitle', anime_name=anime_name, episode=episode,
-                                   format='asset', asset=name, version=os.path.basename(folder))
+                                   format='asset', asset=name, version=os.path.basename(folder),
+                                   **extra)
                 payload['subtitle'] = asset_url(manifest['subtitle'])
                 payload['fonts'] = [asset_url(name) for name in manifest['fonts']]
             response = jsonify(payload)
@@ -9508,17 +10122,224 @@ def get_subtitle(anime_name, episode):
         return send_file(os.path.join(folder, name), mimetype='text/plain' if name == 'track.ass' else 'application/octet-stream')
     
     # 1. Check if VTT cache is current
-    if subtitle_cache_is_current(video_path, vtt_path):
+    if subtitle_cache_is_current(video_path, vtt_path, track_id=track_id):
         debug_log(f"Subtitle cache found: {vtt_path}")
         return send_file(vtt_path, mimetype="text/vtt")
         
     # 2. If not found, generate using FFmpeg
-    subtitle_result = generate_subtitle_vtt_result(video_path, vtt_path)
+    if track_id:
+        subtitle_result = generate_subtitle_vtt_result(video_path, vtt_path, track_id=track_id)
+    else:
+        subtitle_result = generate_subtitle_vtt_result(video_path, vtt_path)
     if subtitle_result.get("ok"):
         return send_file(subtitle_result["path"], mimetype="text/vtt")
         
     # 3. If generation fails or no subtitle exists, return error (404 will not stop video)
     return media_generation_error_response(subtitle_result)
+
+
+@app.route("/api/media/<anime_name>/<path:episode>/subtitles", endpoint="get_available_subtitles")
+def get_media_subtitles(anime_name, episode):
+    anime_path = find_media_path(anime_name)
+    if not anime_path:
+        return json_error("anime_not_found", "Anime was not found.", 404)
+        
+    video_path = safe_join_media_path(anime_path, episode)
+    if not video_path or not os.path.isfile(video_path):
+        return json_error("episode_not_found", "Episode was not found.", 404)
+
+    try:
+        track_info = get_available_subtitle_tracks(video_path)
+        response = jsonify({
+            "status": "success",
+            "tracks": track_info.get("tracks", []),
+            "default_track_id": track_info.get("default_track_id")
+        })
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+    except Exception as error:
+        app_log(f"Failed to probe subtitle tracks for {anime_name}/{episode}: {error}", "WARN")
+        return json_error("probe_failed", "Failed to probe subtitle tracks.", 500)
+
+
+@app.route("/api/media/<anime_name>/<path:episode>/skip-times", endpoint="get_episode_skip_times")
+def get_episode_skip_times(anime_name, episode):
+    anime_path = find_media_path(anime_name)
+    if not anime_path:
+        return json_error("anime_not_found", "Anime was not found.", 404)
+
+    video_path = safe_join_media_path(anime_path, episode)
+    if not video_path or not os.path.isfile(video_path):
+        return json_error("episode_not_found", "Episode was not found.", 404)
+
+    # 1. Resolve MAL ID
+    info = get_cached_anilist_info(anime_name) or {}
+    mal_id = normalize_provider_id(info.get("mal_id"))
+    if not mal_id:
+        manual_mapping = get_metadata_mapping(anime_name)
+        if manual_mapping:
+            mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+
+    if not mal_id:
+        return jsonify({
+            "status": "success",
+            "found": False,
+            "results": [],
+            "reason": "no_mal_id"
+        })
+
+    # 2. Resolve Episode Number
+    ep_num = get_episode_number(os.path.basename(video_path))
+    if not ep_num or ep_num <= 0:
+        return jsonify({
+            "status": "success",
+            "found": False,
+            "results": [],
+            "reason": "no_episode_number"
+        })
+
+    # 3. Optional Episode Duration
+    episode_length = request.args.get("episodeLength", type=float) or 0
+
+    # 4. Fetch skip times
+    skip_data = get_aniskip_times(mal_id, ep_num, episode_length=episode_length)
+    response = jsonify({
+        "status": "success",
+        "found": skip_data.get("found", False),
+        "results": skip_data.get("results", [])
+    })
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+# --- MyAnimeList OAuth & Scrobble Endpoints ---
+
+@app.route("/api/mal/login", endpoint="mal_oauth_login")
+@host_only
+def mal_oauth_login():
+    settings = load_settings()
+    client_id = get_effective_mal_client_id(settings)
+    if not client_id:
+        return redirect("/settings?mal_error=Please+configure+MyAnimeList+Client+ID+first")
+
+    verifier = secrets.token_urlsafe(64)[:128]
+    state = secrets.token_urlsafe(32)
+
+    cleanup_mal_oauth_sessions()
+    MAL_OAUTH_SESSIONS[state] = {
+        "verifier": verifier,
+        "timestamp": time.time()
+    }
+
+    redirect_uri = url_for("mal_oauth_callback", _external=True)
+
+    auth_url = (
+        f"{MAL_OAUTH_AUTH_URL}?"
+        f"response_type=code&"
+        f"client_id={quote_plus(client_id)}&"
+        f"code_challenge={quote_plus(verifier)}&"
+        f"code_challenge_method=plain&"
+        f"state={quote_plus(state)}&"
+        f"redirect_uri={quote_plus(redirect_uri)}"
+    )
+    return redirect(auth_url)
+
+
+@app.route("/api/mal/callback", endpoint="mal_oauth_callback")
+@host_only
+def mal_oauth_callback():
+    error = request.args.get("error")
+    if error:
+        return redirect(f"/settings?mal_error={quote_plus(error)}")
+
+    code = request.args.get("code")
+    state = request.args.get("state")
+    if not code or not state:
+        return redirect("/settings?mal_error=Missing+authorization+code+or+state")
+
+    cleanup_mal_oauth_sessions()
+    session = MAL_OAUTH_SESSIONS.pop(state, None)
+    if not session:
+        return redirect("/settings?mal_error=Invalid+or+expired+OAuth+session")
+
+    verifier = session.get("verifier")
+    settings = load_settings()
+    client_id = get_effective_mal_client_id(settings)
+    if not client_id:
+        return redirect("/settings?mal_error=MAL+Client+ID+not+configured")
+
+    redirect_uri = url_for("mal_oauth_callback", _external=True)
+
+    try:
+        resp = requests.post(
+            MAL_OAUTH_TOKEN_URL,
+            data={
+                "client_id": client_id,
+                "grant_type": "authorization_code",
+                "code": code,
+                "code_verifier": verifier,
+                "redirect_uri": redirect_uri
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=15
+        )
+        if resp.status_code != 200:
+            app_log(f"MAL token exchange error {resp.status_code}: {resp.text}", "WARN")
+            return redirect(f"/settings?mal_error=Token+exchange+failed+{resp.status_code}")
+
+        token_data = resp.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 2592000)
+
+        profile = fetch_mal_user_profile(access_token) or {}
+        username = profile.get("name") or "MAL User"
+        picture = profile.get("picture") or ""
+        user_id = profile.get("id")
+
+        auth_payload = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": time.time() + float(expires_in),
+            "user_id": user_id,
+            "username": username,
+            "picture": picture
+        }
+        save_mal_auth(auth_payload)
+
+        # Automatically enable scrobble if not already enabled
+        if not settings.get("mal_scrobble_enabled"):
+            settings["mal_scrobble_enabled"] = True
+            save_settings(settings)
+
+        return redirect("/settings?mal_connected=1")
+    except Exception as e:
+        app_log(f"MAL callback error: {e}", "ERROR")
+        return redirect("/settings?mal_error=OAuth+exchange+exception")
+
+
+@app.route("/api/mal/disconnect", methods=["POST"], endpoint="mal_disconnect")
+@host_only
+@require_action_token
+def mal_disconnect():
+    clear_mal_auth()
+    return redirect("/settings?mal_disconnected=1")
+
+
+@app.route("/api/mal/status", endpoint="mal_status")
+@host_only
+def mal_status():
+    auth = load_mal_auth()
+    settings = load_settings()
+    is_authed = bool(auth.get("access_token"))
+    return jsonify({
+        "status": "success",
+        "connected": is_authed,
+        "username": auth.get("username", "") if is_authed else "",
+        "picture": auth.get("picture", "") if is_authed else "",
+        "scrobble_enabled": settings.get("mal_scrobble_enabled", False),
+        "threshold": settings.get("mal_scrobble_threshold", 90),
+        "client_id_configured": bool(get_effective_mal_client_id(settings))
+    })
 
 @app.route("/anime/<anime_name>/seasons")
 def season_list(anime_name):
@@ -9861,7 +10682,10 @@ def api_update_watch_status_progress():
         )
 
     progress = max(0, min(100, progress))
-    watched = True if progress >= 90 else bool(current_status.get("watched", False))
+    settings = load_settings()
+    threshold = float(settings.get("mal_scrobble_threshold") or 90)
+    was_watched = bool(current_status.get("watched", False))
+    watched = True if progress >= threshold else was_watched
 
     status = update_episode_watch_status(
         anime_name,
@@ -9874,10 +10698,15 @@ def api_update_watch_status_progress():
         }
     )
 
+    scrobbled = False
+    if watched and not was_watched:
+        scrobbled = trigger_mal_scrobble_if_enabled(anime_name, episode)
+
     return jsonify({
         "ok": True,
         "watched": status.get("watched", False),
-        "progress": status.get("progress", 0)
+        "progress": status.get("progress", 0),
+        "scrobbled": scrobbled
     })
 
 @app.route("/api/watch-history/remove", methods=["POST"])

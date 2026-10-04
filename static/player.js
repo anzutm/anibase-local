@@ -497,6 +497,11 @@ function sendWatchProgress(useKeepalive = false) {
         if (!response.ok) {
             throw new Error('Watch progress update failed');
         }
+        return response.json();
+    }).then((data) => {
+        if (data && data.scrobbled) {
+            showScreenshotToast('Scrobbled to MyAnimeList \u2705', { icon: '&#128214;', duration: 3200 });
+        }
     }).catch(() => {});
 }
 
@@ -529,13 +534,41 @@ function getStreamUrl(episodePath) {
     );
 }
 
-function getSubtitleUrl(episodePath) {
-    return buildEpisodeRoute(
+function getSubtitleUrl(episodePath, trackId = null) {
+    let url = buildEpisodeRoute(
         window.SUBTITLE_URL_TEMPLATE,
         '/subtitle/__ANIME__/__EPISODE__',
         window.ANIME_NAME,
         episodePath
     );
+    if (trackId) {
+        const separator = url.includes('?') ? '&' : '?';
+        url += `${separator}track=${encodeURIComponent(trackId)}`;
+    }
+    return url;
+}
+
+function getSubtitlesListUrl(episodePath) {
+    return buildEpisodeRoute(
+        window.SUBTITLES_LIST_URL_TEMPLATE,
+        '/api/media/__ANIME__/__EPISODE__/subtitles',
+        window.ANIME_NAME,
+        episodePath
+    );
+}
+
+function getSkipTimesUrl(episodePath, duration = null) {
+    let url = buildEpisodeRoute(
+        window.SKIP_TIMES_URL_TEMPLATE,
+        '/api/media/__ANIME__/__EPISODE__/skip-times',
+        window.ANIME_NAME,
+        episodePath
+    );
+    if (duration && duration > 0) {
+        const separator = url.includes('?') ? '&' : '?';
+        url += `${separator}episodeLength=${encodeURIComponent(Math.round(duration))}`;
+    }
+    return url;
 }
 
 function getPlayUrl(episodePath) {
@@ -726,7 +759,19 @@ function switchEpisode(episodePath, options = {}) {
     }, { once: true, signal: mediaLoadController.signal });
 
     sourceElement.src = getStreamUrl(episodePath);
-    replaceSubtitleTrack(getSubtitleUrl(episodePath));
+    if (isSubtitleExplicitlyDisabled()) {
+        disableSubtitles(false);
+    } else {
+        const preferredLang = getPreferredSubtitleLang();
+        let targetTrackId = null;
+        if (preferredLang && availableSubtitleTracks?.length) {
+            const matched = availableSubtitleTracks.find(t => t.language === preferredLang);
+            if (matched) targetTrackId = matched.id;
+        }
+        replaceSubtitleTrack(getSubtitleUrl(episodePath, targetTrackId));
+    }
+    fetchSubtitleTracks(episodePath);
+    fetchSkipTimes(episodePath);
     videoElement.load();
 
     const switchingEpisode = episodePath;
@@ -1169,3 +1214,425 @@ document.getElementById("scrollRight").onclick = function() {
         behavior: "smooth"
     });
 };
+
+// --- Subtitle Track Picker ---
+const subtitlePickerBtn = document.getElementById('playerSubtitleBtn');
+const subtitlePickerLabel = document.getElementById('playerSubtitleLabel');
+const subtitlePickerMenu = document.getElementById('playerSubtitleMenu');
+
+let availableSubtitleTracks = [];
+let currentSubtitleTrackId = null;
+let subtitleFetchController = null;
+
+function isSubtitleExplicitlyDisabled() {
+    return localStorage.getItem('anibase_subtitle_disabled') === 'true';
+}
+
+function getPreferredSubtitleLang() {
+    return localStorage.getItem('anibase_preferred_subtitle_lang');
+}
+
+function updateSubtitlePickerButton(label) {
+    if (subtitlePickerLabel) {
+        subtitlePickerLabel.textContent = label;
+    }
+}
+
+function toggleSubtitleMenu(show) {
+    if (!subtitlePickerMenu || !subtitlePickerBtn) return;
+    const shouldOpen = show !== undefined ? Boolean(show) : subtitlePickerMenu.hidden;
+    subtitlePickerMenu.hidden = !shouldOpen;
+    subtitlePickerBtn.setAttribute('aria-expanded', String(shouldOpen));
+}
+
+function renderSubtitleMenu() {
+    if (!subtitlePickerMenu) return;
+    subtitlePickerMenu.innerHTML = '';
+
+    if (!availableSubtitleTracks || availableSubtitleTracks.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'player-sub-empty';
+        empty.textContent = 'No subtitles available';
+        subtitlePickerMenu.appendChild(empty);
+        updateSubtitlePickerButton('No Subtitles');
+        return;
+    }
+
+    // 1. Off option
+    const offItem = document.createElement('button');
+    offItem.type = 'button';
+    offItem.className = `player-sub-item ${currentSubtitleTrackId === 'off' ? 'active' : ''}`;
+    offItem.setAttribute('role', 'menuitem');
+    offItem.innerHTML = `
+        <span class="sub-item-meta">
+            <span class="sub-item-title">Off</span>
+        </span>
+        ${currentSubtitleTrackId === 'off' ? '<span class="sub-item-check" aria-hidden="true">&#10003;</span>' : ''}
+    `;
+    offItem.addEventListener('click', () => {
+        disableSubtitles(true);
+        toggleSubtitleMenu(false);
+    });
+    subtitlePickerMenu.appendChild(offItem);
+
+    // 2. Track items
+    availableSubtitleTracks.forEach(track => {
+        const isActive = currentSubtitleTrackId === track.id;
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = `player-sub-item ${isActive ? 'active' : ''}`;
+        item.setAttribute('role', 'menuitem');
+        const badge = track.format ? `<span class="sub-item-badge">${track.format}</span>` : '';
+        item.innerHTML = `
+            <span class="sub-item-meta">
+                <span class="sub-item-title">${escapeHtml(track.title)}</span>
+                ${badge}
+            </span>
+            ${isActive ? '<span class="sub-item-check" aria-hidden="true">&#10003;</span>' : ''}
+        `;
+        item.addEventListener('click', () => {
+            selectSubtitleTrack(track.id, track.language, true);
+            toggleSubtitleMenu(false);
+        });
+        subtitlePickerMenu.appendChild(item);
+    });
+
+    // Update button label
+    if (currentSubtitleTrackId === 'off') {
+        updateSubtitlePickerButton('Sub: Off');
+    } else {
+        const activeTrack = availableSubtitleTracks.find(t => t.id === currentSubtitleTrackId);
+        if (activeTrack) {
+            const shortName = activeTrack.language && activeTrack.language !== 'und'
+                ? activeTrack.language.toUpperCase()
+                : (activeTrack.format ? activeTrack.format.toUpperCase() : 'Track');
+            updateSubtitlePickerButton(`Sub: ${shortName}`);
+        } else {
+            updateSubtitlePickerButton('Subtitle');
+        }
+    }
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function disableSubtitles(persist = true) {
+    if (persist) {
+        localStorage.setItem('anibase_subtitle_disabled', 'true');
+    }
+    currentSubtitleTrackId = 'off';
+    fansubSubtitles.releaseRenderer();
+    if (subtitleTrack) {
+        subtitleTrack.src = 'data:text/vtt,WEBVTT%0A%0A';
+        subtitleTrack.dataset.subtitleSrc = '';
+    }
+    for (const track of videoElement.textTracks) {
+        track.mode = 'disabled';
+    }
+    if (player.captions) {
+        player.captions.active = false;
+    }
+    renderSubtitleMenu();
+}
+
+function selectSubtitleTrack(trackId, trackLang = null, persist = true) {
+    if (!trackId || trackId === 'off') {
+        disableSubtitles(persist);
+        return;
+    }
+
+    if (persist) {
+        localStorage.removeItem('anibase_subtitle_disabled');
+        if (trackLang && trackLang !== 'und') {
+            localStorage.setItem('anibase_preferred_subtitle_lang', trackLang);
+        }
+    }
+
+    currentSubtitleTrackId = trackId;
+    if (player.captions) {
+        player.captions.active = true;
+    }
+
+    const subUrl = getSubtitleUrl(window.EPISODE_PATH, trackId);
+    replaceSubtitleTrack(subUrl);
+    renderSubtitleMenu();
+}
+
+async function fetchSubtitleTracks(episodePath) {
+    subtitleFetchController?.abort();
+    subtitleFetchController = new AbortController();
+
+    if (subtitlePickerMenu) {
+        subtitlePickerMenu.innerHTML = '<div class="player-sub-loading">Loading subtitles...</div>';
+    }
+
+    try {
+        const url = getSubtitlesListUrl(episodePath);
+        const response = await fetch(url, { signal: subtitleFetchController.signal });
+        if (!response.ok) throw new Error('Subtitles endpoint failed');
+        const data = await response.json();
+        
+        availableSubtitleTracks = Array.isArray(data.tracks) ? data.tracks : [];
+        const defaultTrackId = data.default_track_id;
+
+        if (availableSubtitleTracks.length === 0) {
+            currentSubtitleTrackId = null;
+            renderSubtitleMenu();
+            return;
+        }
+
+        // Determine which track to select
+        if (isSubtitleExplicitlyDisabled()) {
+            disableSubtitles(false);
+            return;
+        }
+
+        const preferredLang = getPreferredSubtitleLang();
+        let targetTrack = null;
+
+        if (preferredLang) {
+            targetTrack = availableSubtitleTracks.find(t => t.language === preferredLang);
+        }
+        if (!targetTrack && defaultTrackId) {
+            targetTrack = availableSubtitleTracks.find(t => t.id === defaultTrackId);
+        }
+        if (!targetTrack) {
+            targetTrack = availableSubtitleTracks[0];
+        }
+
+        if (targetTrack) {
+            currentSubtitleTrackId = targetTrack.id;
+            renderSubtitleMenu();
+            // If the user's preferred track is different from the currently loaded subtitle track, switch it
+            const currentSubSrc = subtitleTrack?.dataset?.subtitleSrc || '';
+            const desiredSubUrl = getSubtitleUrl(episodePath, targetTrack.id);
+            if (currentSubSrc && currentSubSrc !== desiredSubUrl) {
+                replaceSubtitleTrack(desiredSubUrl);
+            }
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') return;
+        renderSubtitleMenu();
+    }
+}
+
+function initSubtitlePicker() {
+    if (subtitlePickerBtn) {
+        subtitlePickerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSubtitleMenu();
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (subtitlePickerMenu && !subtitlePickerMenu.hidden) {
+            if (!subtitlePickerMenu.contains(e.target) && !subtitlePickerBtn?.contains(e.target)) {
+                toggleSubtitleMenu(false);
+            }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && subtitlePickerMenu && !subtitlePickerMenu.hidden) {
+            toggleSubtitleMenu(false);
+        }
+    });
+
+    // Listen for Plyr caption toggle to keep state synchronized
+    player.on('captionsenabled', () => {
+        if (currentSubtitleTrackId === 'off') {
+            const preferredLang = getPreferredSubtitleLang();
+            const track = (preferredLang && availableSubtitleTracks.find(t => t.language === preferredLang)) ||
+                          availableSubtitleTracks.find(t => t.is_default) ||
+                          availableSubtitleTracks[0];
+            if (track) {
+                selectSubtitleTrack(track.id, track.language, true);
+            }
+        }
+    });
+
+    player.on('captionsdisabled', () => {
+        if (currentSubtitleTrackId !== 'off') {
+            disableSubtitles(true);
+        }
+    });
+
+    if (window.EPISODE_PATH) {
+        fetchSubtitleTracks(window.EPISODE_PATH);
+    }
+}
+
+initSubtitlePicker();
+
+// --- AniSkip (Skip Opening / Ending / Recap) ---
+let episodeSkipIntervals = [];
+let currentActiveSkipInterval = null;
+let autoSkippedInterval = null;
+let skipTimesFetchController = null;
+let timelineMarkersContainer = null;
+
+const autoSkipBtn = document.getElementById('playerAutoSkipBtn');
+const autoSkipLabel = document.getElementById('playerAutoSkipLabel');
+
+// Create the floating skip button overlay inside Plyr's container
+const skipOverlay = document.createElement('div');
+skipOverlay.className = 'player-skip-overlay';
+skipOverlay.hidden = true;
+skipOverlay.innerHTML = `
+    <button type="button" class="player-skip-btn" title="Skip (Press S)">
+        <span class="player-skip-icon" aria-hidden="true">&#9197;</span>
+        <span class="player-skip-text">Skip Opening</span>
+        <kbd class="player-skip-key">S</kbd>
+    </button>
+`;
+player.elements.container.appendChild(skipOverlay);
+
+const skipBtn = skipOverlay.querySelector('.player-skip-btn');
+const skipText = skipOverlay.querySelector('.player-skip-text');
+
+function isAutoSkipEnabled() {
+    return localStorage.getItem('anibase_auto_skip') === 'true';
+}
+
+function updateAutoSkipUI() {
+    const enabled = isAutoSkipEnabled();
+    if (autoSkipBtn) {
+        autoSkipBtn.classList.toggle('active', enabled);
+    }
+    if (autoSkipLabel) {
+        autoSkipLabel.textContent = `Auto-Skip: ${enabled ? 'ON' : 'OFF'}`;
+    }
+}
+
+function performSkip() {
+    if (!currentActiveSkipInterval) return;
+    const targetTime = Math.min(player.duration || Infinity, currentActiveSkipInterval.end + 0.5);
+    player.currentTime = targetTime;
+    skipOverlay.hidden = true;
+    showEpisodeSwitchNotice(`Skipped ${currentActiveSkipInterval.name} \u23ED`);
+    window.setTimeout(() => hideEpisodeSwitchNotice(), 2500);
+}
+
+skipBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    performSkip();
+});
+
+function renderTimelineMarkers() {
+    const progressTrack = player.elements.container.querySelector('.plyr__progress');
+    if (!progressTrack) return;
+    if (!timelineMarkersContainer) {
+        timelineMarkersContainer = document.createElement('div');
+        timelineMarkersContainer.className = 'player-timeline-markers';
+        progressTrack.appendChild(timelineMarkersContainer);
+    }
+    timelineMarkersContainer.innerHTML = '';
+    const duration = player.duration;
+    if (!duration || duration <= 0 || !episodeSkipIntervals.length) return;
+
+    episodeSkipIntervals.forEach(interval => {
+        if (interval.end <= interval.start) return;
+        const marker = document.createElement('div');
+        const typeClass = interval.type.includes('ed') ? 'marker-ed' : (interval.type.includes('recap') ? 'marker-recap' : 'marker-op');
+        marker.className = `player-timeline-marker ${typeClass}`;
+        marker.title = `${interval.name}: ${Math.floor(interval.start / 60)}:${String(Math.floor(interval.start % 60)).padStart(2, '0')} - ${Math.floor(interval.end / 60)}:${String(Math.floor(interval.end % 60)).padStart(2, '0')}`;
+        const leftPct = (interval.start / duration) * 100;
+        const widthPct = ((interval.end - interval.start) / duration) * 100;
+        marker.style.left = `${Math.max(0, Math.min(100, leftPct))}%`;
+        marker.style.width = `${Math.max(0, Math.min(100 - leftPct, widthPct))}%`;
+        timelineMarkersContainer.appendChild(marker);
+    });
+}
+
+async function fetchSkipTimes(episodePath) {
+    skipTimesFetchController?.abort();
+    skipTimesFetchController = new AbortController();
+    episodeSkipIntervals = [];
+    currentActiveSkipInterval = null;
+    autoSkippedInterval = null;
+    skipOverlay.hidden = true;
+    if (timelineMarkersContainer) {
+        timelineMarkersContainer.innerHTML = '';
+    }
+
+    try {
+        const duration = player.duration || 0;
+        const url = getSkipTimesUrl(episodePath, duration);
+        const response = await fetch(url, { signal: skipTimesFetchController.signal });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.status === 'success' && data.found && Array.isArray(data.results)) {
+            episodeSkipIntervals = data.results;
+            renderTimelineMarkers();
+            checkSkipIntervals();
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') return;
+    }
+}
+
+function checkSkipIntervals() {
+    if (!episodeSkipIntervals.length) {
+        skipOverlay.hidden = true;
+        currentActiveSkipInterval = null;
+        return;
+    }
+
+    const currentTime = player.currentTime;
+    const active = episodeSkipIntervals.find(i => currentTime >= i.start && currentTime < (i.end - 0.5));
+
+    if (active) {
+        currentActiveSkipInterval = active;
+        if (isAutoSkipEnabled()) {
+            if (autoSkippedInterval !== active) {
+                autoSkippedInterval = active;
+                performSkip();
+                return;
+            }
+        }
+        skipText.textContent = `Skip ${active.name}`;
+        skipOverlay.hidden = false;
+    } else {
+        skipOverlay.hidden = true;
+        currentActiveSkipInterval = null;
+    }
+}
+
+function initAniSkip() {
+    updateAutoSkipUI();
+
+    if (autoSkipBtn) {
+        autoSkipBtn.addEventListener('click', () => {
+            const nextState = !isAutoSkipEnabled();
+            localStorage.setItem('anibase_auto_skip', String(nextState));
+            updateAutoSkipUI();
+            if (nextState && currentActiveSkipInterval) {
+                performSkip();
+            }
+        });
+    }
+
+    player.on('timeupdate', checkSkipIntervals);
+    player.on('loadedmetadata durationchange', renderTimelineMarkers);
+
+    window.addEventListener('keydown', (event) => {
+        if (event.target && event.target.matches && event.target.matches('input, textarea, select')) {
+            return;
+        }
+        if (event.key && event.key.toLowerCase() === 's' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+            if (currentActiveSkipInterval && !skipOverlay.hidden) {
+                event.preventDefault();
+                performSkip();
+            }
+        }
+    });
+
+    if (window.EPISODE_PATH) {
+        fetchSkipTimes(window.EPISODE_PATH);
+    }
+}
+
+initAniSkip();

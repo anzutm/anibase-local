@@ -109,6 +109,22 @@
                         <button type="button" id="videoZoomValue" class="player-zoom-value" title="Reset zoom to 100%" aria-label="Video zoom 100 percent. Reset zoom">100%</button>
                         <button type="button" id="zoomInBtn" class="player-zoom-step" title="Zoom in 5%" aria-label="Zoom in 5 percent">+</button>
                     </div>
+
+                    <div class="player-subtitle-picker" id="playerSubtitlePicker" role="group" aria-label="Subtitle selection">
+                        <button type="button" id="playerSubtitleBtn" class="player-sub-btn" aria-haspopup="true" aria-expanded="false" title="Subtitle tracks">
+                            <span class="sub-icon" aria-hidden="true">&#128172;</span>
+                            <span class="sub-current-label" id="playerSubtitleLabel">Subtitle</span>
+                            <span class="sub-arrow" aria-hidden="true">&#9662;</span>
+                        </button>
+                        <div class="player-sub-menu" id="playerSubtitleMenu" role="menu" hidden>
+                            <div class="player-sub-loading">Loading subtitles...</div>
+                        </div>
+                    </div>
+
+                    <button type="button" id="playerAutoSkipBtn" class="player-sub-btn player-autoskip-btn" title="Toggle automatic skip for opening and ending (AniSkip)">
+                        <span class="sub-icon" aria-hidden="true">&#9197;</span>
+                        <span id="playerAutoSkipLabel">Auto-Skip: OFF</span>
+                    </button>
                 </div>
                 <div class="player-navigation">
                     <div class="nav-divider"></div>
@@ -292,6 +308,8 @@
     data-player-url-template="{{ url_for('player', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-stream-url-template="{{ url_for('stream_video', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-subtitle-url-template="{{ url_for('get_subtitle', anime_name='__ANIME__', episode='__EPISODE__') }}"
+    data-subtitles-list-url-template="{{ url_for('get_available_subtitles', anime_name='__ANIME__', episode='__EPISODE__') }}"
+    data-skip-times-url-template="{{ url_for('get_episode_skip_times', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-preview-url-template="{{ url_for('seek_preview', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-play-url-template="{{ url_for('play_episode', anime_name='__ANIME__', episode='__EPISODE__') }}">
 </div>
@@ -314,6 +332,8 @@
         window.PLAYER_URL_TEMPLATE = config.playerUrlTemplate;
         window.STREAM_URL_TEMPLATE = config.streamUrlTemplate;
         window.SUBTITLE_URL_TEMPLATE = config.subtitleUrlTemplate;
+        window.SUBTITLES_LIST_URL_TEMPLATE = config.subtitlesListUrlTemplate;
+        window.SKIP_TIMES_URL_TEMPLATE = config.skipTimesUrlTemplate;
         window.PREVIEW_URL_TEMPLATE = config.previewUrlTemplate;
         window.PLAY_URL_TEMPLATE = config.playUrlTemplate;
     })();

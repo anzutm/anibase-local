@@ -71,6 +71,24 @@
         </div>
         {% endif %}
 
+        {% if mal_connected %}
+        <div class="settings-success">
+            MyAnimeList account connected successfully. Auto-scrobble is now active.
+        </div>
+        {% endif %}
+
+        {% if mal_disconnected %}
+        <div class="settings-success">
+            MyAnimeList account has been disconnected.
+        </div>
+        {% endif %}
+
+        {% if mal_error %}
+        <div class="settings-error" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+            MyAnimeList Error: {{ mal_error }}
+        </div>
+        {% endif %}
+
         <div class="settings-picker-message" id="settingsPickerMessage" aria-live="polite"></div>
 
         <div class="settings-status-grid" aria-label="Settings status">
@@ -625,6 +643,88 @@
                             </select>
                             <p class="settings-helper">Applies on the next playback update. External players show session time because playback position is unavailable.</p>
                         </div>
+                    </section>
+
+                    <section class="settings-card settings-card-compact" id="settings-myanimelist">
+                        <div class="settings-card-head">
+                            <span class="settings-kicker">Tracking</span>
+                            <h3>MyAnimeList Auto-Scrobble</h3>
+                            <p>Automatically update your anime watch progress on MyAnimeList when episodes are completed.</p>
+                        </div>
+
+                        <label class="settings-toggle-row settings-toggle-row--subtle">
+                            <input
+                                type="checkbox"
+                                name="mal_scrobble_enabled"
+                                id="mal_scrobble_enabled"
+                                {% if settings.mal_scrobble_enabled %}checked{% endif %}
+                            >
+                            <span class="settings-toggle-ui" aria-hidden="true"></span>
+                            <span>
+                                <strong>Enable MAL Auto-Scrobble</strong>
+                                <small>Sync watched episodes to your MyAnimeList list automatically in the background.</small>
+                            </span>
+                        </label>
+
+                        <div class="settings-field">
+                            <label class="settings-label" for="mal_scrobble_threshold">Scrobble Threshold</label>
+                            <p class="settings-helper">Mark episode as watched on MAL when playback reaches this completion percentage.</p>
+                            <select class="settings-input" id="mal_scrobble_threshold" name="mal_scrobble_threshold">
+                                <option value="80" {% if settings.mal_scrobble_threshold == 80 %}selected{% endif %}>80% watched</option>
+                                <option value="85" {% if settings.mal_scrobble_threshold == 85 %}selected{% endif %}>85% watched</option>
+                                <option value="90" {% if settings.mal_scrobble_threshold == 90 or not settings.mal_scrobble_threshold %}selected{% endif %}>90% watched (Default)</option>
+                                <option value="95" {% if settings.mal_scrobble_threshold == 95 %}selected{% endif %}>95% watched</option>
+                            </select>
+                        </div>
+
+                        {% if mal_auth and mal_auth.access_token %}
+                        <div class="mal-connected-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 8px; background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(59, 130, 246, 0.25); margin-top: 14px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                {% if mal_auth.picture %}
+                                <img src="{{ mal_auth.picture }}" alt="{{ mal_auth.username }}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.2);">
+                                {% else %}
+                                <div style="width: 38px; height: 38px; border-radius: 50%; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">MAL</div>
+                                {% endif %}
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; color: #fff;">{{ mal_auth.username }}</div>
+                                    <div style="font-size: 11px; color: #94a3b8;">Connected &bull; Auto-sync active</div>
+                                </div>
+                            </div>
+                            <button type="submit" formaction="{{ url_for('mal_disconnect') }}" formmethod="POST" class="settings-btn settings-btn--ghost" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); font-size: 12px; padding: 6px 12px; cursor: pointer;">
+                                Disconnect
+                            </button>
+                        </div>
+                        {% else %}
+                        <div style="margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <a href="{{ url_for('mal_oauth_login') }}" class="settings-btn settings-btn--primary" id="connectMalBtn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
+                                <span>&#128279;</span> Connect MyAnimeList Account
+                            </a>
+                            {% if not has_mal_client_id %}
+                            <small style="color: #f87171; font-size: 11px;">Configure Client ID below first to enable login.</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <details style="margin-top: 16px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 14px;" {% if not has_mal_client_id %}open{% endif %}>
+                            <summary style="cursor: pointer; color: var(--accent, #38bdf8); font-size: 12px; font-weight: 600; user-select: none;">
+                                Custom MyAnimeList Client ID {% if has_mal_client_id %}(Configured){% else %}(Required for setup){% endif %}
+                            </summary>
+                            <div class="settings-field" style="margin-top: 12px;">
+                                <label class="settings-label" for="mal_client_id">Client ID</label>
+                                <p class="settings-helper">
+                                    Register on <a href="https://myanimelist.net/apiconfig" target="_blank" rel="noopener noreferrer" style="color: var(--accent, #38bdf8);">MyAnimeList API Config</a> (App Type: <em>Other</em>, Redirect URL: <code>{{ request.host_url.rstrip('/') }}/api/mal/callback</code>).
+                                </p>
+                                <input
+                                    class="settings-input"
+                                    type="text"
+                                    id="mal_client_id"
+                                    name="mal_client_id"
+                                    value="{{ settings.mal_client_id }}"
+                                    autocomplete="off"
+                                    placeholder="Paste your MAL Client ID here"
+                                >
+                            </div>
+                        </details>
                     </section>
 
                     <section class="settings-card settings-card-compact theme-settings-card" id="settings-appearance">
