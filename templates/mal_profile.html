@@ -165,11 +165,11 @@
             <span class="mal-dist-total">{{ total_items }} Total Anime</span>
         </div>
         <div class="mal-dist-bar">
-            {% if stats.num_items_completed %}<div class="mal-dist-segment completed" style="width: {{ pct_completed }}%;" title="Completed: {{ stats.num_items_completed }} ({{ pct_completed }}%)"></div>{% endif %}
-            {% if stats.num_items_watching %}<div class="mal-dist-segment watching" style="width: {{ pct_watching }}%;" title="Watching: {{ stats.num_items_watching }} ({{ pct_watching }}%)"></div>{% endif %}
-            {% if stats.num_items_plan_to_watch %}<div class="mal-dist-segment plan_to_watch" style="width: {{ pct_plan }}%;" title="Plan to Watch: {{ stats.num_items_plan_to_watch }} ({{ pct_plan }}%)"></div>{% endif %}
-            {% if stats.num_items_on_hold %}<div class="mal-dist-segment on_hold" style="width: {{ pct_hold }}%;" title="On-Hold: {{ stats.num_items_on_hold }} ({{ pct_hold }}%)"></div>{% endif %}
-            {% if stats.num_items_dropped %}<div class="mal-dist-segment dropped" style="width: {{ pct_dropped }}%;" title="Dropped: {{ stats.num_items_dropped }} ({{ pct_dropped }}%)"></div>{% endif %}
+            {% if stats.num_items_completed %}<div class="mal-dist-segment completed" data-percent="{{ pct_completed }}" title="Completed: {{ stats.num_items_completed }} ({{ pct_completed }}%)"></div>{% endif %}
+            {% if stats.num_items_watching %}<div class="mal-dist-segment watching" data-percent="{{ pct_watching }}" title="Watching: {{ stats.num_items_watching }} ({{ pct_watching }}%)"></div>{% endif %}
+            {% if stats.num_items_plan_to_watch %}<div class="mal-dist-segment plan_to_watch" data-percent="{{ pct_plan }}" title="Plan to Watch: {{ stats.num_items_plan_to_watch }} ({{ pct_plan }}%)"></div>{% endif %}
+            {% if stats.num_items_on_hold %}<div class="mal-dist-segment on_hold" data-percent="{{ pct_hold }}" title="On-Hold: {{ stats.num_items_on_hold }} ({{ pct_hold }}%)"></div>{% endif %}
+            {% if stats.num_items_dropped %}<div class="mal-dist-segment dropped" data-percent="{{ pct_dropped }}" title="Dropped: {{ stats.num_items_dropped }} ({{ pct_dropped }}%)"></div>{% endif %}
         </div>
         <div class="mal-dist-legend">
             <div class="mal-legend-item"><span class="mal-legend-dot completed"></span> Completed: <strong>{{ stats.num_items_completed|default(0) }}</strong></div>
@@ -242,7 +242,7 @@
 
                 {% if total_ep > 0 %}
                 <div class="mal-ep-progress-bar">
-                    <div class="mal-ep-progress-fill" style="width: {{ progress_pct }}%;"></div>
+                    <div class="mal-ep-progress-fill" data-progress="{{ progress_pct }}"></div>
                 </div>
                 {% endif %}
             </div>
@@ -317,6 +317,14 @@
 <!-- Client-side Interactive Behaviors -->
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    // Render progress bars and distribution segments
+    document.querySelectorAll('.mal-dist-segment[data-percent]').forEach(el => {
+        el.style.width = el.getAttribute('data-percent') + '%';
+    });
+    document.querySelectorAll('.mal-ep-progress-fill[data-progress]').forEach(el => {
+        el.style.width = el.getAttribute('data-progress') + '%';
+    });
+
     const refreshBtn = document.getElementById("malRefreshBtn");
     if (refreshBtn) {
         refreshBtn.addEventListener("click", async function () {
