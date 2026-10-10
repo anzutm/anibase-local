@@ -3760,5 +3760,211 @@ class SubtitleSanitisingTests(unittest.TestCase):
         self.assertTrue(path.endswith("Episode 01.mkv.clean-v3.vtt"))
 
 
+class SQLiteWatchDataMigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.orig_db_path = main.DB_PATH
+        self.orig_history_file = main.WATCH_HISTORY_FILE
+        self.orig_status_file = main.WATCH_STATUS_FILE
+
+        self.db_path = os.path.join(self.temp_dir.name, "test_library.db")
+        self.history_file = os.path.join(self.temp_dir.name, "watch_history.json")
+        self.status_file = os.path.join(self.temp_dir.name, "watch_status.json")
+
+        main.DB_PATH = self.db_path
+        main.WATCH_HISTORY_FILE = self.history_file
+        main.WATCH_STATUS_FILE = self.status_file
+        main.init_db()
+
+    def tearDown(self):
+        main.DB_PATH = self.orig_db_path
+        main.WATCH_HISTORY_FILE = self.orig_history_file
+        main.WATCH_STATUS_FILE = self.orig_status_file
+        self.temp_dir.cleanup()
+
+    def test_sqlite_watch_tables_created(self):
+        with main.db_connection() as conn:
+            tables = [row[0] for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()]
+            self.assertIn("watch_history", tables)
+            self.assertIn("episode_watch_status", tables)
+
+    def test_sqlite_dual_write_watch_history(self):
+        main.update_watch_history(
+            "Frieren",
+            "Episode 01.mkv",
+            1,
+            time_str="12:30",
+            last_seconds=750,
+            duration=1420,
+            media_name="Frieren",
+            display_name="Sousou no Frieren"
+        )
+        with main.db_connection() as conn:
+            row = conn.execute(
+                "SELECT episode, episode_num, last_seconds, duration FROM watch_history WHERE history_key = ?",
+                ("Frieren",)
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], "Episode 01.mkv")
+            self.assertEqual(row[1], 1)
+            self.assertEqual(row[2], 750.0)
+            self.assertEqual(row[3], 1420.0)
+
+        # Test removal sync
+        main.remove_watch_history_entry("Frieren")
+        with main.db_connection() as conn:
+            row_deleted = conn.execute(
+                "SELECT 1 FROM watch_history WHERE history_key = ?",
+                ("Frieren",)
+            ).fetchone()
+            self.assertIsNone(row_deleted)
+
+    def test_sqlite_dual_write_episode_watch_status(self):
+        main.update_episode_watch_status(
+            "Frieren",
+            "Episode 01.mkv",
+            {"watched": True, "progress": 95, "duration": 1420, "current_seconds": 1350}
+        )
+        with main.db_connection() as conn:
+            row = conn.execute(
+                "SELECT watched, progress, duration, current_seconds FROM episode_watch_status WHERE anime_name = ? AND episode = ?",
+                ("Frieren", "Episode 01.mkv")
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], 1)
+            self.assertEqual(row[1], 95.0)
+            self.assertEqual(row[2], 1420.0)
+            self.assertEqual(row[3], 1350.0)
+
+    def test_sqlite_migration_from_json(self):
+        # Clear tables
+        with main.db_connection() as conn:
+            conn.execute("DELETE FROM watch_history")
+            conn.execute("DELETE FROM episode_watch_status")
+
+        # Write test json files
+        test_history = {
+            "Steins;Gate": {
+                "episode": "Episode 01.mkv",
+                "episode_num": 1,
+                "updated_at": "2026-10-10T12:00:00",
+                "last_seconds": 300,
+                "duration": 1400
+            }
+        }
+        test_status = {
+            "Steins;Gate": {
+                "Episode 01.mkv": {
+                    "watched": True,
+                    "progress": 100,
+                    "duration": 1400,
+                    "current_seconds": 1400,
+                    "updated_at": "2026-10-10T12:00:00"
+                }
+            }
+        }
+        with open(self.history_file, "w", encoding="utf-8") as f:
+            json.dump(test_history, f)
+        with open(self.status_file, "w", encoding="utf-8") as f:
+            json.dump(test_status, f)
+
+        # Run migration
+        main.migrate_watch_data_from_json_to_db()
+
+        with main.db_connection() as conn:
+            h_row = conn.execute("SELECT episode FROM watch_history WHERE history_key = ?", ("Steins;Gate",)).fetchone()
+            self.assertIsNotNone(h_row)
+            self.assertEqual(h_row[0], "Episode 01.mkv")
+
+            s_row = conn.execute("SELECT watched, progress FROM episode_watch_status WHERE anime_name = ? AND episode = ?", ("Steins;Gate", "Episode 01.mkv")).fetchone()
+            self.assertIsNotNone(s_row)
+            self.assertEqual(s_row[0], 1)
+            self.assertEqual(s_row[1], 100.0)
+
+    def test_sqlite_read_watch_history(self):
+        # Insert directly to SQLite table
+        with main.db_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO watch_history (
+                    history_key, episode, episode_num, updated_at, time_str,
+                    last_seconds, duration, media_name, display_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("DirectDBAnime", "Episode 02.mkv", 2, "2026-10-10T15:00:00", "05:00", 300, 1400, "DirectDBAnime", "DirectDBAnime")
+            )
+
+        history = main.load_history_data()
+        self.assertIn("DirectDBAnime", history)
+        self.assertEqual(history["DirectDBAnime"]["episode"], "Episode 02.mkv")
+        self.assertEqual(history["DirectDBAnime"]["last_seconds"], 300)
+
+    def test_sqlite_read_episode_watch_status(self):
+        # Insert directly to SQLite table
+        with main.db_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO episode_watch_status (
+                    anime_name, episode, watched, progress, duration, current_seconds, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("DirectDBAnime", "Episode 02.mkv", 1, 85.5, 1400, 1197, "2026-10-10T15:00:00")
+            )
+
+        # Single episode query (O(1) indexed lookup)
+        ep_status = main.get_episode_watch_status("DirectDBAnime", "Episode 02.mkv")
+        self.assertTrue(ep_status.get("watched"))
+        self.assertEqual(ep_status.get("progress"), 85.5)
+        self.assertEqual(ep_status.get("current_seconds"), 1197)
+
+        # Bulk load
+        all_status = main.load_watch_status()
+        self.assertIn("DirectDBAnime", all_status)
+        self.assertIn("Episode 02.mkv", all_status["DirectDBAnime"])
+        self.assertEqual(all_status["DirectDBAnime"]["Episode 02.mkv"]["progress"], 85.5)
+
+    def test_sqlite_cascade_cleanup_on_anime_cache_delete(self):
+        # Add history and episode status
+        main.update_watch_history("AnimeToDelete", "Episode 01.mkv", 1, last_seconds=500, duration=1400)
+        main.update_episode_watch_status("AnimeToDelete", "Episode 01.mkv", {"watched": True, "progress": 100})
+
+        # Verify present in SQLite
+        with main.db_connection() as conn:
+            h_count = conn.execute("SELECT COUNT(*) FROM watch_history WHERE history_key = ?", ("AnimeToDelete",)).fetchone()[0]
+            s_count = conn.execute("SELECT COUNT(*) FROM episode_watch_status WHERE anime_name = ?", ("AnimeToDelete",)).fetchone()[0]
+            self.assertEqual(h_count, 1)
+            self.assertEqual(s_count, 1)
+
+        # Execute cleanup with include_watch_data=True
+        main.cleanup_anime_cache("AnimeToDelete", include_watch_data=True)
+
+        # Verify removed from SQLite
+        with main.db_connection() as conn:
+            h_count = conn.execute("SELECT COUNT(*) FROM watch_history WHERE history_key = ?", ("AnimeToDelete",)).fetchone()[0]
+            s_count = conn.execute("SELECT COUNT(*) FROM episode_watch_status WHERE anime_name = ?", ("AnimeToDelete",)).fetchone()[0]
+            self.assertEqual(h_count, 0)
+            self.assertEqual(s_count, 0)
+
+    def test_db_remove_episode_watch_status(self):
+        main.update_episode_watch_status("Movies", "movie1.mp4", {"watched": True, "progress": 100})
+        main.update_episode_watch_status("Movies", "movie2.mp4", {"watched": False, "progress": 50})
+
+        # Remove single episode
+        main.db_remove_episode_watch_status("Movies", "movie1.mp4")
+        with main.db_connection() as conn:
+            row1 = conn.execute("SELECT 1 FROM episode_watch_status WHERE anime_name = 'Movies' AND episode = 'movie1.mp4'").fetchone()
+            row2 = conn.execute("SELECT 1 FROM episode_watch_status WHERE anime_name = 'Movies' AND episode = 'movie2.mp4'").fetchone()
+            self.assertIsNone(row1)
+            self.assertIsNotNone(row2)
+
+        # Remove all episodes for Movies
+        main.db_remove_episode_watch_status("Movies")
+        with main.db_connection() as conn:
+            row2_after = conn.execute("SELECT 1 FROM episode_watch_status WHERE anime_name = 'Movies'").fetchone()
+            self.assertIsNone(row2_after)
+
+
 if __name__ == "__main__":
     unittest.main()
