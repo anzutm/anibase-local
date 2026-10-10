@@ -1427,6 +1427,18 @@ class EpisodeNumberingTests(unittest.TestCase):
             "Kuramanime-PRCR_ALT20-02-720p.mp4": 2,
             "Kuramanime-PRCR_ALT20-05-1080p.mp4": 5,
             "Kuramanime-PRCR_ALT20-06-720p.mp4": 6,
+            "Moenime_OregairuS3_01_Mkv720p.mkv": 1,
+            "Moenime_OregairuS3_02_Mkv720p.mkv": 2,
+            "Moenime_OregairuS3_03_Mkv720p.mkv": 3,
+            "Otakudesu_GoldTime--24_End_720p.mp4": 24,
+            "Otakudesu_Anime--01_720p.mp4": 1,
+            "Otakudesu_Anime--01_End_720p.mp4": 1,
+            "Otakudesu_Anime--01_TAMAT_720p.mp4": 1,
+            "Otakudesu_Anime_-_01_720p.mp4": 1,
+            "Kurogaze_Naruto_Shippuden_500_END_720p.mkv": 500,
+            "Samehadaku_Anime_01_720p.mkv": 1,
+            "Anime [01].mkv": 1,
+            "Anime - 01v2.mkv": 1,
         }
 
         for filename, expected in cases.items():
@@ -1445,6 +1457,33 @@ class EpisodeNumberingTests(unittest.TestCase):
             "Anime EP01-12 Batch.mkv": ("batch", 1, 12, "Episodes 1-12 · Batch"),
             "Anime [13-24].mkv": ("batch", 13, 24, "Episodes 13-24 · Batch"),
             "Anime Batch 1080p.mkv": ("batch", 0, None, "Batch"),
+        }
+
+        for filename, expected in cases.items():
+            with self.subTest(filename=filename):
+                identity = main.parse_episode_identity(filename)
+                self.assertEqual(
+                    (
+                        identity["kind"],
+                        identity["number"],
+                        identity["end_number"],
+                        identity["display_name"],
+                    ),
+                    expected,
+                )
+
+    def test_episode_parser_indonesian_fansub_conventions(self):
+        cases = {
+            "Moenime_OregairuS3_01_Mkv720p.mkv": ("episode", 1, None, "Episode 1"),
+            "Moenime_OregairuS3_02_Mkv720p.mkv": ("episode", 2, None, "Episode 2"),
+            "Moenime_OregairuS3_03_Mkv720p.mkv": ("episode", 3, None, "Episode 3"),
+            "Otakudesu_GoldTime--24_End_720p.mp4": ("episode", 24, None, "Episode 24"),
+            "Otakudesu_Anime--01_720p.mp4": ("episode", 1, None, "Episode 1"),
+            "Otakudesu_Anime--01_End_720p.mp4": ("episode", 1, None, "Episode 1"),
+            "Otakudesu_Anime--01_TAMAT_720p.mp4": ("episode", 1, None, "Episode 1"),
+            "Otakudesu_Anime_-_01_720p.mp4": ("episode", 1, None, "Episode 1"),
+            "Kurogaze_Naruto_Shippuden_500_END_720p.mkv": ("episode", 500, None, "Episode 500"),
+            "Samehadaku_Anime_01_720p.mkv": ("episode", 1, None, "Episode 1"),
         }
 
         for filename, expected in cases.items():

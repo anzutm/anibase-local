@@ -52,7 +52,11 @@ def compile_targets():
         if not path.exists():
             raise FileNotFoundError(f"{filename} not found")
         py_compile.compile(str(path), doraise=True)
-    return ", ".join(COMPILE_TARGETS)
+    anibase_dir = PROJECT_ROOT / "anibase"
+    if anibase_dir.is_dir():
+        for py_file in anibase_dir.rglob("*.py"):
+            py_compile.compile(str(py_file), doraise=True)
+    return ", ".join(COMPILE_TARGETS) + ", anibase/**/*.py"
 
 
 def run_unit_tests():

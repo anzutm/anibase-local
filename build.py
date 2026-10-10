@@ -30,6 +30,7 @@ SOURCE_RELEASE_FILES = (
     "THIRD_PARTY_NOTICES.md",
 )
 SOURCE_RELEASE_DIRS = ("templates", "static")
+SOURCE_RELEASE_PACKAGES = ("anibase",)
 REQUIRED_ASSETS = (
     'templates/index.html', 'templates/anime.html', 'templates/player.html',
     'templates/setup.html', 'templates/setup_loading.html',
@@ -384,6 +385,11 @@ def create_source_release(release_dir):
         source = PROJECT_ROOT / dirname
         if source.exists():
             shutil.copytree(source, release_dir / dirname)
+
+    for pkgname in SOURCE_RELEASE_PACKAGES:
+        source = PROJECT_ROOT / pkgname
+        if source.exists():
+            shutil.copytree(source, release_dir / pkgname)
 
     cache_dir = release_dir / "cache"
     cache_dir.mkdir(exist_ok=True)
