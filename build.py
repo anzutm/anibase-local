@@ -298,6 +298,10 @@ def run_pyinstaller(version="0.0.0"):
         f"{PROJECT_ROOT / 'templates'}{os.pathsep}templates",
         "--add-data",
         f"{PROJECT_ROOT / 'static'}{os.pathsep}static",
+        "--collect-all",
+        "anibase",
+        "--hidden-import",
+        "main",
         str(PROJECT_ROOT / ENTRYPOINT),
     ]
 
