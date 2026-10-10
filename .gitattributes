@@ -1,3 +1,56 @@
-static/style.css linguist-detectable=false
+# Set default behaviour to automatically normalize all text files to LF
+* text=auto eol=lf
+
+# Windows-specific scripts require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell scripts must always use LF
+*.sh text eol=lf
+
+# Source code and documents (normalized to LF in repository)
+*.py text eol=lf diff=python
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files - preserve exact bytes
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.exe binary
+*.dll binary
+*.zip binary
+*.tar.gz binary
+*.db binary
+
+# Media files
+*.mkv binary
+*.mp4 binary
+*.webm binary
+
+# Subtitles
+*.ass text eol=lf
+*.vtt text eol=lf
+*.srt text eol=lf
+
+# GitHub Linguist language statistics overrides
 static/style.css linguist-detectable=false
 static/plyr.css linguist-vendored
+static/plyr.js linguist-vendored
+static/vendor/** linguist-vendored
