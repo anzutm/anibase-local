@@ -317,12 +317,34 @@ def run_pyinstaller(version="0.0.0"):
 
 def find_media_tool(name):
     path = shutil.which(name)
-    if not path:
-        raise FileNotFoundError(
-            f"{name} was not found on PATH on the build machine. "
-            "Install FFmpeg on the build machine before creating a portable release."
-        )
-    return Path(path).resolve()
+    if path:
+        return Path(path).resolve()
+
+    if os.name == "nt":
+        suffix = ".exe"
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        if local_appdata:
+            winget_pkg_dir = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
+            if winget_pkg_dir.is_dir():
+                matches = list(winget_pkg_dir.rglob(f"{name}{suffix}"))
+                if matches:
+                    return matches[0].resolve()
+
+        repo_tool = PROJECT_ROOT / "tools" / f"{name}{suffix}"
+        if repo_tool.is_file():
+            return repo_tool.resolve()
+
+        if RELEASES_DIR.is_dir():
+            for rel_dir in RELEASES_DIR.iterdir():
+                if rel_dir.is_dir() and rel_dir.name.startswith(f"{APP_NAME} v"):
+                    candidate = rel_dir / "tools" / f"{name}{suffix}"
+                    if candidate.is_file():
+                        return candidate.resolve()
+
+    raise FileNotFoundError(
+        f"{name} was not found on PATH on the build machine. "
+        "Install FFmpeg on the build machine before creating a portable release."
+    )
 
 
 def bundle_media_tools(release_dir):
