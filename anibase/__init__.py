@@ -1,7 +1,7 @@
 # anibase/__init__.py
 """Paket inti AniBase (Local Anime Streaming & Library Management)."""
 
-__version__ = "1.4.2"
+__version__ = "1.4.3"
 
 from anibase.constants import *
 from anibase.logging import (
@@ -455,4 +455,11 @@ from anibase.web import (
     api_delete_anime,
     clear_rpc_route,
     register_api_routes,
+)
+from anibase.crypto import (
+    is_dpapi_supported,
+    dpapi_encrypt,
+    dpapi_decrypt,
+    encrypt_auth_payload,
+    decrypt_auth_payload,
 )

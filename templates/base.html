@@ -4,13 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AniBase{% endblock %}</title>
-    <style>html,body{background-color:#0b0907;color:#F3F4F5;}</style>
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: swap;
+            src: url("{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}") format('woff2');
+        }
+        html, body {
+            background-color: #0b0907;
+            color: #F3F4F5;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+    </style>
     <meta name="theme-color" content="#0b0907">
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
     {% block extra_head %}{% endblock %}
-    {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_loading'] %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='5') }}">
+    {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_loading', 'external_anime_detail'] %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='6') }}">
     {% endif %}
     {% if request.endpoint == 'schedule' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='schedule-redesign.css', v='5') }}">

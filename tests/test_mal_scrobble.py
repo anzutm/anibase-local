@@ -52,9 +52,36 @@ class MalScrobbleTests(unittest.TestCase):
         self.assertEqual(loaded.get("username"), "AnimeFan")
         self.assertEqual(loaded.get("access_token"), "test_token_123")
 
+        # Pastikan berkas di disk terenkripsi dan token plaintext tidak bocor
+        with open(self.test_auth_file, "r", encoding="utf-8") as f:
+            raw_on_disk = json.load(f)
+        self.assertTrue(raw_on_disk.get("encrypted"))
+        self.assertNotIn("test_token_123", json.dumps(raw_on_disk))
+
         main.clear_mal_auth()
         self.assertFalse(main.is_mal_authenticated())
         self.assertEqual(main.load_mal_auth(), {})
+
+    def test_legacy_plaintext_auto_migration(self):
+        # Tulis data plaintext format lama langsung ke berkas disk
+        legacy_data = {
+            "access_token": "legacy_token_secret_999",
+            "refresh_token": "legacy_refresh_secret_888",
+            "username": "LegacyOtaku"
+        }
+        with open(self.test_auth_file, "w", encoding="utf-8") as f:
+            json.dump(legacy_data, f)
+
+        # load_mal_auth harus berhasil membaca data sekaligus meng-upgrade berkas di disk
+        loaded = main.load_mal_auth()
+        self.assertEqual(loaded.get("access_token"), "legacy_token_secret_999")
+        self.assertEqual(loaded.get("username"), "LegacyOtaku")
+
+        # Verifikasi bahwa file di disk sekarang telah dienkripsi secara otomatis
+        with open(self.test_auth_file, "r", encoding="utf-8") as f:
+            raw_migrated = json.load(f)
+        self.assertTrue(raw_migrated.get("encrypted"))
+        self.assertNotIn("legacy_token_secret_999", json.dumps(raw_migrated))
 
     def test_get_valid_mal_token_active(self):
         auth_data = {

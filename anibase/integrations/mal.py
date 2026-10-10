@@ -7,6 +7,7 @@ import json
 import time
 import threading
 from urllib.parse import quote_plus
+import logging
 import requests
 from flask import request, url_for
 import anibase.constants as _constants
@@ -15,6 +16,7 @@ from anibase.utils import atomic_write_json_file
 from anibase.settings import load_settings, get_effective_mal_client_id
 from anibase.db import db_connection
 from anibase.media import get_episode_number
+from anibase.crypto import encrypt_auth_payload, decrypt_auth_payload
 
 
 def load_mal_auth():
@@ -23,15 +25,33 @@ def load_mal_auth():
             return {}
         try:
             with open(_constants.MAL_AUTH_FILE, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-                return data if isinstance(data, dict) else {}
+                raw_data = json.load(handle)
         except (OSError, ValueError):
             return {}
+
+        if not isinstance(raw_data, dict):
+            return {}
+
+        decrypted = decrypt_auth_payload(raw_data)
+
+        # Auto-migration: jika berkas di disk masih plaintext lama dan berisi token, segera upgrade ke ciphertext
+        if raw_data.get("encrypted") is not True and decrypted.get("access_token"):
+            try:
+                save_mal_auth(decrypted)
+            except Exception as e:
+                app_log(f"Auto-migrasi enkripsi kredensial MAL gagal: {e}", level=logging.WARNING)
+
+        return decrypted
 
 
 def save_mal_auth(auth_data):
     with _constants.MAL_AUTH_LOCK:
-        atomic_write_json_file(_constants.MAL_AUTH_FILE, auth_data or {}, "MyAnimeList Auth")
+        if not auth_data:
+            atomic_write_json_file(_constants.MAL_AUTH_FILE, {}, "MyAnimeList Auth")
+            return
+
+        envelope = encrypt_auth_payload(auth_data)
+        atomic_write_json_file(_constants.MAL_AUTH_FILE, envelope, "MyAnimeList Auth")
 
 
 def clear_mal_auth():
