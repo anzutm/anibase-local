@@ -172,6 +172,9 @@ LOGGING_CONFIG = None
 STARTUP_SUMMARY_LOGGED = False
 
 DISCORD_RPC_ENABLED = True
+ANIME_PATHS = []
+MOVIE_PATH = ""
+VLC_PATH = ""
 
 CACHE_DIR = os.path.join(USER_DATA_DIR, "cache")
 RUNTIME_DIR = os.path.join(USER_DATA_DIR, "runtime")
@@ -5433,6 +5436,8 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
         return {"ok": False, "reason": "token_unavailable"}
 
     info = get_cached_anilist_info(anime_name) or {}
+    if not info:
+        info = get_cached_metadata_only(anime_name) or {}
     mal_id = normalize_provider_id(info.get("mal_id"))
     if not mal_id:
         manual_mapping = get_metadata_mapping(anime_name)
@@ -5453,21 +5458,29 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
     if not force and cache_key in history:
         return {"ok": True, "already_scrobbled": True, "mal_id": mal_id, "ep_num": int(ep_num)}
 
+    anime_status = (info.get("status") or "").strip().upper()
+    if not anime_status:
+        try:
+            with db_connection() as conn:
+                row = conn.execute("SELECT status FROM anime_library WHERE name = ?", (anime_name,)).fetchone()
+                if row and row[0]:
+                    anime_status = str(row[0]).strip().upper()
+        except Exception:
+            pass
+
+    is_airing = bool(
+        anime_status in {"RELEASING", "CURRENTLY_AIRING", "AIRING", "NOT_YET_RELEASED"}
+        or info.get("next_airing")
+    )
+
     total_episodes = 0
-    try:
-        with db_connection() as conn:
-            row = conn.execute("SELECT episodes FROM anime_library WHERE name = ?", (anime_name,)).fetchone()
-            if row and row[0]:
-                total_episodes = int(row[0])
-    except Exception:
-        pass
-    if not total_episodes and info.get("episodes"):
+    if info.get("episodes"):
         try:
             total_episodes = int(info["episodes"])
         except (ValueError, TypeError):
             total_episodes = 0
 
-    if total_episodes > 0 and ep_num >= total_episodes:
+    if not is_airing and total_episodes > 0 and ep_num >= total_episodes:
         mal_status = "completed"
     else:
         mal_status = "watching"

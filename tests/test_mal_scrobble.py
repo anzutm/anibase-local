@@ -170,6 +170,70 @@ class MalScrobbleTests(unittest.TestCase):
             call_kwargs = mock_patch.call_args
             self.assertEqual(call_kwargs[1]["data"]["status"], "completed")
 
+    def test_scrobble_ongoing_releasing_anime_stays_watching(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+
+        settings = {"mal_scrobble_enabled": True}
+        anilist_info = {
+            "mal_id": 99999,
+            "episodes": 24,
+            "status": "RELEASING"
+        }
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            # Episode 14 of 24 currently airing anime
+            res = main.scrobble_episode_to_mal("Uchi no Otouto-domo ga Sumimasen", "Episode 14.mkv")
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["status"], "watching")
+            self.assertEqual(res["ep_num"], 14)
+            call_kwargs = mock_patch.call_args
+            self.assertEqual(call_kwargs[1]["data"]["status"], "watching")
+            self.assertEqual(call_kwargs[1]["data"]["num_watched_episodes"], 14)
+
+    def test_scrobble_does_not_use_local_file_count_to_mark_completed(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+
+        settings = {"mal_scrobble_enabled": True}
+        # Metadata shows 12 episodes total, currently airing
+        anilist_info = {
+            "mal_id": 88888,
+            "episodes": 12,
+            "status": "RELEASING"
+        }
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            # Simulate only having 1 local file on disk
+            with main.db_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO anime_library (name, episodes, status) VALUES (?, ?, ?)",
+                    ("Doumo Majo", 1, "RELEASING")
+                )
+            res = main.scrobble_episode_to_mal("Doumo Majo", "Episode 01.mkv")
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["status"], "watching")
+            self.assertEqual(res["ep_num"], 1)
+            call_kwargs = mock_patch.call_args
+            self.assertEqual(call_kwargs[1]["data"]["status"], "watching")
+            self.assertEqual(call_kwargs[1]["data"]["num_watched_episodes"], 1)
+
     def test_oauth_login_endpoint_redirects_with_pkce(self):
         with patch.object(main, "is_setup_complete", return_value=True), \
              patch.object(main, "load_settings", return_value={"mal_client_id": "test_client_id_999"}):
