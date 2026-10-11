@@ -545,18 +545,29 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
         "num_watched_episodes": int(ep_num),
         "status": mal_status
     }
-    try:
-        resp = requests.patch(url, data=payload, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            record_mal_scrobble(mal_id, ep_num, mal_status)
-            app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}) to MyAnimeList successfully.", "INFO")
-            return {"ok": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": mal_status}
-        else:
-            app_log(f"MAL scrobble failed ({resp.status_code}) for {anime_name} Ep {ep_num}: {resp.text}", "WARN")
-            return {"ok": False, "status_code": resp.status_code, "reason": resp.text}
-    except Exception as error:
-        app_log(f"MAL scrobble network error for {anime_name} Ep {ep_num}: {error}", "WARN")
-        return {"ok": False, "reason": str(error)}
+    last_error = None
+    for attempt in range(3):
+        try:
+            resp = requests.patch(url, data=payload, headers=headers, timeout=12)
+            if resp.status_code == 200:
+                record_mal_scrobble(mal_id, ep_num, mal_status)
+                app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}) to MyAnimeList successfully.", "INFO")
+                return {"ok": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": mal_status}
+            elif resp.status_code in {500, 502, 503, 504} and attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            else:
+                app_log(f"MAL scrobble failed ({resp.status_code}) for {anime_name} Ep {ep_num}: {resp.text}", "WARN")
+                return {"ok": False, "status_code": resp.status_code, "reason": resp.text}
+        except (requests.RequestException, OSError) as error:
+            last_error = error
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            app_log(f"MAL scrobble network error for {anime_name} Ep {ep_num}: {error}", "WARN")
+            return {"ok": False, "reason": str(error)}
+
+    return {"ok": False, "reason": str(last_error) if last_error else "unknown_error"}
 
 
 def trigger_mal_scrobble_if_enabled(anime_name, episode):
