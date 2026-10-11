@@ -724,6 +724,12 @@ def periodic_sync_task(interval_seconds=900):
         except Exception as e:
             app_log(f"Periodic sync failed: {e}", "ERROR")
 
+        try:
+            from anibase.integrations.mal import flush_pending_scrobbles
+            flush_pending_scrobbles()
+        except Exception as e:
+            debug_log(f"Periodic MAL scrobble flush failed: {e}")
+
 
 def get_auto_import_thread():
     with _constants.AUTO_IMPORT_THREAD_LOCK:

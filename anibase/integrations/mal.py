@@ -471,7 +471,166 @@ def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=No
         return {"ok": False, "reason": "network_error", "error": str(e)}
 
 
-def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
+def enqueue_pending_scrobble(anime_name, episode, ep_num=None, mal_id=None, status="watching", error_message=""):
+    """Menyimpan permintaan scrobble yang gagal ke tabel antrean SQLite lokal."""
+    from anibase.metadata import (
+        get_cached_anilist_info,
+        get_cached_metadata_only,
+        normalize_provider_id,
+        get_metadata_mapping,
+    )
+    if ep_num is None:
+        ep_num = get_episode_number(os.path.basename(episode))
+    if not ep_num or ep_num <= 0:
+        return False
+
+    ep_num = int(ep_num)
+
+    if not mal_id:
+        info = get_cached_anilist_info(anime_name) or {}
+        if not info:
+            info = get_cached_metadata_only(anime_name) or {}
+        mal_id = normalize_provider_id(info.get("mal_id"))
+        if not mal_id:
+            manual_mapping = get_metadata_mapping(anime_name)
+            if manual_mapping:
+                mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+
+    now = time.time()
+    try:
+        with db_connection() as conn:
+            conn.execute("""
+                INSERT INTO mal_pending_scrobbles (
+                    anime_name, episode, ep_num, mal_id, status, attempts, last_attempt_at, last_error, created_at
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                ON CONFLICT(anime_name, episode) DO UPDATE SET
+                    ep_num = excluded.ep_num,
+                    mal_id = COALESCE(excluded.mal_id, mal_pending_scrobbles.mal_id),
+                    status = excluded.status,
+                    attempts = mal_pending_scrobbles.attempts + 1,
+                    last_attempt_at = excluded.last_attempt_at,
+                    last_error = excluded.last_error
+            """, (
+                anime_name,
+                episode,
+                ep_num,
+                int(mal_id) if mal_id else None,
+                status,
+                now,
+                str(error_message)[:255] if error_message else None,
+                now,
+            ))
+        app_log(f"Queued pending offline MAL scrobble for {anime_name} Ep {ep_num}.", "INFO")
+        return True
+    except Exception as e:
+        app_log(f"Failed to enqueue pending MAL scrobble: {e}", "WARN")
+        return False
+
+
+def get_pending_scrobbles(limit=50):
+    """Mengambil daftar antrean scrobble yang belum berhasil dikirim."""
+    try:
+        with db_connection() as conn:
+            conn.row_factory = lambda cursor, row: {
+                "id": row[0],
+                "anime_name": row[1],
+                "episode": row[2],
+                "ep_num": row[3],
+                "mal_id": row[4],
+                "status": row[5],
+                "attempts": row[6],
+                "last_attempt_at": row[7],
+                "last_error": row[8],
+                "created_at": row[9],
+            }
+            cursor = conn.execute("""
+                SELECT id, anime_name, episode, ep_num, mal_id, status, attempts, last_attempt_at, last_error, created_at
+                FROM mal_pending_scrobbles
+                ORDER BY created_at ASC
+                LIMIT ?
+            """, (max(1, int(limit)),))
+            return cursor.fetchall()
+    except Exception as e:
+        app_log(f"Failed to query pending MAL scrobbles: {e}", "WARN")
+        return []
+
+
+def remove_pending_scrobble(item_id):
+    """Menghapus item dari antrean pending scrobble setelah berhasil disinkronkan."""
+    try:
+        with db_connection() as conn:
+            conn.execute("DELETE FROM mal_pending_scrobbles WHERE id = ?", (int(item_id),))
+        return True
+    except Exception as e:
+        app_log(f"Failed to remove pending scrobble item {item_id}: {e}", "WARN")
+        return False
+
+
+_PENDING_FLUSH_LOCK = threading.Lock()
+
+
+def flush_pending_scrobbles(max_items=25):
+    """Menyinkronkan antrean scrobble offline ke MyAnimeList saat koneksi tersedia."""
+    settings = load_settings()
+    if not settings.get("mal_scrobble_enabled") or not is_mal_authenticated():
+        return {"processed": 0, "succeeded": 0, "failed": 0, "remaining": 0}
+
+    if not _PENDING_FLUSH_LOCK.acquire(blocking=False):
+        return {"processed": 0, "succeeded": 0, "failed": 0, "reason": "already_running"}
+
+    try:
+        token = get_valid_mal_token()
+        if not token:
+            return {"processed": 0, "succeeded": 0, "failed": 0, "reason": "token_unavailable"}
+
+        pending_items = get_pending_scrobbles(limit=max_items)
+        if not pending_items:
+            return {"processed": 0, "succeeded": 0, "failed": 0, "remaining": 0}
+
+        app_log(f"Starting resync of {len(pending_items)} pending MAL scrobbles...", "INFO")
+        succeeded = 0
+        failed = 0
+
+        for item in pending_items:
+            res = scrobble_episode_to_mal(
+                anime_name=item["anime_name"],
+                episode=item["episode"],
+                ep_num=item["ep_num"],
+                force=True,
+                allow_queue=False,
+            )
+            if res.get("ok"):
+                remove_pending_scrobble(item["id"])
+                succeeded += 1
+            else:
+                failed += 1
+                try:
+                    with db_connection() as conn:
+                        conn.execute("""
+                            UPDATE mal_pending_scrobbles
+                            SET attempts = attempts + 1,
+                                last_attempt_at = ?,
+                                last_error = ?
+                            WHERE id = ?
+                        """, (time.time(), str(res.get("reason", "sync_failed"))[:255], item["id"]))
+                except Exception:
+                    pass
+
+            time.sleep(0.5)
+
+        remaining = len(get_pending_scrobbles(limit=100))
+        app_log(f"Flushed pending MAL scrobbles: {succeeded} synced, {failed} failed, {remaining} remaining.", "INFO")
+        return {
+            "processed": len(pending_items),
+            "succeeded": succeeded,
+            "failed": failed,
+            "remaining": remaining,
+        }
+    finally:
+        _PENDING_FLUSH_LOCK.release()
+
+
+def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow_queue=True):
     from anibase.metadata import (
         get_cached_anilist_info,
         get_cached_metadata_only,
@@ -484,6 +643,8 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
 
     token = get_valid_mal_token()
     if not token:
+        if allow_queue:
+            enqueue_pending_scrobble(anime_name, episode, ep_num=ep_num, error_message="token_unavailable")
         return {"ok": False, "reason": "token_unavailable"}
 
     info = get_cached_anilist_info(anime_name) or {}
@@ -558,6 +719,8 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
                 continue
             else:
                 app_log(f"MAL scrobble failed ({resp.status_code}) for {anime_name} Ep {ep_num}: {resp.text}", "WARN")
+                if allow_queue and resp.status_code in {408, 429, 500, 502, 503, 504}:
+                    enqueue_pending_scrobble(anime_name, episode, ep_num=ep_num, mal_id=mal_id, status=mal_status, error_message=f"http_{resp.status_code}")
                 return {"ok": False, "status_code": resp.status_code, "reason": resp.text}
         except (requests.RequestException, OSError) as error:
             last_error = error
@@ -565,8 +728,12 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False):
                 time.sleep(1.5 * (attempt + 1))
                 continue
             app_log(f"MAL scrobble network error for {anime_name} Ep {ep_num}: {error}", "WARN")
+            if allow_queue:
+                enqueue_pending_scrobble(anime_name, episode, ep_num=ep_num, mal_id=mal_id, status=mal_status, error_message=str(error))
             return {"ok": False, "reason": str(error)}
 
+    if allow_queue:
+        enqueue_pending_scrobble(anime_name, episode, ep_num=ep_num, mal_id=mal_id, status=mal_status, error_message=str(last_error) if last_error else "unknown_error")
     return {"ok": False, "reason": str(last_error) if last_error else "unknown_error"}
 
 
@@ -582,3 +749,4 @@ def trigger_mal_scrobble_if_enabled(anime_name, episode):
         ).start()
         return True
     return False
+

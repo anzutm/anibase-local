@@ -97,6 +97,23 @@ def init_db(db_path=None):
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_episode_status_anime ON episode_watch_status(anime_name)")
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS mal_pending_scrobbles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                anime_name TEXT NOT NULL,
+                episode TEXT NOT NULL,
+                ep_num INTEGER NOT NULL,
+                mal_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'watching',
+                attempts INTEGER DEFAULT 0,
+                last_attempt_at REAL DEFAULT 0,
+                last_error TEXT,
+                created_at REAL NOT NULL,
+                UNIQUE (anime_name, episode)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_mal_pending_created ON mal_pending_scrobbles(created_at ASC)")
+
 
 def count_library_rows(conn=None):
     """Menghitung total baris di tabel anime_library."""

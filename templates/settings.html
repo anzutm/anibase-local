@@ -789,13 +789,50 @@
                                 {% endif %}
                                 <div>
                                     <div class="mal-connected-name">{{ mal_auth.username }}</div>
-                                    <div class="mal-connected-status">Connected &bull; Auto-sync active</div>
+                                    <div class="mal-connected-status">
+                                        Connected &bull; Auto-sync active
+                                        {% if mal_pending_count and mal_pending_count > 0 %}
+                                        <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; margin-left: 6px;">{{ mal_pending_count }} offline queue pending</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
-                            <button type="submit" formaction="{{ url_for('mal_disconnect') }}" formmethod="POST" class="settings-mal-disconnect-btn">
-                                Disconnect
-                            </button>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                {% if mal_pending_count and mal_pending_count > 0 %}
+                                <button type="button" class="settings-cleanup-btn" id="malResyncQueueBtn" onclick="resyncMalQueue()" style="font-size: 0.85rem; padding: 6px 12px;">
+                                    Resync Queue
+                                </button>
+                                {% endif %}
+                                <button type="submit" formaction="{{ url_for('mal_disconnect') }}" formmethod="POST" class="settings-mal-disconnect-btn">
+                                    Disconnect
+                                </button>
+                            </div>
                         </div>
+                        <script>
+                        function resyncMalQueue() {
+                            const btn = document.getElementById('malResyncQueueBtn');
+                            if (btn) { btn.disabled = true; btn.innerText = 'Syncing...'; }
+                            fetch('/api/mal/resync-pending', {
+                                method: 'POST',
+                                headers: {
+                                    'X-Action-Token': document.querySelector('input[name="action_token"]')?.value || ''
+                                }
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ok) {
+                                    window.location.reload();
+                                } else {
+                                    alert('Resync error: ' + (data.error || 'Failed'));
+                                    if (btn) { btn.disabled = false; btn.innerText = 'Resync Queue'; }
+                                }
+                            })
+                            .catch(err => {
+                                alert('Network error: ' + err);
+                                if (btn) { btn.disabled = false; btn.innerText = 'Resync Queue'; }
+                            });
+                        }
+                        </script>
                         {% else %}
                         <div class="mal-connect-row">
                             <button type="submit" formaction="{{ url_for('mal_oauth_login') }}" formmethod="POST" class="settings-mal-connect-btn" id="connectMalBtn">

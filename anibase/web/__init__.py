@@ -98,6 +98,7 @@ from anibase.web.routes_api import (
     mal_status,
     mal_refresh_profile,
     mal_update_progress,
+    mal_resync_pending,
     play_episode,
     save_screenshot,
     update_progress,

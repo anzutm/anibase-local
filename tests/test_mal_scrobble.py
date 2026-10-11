@@ -6,6 +6,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+import requests
 
 import main
 
@@ -338,7 +339,54 @@ class MalScrobbleTests(unittest.TestCase):
             self.assertEqual(data["username"], "Otaku")
             self.assertTrue(data["scrobble_enabled"])
             self.assertEqual(data["threshold"], 85)
+            self.assertIn("pending_scrobbles", data)
+
+    def test_offline_scrobble_queue_and_flush(self):
+        main.save_mal_auth({"access_token": "valid_token", "username": "OtakuUser"})
+        settings = {"mal_scrobble_enabled": True}
+
+        # Clear any existing pending items in DB
+        with main.db_connection() as conn:
+            conn.execute("DELETE FROM mal_pending_scrobbles")
+
+        # 1. Enqueue manually & test get_pending_scrobbles
+        enqueued = main.enqueue_pending_scrobble("Sousou no Frieren", "Sousou no Frieren - 06.mkv", ep_num=6, mal_id=52991)
+        self.assertTrue(enqueued)
+
+        items = main.get_pending_scrobbles()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["anime_name"], "Sousou no Frieren")
+        self.assertEqual(items[0]["ep_num"], 6)
+
+        # 2. Simulate failed scrobble due to network exception -> automatically enqueues
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "is_mal_authenticated", return_value=True), \
+             patch.object(main, "get_valid_mal_token", return_value="valid_token"), \
+             patch.object(main, "get_cached_anilist_info", return_value={"mal_id": 52991}), \
+             patch.object(main.requests, "patch", side_effect=requests.RequestException("Connection error")):
+            res = main.scrobble_episode_to_mal("Sousou no Frieren", "Sousou no Frieren - 07.mkv", ep_num=7)
+            self.assertFalse(res.get("ok"))
+
+        items = main.get_pending_scrobbles()
+        self.assertEqual(len(items), 2)
+
+        # 3. Flush pending scrobbles when connection is restored
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "is_mal_authenticated", return_value=True), \
+             patch.object(main, "get_valid_mal_token", return_value="valid_token"), \
+             patch.object(main, "get_cached_anilist_info", return_value={"mal_id": 52991}), \
+             patch.object(main.requests, "patch", return_value=mock_resp):
+            flush_res = main.flush_pending_scrobbles()
+            self.assertEqual(flush_res.get("succeeded"), 2)
+            self.assertEqual(flush_res.get("remaining"), 0)
+
+        # Confirm queue is now empty
+        items = main.get_pending_scrobbles()
+        self.assertEqual(len(items), 0)
 
 
 if __name__ == "__main__":
     unittest.main()
+

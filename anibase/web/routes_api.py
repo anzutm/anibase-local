@@ -147,6 +147,8 @@ from anibase.integrations.mal import (
     get_mal_user_full_profile,
     update_mal_user_anime_status,
     trigger_mal_scrobble_if_enabled,
+    get_pending_scrobbles,
+    flush_pending_scrobbles,
 )
 from anibase.integrations.discord import (
     start_external_discord_presence,
@@ -1278,6 +1280,7 @@ def mal_status():
     auth = load_mal_auth()
     settings = load_settings()
     is_authed = bool(auth.get("access_token"))
+    pending_list = get_pending_scrobbles(limit=100) if is_authed else []
     return jsonify({
         "status": "success",
         "connected": is_authed,
@@ -1285,7 +1288,21 @@ def mal_status():
         "picture": auth.get("picture", "") if is_authed else "",
         "scrobble_enabled": settings.get("mal_scrobble_enabled", False),
         "threshold": settings.get("mal_scrobble_threshold", 90),
-        "client_id_configured": bool(get_effective_mal_client_id(settings))
+        "client_id_configured": bool(get_effective_mal_client_id(settings)),
+        "pending_scrobbles": len(pending_list),
+    })
+
+
+@host_only
+@require_action_token
+def mal_resync_pending():
+    if not is_mal_authenticated():
+        return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
+
+    result = flush_pending_scrobbles()
+    return jsonify({
+        "ok": True,
+        "result": result
     })
 
 
@@ -1829,6 +1846,7 @@ def register_api_routes(app):
     app.add_url_rule("/api/mal/status", endpoint="mal_status", view_func=mal_status)
     app.add_url_rule("/api/mal/refresh-profile", endpoint="mal_refresh_profile", view_func=mal_refresh_profile, methods=["POST"])
     app.add_url_rule("/api/mal/update-progress", endpoint="mal_update_progress", view_func=mal_update_progress, methods=["POST"])
+    app.add_url_rule("/api/mal/resync-pending", endpoint="mal_resync_pending", view_func=mal_resync_pending, methods=["POST"])
     app.add_url_rule("/play/<anime_name>/<path:episode>", endpoint="play_episode", view_func=play_episode, methods=["POST"])
     app.add_url_rule("/screenshot", endpoint="save_screenshot", view_func=save_screenshot, methods=["POST"])
     app.add_url_rule("/update_progress", endpoint="update_progress", view_func=update_progress, methods=["POST"])

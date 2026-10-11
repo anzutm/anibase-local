@@ -81,6 +81,7 @@ from anibase.integrations.mal import (
     get_mal_user_full_profile,
     get_mal_user_animelist,
     enrich_mal_list_with_local_library,
+    get_pending_scrobbles,
 )
 from anibase.scanner import (
     find_anime_path,
@@ -204,6 +205,7 @@ def settings_page():
         mal_connected=request.args.get("mal_connected") == "1",
         mal_disconnected=request.args.get("mal_disconnected") == "1",
         mal_error=request.args.get("mal_error"),
+        mal_pending_count=len(get_pending_scrobbles(limit=100)),
         has_mal_client_id=bool(get_effective_mal_client_id(settings)),
         default_mal_client_id=DEFAULT_MAL_CLIENT_ID
     )
