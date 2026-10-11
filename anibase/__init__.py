@@ -1,7 +1,7 @@
 # anibase/__init__.py
 """Paket inti AniBase (Local Anime Streaming & Library Management)."""
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 
 from anibase.constants import *
 from anibase.logging import (
