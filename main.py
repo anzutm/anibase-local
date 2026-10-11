@@ -10,7 +10,7 @@ from flask import (
     Response,
 )
 import flask.cli
-import logging
+import logging as std_logging
 from logging.handlers import RotatingFileHandler
 import os
 import sys
@@ -201,7 +201,7 @@ if __name__ == "__main__":
         start_auto_import_worker()
 
     flask.cli.show_server_banner = lambda *args, **kwargs: None
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    std_logging.getLogger("werkzeug").setLevel(std_logging.WARNING)
 
     log_startup_summary(
         mode="direct",
