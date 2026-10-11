@@ -95,6 +95,7 @@ from anibase.media import (
     normalize_episode_number,
     get_episode_default_display_name,
     format_timestamp,
+    get_video_duration_seconds,
 )
 from anibase.thumbnails import (
     seek_preview_identity,
@@ -125,6 +126,7 @@ from anibase.metadata import (
     get_anilist_poster,
     sanitize_external_url,
     get_cached_anilist_info,
+    get_cached_metadata_only,
     get_episode_display_override,
 )
 from anibase.integrations.anilist import (
@@ -1119,6 +1121,8 @@ def get_episode_skip_times(anime_name, episode):
         return json_error("episode_not_found", "Episode was not found.", 404)
 
     info = get_cached_anilist_info(anime_name) or {}
+    if not info:
+        info = get_cached_metadata_only(anime_name) or {}
     mal_id = normalize_provider_id(info.get("mal_id"))
     if not mal_id:
         manual_mapping = get_metadata_mapping(anime_name)
@@ -1143,6 +1147,12 @@ def get_episode_skip_times(anime_name, episode):
         })
 
     episode_length = request.args.get("episodeLength", type=float) or 0
+    if episode_length <= 0:
+        try:
+            episode_length = float(get_video_duration_seconds(video_path) or 0)
+        except Exception:
+            episode_length = 0
+
     skip_data = get_aniskip_times(mal_id, ep_num, episode_length=episode_length)
     response = jsonify({
         "status": "success",

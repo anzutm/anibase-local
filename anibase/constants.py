@@ -100,7 +100,7 @@ MAL_PROFILE_CACHE = os.path.join(CACHE_DIR, "mal_profile_cache.json")
 
 # External APIs & Defaults
 ANISKIP_BASE_URL = "https://api.aniskip.com/v2"
-ANISKIP_TIMEOUT_SECONDS = 5
+ANISKIP_TIMEOUT_SECONDS = 10
 MAL_API_BASE_URL = "https://api.myanimelist.net/v2"
 MAL_OAUTH_AUTH_URL = "https://myanimelist.net/v1/oauth2/authorize"
 MAL_OAUTH_TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"

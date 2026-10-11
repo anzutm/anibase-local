@@ -1821,7 +1821,12 @@ function initAniSkip() {
     }
 
     player.on('timeupdate', checkSkipIntervals);
-    player.on('loadedmetadata durationchange', renderTimelineMarkers);
+    player.on('loadedmetadata durationchange', () => {
+        renderTimelineMarkers();
+        if ((!episodeSkipIntervals || episodeSkipIntervals.length === 0) && window.EPISODE_PATH) {
+            fetchSkipTimes(window.EPISODE_PATH);
+        }
+    });
 
     if (window.EPISODE_PATH) {
         fetchSkipTimes(window.EPISODE_PATH);
@@ -1829,3 +1834,4 @@ function initAniSkip() {
 }
 
 initAniSkip();
+
