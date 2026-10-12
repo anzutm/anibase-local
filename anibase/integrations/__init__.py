@@ -25,6 +25,8 @@ from anibase.integrations.mal import (
     get_mal_user_animelist,
     enrich_mal_list_with_local_library,
     update_mal_user_anime_status,
+    get_user_anime_review,
+    save_user_anime_review,
     enqueue_pending_scrobble,
     get_pending_scrobbles,
     remove_pending_scrobble,

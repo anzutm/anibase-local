@@ -347,6 +347,55 @@
     </div>
 </div>
 
+<!-- Post-Completion Quick Rating & Review Modal -->
+<div id="completionRatingModal" class="player-shortcuts-modal-overlay player-rating-modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="completionRatingModalTitle">
+    <div class="player-shortcuts-modal-card player-rating-modal-card">
+        <div class="player-shortcuts-modal-header player-rating-modal-header">
+            <div class="modal-title-stack">
+                <span class="modal-kicker rating-kicker">&#127881; Series Completed!</span>
+                <h3 id="completionRatingModalTitle">Quick Rating & Review</h3>
+            </div>
+            <button type="button" id="closeRatingModalBtn" class="modal-close-btn" aria-label="Close rating modal">&times;</button>
+        </div>
+        <form id="completionRatingForm" class="player-rating-modal-body">
+            <p class="rating-modal-intro">
+                You've completed <strong id="ratingModalAnimeTitle">{{ watch_display_name if is_movie else anime_name }}</strong>! How would you rate it?
+            </p>
+
+            <div class="rating-stars-wrapper" id="ratingStarsWrapper">
+                <div class="rating-stars-container" id="ratingStarsList" role="radiogroup" aria-label="Rating from 1 to 10">
+                    {% for i in range(1, 11) %}
+                    <button type="button" class="rating-star-btn" data-score="{{ i }}" title="{{ i }} / 10" aria-label="Score {{ i }}">
+                        <svg class="rating-star-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span class="rating-star-num">{{ i }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <div class="rating-label-display" id="ratingLabelDisplay">Select your score (1 - 10)</div>
+                <input type="hidden" id="selectedRatingScore" value="0">
+            </div>
+
+            <div class="rating-comment-group">
+                <label for="ratingCommentInput" class="rating-comment-label">
+                    <span>Notes / Quick Review</span>
+                    <span class="rating-comment-hint" id="ratingSyncHint">(Saved locally & synced to MAL)</span>
+                </label>
+                <textarea id="ratingCommentInput" class="rating-comment-textarea" rows="3" placeholder="Write your thoughts, favorite scenes, or final impressions..." maxlength="1000"></textarea>
+            </div>
+
+            <div class="rating-modal-actions">
+                <button type="button" id="skipRatingModalBtn" class="rating-btn rating-btn-secondary">Maybe Later</button>
+                <button type="submit" id="submitRatingModalBtn" class="rating-btn rating-btn-primary">
+                    <span id="submitRatingBtnText">Save Rating & Review</span>
+                </button>
+            </div>
+            <div id="ratingModalStatus" class="rating-modal-status" hidden></div>
+        </form>
+    </div>
+</div>
+
 <!-- Player Libraries -->
 <script src="{{ url_for('static', filename='plyr.js') }}"></script>
 

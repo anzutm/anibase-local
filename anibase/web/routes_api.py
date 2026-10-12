@@ -151,6 +151,8 @@ from anibase.integrations.mal import (
     trigger_mal_scrobble_if_enabled,
     get_pending_scrobbles,
     flush_pending_scrobbles,
+    get_user_anime_review,
+    save_user_anime_review,
 )
 from anibase.integrations.discord import (
     start_external_discord_presence,
@@ -1345,11 +1347,109 @@ def mal_update_progress():
     num_watched = payload.get("num_watched")
     score = payload.get("score")
     status = payload.get("status")
+    comments = payload.get("comments")
+    anime_name = payload.get("anime_name")
 
-    res = update_mal_user_anime_status(mal_id, num_watched=num_watched, score=score, status=status)
+    res = update_mal_user_anime_status(
+        mal_id,
+        num_watched=num_watched,
+        score=score,
+        status=status,
+        comments=comments,
+        anime_name=anime_name
+    )
     if res.get("ok"):
         return jsonify({"ok": True, "result": res.get("data")})
     return jsonify({"ok": False, "error": res.get("reason", "Update failed")}), 400
+
+
+@host_only
+@require_action_token
+def api_mal_rate_review():
+    """Endpoint untuk submit rating (skor 1-10) dan review/komentar pasca tamat."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = request.form.to_dict()
+
+    anime_name = (payload.get("anime_name") or "").strip()
+    score = payload.get("score")
+    comments = payload.get("comments")
+    status = payload.get("status") or "completed"
+
+    if score is not None:
+        try:
+            score = max(0, min(10, int(score)))
+        except (ValueError, TypeError):
+            score = 0
+
+    mal_id = payload.get("mal_id")
+    if not mal_id and anime_name:
+        try:
+            info = get_cached_anilist_info(anime_name) or {}
+            if not info:
+                info = get_cached_metadata_only(anime_name) or {}
+            mal_id = normalize_provider_id(info.get("mal_id"))
+            if not mal_id:
+                mapping = get_metadata_mapping(anime_name)
+                if mapping:
+                    mal_id = normalize_provider_id(mapping.get("mal_id"))
+        except Exception:
+            mal_id = None
+
+    if not is_mal_authenticated():
+        if anime_name:
+            save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+            return jsonify({
+                "ok": True,
+                "message": "Review & rating saved locally (MAL not connected)",
+                "score": score,
+                "comments": comments,
+                "local_only": True
+            })
+        return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
+
+    if not mal_id:
+        if anime_name:
+            save_user_anime_review(anime_name, mal_id=None, score=score or 0, comments=comments or "")
+            return jsonify({
+                "ok": True,
+                "message": "Review & rating saved locally (No MAL ID)",
+                "score": score,
+                "comments": comments,
+                "local_only": True
+            })
+        return jsonify({"ok": False, "error": "MAL ID not found"}), 400
+
+    res = update_mal_user_anime_status(
+        mal_id,
+        score=score,
+        comments=comments,
+        status=status,
+        anime_name=anime_name
+    )
+    if res.get("ok"):
+        return jsonify({
+            "ok": True,
+            "message": "Review & rating saved successfully",
+            "score": score,
+            "comments": comments,
+            "data": res.get("data")
+        })
+
+    # If MAL sync failed, still preserve local review
+    if anime_name:
+        save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+        return jsonify({
+            "ok": True,
+            "message": "Saved locally, but MyAnimeList sync failed",
+            "score": score,
+            "comments": comments,
+            "warning": res.get("reason", "Rating update failed"),
+            "local_saved": True
+        })
+
+    return jsonify({"ok": False, "error": res.get("reason", "Rating update failed")}), 400
+
 
 
 @host_only
@@ -1668,8 +1768,47 @@ def api_update_watch_status_progress():
     )
 
     scrobbled = False
+    is_completed = False
+    mal_id = None
+    anime_title = anime_name
+
+    info = {}
+    try:
+        info = get_cached_anilist_info(anime_name) or {}
+        if not info:
+            info = get_cached_metadata_only(anime_name) or {}
+        mal_id = normalize_provider_id(info.get("mal_id"))
+        if not mal_id:
+            mapping = get_metadata_mapping(anime_name)
+            if mapping:
+                mal_id = normalize_provider_id(mapping.get("mal_id"))
+    except Exception:
+        pass
+
+    if info.get("title"):
+        anime_title = info.get("title")
+
+    ep_num = get_episode_number(os.path.basename(episode))
+    total_episodes = 0
+    if info.get("episodes"):
+        try:
+            total_episodes = int(info["episodes"])
+        except (ValueError, TypeError):
+            total_episodes = 0
+
+    anime_status = (info.get("status") or "").strip().upper()
+    is_airing = bool(
+        anime_status in {"RELEASING", "CURRENTLY_AIRING", "AIRING", "NOT_YET_RELEASED"}
+        or info.get("next_airing")
+    )
+
+    if anime_name == "Movies" or (not is_airing and total_episodes > 0 and ep_num and ep_num >= total_episodes):
+        is_completed = True
+
     if watched and not was_watched:
         scrobbled = trigger_mal_scrobble_if_enabled(anime_name, episode)
+
+    user_review = get_user_anime_review(anime_name) if is_completed else None
 
     return jsonify({
         "ok": True,
@@ -1677,7 +1816,15 @@ def api_update_watch_status_progress():
         "progress": status.get("progress", 0),
         "scrobbled": scrobbled,
         "anime_name": anime_name,
-        "episode": episode
+        "anime_title": anime_title,
+        "episode": episode,
+        "is_completed": is_completed,
+        "mal_id": int(mal_id) if mal_id else None,
+        "mal_authenticated": is_mal_authenticated(),
+        "ep_num": ep_num,
+        "total_episodes": total_episodes,
+        "user_score": user_review["score"] if user_review else None,
+        "user_comments": user_review["comments"] if user_review else ""
     })
 
 
@@ -1856,6 +2003,7 @@ def register_api_routes(app):
     app.add_url_rule("/api/mal/status", endpoint="mal_status", view_func=mal_status)
     app.add_url_rule("/api/mal/refresh-profile", endpoint="mal_refresh_profile", view_func=mal_refresh_profile, methods=["POST"])
     app.add_url_rule("/api/mal/update-progress", endpoint="mal_update_progress", view_func=mal_update_progress, methods=["POST"])
+    app.add_url_rule("/api/mal/rate-review", endpoint="api_mal_rate_review", view_func=api_mal_rate_review, methods=["POST"])
     app.add_url_rule("/api/mal/resync-pending", endpoint="mal_resync_pending", view_func=mal_resync_pending, methods=["POST"])
     app.add_url_rule("/play/<anime_name>/<path:episode>", endpoint="play_episode", view_func=play_episode, methods=["POST"])
     app.add_url_rule("/screenshot", endpoint="save_screenshot", view_func=save_screenshot, methods=["POST"])

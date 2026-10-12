@@ -427,11 +427,15 @@ player.on('ready', () => {
     const plyrContainer = document.querySelector('.plyr');
     const toast = document.getElementById('screenshotToast');
     const malToast = document.getElementById('malScrobbleToast');
+    const ratingModalEl = document.getElementById('completionRatingModal');
     if (plyrContainer && toast) {
         plyrContainer.appendChild(toast);
     }
     if (plyrContainer && malToast) {
         plyrContainer.appendChild(malToast);
+    }
+    if (plyrContainer && ratingModalEl) {
+        plyrContainer.appendChild(ratingModalEl);
     }
     if (plyrContainer) {
         getSeekFeedback('backward');
@@ -480,6 +484,226 @@ if (shortcutsModal) {
         }
     });
 }
+
+// Post-Completion Quick Rating & Review Modal
+const ratingModal = document.getElementById('completionRatingModal');
+const closeRatingModalBtn = document.getElementById('closeRatingModalBtn');
+const skipRatingModalBtn = document.getElementById('skipRatingModalBtn');
+const completionRatingForm = document.getElementById('completionRatingForm');
+const ratingStarsList = document.getElementById('ratingStarsList');
+const ratingLabelDisplay = document.getElementById('ratingLabelDisplay');
+const selectedRatingScoreInput = document.getElementById('selectedRatingScore');
+const ratingCommentInput = document.getElementById('ratingCommentInput');
+const submitRatingModalBtn = document.getElementById('submitRatingModalBtn');
+const submitRatingBtnText = document.getElementById('submitRatingBtnText');
+const ratingModalStatus = document.getElementById('ratingModalStatus');
+const ratingModalAnimeTitle = document.getElementById('ratingModalAnimeTitle');
+const ratingSyncHint = document.getElementById('ratingSyncHint');
+
+const MAL_SCORE_LABELS = {
+    1: '1 - Appalling',
+    2: '2 - Horrible',
+    3: '3 - Very Bad',
+    4: '4 - Bad',
+    5: '5 - Average',
+    6: '6 - Fine',
+    7: '7 - Good',
+    8: '8 - Very Good',
+    9: '9 - Great',
+    10: '10 - Masterpiece'
+};
+
+let currentRatingModalMalId = null;
+
+function setModalRatingScore(score) {
+    if (!selectedRatingScoreInput) return;
+    const num = Math.max(0, Math.min(10, parseInt(score, 10) || 0));
+    selectedRatingScoreInput.value = num;
+    updateRatingStarsVisual(num);
+}
+
+function updateRatingStarsVisual(score) {
+    if (!ratingStarsList) return;
+    const buttons = ratingStarsList.querySelectorAll('.rating-star-btn');
+    buttons.forEach((btn) => {
+        const btnScore = parseInt(btn.dataset.score, 10) || 0;
+        if (score > 0 && btnScore <= score) {
+            btn.classList.add('is-active');
+        } else {
+            btn.classList.remove('is-active');
+        }
+    });
+    if (ratingLabelDisplay) {
+        if (score > 0 && MAL_SCORE_LABELS[score]) {
+            ratingLabelDisplay.textContent = MAL_SCORE_LABELS[score];
+        } else {
+            ratingLabelDisplay.textContent = 'Select your score (1 - 10)';
+        }
+    }
+}
+
+if (ratingStarsList) {
+    const starButtons = ratingStarsList.querySelectorAll('.rating-star-btn');
+    starButtons.forEach((btn) => {
+        btn.addEventListener('mouseenter', () => {
+            const hoverScore = parseInt(btn.dataset.score, 10) || 0;
+            starButtons.forEach((b) => {
+                const bScore = parseInt(b.dataset.score, 10) || 0;
+                if (hoverScore > 0 && bScore <= hoverScore) {
+                    b.classList.add('is-active');
+                } else {
+                    b.classList.remove('is-active');
+                }
+            });
+            if (ratingLabelDisplay && MAL_SCORE_LABELS[hoverScore]) {
+                ratingLabelDisplay.textContent = MAL_SCORE_LABELS[hoverScore];
+            }
+        });
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const score = parseInt(btn.dataset.score, 10) || 0;
+            setModalRatingScore(score);
+        });
+    });
+
+    ratingStarsList.addEventListener('mouseleave', () => {
+        const currentScore = parseInt(selectedRatingScoreInput ? selectedRatingScoreInput.value : 0, 10) || 0;
+        updateRatingStarsVisual(currentScore);
+    });
+}
+
+function openCompletionRatingModal(data = {}) {
+    if (!ratingModal) return;
+    const animeKey = (window.ANIME_NAME || '').trim();
+    if (!animeKey) return;
+    const sessionKey = 'rated_prompt_seen_' + animeKey;
+    if (sessionStorage.getItem(sessionKey)) return;
+
+    if (ratingModalAnimeTitle && (data.anime_title || window.ANIME_NAME)) {
+        ratingModalAnimeTitle.textContent = data.anime_title || window.ANIME_NAME;
+    }
+    currentRatingModalMalId = data.mal_id || null;
+
+    if (data.mal_authenticated) {
+        if (ratingSyncHint) ratingSyncHint.textContent = '(Saved locally & synced to MyAnimeList)';
+        if (submitRatingBtnText) submitRatingBtnText.textContent = 'Save & Sync to MyAnimeList';
+    } else {
+        if (ratingSyncHint) ratingSyncHint.textContent = '(Saved locally. Connect MAL in Settings to sync)';
+        if (submitRatingBtnText) submitRatingBtnText.textContent = 'Save Rating & Review';
+    }
+
+    const prefillScore = parseInt(data.user_score, 10) || 0;
+    setModalRatingScore(prefillScore);
+
+    if (ratingCommentInput && typeof data.user_comments === 'string') {
+        ratingCommentInput.value = data.user_comments;
+    }
+
+    if (ratingModalStatus) {
+        ratingModalStatus.hidden = true;
+        ratingModalStatus.className = 'rating-modal-status';
+        ratingModalStatus.textContent = '';
+    }
+
+    if (submitRatingModalBtn) {
+        submitRatingModalBtn.disabled = false;
+    }
+
+    ratingModal.hidden = false;
+}
+
+function closeCompletionRatingModal(markDismissed = true) {
+    if (!ratingModal) return;
+    ratingModal.hidden = true;
+    if (markDismissed) {
+        const animeKey = (window.ANIME_NAME || '').trim();
+        sessionStorage.setItem('rated_prompt_seen_' + animeKey, '1');
+    }
+}
+
+if (closeRatingModalBtn) {
+    closeRatingModalBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCompletionRatingModal(true);
+    });
+}
+
+if (skipRatingModalBtn) {
+    skipRatingModalBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCompletionRatingModal(true);
+    });
+}
+
+if (ratingModal) {
+    ratingModal.addEventListener('click', (e) => {
+        if (e.target === ratingModal) {
+            closeCompletionRatingModal(true);
+        }
+    });
+}
+
+if (completionRatingForm) {
+    completionRatingForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const score = parseInt(selectedRatingScoreInput ? selectedRatingScoreInput.value : 0, 10) || 0;
+        const comments = ratingCommentInput ? ratingCommentInput.value.trim() : '';
+
+        if (score < 1 || score > 10) {
+            if (ratingModalStatus) {
+                ratingModalStatus.hidden = false;
+                ratingModalStatus.className = 'rating-modal-status is-error';
+                ratingModalStatus.textContent = 'Please select a score from 1 to 10.';
+            }
+            return;
+        }
+
+        if (submitRatingModalBtn) submitRatingModalBtn.disabled = true;
+        if (submitRatingBtnText) submitRatingBtnText.textContent = 'Saving...';
+        if (ratingModalStatus) ratingModalStatus.hidden = true;
+
+        fetch('/api/mal/rate-review', {
+            method: 'POST',
+            headers: actionHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                anime_name: window.ANIME_NAME,
+                mal_id: currentRatingModalMalId,
+                score: score,
+                comments: comments,
+                status: 'completed'
+            })
+        }).then((response) => {
+            return response.json().then((json) => {
+                if (!response.ok || !json.ok) {
+                    throw new Error(json.error || 'Failed to submit rating & review');
+                }
+                return json;
+            });
+        }).then((data) => {
+            if (ratingModalStatus) {
+                ratingModalStatus.hidden = false;
+                ratingModalStatus.className = 'rating-modal-status is-success';
+                ratingModalStatus.textContent = 'Rating & review saved successfully!';
+            }
+            if (submitRatingBtnText) submitRatingBtnText.textContent = 'Saved!';
+            const animeKey = (window.ANIME_NAME || '').trim();
+            sessionStorage.setItem('rated_prompt_seen_' + animeKey, '1');
+            setTimeout(() => {
+                closeCompletionRatingModal(false);
+                showMalScrobbleToast(`Rated ${score}/10 on MyAnimeList`, { duration: 4000 });
+            }, 1200);
+        }).catch((err) => {
+            if (submitRatingModalBtn) submitRatingModalBtn.disabled = false;
+            if (submitRatingBtnText) submitRatingBtnText.textContent = 'Save Rating & Review';
+            if (ratingModalStatus) {
+                ratingModalStatus.hidden = false;
+                ratingModalStatus.className = 'rating-modal-status is-error';
+                ratingModalStatus.textContent = err.message || 'Error saving review.';
+            }
+        });
+    });
+}
+
 
 function adjustVolume(delta) {
     if (delta > 0 && player.muted) {
@@ -564,20 +788,25 @@ function takeScreenshotShortcut() {
 }
 
 window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    const isTyping = target && (
-        target.isContentEditable ||
-        (target.matches && target.matches('input, textarea, select'))
-    );
-    if (isTyping) return;
-
     if (event.key === 'Escape') {
+        if (ratingModal && !ratingModal.hidden) {
+            event.preventDefault();
+            closeCompletionRatingModal(true);
+            return;
+        }
         if (shortcutsModal && !shortcutsModal.hidden) {
             event.preventDefault();
             toggleShortcutsModal(false);
             return;
         }
     }
+
+    const target = event.target;
+    const isTyping = target && (
+        target.isContentEditable ||
+        (target.matches && target.matches('input, textarea, select'))
+    );
+    if (isTyping) return;
 
     if (isShortcutPressed(event, 'shortcut_help')) {
         event.preventDefault();
@@ -762,6 +991,8 @@ player.on('timeupdate seeking play pause loadedmetadata', updateNextOverlay);
 player.on('ended', () => {
     if (!nextEpisodeCancelled && window.NEXT_EP_PATH && window.NEXT_EP_PATH !== 'None') {
         switchEpisode(window.NEXT_EP_PATH, { autoplay: true });
+    } else {
+        sendWatchProgress();
     }
 });
 
@@ -837,6 +1068,9 @@ function sendWatchProgress(useKeepalive = false) {
             const epLabel = window.CURRENT_EP_LABEL || window.CURRENT_EP_NUM;
             const detailText = epLabel ? `Episode ${epLabel} marked as watched` : 'Marked as watched';
             showMalScrobbleToast(detailText, { duration: 4500 });
+        }
+        if (data && data.is_completed && data.watched) {
+            openCompletionRatingModal(data);
         }
     }).catch(() => {});
 }

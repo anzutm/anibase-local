@@ -429,7 +429,47 @@ def enrich_mal_list_with_local_library(items, local_index=None):
     return enriched
 
 
-def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=None):
+def get_user_anime_review(anime_name):
+    """Mengambil rating dan review lokal untuk sebuah anime jika ada."""
+    try:
+        with db_connection() as conn:
+            row = conn.execute(
+                "SELECT mal_id, score, comments, updated_at FROM anime_user_reviews WHERE anime_name = ?",
+                (anime_name,)
+            ).fetchone()
+            if row:
+                return {
+                    "anime_name": anime_name,
+                    "mal_id": row[0],
+                    "score": row[1],
+                    "comments": row[2] or "",
+                    "updated_at": row[3]
+                }
+    except Exception:
+        pass
+    return None
+
+
+def save_user_anime_review(anime_name, mal_id=None, score=0, comments=""):
+    """Menyimpan rating dan review lokal pengguna ke SQLite."""
+    try:
+        with db_connection() as conn:
+            conn.execute("""
+                INSERT INTO anime_user_reviews (anime_name, mal_id, score, comments, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(anime_name) DO UPDATE SET
+                    mal_id = COALESCE(excluded.mal_id, anime_user_reviews.mal_id),
+                    score = excluded.score,
+                    comments = excluded.comments,
+                    updated_at = excluded.updated_at
+            """, (anime_name, int(mal_id) if mal_id else None, int(score or 0), str(comments or ""), time.time()))
+            return True
+    except Exception as e:
+        app_log(f"Failed to save user review locally: {e}", "WARN")
+        return False
+
+
+def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=None, comments=None, anime_name=None):
     from anibase.metadata import normalize_provider_id
     token = get_valid_mal_token()
     if not token:
@@ -452,6 +492,8 @@ def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=No
             pass
     if status is not None and status in ["watching", "completed", "on_hold", "dropped", "plan_to_watch"]:
         payload["status"] = status
+    if comments is not None:
+        payload["comments"] = str(comments)
 
     if not payload:
         return {"ok": False, "reason": "no_updates"}
@@ -465,10 +507,13 @@ def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=No
         resp = requests.patch(url, data=payload, headers=headers, timeout=10)
         if resp.status_code == 200:
             clear_mal_profile_cache()
+            if anime_name and (score is not None or comments is not None):
+                save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
             return {"ok": True, "data": resp.json()}
         return {"ok": False, "reason": f"http_{resp.status_code}", "text": resp.text}
     except Exception as e:
         return {"ok": False, "reason": "network_error", "error": str(e)}
+
 
 
 def enqueue_pending_scrobble(anime_name, episode, ep_num=None, mal_id=None, status="watching", error_message=""):

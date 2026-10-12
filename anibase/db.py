@@ -114,6 +114,16 @@ def init_db(db_path=None):
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_mal_pending_created ON mal_pending_scrobbles(created_at ASC)")
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS anime_user_reviews (
+                anime_name TEXT PRIMARY KEY,
+                mal_id INTEGER,
+                score INTEGER DEFAULT 0,
+                comments TEXT,
+                updated_at REAL NOT NULL
+            )
+        """)
+
 
 def count_library_rows(conn=None):
     """Menghitung total baris di tabel anime_library."""
