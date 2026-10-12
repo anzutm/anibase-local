@@ -19,7 +19,7 @@ def get_aniskip_session():
         if _ANISKIP_SESSION is None:
             _ANISKIP_SESSION = requests.Session()
             _ANISKIP_SESSION.headers.update({
-                "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.4",
+                "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.5",
                 "Accept": "application/json",
             })
         return _ANISKIP_SESSION
@@ -59,7 +59,7 @@ def get_aniskip_times(mal_id, episode_num, episode_length=0):
 
     last_error = None
     headers = {
-        "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.4",
+        "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.5",
         "Accept": "application/json",
     }
     for attempt in range(2):
