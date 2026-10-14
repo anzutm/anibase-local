@@ -469,7 +469,70 @@ def save_user_anime_review(anime_name, mal_id=None, score=0, comments=""):
         return False
 
 
-def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=None, comments=None, anime_name=None):
+_MAL_USER_ANIME_STATUS_CACHE = {}
+_MAL_USER_ANIME_STATUS_CACHE_LOCK = threading.Lock()
+_MAL_USER_ANIME_STATUS_CACHE_TTL = 3600  # 1 hour
+
+
+def get_mal_user_anime_status(mal_id, token=None, force=False):
+    """Mengecek status anime di daftar MyAnimeList pengguna (misal: 'completed', 'watching', dll).
+    Menggunakan in-memory cache dan cache daftar anime lokal sebelum memanggil API.
+    """
+    if not mal_id:
+        return None
+    try:
+        norm_id = int(mal_id)
+    except (ValueError, TypeError):
+        return None
+
+    now = time.time()
+    with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+        cached = _MAL_USER_ANIME_STATUS_CACHE.get(norm_id)
+        if not force and cached and (now - cached.get("cached_at", 0) < _MAL_USER_ANIME_STATUS_CACHE_TTL):
+            return cached.get("data")
+
+    # 1. Cek dari cache animelist 'completed' dan 'watching' lokal jika tersedia
+    for list_type in ("completed", "watching"):
+        try:
+            cached_list = load_mal_animelist_cache(list_type)
+            if cached_list and isinstance(cached_list.get("items"), list):
+                for item in cached_list["items"]:
+                    node = item.get("node") or {}
+                    if node.get("id") == norm_id:
+                        status_obj = item.get("list_status") or {"status": list_type}
+                        with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+                            _MAL_USER_ANIME_STATUS_CACHE[norm_id] = {"cached_at": now, "data": status_obj}
+                        return status_obj
+        except Exception:
+            pass
+
+    # 2. Query langsung ke API MyAnimeList v2: GET /anime/{mal_id}?fields=my_list_status
+    if token is None:
+        token = get_valid_mal_token()
+    if not token:
+        return None
+
+    url = f"{_constants.MAL_API_BASE_URL}/anime/{norm_id}?fields=my_list_status"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            status_obj = data.get("my_list_status")
+            with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+                _MAL_USER_ANIME_STATUS_CACHE[norm_id] = {"cached_at": now, "data": status_obj}
+            return status_obj
+        elif resp.status_code == 404:
+            with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+                _MAL_USER_ANIME_STATUS_CACHE[norm_id] = {"cached_at": now, "data": None}
+            return None
+    except Exception as e:
+        app_log(f"Failed to check MAL user status for anime {norm_id}: {e}", "DEBUG")
+
+    return None
+
+
+def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=None, comments=None, anime_name=None, is_rewatching=None):
     from anibase.metadata import normalize_provider_id
     token = get_valid_mal_token()
     if not token:
@@ -492,6 +555,8 @@ def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=No
             pass
     if status is not None and status in ["watching", "completed", "on_hold", "dropped", "plan_to_watch"]:
         payload["status"] = status
+    if is_rewatching is not None:
+        payload["is_rewatching"] = "true" if is_rewatching else "false"
     if comments is not None:
         payload["comments"] = str(comments)
 
@@ -507,6 +572,11 @@ def update_mal_user_anime_status(mal_id, num_watched=None, score=None, status=No
         resp = requests.patch(url, data=payload, headers=headers, timeout=10)
         if resp.status_code == 200:
             clear_mal_profile_cache()
+            with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+                _MAL_USER_ANIME_STATUS_CACHE[int(mal_id)] = {
+                    "cached_at": time.time(),
+                    "data": resp.json()
+                }
             if anime_name and (score is not None or comments is not None):
                 save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
             return {"ok": True, "data": resp.json()}
@@ -737,28 +807,75 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
         except (ValueError, TypeError):
             total_episodes = 0
 
-    if not is_airing and total_episodes > 0 and ep_num >= total_episodes:
-        mal_status = "completed"
+    user_status_obj = get_mal_user_anime_status(mal_id, token=token)
+    current_status = ""
+    is_rewatching_flag = False
+    if isinstance(user_status_obj, dict):
+        current_status = str(user_status_obj.get("status") or "").strip().lower()
+        is_rewatching_flag = bool(user_status_obj.get("is_rewatching"))
+
+    local_review = get_user_anime_review(anime_name)
+    was_completed_before = bool(
+        current_status == "completed"
+        or is_rewatching_flag
+        or (local_review and local_review.get("score"))
+    )
+
+    rewatch_mode = str(settings.get("mal_rewatch_mode", "rewatch")).strip().lower()
+    is_final_episode = bool(
+        (anime_name == "Movies")
+        or (not is_airing and total_episodes > 0 and ep_num >= total_episodes)
+    )
+
+    payload = {
+        "num_watched_episodes": int(ep_num)
+    }
+
+    if was_completed_before:
+        if rewatch_mode == "ignore":
+            record_mal_scrobble(mal_id, ep_num, "completed")
+            app_log(f"Scrobble skipped for {anime_name} Ep {ep_num}: anime is already completed on MAL (rewatch_mode=ignore).", "INFO")
+            return {"ok": True, "already_completed": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": "completed"}
+        elif rewatch_mode == "rewatch":
+            mal_status = "completed"
+            is_rewatching = not is_final_episode
+            payload["status"] = "completed"
+            payload["is_rewatching"] = "true" if is_rewatching else "false"
+        else:  # "revert"
+            mal_status = "completed" if is_final_episode else "watching"
+            payload["status"] = mal_status
     else:
-        mal_status = "watching"
+        if is_final_episode:
+            mal_status = "completed"
+        else:
+            mal_status = "watching"
+        payload["status"] = mal_status
 
     url = f"{_constants.MAL_API_BASE_URL}/anime/{int(mal_id)}/my_list_status"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/x-www-form-urlencoded"
     }
-    payload = {
-        "num_watched_episodes": int(ep_num),
-        "status": mal_status
-    }
     last_error = None
     for attempt in range(3):
         try:
             resp = requests.patch(url, data=payload, headers=headers, timeout=12)
             if resp.status_code == 200:
+                with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+                    _MAL_USER_ANIME_STATUS_CACHE[int(mal_id)] = {
+                        "cached_at": time.time(),
+                        "data": resp.json()
+                    }
                 record_mal_scrobble(mal_id, ep_num, mal_status)
-                app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}) to MyAnimeList successfully.", "INFO")
-                return {"ok": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": mal_status}
+                rewatch_label = " (Rewatching)" if (was_completed_before and mal_status == "completed" and not is_final_episode) else ""
+                app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}{rewatch_label}) to MyAnimeList successfully.", "INFO")
+                return {
+                    "ok": True,
+                    "mal_id": mal_id,
+                    "ep_num": int(ep_num),
+                    "status": mal_status,
+                    "is_rewatching": payload.get("is_rewatching") == "true"
+                }
             elif resp.status_code in {500, 502, 503, 504} and attempt < 2:
                 time.sleep(1.5 * (attempt + 1))
                 continue

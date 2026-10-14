@@ -48,6 +48,7 @@ def get_default_settings():
         "mal_scrobble_enabled": False,
         "mal_client_id": "",
         "mal_scrobble_threshold": 90,
+        "mal_rewatch_mode": "rewatch",
         "shortcuts": constants.DEFAULT_PLAYER_SHORTCUTS.copy()
     }
 

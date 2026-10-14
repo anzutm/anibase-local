@@ -386,6 +386,128 @@ class MalScrobbleTests(unittest.TestCase):
         items = main.get_pending_scrobbles()
         self.assertEqual(len(items), 0)
 
+    def test_scrobble_rewatch_completed_anime_keeps_completed_and_sets_rewatching(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "completed", "num_episodes_watched": 1, "is_rewatching": True}
+
+        settings = {"mal_scrobble_enabled": True, "mal_rewatch_mode": "rewatch"}
+        anilist_info = {"mal_id": 36882, "episodes": 13, "status": "FINISHED"}
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main, "get_mal_user_anime_status", return_value={"status": "completed", "is_rewatching": False}), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            res = main.scrobble_episode_to_mal("Arifureta", "Arifureta - 01.mkv", ep_num=1)
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["status"], "completed")
+            self.assertTrue(res["is_rewatching"])
+            mock_patch.assert_called_once()
+            call_kwargs = mock_patch.call_args
+            self.assertEqual(call_kwargs[1]["data"]["status"], "completed")
+            self.assertEqual(call_kwargs[1]["data"]["num_watched_episodes"], 1)
+            self.assertEqual(call_kwargs[1]["data"]["is_rewatching"], "true")
+
+    def test_scrobble_rewatch_completed_anime_final_episode_clears_rewatching(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "completed", "num_episodes_watched": 13, "is_rewatching": False}
+
+        settings = {"mal_scrobble_enabled": True, "mal_rewatch_mode": "rewatch"}
+        anilist_info = {"mal_id": 36882, "episodes": 13, "status": "FINISHED"}
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main, "get_mal_user_anime_status", return_value={"status": "completed", "is_rewatching": True}), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            res = main.scrobble_episode_to_mal("Arifureta", "Arifureta - 13.mkv", ep_num=13)
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["status"], "completed")
+            self.assertFalse(res["is_rewatching"])
+            mock_patch.assert_called_once()
+            call_kwargs = mock_patch.call_args
+            self.assertEqual(call_kwargs[1]["data"]["status"], "completed")
+            self.assertEqual(call_kwargs[1]["data"]["num_watched_episodes"], 13)
+            self.assertEqual(call_kwargs[1]["data"]["is_rewatching"], "false")
+
+    def test_scrobble_rewatch_mode_ignore_skips_mal_call(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        settings = {"mal_scrobble_enabled": True, "mal_rewatch_mode": "ignore"}
+        anilist_info = {"mal_id": 36882, "episodes": 13, "status": "FINISHED"}
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main, "get_mal_user_anime_status", return_value={"status": "completed"}), \
+             patch.object(main.requests, "patch") as mock_patch:
+            res = main.scrobble_episode_to_mal("Arifureta", "Arifureta - 01.mkv", ep_num=1)
+            self.assertTrue(res["ok"])
+            self.assertTrue(res.get("already_completed"))
+            mock_patch.assert_not_called()
+
+    def test_scrobble_rewatch_mode_revert_reverts_to_watching(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "watching", "num_episodes_watched": 1}
+
+        settings = {"mal_scrobble_enabled": True, "mal_rewatch_mode": "revert"}
+        anilist_info = {"mal_id": 36882, "episodes": 13, "status": "FINISHED"}
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_cached_anilist_info", return_value=anilist_info), \
+             patch.object(main, "get_mal_user_anime_status", return_value={"status": "completed"}), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            res = main.scrobble_episode_to_mal("Arifureta", "Arifureta - 01.mkv", ep_num=1)
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["status"], "watching")
+            call_kwargs = mock_patch.call_args
+            self.assertEqual(call_kwargs[1]["data"]["status"], "watching")
+            self.assertEqual(call_kwargs[1]["data"]["num_watched_episodes"], 1)
+
+    def test_get_mal_user_anime_status_caching(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "my_list_status": {
+                "status": "completed",
+                "num_episodes_watched": 12,
+                "score": 9,
+                "is_rewatching": False
+            }
+        }
+        with patch.object(main, "get_valid_mal_token", return_value="tok_123"), \
+             patch.object(main.requests, "get", return_value=mock_resp) as mock_get:
+            status1 = main.get_mal_user_anime_status(77777, force=True)
+            self.assertEqual(status1.get("status"), "completed")
+            self.assertEqual(mock_get.call_count, 1)
+
+            # Subsequent call within TTL should return from in-memory cache without calling API
+            status2 = main.get_mal_user_anime_status(77777, force=False)
+            self.assertEqual(status2.get("status"), "completed")
+            self.assertEqual(mock_get.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

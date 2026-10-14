@@ -184,6 +184,7 @@ from anibase.integrations import (
     save_mal_animelist_cache,
     get_mal_user_animelist,
     enrich_mal_list_with_local_library,
+    get_mal_user_anime_status,
     update_mal_user_anime_status,
     get_user_anime_review,
     save_user_anime_review,
