@@ -81,5 +81,37 @@ class EpisodeThumbnailBrowserTests(unittest.TestCase):
             thread.join(timeout=5)
 
 
+class EpisodeThumbnailScriptUnitTests(unittest.TestCase):
+    def setUp(self):
+        self.project_root = os.path.dirname(os.path.dirname(__file__))
+
+    def test_script_exposes_init_and_mutation_observer(self):
+        js_path = os.path.join(self.project_root, "static", "episode-thumbnails.js")
+        self.assertTrue(os.path.exists(js_path))
+        with open(js_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("window.initEpisodeThumbnails = initEpisodeThumbnails", content)
+        self.assertIn("MutationObserver", content)
+        self.assertIn("IntersectionObserver", content)
+        self.assertIn("activeLoads = new Set()", content)
+
+    def test_anime_template_invokes_thumbnail_init_on_season_switch(self):
+        anime_html_path = os.path.join(self.project_root, "templates", "anime.html")
+        with open(anime_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("window.initEpisodeThumbnails()", content)
+        self.assertIn("window.initEpisodeThumbnails(grid)", content)
+        self.assertIn("episode-thumbnails.js?v=2", content.replace("', v='", "?v=").replace('", v="', "?v="))
+
+    def test_player_template_uses_version_2(self):
+        player_html_path = os.path.join(self.project_root, "templates", "player.html")
+        with open(player_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("episode-thumbnails.js?v=2", content.replace("', v='", "?v=").replace('", v="', "?v="))
+
+
 if __name__ == "__main__":
     unittest.main()

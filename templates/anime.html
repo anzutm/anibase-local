@@ -869,6 +869,9 @@ function initializeAnimeDetailContent() {
         if (emptyState) {
             emptyState.hidden = visibleCount > 0;
         }
+        if (window.initEpisodeThumbnails) {
+            window.initEpisodeThumbnails(grid);
+        }
     }
 
     filterButtons.forEach((button) => {
@@ -1039,6 +1042,7 @@ function restoreSeasonView(url) {
         metadataScript.dataset.seasonName = cached.metadata.seasonName;
     }
     initializeAnimeDetailContent();
+    if (window.initEpisodeThumbnails) window.initEpisodeThumbnails();
     if (window.initializeMetadataMatch) window.initializeMetadataMatch();
     animateAnimeEpisodeCards();
     return true;
@@ -1083,6 +1087,7 @@ async function loadAnimeSeason(url, pushHistory = true) {
         if (pushHistory) history.pushState({ seasonUrl: url }, '', url);
         activeSeasonUrl = targetUrl;
         initializeAnimeDetailContent();
+        if (window.initEpisodeThumbnails) window.initEpisodeThumbnails();
         if (window.initializeMetadataMatch) window.initializeMetadataMatch();
         animateAnimeEpisodeCards();
         cacheCurrentSeasonView(targetUrl);
@@ -1761,6 +1766,6 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
 };
 window.initializeMetadataMatch();
 </script>
-<script src="{{ url_for('static', filename='episode-thumbnails.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
 </body>
 </html>
