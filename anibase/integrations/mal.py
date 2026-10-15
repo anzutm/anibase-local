@@ -90,13 +90,9 @@ def record_mal_scrobble(mal_id, ep_num, status="watching"):
 
 
 def clear_mal_scrobble_record(anime_name, episode):
-    from anibase.metadata import get_cached_anilist_info, normalize_provider_id, get_metadata_mapping
-    info = get_cached_anilist_info(anime_name) or {}
-    mal_id = normalize_provider_id(info.get("mal_id"))
-    if not mal_id:
-        mapping = get_metadata_mapping(anime_name)
-        if mapping:
-            mal_id = normalize_provider_id(mapping.get("mal_id"))
+    from anibase.metadata import resolve_episode_metadata
+    meta = resolve_episode_metadata(anime_name, episode)
+    mal_id = meta.get("mal_id")
     if not mal_id:
         return
     ep_num = get_episode_number(os.path.basename(episode))
@@ -602,14 +598,9 @@ def enqueue_pending_scrobble(anime_name, episode, ep_num=None, mal_id=None, stat
     ep_num = int(ep_num)
 
     if not mal_id:
-        info = get_cached_anilist_info(anime_name) or {}
-        if not info:
-            info = get_cached_metadata_only(anime_name) or {}
-        mal_id = normalize_provider_id(info.get("mal_id"))
-        if not mal_id:
-            manual_mapping = get_metadata_mapping(anime_name)
-            if manual_mapping:
-                mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+        from anibase.metadata import resolve_episode_metadata
+        meta = resolve_episode_metadata(anime_name, episode)
+        mal_id = meta.get("mal_id")
 
     now = time.time()
     try:
@@ -747,6 +738,7 @@ def flush_pending_scrobbles(max_items=25):
 
 def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow_queue=True):
     from anibase.metadata import (
+        resolve_episode_metadata,
         get_cached_anilist_info,
         get_cached_metadata_only,
         normalize_provider_id,
@@ -762,14 +754,10 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
             enqueue_pending_scrobble(anime_name, episode, ep_num=ep_num, error_message="token_unavailable")
         return {"ok": False, "reason": "token_unavailable"}
 
-    info = get_cached_anilist_info(anime_name) or {}
-    if not info:
-        info = get_cached_metadata_only(anime_name) or {}
-    mal_id = normalize_provider_id(info.get("mal_id"))
-    if not mal_id:
-        manual_mapping = get_metadata_mapping(anime_name)
-        if manual_mapping:
-            mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+    meta = resolve_episode_metadata(anime_name, episode)
+    info = meta.get("info") or {}
+    mal_id = meta.get("mal_id")
+    metadata_name = meta.get("metadata_name") or anime_name
     if not mal_id:
         app_log(f"Cannot scrobble {anime_name}: MAL ID not found in metadata.", "INFO")
         return {"ok": False, "reason": "no_mal_id"}
@@ -800,12 +788,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
         or info.get("next_airing")
     )
 
-    total_episodes = 0
-    if info.get("episodes"):
-        try:
-            total_episodes = int(info["episodes"])
-        except (ValueError, TypeError):
-            total_episodes = 0
+    total_episodes = meta.get("total_episodes") or 0
 
     user_status_obj = get_mal_user_anime_status(mal_id, token=token)
     current_status = ""
@@ -814,7 +797,9 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
         current_status = str(user_status_obj.get("status") or "").strip().lower()
         is_rewatching_flag = bool(user_status_obj.get("is_rewatching"))
 
-    local_review = get_user_anime_review(anime_name)
+    local_review = get_user_anime_review(metadata_name)
+    if not local_review and metadata_name != anime_name:
+        local_review = get_user_anime_review(anime_name)
     was_completed_before = bool(
         current_status == "completed"
         or is_rewatching_flag
@@ -834,7 +819,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
     if was_completed_before:
         if rewatch_mode == "ignore":
             record_mal_scrobble(mal_id, ep_num, "completed")
-            app_log(f"Scrobble skipped for {anime_name} Ep {ep_num}: anime is already completed on MAL (rewatch_mode=ignore).", "INFO")
+            app_log(f"Scrobble skipped for {metadata_name} Ep {ep_num}: anime is already completed on MAL (rewatch_mode=ignore).", "INFO")
             return {"ok": True, "already_completed": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": "completed"}
         elif rewatch_mode == "rewatch":
             mal_status = "completed"
@@ -868,7 +853,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
                     }
                 record_mal_scrobble(mal_id, ep_num, mal_status)
                 rewatch_label = " (Rewatching)" if (was_completed_before and mal_status == "completed" and not is_final_episode) else ""
-                app_log(f"Scrobbled {anime_name} Ep {ep_num} ({mal_status}{rewatch_label}) to MyAnimeList successfully.", "INFO")
+                app_log(f"Scrobbled {metadata_name} Ep {ep_num} ({mal_status}{rewatch_label}) to MyAnimeList successfully.", "INFO")
                 return {
                     "ok": True,
                     "mal_id": mal_id,

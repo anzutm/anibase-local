@@ -121,6 +121,7 @@ from anibase.metadata import (
     remove_anilist_mapping,
     get_metadata_mapping,
     get_season_metadata_name,
+    resolve_episode_metadata,
     save_episode_display_override,
     remove_episode_display_overrides,
     get_anilist_poster,
@@ -1127,14 +1128,8 @@ def get_episode_skip_times(anime_name, episode):
     if not video_path or not os.path.isfile(video_path):
         return json_error("episode_not_found", "Episode was not found.", 404)
 
-    info = get_cached_anilist_info(anime_name) or {}
-    if not info:
-        info = get_cached_metadata_only(anime_name) or {}
-    mal_id = normalize_provider_id(info.get("mal_id"))
-    if not mal_id:
-        manual_mapping = get_metadata_mapping(anime_name)
-        if manual_mapping:
-            mal_id = normalize_provider_id(manual_mapping.get("mal_id"))
+    meta = resolve_episode_metadata(anime_name, episode)
+    mal_id = meta.get("mal_id")
 
     if not mal_id:
         return jsonify({
@@ -1378,6 +1373,8 @@ def api_mal_rate_review():
         payload = request.form.to_dict()
 
     anime_name = (payload.get("anime_name") or "").strip()
+    metadata_name = (payload.get("metadata_name") or anime_name).strip()
+    episode = payload.get("episode")
     score = payload.get("score")
     comments = payload.get("comments")
     status = payload.get("status") or "completed"
@@ -1389,22 +1386,23 @@ def api_mal_rate_review():
             score = 0
 
     mal_id = payload.get("mal_id")
-    if not mal_id and anime_name:
+    if not mal_id and (anime_name or episode):
         try:
-            info = get_cached_anilist_info(anime_name) or {}
-            if not info:
-                info = get_cached_metadata_only(anime_name) or {}
-            mal_id = normalize_provider_id(info.get("mal_id"))
-            if not mal_id:
-                mapping = get_metadata_mapping(anime_name)
-                if mapping:
-                    mal_id = normalize_provider_id(mapping.get("mal_id"))
+            if episode:
+                meta = resolve_episode_metadata(anime_name, episode)
+                mal_id = meta.get("mal_id")
+                metadata_name = meta.get("metadata_name") or metadata_name
+            else:
+                meta = resolve_episode_metadata(metadata_name, "")
+                mal_id = meta.get("mal_id")
         except Exception:
             mal_id = None
 
     if not is_mal_authenticated():
-        if anime_name:
-            save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+        if metadata_name:
+            save_user_anime_review(metadata_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+            if anime_name and anime_name != metadata_name:
+                save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
             return jsonify({
                 "ok": True,
                 "message": "Review & rating saved locally (MAL not connected)",
@@ -1415,8 +1413,10 @@ def api_mal_rate_review():
         return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
 
     if not mal_id:
-        if anime_name:
-            save_user_anime_review(anime_name, mal_id=None, score=score or 0, comments=comments or "")
+        if metadata_name:
+            save_user_anime_review(metadata_name, mal_id=None, score=score or 0, comments=comments or "")
+            if anime_name and anime_name != metadata_name:
+                save_user_anime_review(anime_name, mal_id=None, score=score or 0, comments=comments or "")
             return jsonify({
                 "ok": True,
                 "message": "Review & rating saved locally (No MAL ID)",
@@ -1431,9 +1431,12 @@ def api_mal_rate_review():
         score=score,
         comments=comments,
         status=status,
-        anime_name=anime_name
+        anime_name=metadata_name
     )
     if res.get("ok"):
+        save_user_anime_review(metadata_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+        if anime_name and anime_name != metadata_name:
+            save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
         return jsonify({
             "ok": True,
             "message": "Review & rating saved successfully",
@@ -1443,8 +1446,10 @@ def api_mal_rate_review():
         })
 
     # If MAL sync failed, still preserve local review
-    if anime_name:
-        save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+    if metadata_name:
+        save_user_anime_review(metadata_name, mal_id=mal_id, score=score or 0, comments=comments or "")
+        if anime_name and anime_name != metadata_name:
+            save_user_anime_review(anime_name, mal_id=mal_id, score=score or 0, comments=comments or "")
         return jsonify({
             "ok": True,
             "message": "Saved locally, but MyAnimeList sync failed",
@@ -1775,32 +1780,15 @@ def api_update_watch_status_progress():
 
     scrobbled = False
     is_completed = False
-    mal_id = None
-    anime_title = anime_name
 
-    info = {}
-    try:
-        info = get_cached_anilist_info(anime_name) or {}
-        if not info:
-            info = get_cached_metadata_only(anime_name) or {}
-        mal_id = normalize_provider_id(info.get("mal_id"))
-        if not mal_id:
-            mapping = get_metadata_mapping(anime_name)
-            if mapping:
-                mal_id = normalize_provider_id(mapping.get("mal_id"))
-    except Exception:
-        pass
-
-    if info.get("title"):
-        anime_title = info.get("title")
+    meta = resolve_episode_metadata(anime_name, episode)
+    info = meta.get("info") or {}
+    mal_id = meta.get("mal_id")
+    metadata_name = meta.get("metadata_name") or anime_name
+    anime_title = meta.get("anime_title") or anime_name
 
     ep_num = get_episode_number(os.path.basename(episode))
-    total_episodes = 0
-    if info.get("episodes"):
-        try:
-            total_episodes = int(info["episodes"])
-        except (ValueError, TypeError):
-            total_episodes = 0
+    total_episodes = meta.get("total_episodes") or 0
 
     anime_status = (info.get("status") or "").strip().upper()
     is_airing = bool(
@@ -1814,7 +1802,7 @@ def api_update_watch_status_progress():
     if watched and not was_watched:
         scrobbled = trigger_mal_scrobble_if_enabled(anime_name, episode)
 
-    user_review = get_user_anime_review(anime_name) if is_completed else None
+    user_review = (get_user_anime_review(metadata_name) or get_user_anime_review(anime_name)) if is_completed else None
 
     return jsonify({
         "ok": True,
@@ -1822,6 +1810,7 @@ def api_update_watch_status_progress():
         "progress": status.get("progress", 0),
         "scrobbled": scrobbled,
         "anime_name": anime_name,
+        "metadata_name": metadata_name,
         "anime_title": anime_title,
         "episode": episode,
         "is_completed": is_completed,

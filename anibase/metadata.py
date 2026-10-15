@@ -20,6 +20,7 @@ from anibase.utils import (
     atomic_write_json_file,
     normalize_episode_path_key,
     normalize_episode_display_name,
+    clean_movie_title,
 )
 from anibase.settings import load_settings, save_settings
 
@@ -332,6 +333,106 @@ def get_season_anilist_info(anime_name, season_name):
     if info:
         info["character_cache_name"] = metadata_name
     return info
+
+
+def resolve_episode_metadata(anime_name, episode):
+    """Menentukan metadata (AniList/Tenrai info, MAL ID, judul, musim) yang tepat untuk sebuah episode.
+    Mendukung anime dengan folder Season bertingkat, anime movie, dan file tanpa folder.
+    """
+    anime_name = str(anime_name or "").strip()
+    norm_ep = str(episode or "").replace("\\", "/").strip()
+
+    # 1. Kasus Movie
+    if anime_name == "Movies":
+        movie_title = clean_movie_title(os.path.basename(norm_ep))
+        info = get_cached_anilist_info(movie_title) or get_cached_metadata_only(movie_title) or {}
+        mal_id = normalize_provider_id(info.get("mal_id"))
+        if not mal_id:
+            mapping = get_metadata_mapping(movie_title)
+            if mapping:
+                mal_id = normalize_provider_id(mapping.get("mal_id"))
+        return {
+            "metadata_name": movie_title,
+            "season_name": None,
+            "info": info,
+            "mal_id": mal_id,
+            "anime_title": info.get("title") or movie_title,
+            "total_episodes": 1,
+        }
+
+    # 2. Deteksi Season dari path episode (misal: "Season 2/Episode 01.mkv")
+    season_name = None
+    parts = [p for p in norm_ep.split("/") if p and p != "."]
+    if len(parts) > 1:
+        # Bagian pertama path relatif adalah nama folder season
+        season_name = parts[0]
+    else:
+        # Jika file berada langsung di root anime_name, cek apakah nama file mengindikasikan season
+        filename = parts[0] if parts else ""
+        season_match = re.search(r"(?:^|[\s._\-\[\(])(?:season|s)\s*0*([1-9]\d?)(?:[\s._\-\]\)]|$)", filename, re.IGNORECASE)
+        if season_match:
+            cand_season = f"Season {int(season_match.group(1))}"
+            cand_meta = get_season_metadata_name(anime_name, cand_season)
+            # Pastikan kandidat season ini memang valid/ada di mapping atau cache
+            if get_metadata_mapping(cand_meta) or os.path.exists(os.path.join(_constants.METADATA_CACHE, f"{cand_meta}.json")):
+                season_name = cand_season
+
+    # 3. Jika Season terdeteksi, coba ambil metadata spesifik musim tersebut
+    if season_name:
+        metadata_name = get_season_metadata_name(anime_name, season_name)
+        info = get_season_anilist_info(anime_name, season_name) or {}
+        if not info:
+            info = get_cached_anilist_info(metadata_name) or {}
+        if not info:
+            info = get_cached_metadata_only(metadata_name) or {}
+        mal_id = normalize_provider_id(info.get("mal_id"))
+        if not mal_id:
+            mapping = get_metadata_mapping(metadata_name)
+            if mapping:
+                mal_id = normalize_provider_id(mapping.get("mal_id"))
+
+        # Jika season metadata atau mal_id berhasil ditemukan
+        if mal_id or info:
+            episodes_count = 0
+            if info.get("episodes"):
+                try:
+                    episodes_count = int(info["episodes"])
+                except (ValueError, TypeError):
+                    episodes_count = 0
+            return {
+                "metadata_name": metadata_name,
+                "season_name": season_name,
+                "info": info,
+                "mal_id": mal_id,
+                "anime_title": info.get("title") or metadata_name,
+                "total_episodes": episodes_count,
+            }
+
+    # 4. Fallback ke anime_name tingkat utama
+    info = get_cached_anilist_info(anime_name) or {}
+    if not info:
+        info = get_cached_metadata_only(anime_name) or {}
+    mal_id = normalize_provider_id(info.get("mal_id"))
+    if not mal_id:
+        mapping = get_metadata_mapping(anime_name)
+        if mapping:
+            mal_id = normalize_provider_id(mapping.get("mal_id"))
+
+    episodes_count = 0
+    if info.get("episodes"):
+        try:
+            episodes_count = int(info["episodes"])
+        except (ValueError, TypeError):
+            episodes_count = 0
+
+    return {
+        "metadata_name": anime_name,
+        "season_name": None,
+        "info": info,
+        "mal_id": mal_id,
+        "anime_title": info.get("title") or anime_name,
+        "total_episodes": episodes_count,
+    }
 
 
 def get_episode_display_override(anime_name, episode_path, settings=None):

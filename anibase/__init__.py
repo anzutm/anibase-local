@@ -267,6 +267,7 @@ from anibase.metadata import (
     format_schedule_alert_countdown,
     get_season_metadata_name,
     get_season_anilist_info,
+    resolve_episode_metadata,
     get_episode_display_override,
     save_episode_display_override,
     remove_episode_display_overrides,

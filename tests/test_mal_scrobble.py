@@ -508,6 +508,62 @@ class MalScrobbleTests(unittest.TestCase):
             self.assertEqual(status2.get("status"), "completed")
             self.assertEqual(mock_get.call_count, 1)
 
+    def test_scrobble_nested_season_resolves_season_mal_id(self):
+        auth_data = {
+            "access_token": "test_token",
+            "expires_at": time.time() + 3600
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "watching", "num_episodes_watched": 1}
+
+        settings = {"mal_scrobble_enabled": True, "mal_rewatch_mode": "rewatch"}
+        season2_meta = {
+            "mal_id": 40507,
+            "episodes": 12,
+            "title": "Arifureta Season 2",
+            "status": "FINISHED"
+        }
+
+        def mock_get_status(mal_id, token=None, force=False):
+            if mal_id == 36882:
+                return {"status": "completed", "is_rewatching": False}
+            return None
+
+        with patch.object(main, "load_settings", return_value=settings), \
+             patch.object(main, "get_season_anilist_info", return_value=season2_meta), \
+             patch.object(main, "get_mal_user_anime_status", side_effect=mock_get_status), \
+             patch.object(main.requests, "patch", return_value=mock_resp) as mock_patch:
+            res = main.scrobble_episode_to_mal("Arifureta", "Season 2/Episode 01.mkv", ep_num=1)
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["mal_id"], 40507)
+            self.assertEqual(res["status"], "watching")
+            self.assertFalse(res.get("is_rewatching", False))
+            mock_patch.assert_called_once()
+            call_url = mock_patch.call_args[0][0]
+            self.assertIn("/anime/40507/my_list_status", call_url)
+            self.assertNotIn("36882", call_url)
+            self.assertEqual(mock_patch.call_args[1]["data"]["status"], "watching")
+            self.assertEqual(mock_patch.call_args[1]["data"]["num_watched_episodes"], 1)
+
+    def test_resolve_episode_metadata_season_and_movie(self):
+        # 1. Season folder resolution
+        season2_meta = {"mal_id": 40507, "episodes": 12, "title": "Arifureta Season 2"}
+        with patch.object(main, "get_season_anilist_info", return_value=season2_meta):
+            res = main.resolve_episode_metadata("Arifureta", "Season 2/Episode 01.mkv")
+            self.assertEqual(res["mal_id"], 40507)
+            self.assertEqual(res["metadata_name"], "Arifureta Season 2")
+            self.assertEqual(res["total_episodes"], 12)
+
+        # 2. Movie resolution
+        movie_meta = {"mal_id": 32281, "episodes": 1, "title": "Kimi no Na wa."}
+        with patch.object(main, "get_cached_anilist_info", return_value=movie_meta):
+            res = main.resolve_episode_metadata("Movies", "Kimi no Na wa [1080p].mkv")
+            self.assertEqual(res["mal_id"], 32281)
+            self.assertEqual(res["total_episodes"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

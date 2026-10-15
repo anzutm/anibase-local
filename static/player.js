@@ -514,6 +514,7 @@ const MAL_SCORE_LABELS = {
 };
 
 let currentRatingModalMalId = null;
+let currentRatingModalMetadataName = null;
 
 function setModalRatingScore(score) {
     if (!selectedRatingScoreInput) return;
@@ -574,15 +575,16 @@ if (ratingStarsList) {
 
 function openCompletionRatingModal(data = {}) {
     if (!ratingModal) return;
-    const animeKey = (window.ANIME_NAME || '').trim();
+    const animeKey = (data.metadata_name || window.ANIME_NAME || '').trim();
     if (!animeKey) return;
     const sessionKey = 'rated_prompt_seen_' + animeKey;
     if (sessionStorage.getItem(sessionKey)) return;
 
-    if (ratingModalAnimeTitle && (data.anime_title || window.ANIME_NAME)) {
-        ratingModalAnimeTitle.textContent = data.anime_title || window.ANIME_NAME;
+    if (ratingModalAnimeTitle && (data.anime_title || data.metadata_name || window.ANIME_NAME)) {
+        ratingModalAnimeTitle.textContent = data.anime_title || data.metadata_name || window.ANIME_NAME;
     }
     currentRatingModalMalId = data.mal_id || null;
+    currentRatingModalMetadataName = data.metadata_name || window.ANIME_NAME;
 
     if (data.mal_authenticated) {
         if (ratingSyncHint) ratingSyncHint.textContent = '(Saved locally & synced to MyAnimeList)';
@@ -616,7 +618,7 @@ function closeCompletionRatingModal(markDismissed = true) {
     if (!ratingModal) return;
     ratingModal.hidden = true;
     if (markDismissed) {
-        const animeKey = (window.ANIME_NAME || '').trim();
+        const animeKey = (currentRatingModalMetadataName || window.ANIME_NAME || '').trim();
         sessionStorage.setItem('rated_prompt_seen_' + animeKey, '1');
     }
 }
@@ -667,6 +669,8 @@ if (completionRatingForm) {
             headers: actionHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
                 anime_name: window.ANIME_NAME,
+                metadata_name: currentRatingModalMetadataName || window.ANIME_NAME,
+                episode: window.EPISODE_PATH,
                 mal_id: currentRatingModalMalId,
                 score: score,
                 comments: comments,
