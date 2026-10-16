@@ -23,7 +23,7 @@ function actionHeaders(extra = {}) {
 
 // 1. Inisialisasi Plyr
 const player = new Plyr(videoElement, {
-    title: window.ANIME_NAME,
+    title: window.DISPLAY_TITLE || window.ANIME_NAME,
     autoplay: true,
     seekTime: 5,
     iconUrl: window.PLYR_ICON_URL || '/static/plyr.svg',
@@ -145,8 +145,8 @@ function isShortcutPressed(event, actionId) {
 const fansubSubtitles = new window.AniBaseSubtitles(videoElement, player);
 if (window.AniBaseDiscordPresence) new window.AniBaseDiscordPresence(videoElement, () => ({
     anime_name: window.ANIME_NAME, episode: window.EPISODE_PATH,
-    title: window.ANIME_NAME,
-    label: window.ANIME_NAME === 'Movies' ? 'Movie' : window.CURRENT_EP_DISPLAY_NAME
+    title: window.DISPLAY_TITLE || window.ANIME_NAME,
+    label: (window.IS_MOVIE || window.ANIME_NAME === 'Movies') ? 'Movie' : window.CURRENT_EP_DISPLAY_NAME
 }));
 
 // Preview data arrives independently of playback and subtitle preparation.
@@ -575,16 +575,18 @@ if (ratingStarsList) {
 
 function openCompletionRatingModal(data = {}) {
     if (!ratingModal) return;
-    const animeKey = (data.metadata_name || window.ANIME_NAME || '').trim();
+    const movieTitle = window.IS_MOVIE ? (window.DISPLAY_TITLE || window.CURRENT_EP_DISPLAY_NAME) : null;
+    const animeKey = (data.metadata_name || movieTitle || window.ANIME_NAME || '').trim();
     if (!animeKey) return;
     const sessionKey = 'rated_prompt_seen_' + animeKey;
     if (sessionStorage.getItem(sessionKey)) return;
 
-    if (ratingModalAnimeTitle && (data.anime_title || data.metadata_name || window.ANIME_NAME)) {
-        ratingModalAnimeTitle.textContent = data.anime_title || data.metadata_name || window.ANIME_NAME;
+    const displayTitle = data.anime_title || movieTitle || data.metadata_name || window.ANIME_NAME;
+    if (ratingModalAnimeTitle && displayTitle) {
+        ratingModalAnimeTitle.textContent = displayTitle;
     }
     currentRatingModalMalId = data.mal_id || null;
-    currentRatingModalMetadataName = data.metadata_name || window.ANIME_NAME;
+    currentRatingModalMetadataName = data.metadata_name || movieTitle || window.ANIME_NAME;
 
     if (data.mal_authenticated) {
         if (ratingSyncHint) ratingSyncHint.textContent = '(Saved locally & synced to MyAnimeList)';
@@ -669,7 +671,7 @@ if (completionRatingForm) {
             headers: actionHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
                 anime_name: window.ANIME_NAME,
-                metadata_name: currentRatingModalMetadataName || window.ANIME_NAME,
+                metadata_name: currentRatingModalMetadataName || (window.IS_MOVIE ? window.DISPLAY_TITLE : window.ANIME_NAME),
                 episode: window.EPISODE_PATH,
                 mal_id: currentRatingModalMalId,
                 score: score,
@@ -1245,7 +1247,21 @@ function updatePlayerEpisodeState(episodePath, options = {}) {
     window.RESUME_TIME = Math.max(0, Number(state.card.dataset.resumeSeconds || 0));
 
     if (episodeLine) {
-        episodeLine.textContent = `${window.CURRENT_EP_DISPLAY_NAME} (${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} available)`;
+        if (window.IS_MOVIE) {
+            episodeLine.textContent = `Movie · ${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} in collection`;
+            const headingTitle = document.querySelector('.player-title-stack h1');
+            if (headingTitle) {
+                headingTitle.textContent = window.CURRENT_EP_DISPLAY_NAME;
+            }
+            window.DISPLAY_TITLE = window.CURRENT_EP_DISPLAY_NAME;
+            document.title = `${window.CURRENT_EP_DISPLAY_NAME} - AniBase`;
+            const backLink = document.querySelector('.player-header-actions a.player-back:not(.player-home)');
+            if (backLink) {
+                backLink.href = `/movie/${encodeURIComponent(episodePath)}`;
+            }
+        } else {
+            episodeLine.textContent = `${window.CURRENT_EP_DISPLAY_NAME} (${window.CURRENT_POSITION} of ${window.TOTAL_EPISODES || state.cards.length} available)`;
+        }
     }
 
     updateEpisodeLink(prevEpisodeLink, state.previous);

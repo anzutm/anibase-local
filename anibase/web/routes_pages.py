@@ -1013,9 +1013,11 @@ def player(anime_name, episode):
     )
 
     if anime_name == "Movies":
-        video_files = [
-            current_file
-        ]
+        all_movies = get_movies()
+        movie_file_map = {m["file"]: m for m in all_movies}
+        video_files = [m["file"] for m in all_movies]
+        if current_file not in video_files:
+            video_files.insert(0, current_file)
     else:
         video_files = []
         for file in os.listdir(
@@ -1027,10 +1029,9 @@ def player(anime_name, episode):
                 video_files.append(
                     file
                 )
-
-    video_files.sort(
-        key=get_episode_sort_key
-    )
+        video_files.sort(
+            key=get_episode_sort_key
+        )
 
     episodes = []
     episode_name_settings = load_settings()
@@ -1056,25 +1057,44 @@ def player(anime_name, episode):
             "/"
         )
 
-        episode_identity = parse_episode_identity(file)
+        if anime_name == "Movies":
+            m_item = movie_file_map.get(file) if "movie_file_map" in locals() else None
+            m_title = (m_item.get("title") if m_item else None) or clean_movie_title(file)
+            episode_identity = {
+                "number": index,
+                "label": "Movie",
+                "display_name": m_title,
+                "kind": "movie",
+                "end_number": None
+            }
+            episode_info = get_episode_cache(
+                anime_name,
+                video_path
+            )
+            watch_status = get_episode_watch_status(
+                anime_name,
+                relative_url
+            )
+            custom_display_name = m_title
+        else:
+            episode_identity = parse_episode_identity(file)
+            episode_info = get_episode_cache(
+                anime_name,
+                video_path,
+                season_name
+            )
+            watch_status = get_episode_watch_status(
+                anime_name,
+                relative_url
+            )
+            custom_display_name = get_episode_display_override(
+                anime_name,
+                relative_url,
+                settings=episode_name_settings,
+            )
+
         episode_number = episode_identity["number"]
         episode_label = episode_identity["label"]
-
-        episode_info = get_episode_cache(
-            anime_name,
-            video_path,
-            season_name
-        )
-
-        watch_status = get_episode_watch_status(
-            anime_name,
-            relative_url
-        )
-        custom_display_name = get_episode_display_override(
-            anime_name,
-            relative_url,
-            settings=episode_name_settings,
-        )
 
         episodes.append({
             "file": relative_url,
@@ -1175,14 +1195,19 @@ def player(anime_name, episode):
         if h_data.get("episode") == episode:
             resume_time = h_data.get("last_seconds", 0)
 
-    current_episode_identity = parse_episode_identity(current_file)
-    current_episode_number = current_episode_identity["number"]
-    current_episode_label = current_episode_identity["label"]
-    current_episode_display_name = get_episode_display_override(
-        anime_name,
-        episode,
-        settings=episode_name_settings,
-    ) or current_episode_identity["display_name"]
+    if anime_name == "Movies":
+        current_episode_number = current_index + 1
+        current_episode_label = "Movie"
+        current_episode_display_name = watch_display_name
+    else:
+        current_episode_identity = parse_episode_identity(current_file)
+        current_episode_number = current_episode_identity["number"]
+        current_episode_label = current_episode_identity["label"]
+        current_episode_display_name = get_episode_display_override(
+            anime_name,
+            episode,
+            settings=episode_name_settings,
+        ) or current_episode_identity["display_name"]
 
     return render_template(
         "player.html",

@@ -54,7 +54,7 @@
             {% endif %}
 
             <div class="movies-hero-actions">
-                <a class="movies-action movies-action--primary" href="{{ url_for('movie_detail_page', filename=featured.file) }}#movieDetailPlayer">
+                <a class="movies-action movies-action--primary" href="{{ url_for('player', anime_name='Movies', episode=featured.file) }}">
                     <span aria-hidden="true">▶</span> Play
                 </a>
                 <a class="movies-action movies-action--secondary" href="{{ url_for('movie_detail_page', filename=featured.file) }}">
@@ -153,7 +153,7 @@
                         {% if movie.score %}<span>★ {{ "%.1f"|format(movie.score / 10) }}</span>{% endif %}
                     </div>
                     <div class="movie-card-actions">
-                        <a class="movie-card-play" href="{{ url_for('movie_detail_page', filename=movie.file) }}#movieDetailPlayer">
+                        <a class="movie-card-play" href="{{ url_for('player', anime_name='Movies', episode=movie.file) }}">
                             <span aria-hidden="true">▶</span> Play
                         </a>
                     </div>

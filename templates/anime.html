@@ -8,14 +8,10 @@
     <meta name="theme-color" content="#08090b">
 
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
-    {% if is_movie %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='plyr.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='subtitles.css', v='1') }}">
-    {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=(range(1, 9999) | list | random)) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='67') }}">
     {% if is_movie %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='13') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='14') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='1') }}">
@@ -62,7 +58,7 @@
             <p class="cinema-tagline">A little escape. A whole new world.</p>
             <div class="cinema-cta-row">
                 {% if episodes %}
-                <a class="cinema-watch" href="#movieWatch" id="movieHeroPlay"><span aria-hidden="true">&#9654;</span> {{ 'Resume movie' if resume_time else 'Watch movie' }}</a>
+                <a class="cinema-watch" href="{{ url_for('player', anime_name='Movies', episode=episodes[0].file) }}" id="movieHeroPlay"><span aria-hidden="true">&#9654;</span> {{ 'Resume movie' if resume_time else 'Watch movie' }}</a>
                 {% endif %}
                 <a class="cinema-about-link" href="#movieAbout">Explore the story <span aria-hidden="true">&#8595;</span></a>
                 <button type="button" class="metadata-match-trigger cinema-metadata-match" data-metadata-match-open>
@@ -349,39 +345,33 @@
 <section class="movie-watch-section" id="movieWatch">
     <div class="cinema-screen-heading">
         <div><p class="cinema-eyebrow">THE SCREENING ROOM</p><h2>Settle in. Press play.</h2></div>
-        <button type="button" class="cinema-theater-toggle" id="movieTheaterToggle" aria-pressed="false" aria-controls="movieWatch">Theater mode</button>
+        <span class="cinema-badge-meta">{% if episodes[0].duration %}{{ episodes[0].duration }}{% endif %}{% if episodes[0].duration and episodes[0].resolution %} &middot; {% endif %}{% if episodes[0].resolution %}{{ episodes[0].resolution }}{% endif %}</span>
     </div>
     <div class="movie-watch-shell">
-        <div class="movie-screen">
-            <video
-                id="movieDetailPlayer"
-                class="movie-detail-video"
-                controls
-                playsinline
-                crossorigin
-                preload="metadata"
-                poster="{{ episodes[0].thumbnail }}"
-                data-anime-name="{{ folder_name or anime_name }}"
-                data-display-name="{{ anime_name }}"
-                data-episode-path="{{ episodes[0].file }}"
-                data-resume-time="{{ resume_time or 0 }}"
-                data-plyr-icon-url="{{ url_for('static', filename='plyr.svg') }}"
-                data-play-url-template="{{ url_for('play_episode', anime_name='__ANIME__', episode='__EPISODE__') }}"
-            >
-                <source
-                    src="{{ url_for('stream_video', anime_name=folder_name or anime_name, episode=episodes[0].file) }}"
-                    type="video/mp4"
+        <a
+            href="{{ url_for('player', anime_name='Movies', episode=episodes[0].file) }}"
+            class="movie-cinema-launch"
+            aria-label="Launch {{ anime_name }} in Modern Cinema Player"
+        >
+            <div class="movie-screen cinema-preview-screen">
+                <img
+                    class="movie-preview-art"
+                    src="{{ episodes[0].thumbnail }}"
+                    alt="{{ anime_name }}"
+                    loading="lazy"
                 >
-                <track
-                    kind="subtitles"
-                    src="data:text/vtt,WEBVTT%0A%0A"
-                    data-subtitle-src="{{ url_for('get_subtitle', anime_name=folder_name or anime_name, episode=episodes[0].file) }}"
-                    srclang="und"
-                    label="Auto subtitles"
-                    default
-                >
-            </video>
-        </div>
+                <div class="movie-screen-vignette" aria-hidden="true"></div>
+                <div class="cinema-play-glow" aria-hidden="true">
+                    <div class="cinema-play-circle">
+                        <span class="cinema-play-triangle">&#9654;</span>
+                    </div>
+                    <span class="cinema-play-caption">{{ 'Resume Movie' if resume_time else 'Play Movie in Cinema Player' }}</span>
+                    {% if resume_time %}
+                    <span class="cinema-resume-badge">{{ (resume_time / 60)|int }} min watched</span>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
 
         <div class="movie-watch-bar">
             <div>
@@ -390,19 +380,19 @@
             </div>
 
             <div class="movie-player-actions">
-                <button
-                    type="button"
-                    class="movie-action-btn movie-screenshot-btn"
-                    id="movieScreenshotBtn"
+                <a
+                    href="{{ url_for('player', anime_name='Movies', episode=episodes[0].file) }}"
+                    class="movie-action-btn movie-play-primary-btn"
                 >
-                    <span aria-hidden="true">&#128247;</span>
-                    <span>Screenshot</span>
-                </button>
+                    <span aria-hidden="true">&#9654;</span>
+                    <span>{{ 'Resume Movie' if resume_time else 'Open Cinema Player' }}</span>
+                </a>
 
                 <button
                     type="button"
                     class="movie-action-btn movie-vlc-btn"
                     id="movieVlcBtn"
+                    data-play-url="{{ url_for('play_episode', anime_name='Movies', episode=episodes[0].file) }}"
                 >
                     <span aria-hidden="true">&#9654;</span>
                     <span>Open in Media Player</span>
@@ -1137,354 +1127,33 @@ window.addEventListener('pageshow', () => {
 });
 </script>
 {% if is_movie and episodes %}
-<script src="{{ url_for('static', filename='plyr.js') }}"></script>
-<script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
 <script>
 (function() {
-    const video = document.getElementById('movieDetailPlayer');
-    if (!video || typeof Plyr === 'undefined') return;
-
-    const config = video.dataset;
-    const screenshotBtn = document.getElementById('movieScreenshotBtn');
     const vlcBtn = document.getElementById('movieVlcBtn');
-    const toast = document.getElementById('screenshotToast');
-    const rpcSessionId = (window.crypto && window.crypto.randomUUID)
-        ? window.crypto.randomUUID()
-        : `movie-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const player = new Plyr(video, {
-        title: config.displayName || config.animeName,
-        iconUrl: config.plyrIconUrl,
-        keyboard: { focused: true, global: false },
-        captions: { active: true, update: true, language: 'und' }
-    });
-    new window.AniBaseSubtitles(video, player);
-    new window.AniBaseDiscordPresence(video, () => ({
-        anime_name: config.animeName, episode: config.episodePath,
-        title: config.displayName || config.animeName, label: 'Movie'
-    }));
-
-    document.getElementById('movieHeroPlay')?.addEventListener('click', () => {
-        const playRequest = player.play();
-        if (playRequest && typeof playRequest.catch === 'function') {
-            playRequest.catch(() => showMovieToast('Press play in the player to start the movie.', '!'));
-        }
-    });
-    const theaterToggle = document.getElementById('movieTheaterToggle');
-    theaterToggle?.addEventListener('click', () => {
-        const enabled = document.body.classList.toggle('cinema-theater');
-        theaterToggle.setAttribute('aria-pressed', String(enabled));
-        theaterToggle.textContent = enabled ? 'Exit theater mode' : 'Theater mode';
-        document.getElementById('movieWatch').scrollIntoView({ block: 'start' });
-    });
-
-    function actionHeaders(extra = {}) {
-        const headers = { ...extra };
-        if (window.ANIBASE_ACTION_TOKEN) {
-            headers['X-AniBase-Action-Token'] = window.ANIBASE_ACTION_TOKEN;
-        }
-        return headers;
-    }
-
-    function formatTime(seconds) {
-        if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        if (h > 0) {
-            return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        }
-        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    function encodeMovieEpisodePath(path) {
-        return path.split('/').map(encodeURIComponent).join('/');
-    }
-
-    function showMovieToast(message, icon) {
-        const toast = document.getElementById('screenshotToast');
-        const msg = document.getElementById('toastMessage');
-        const toastIcon = toast ? toast.querySelector('.toast-icon') : null;
-        if (!toast || !msg) return;
-
-        msg.textContent = message;
-        if (toastIcon && icon) {
-            toastIcon.textContent = icon;
-        }
-        toast.classList.add('show');
-
-        window.clearTimeout(showMovieToast.timer);
-        showMovieToast.timer = window.setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
-    }
-
-    const playbackSpeedSteps = [1, 1.25, 1.5, 1.75, 2];
-    let playbackStarted = false;
-
-    function changeMoviePlaybackSpeed(direction) {
-        const currentSpeed = Number(player.speed || video.playbackRate || 1);
-        const epsilon = 0.001;
-        let nextSpeed;
-
-        if (direction > 0) {
-            nextSpeed = playbackSpeedSteps.find(speed => speed > currentSpeed + epsilon);
-            nextSpeed = nextSpeed === undefined ? playbackSpeedSteps.at(-1) : nextSpeed;
-        } else {
-            nextSpeed = [...playbackSpeedSteps].reverse().find(speed => speed < currentSpeed - epsilon);
-            nextSpeed = nextSpeed === undefined ? playbackSpeedSteps[0] : nextSpeed;
-        }
-
-        player.speed = nextSpeed;
-        showMovieToast(`Playback speed: ${nextSpeed}x`, '⏩');
-    }
-
-    function sendProgress(useKeepalive) {
-        const duration = player.duration || 0;
-        const currentTime = player.currentTime || 0;
-        if (!playbackStarted || !config.animeName || !config.episodePath || !duration) return;
-
-        fetch('/update_progress', {
-            method: 'POST',
-            headers: actionHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-                anime_name: config.animeName,
-                episode: config.episodePath,
-                episode_num: 1,
-                time_str: `${formatTime(currentTime)} / ${formatTime(duration)}`,
-                last_seconds: currentTime,
-                duration: duration,
-                rpc_session_id: rpcSessionId
-            }),
-            keepalive: Boolean(useKeepalive)
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error('Progress update failed');
-            }
-        }).catch(() => {});
-
-        fetch('/api/watch-status/progress', {
-            method: 'POST',
-            headers: actionHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-                anime_name: config.animeName,
-                episode: config.episodePath,
-                progress: Math.round((currentTime / duration) * 100),
-                duration: duration,
-                current_seconds: currentTime
-            }),
-            keepalive: Boolean(useKeepalive)
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error('Watch status update failed');
-            }
-            return response.json();
-        }).then((data) => {
-            if (data && data.scrobbled) {
-                showMovieMalScrobbleToast('Movie marked as watched', 4500);
-            }
-        }).catch(() => {});
-    }
-
-    function showMovieMalScrobbleToast(detail, duration = 4500) {
-        const malToast = document.getElementById('malScrobbleToast');
-        if (!malToast) return;
-        const detailEl = document.getElementById('malScrobbleEpisode');
-        if (detailEl && detail) detailEl.textContent = detail;
-        malToast.classList.add('show');
-        window.clearTimeout(showMovieMalScrobbleToast.timer);
-        showMovieMalScrobbleToast.timer = window.setTimeout(() => {
-            malToast.classList.remove('show');
-        }, duration);
-    }
-
-    player.on('ready', () => {
-        const plyrContainer = document.querySelector('.movie-screen > .plyr');
-        if (plyrContainer && toast) {
-            plyrContainer.appendChild(toast);
-        }
-        const malToast = document.getElementById('malScrobbleToast');
-        if (plyrContainer && malToast) {
-            plyrContainer.appendChild(malToast);
-        }
-    });
-
-    function openMovieInVLC() {
-        const url = config.playUrlTemplate
-            .replace('__ANIME__', encodeURIComponent(config.animeName))
-            .replace('__EPISODE__', encodeMovieEpisodePath(config.episodePath));
-
-        fetch(url, {
-            method: 'POST',
-            headers: actionHeaders()
-        })
-            .then(async res => {
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    throw data;
-                }
-                return data;
-            })
-            .then(data => {
-                if (data.status === 'playing') {
-                    player.pause();
-                    showMovieToast('Opening video in Media Player...', '\u25b6');
-                } else if (data.message) {
-                    showMovieToast(data.message, '!');
-                } else {
-                    showMovieToast('Unable to open Media Player', '!');
-                }
-            })
-            .catch((error) => {
-                showMovieToast(error && error.message ? error.message : 'Unable to contact server', '!');
-            });
-    }
-
-    function saveMovieScreenshot() {
-        if (!video.videoWidth || !video.videoHeight) {
-            showMovieToast('Play the video before taking a screenshot', '!');
-            return;
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        fetch('/screenshot', {
-            method: 'POST',
-            headers: actionHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ image: canvas.toDataURL('image/png') })
-        })
-            .then(async res => {
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    throw data;
-                }
-                return data;
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    showMovieToast('Screenshot saved', '\ud83d\udcf7');
-                } else {
-                    showMovieToast(data.message || 'Unable to save screenshot', '!');
-                }
-            })
-            .catch((error) => {
-                showMovieToast(error && error.message ? error.message : 'Unable to save screenshot', '!');
-            });
-    }
-
-    player.once('canplay', () => {
-        const resumeTime = Number.parseFloat(config.resumeTime || '0');
-        if (resumeTime > 0 && resumeTime < (player.duration || Infinity)) {
-            player.currentTime = resumeTime;
-        }
-    });
-
-    let progressInterval;
-    player.on('play', () => {
-        playbackStarted = true;
-        sendProgress(false);
-        clearInterval(progressInterval);
-        progressInterval = setInterval(() => sendProgress(false), 30000);
-    });
-
-    player.on('pause ended', () => {
-        clearInterval(progressInterval);
-        sendProgress(false);
-    });
-
-    if (screenshotBtn) {
-        screenshotBtn.addEventListener('click', saveMovieScreenshot);
-    }
-
     if (vlcBtn) {
-        vlcBtn.addEventListener('click', openMovieInVLC);
+        vlcBtn.addEventListener('click', async () => {
+            const playUrl = vlcBtn.dataset.playUrl;
+            if (!playUrl) return;
+            const headers = { 'Content-Type': 'application/json' };
+            if (window.ANIBASE_ACTION_TOKEN) {
+                headers['X-AniBase-Action-Token'] = window.ANIBASE_ACTION_TOKEN;
+            }
+            try {
+                vlcBtn.disabled = true;
+                const res = await fetch(playUrl, { method: 'POST', headers });
+                const data = await res.json().catch(() => ({}));
+                if (data.status === 'playing') {
+                    alert('Opening movie in Media Player...');
+                } else {
+                    alert(data.message || 'Unable to open Media Player');
+                }
+            } catch (err) {
+                alert('Unable to contact server');
+            } finally {
+                vlcBtn.disabled = false;
+            }
+        });
     }
-
-    document.addEventListener('keydown', (event) => {
-        const target = event.target;
-        const isTyping =
-            target &&
-            (
-                target.isContentEditable ||
-                (target.matches && target.matches('input, textarea, select'))
-            );
-
-        const isPlus = event.key === '+' || event.code === 'NumpadAdd';
-        const isMinus = event.key === '-' || event.code === 'NumpadSubtract';
-
-        if (
-            (isPlus || isMinus) &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey &&
-            !event.repeat &&
-            !isTyping
-        ) {
-            event.preventDefault();
-            event.stopPropagation();
-            changeMoviePlaybackSpeed(isPlus ? 1 : -1);
-            return;
-        }
-
-        const isUp = event.key === 'ArrowUp';
-        const isDown = event.key === 'ArrowDown';
-        if ((isUp || isDown) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !isTyping) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            const step = 0.05;
-            let currentVol = player.volume;
-            let newVol = isUp ? currentVol + step : currentVol - step;
-            newVol = Math.max(0, Math.min(1, newVol));
-
-            if (isUp && player.muted) {
-                player.muted = false;
-            }
-
-            player.volume = newVol;
-
-            const volPercent = Math.round(newVol * 100);
-            let volIcon = '&#128266;';
-            if (volPercent === 0) {
-                volIcon = '&#128263;';
-            } else if (volPercent < 33) {
-                volIcon = '&#128264;';
-            } else if (volPercent < 66) {
-                volIcon = '&#128265;';
-            }
-            
-            // Render icon safely
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = volIcon;
-            showMovieToast(`Volume: ${volPercent}%`, tempDiv.textContent);
-            return;
-        }
-
-        if (
-            event.key.toLowerCase() !== 's' ||
-            event.ctrlKey ||
-            event.metaKey ||
-            event.altKey ||
-            event.repeat ||
-            isTyping
-        ) {
-            return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        saveMovieScreenshot();
-    }, true);
-
-    window.addEventListener('beforeunload', () => {
-        sendProgress(true);
-    });
-
 })();
 </script>
 {% endif %}

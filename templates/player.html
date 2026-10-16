@@ -11,7 +11,7 @@
     >
 
     <title>
-        {{ anime_name }}
+        {{ watch_display_name if is_movie else anime_name }}{% if not is_movie %} - {{ current_episode_display_name }}{% endif %} - AniBase
     </title>
 
     <!-- Plyr & SubtitlesOctopus Styles -->
@@ -28,7 +28,7 @@
 <body class="player-body">
 
 <div class="player-backdrop">
-    <img src="{{ url_for('banner', anime_name=anime_name) }}" alt="{{ anime_name }}">
+    <img src="{{ url_for('banner', anime_name=watch_display_name if is_movie else anime_name) }}" alt="{{ watch_display_name if is_movie else anime_name }}">
 </div>
 
 <div class="player-cinema-shell">
@@ -36,7 +36,7 @@
 
     <header class="player-header">
         <div class="player-header-actions" aria-label="Player navigation">
-            <a href="{{ url_for('index') }}" class="player-back player-home">
+            <a href="{{ url_for('movies') if is_movie else url_for('index') }}" class="player-back player-home" title="{{ 'Back to Movies' if is_movie else 'Back to Home' }}">
                 <span class="player-home-icon" aria-hidden="true">&#8962;</span>
             </a>
 
@@ -64,7 +64,7 @@
                 {{ "Media Player Ready" if vlc_available else "Media Player Not Set" }}
             </span>
             {% if previous_episode or next_episode %}
-            <span title="Previous / next episode shortcuts">{{ player_shortcuts.previous_episode }} / {{ player_shortcuts.next_episode }}</span>
+            <span title="Previous / next {{ 'movie' if is_movie else 'episode' }} shortcuts">{{ player_shortcuts.previous_episode }} / {{ player_shortcuts.next_episode }}</span>
             {% endif %}
             <span title="Skip backward / forward 30 seconds">{{ player_shortcuts.seek_backward_large }} / {{ player_shortcuts.seek_forward_large }}</span>
         </div>
@@ -176,13 +176,13 @@
 
     <div class="episode-header">
         <div class="section-title">
-            <span class="player-section-eyebrow">Episode Queue</span>
+            <span class="player-section-eyebrow">{{ "Movie Collection" if is_movie else "Episode Queue" }}</span>
             <div class="section-line"></div>
-            <h2>{{ "Now Playing" if is_movie else "Episodes" }}</h2>
+            <h2>{{ "More Movies" if is_movie else "Episodes" }}</h2>
         </div>
         <div class="episode-controls">
-            <button type="button" id="scrollLeft" aria-label="Previous episodes">&larr;</button>
-            <button type="button" id="scrollRight" aria-label="Next episodes">&rarr;</button>
+            <button type="button" id="scrollLeft" aria-label="Previous {{ 'movies' if is_movie else 'episodes' }}">&larr;</button>
+            <button type="button" id="scrollRight" aria-label="Next {{ 'movies' if is_movie else 'episodes' }}">&rarr;</button>
         </div>
     </div>
 
@@ -239,7 +239,7 @@
 
                     <div class="episode-meta">
                         <p>
-                            Play episode
+                            Play {{ 'movie' if is_movie else 'episode' }}
                         </p>
                     </div>
                 </div>
@@ -256,11 +256,7 @@
 
                 <div class="player-card-row">
                     <h3>
-                        {% if is_movie %}
-                        {{ watch_display_name }}
-                        {% else %}
                         {{ ep.display_name }}
-                        {% endif %}
                     </h3>
 
                     <div class="player-card-state">
@@ -411,6 +407,8 @@
     data-next-ep="{{ next_episode }}"
     data-resume-time="{{ resume_time or 0 }}"
     data-vlc-available="{{ '1' if vlc_available else '0' }}"
+    data-is-movie="{{ '1' if is_movie else '0' }}"
+    data-display-title="{{ watch_display_name if is_movie else anime_name }}"
     data-player-url-template="{{ url_for('player', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-stream-url-template="{{ url_for('stream_video', anime_name='__ANIME__', episode='__EPISODE__') }}"
     data-subtitle-url-template="{{ url_for('get_subtitle', anime_name='__ANIME__', episode='__EPISODE__') }}"
@@ -425,10 +423,12 @@
     (function() {
         const config = document.getElementById('player-data-container').dataset;
         window.ANIME_NAME = config.animeName;
+        window.IS_MOVIE = config.isMovie === '1';
+        window.DISPLAY_TITLE = config.displayTitle || config.animeName;
         window.EPISODE_PATH = config.episodePath;
         window.CURRENT_EP_NUM = config.currentEp;
         window.CURRENT_EP_LABEL = config.currentEpLabel || config.currentEp;
-        window.CURRENT_EP_DISPLAY_NAME = config.currentEpDisplayName || `Episode ${window.CURRENT_EP_LABEL}`;
+        window.CURRENT_EP_DISPLAY_NAME = config.currentEpDisplayName || (window.IS_MOVIE ? window.DISPLAY_TITLE : `Episode ${window.CURRENT_EP_LABEL}`);
         window.CURRENT_POSITION = config.currentPosition;
         window.TOTAL_EPISODES = config.totalEp;
         window.NEXT_EP_PATH = (config.nextEp && config.nextEp !== 'None') ? config.nextEp : null;
