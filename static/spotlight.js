@@ -5,10 +5,9 @@
     let resultsContainer = null;
     let clearBtn = null;
     let escBtn = null;
-    let spinner = null;
-    let emptyText = null;
 
     let isOpen = false;
+    let isInitialized = false;
     let currentQuery = '';
     let selectedIndex = 0;
     let visibleItems = [];
@@ -26,6 +25,8 @@
     };
 
     function initSpotlightDOM() {
+        if (isInitialized && overlay) return true;
+
         overlay = document.getElementById('spotlightOverlay');
         if (!overlay) return false;
 
@@ -33,8 +34,6 @@
         resultsContainer = document.getElementById('spotlightResults');
         clearBtn = document.getElementById('spotlightClearBtn');
         escBtn = document.getElementById('spotlightEscBtn');
-        spinner = document.getElementById('spotlightSpinner');
-        emptyText = document.getElementById('spotlightEmptyText');
 
         const backdrop = document.getElementById('spotlightBackdrop');
         backdrop?.addEventListener('click', closeSpotlight);
@@ -52,6 +51,7 @@
 
         // Hook up topbar search box
         hookTopbarSearch();
+        isInitialized = true;
         return true;
     }
 
@@ -92,13 +92,16 @@
         void overlay.offsetWidth;
         overlay.classList.add('is-open');
 
+        const queryToSearch = (typeof initialQuery === 'string') ? initialQuery : '';
         if (input) {
-            input.value = initialQuery;
+            input.value = queryToSearch;
             input.focus();
             input.select();
         }
 
-        fetchSpotlightData(initialQuery);
+        if (clearBtn) clearBtn.hidden = !queryToSearch.trim();
+
+        fetchSpotlightData(queryToSearch.trim());
     }
 
     function closeSpotlight() {
@@ -139,17 +142,49 @@
         }, 120);
     }
 
+    function renderLoading(query = '') {
+        if (!resultsContainer) return;
+        const msg = query ? `Searching for "${escapeHtml(query)}"...` : 'Loading recommendations...';
+        resultsContainer.innerHTML = `
+            <div class="spotlight-empty-state">
+                <div class="spotlight-spinner" role="status" aria-label="Loading"></div>
+                <p class="spotlight-empty-text">${msg}</p>
+            </div>
+        `;
+    }
+
+    function renderEmpty(query = '') {
+        if (!resultsContainer) return;
+        const msg = query
+            ? `No results found for "${escapeHtml(query)}"`
+            : 'Type to search your local library...';
+        resultsContainer.innerHTML = `
+            <div class="spotlight-empty-state">
+                <p class="spotlight-empty-text">${msg}</p>
+            </div>
+        `;
+    }
+
+    function renderError(message = 'Unable to search library.') {
+        if (!resultsContainer) return;
+        resultsContainer.innerHTML = `
+            <div class="spotlight-empty-state">
+                <p class="spotlight-empty-text" style="color: #f87171;">${escapeHtml(message)}</p>
+            </div>
+        `;
+    }
+
     async function fetchSpotlightData(query) {
         currentQuery = query;
-        const cacheKey = query.casefold();
+        const normalizedQuery = (query || '').trim();
+        const cacheKey = normalizedQuery.toLowerCase();
 
         if (queryCache.has(cacheKey)) {
-            renderResults(queryCache.get(cacheKey), query);
+            renderResults(queryCache.get(cacheKey), normalizedQuery);
             return;
         }
 
-        if (spinner) spinner.hidden = false;
-        if (emptyText) emptyText.textContent = 'Searching library...';
+        renderLoading(normalizedQuery);
 
         if (fetchController) {
             fetchController.abort();
@@ -157,7 +192,7 @@
         fetchController = new AbortController();
 
         try {
-            const response = await fetch(`/api/search/spotlight?q=${encodeURIComponent(query)}&limit=15`, {
+            const response = await fetch(`/api/search/spotlight?q=${encodeURIComponent(normalizedQuery)}&limit=15`, {
                 signal: fetchController.signal,
                 headers: { 'Accept': 'application/json' }
             });
@@ -165,21 +200,21 @@
             const data = await response.json();
             queryCache.set(cacheKey, data);
             if (currentQuery === query) {
-                renderResults(data, query);
+                renderResults(data, normalizedQuery);
             }
         } catch (err) {
             if (err.name !== 'AbortError') {
-                if (emptyText) emptyText.textContent = 'Unable to search library.';
-                if (spinner) spinner.hidden = true;
+                if (currentQuery === query) {
+                    renderError('Unable to search library.');
+                }
             }
         }
     }
 
     function renderResults(data, query) {
         if (!resultsContainer) return;
-        if (spinner) spinner.hidden = true;
 
-        const results = data.results || {};
+        const results = data?.results || {};
         const animeList = results.anime || [];
         const movieList = results.movies || [];
         const actionList = results.actions || [];
@@ -190,11 +225,7 @@
         const totalFound = animeList.length + movieList.length + actionList.length;
 
         if (totalFound === 0) {
-            resultsContainer.innerHTML = `
-                <div class="spotlight-empty-state">
-                    <p class="spotlight-empty-text">No results found for "${escapeHtml(query)}"</p>
-                </div>
-            `;
+            renderEmpty(query);
             return;
         }
 
@@ -211,6 +242,11 @@
             animeList.forEach((item) => {
                 const element = createAnimeItemElement(item);
                 section.appendChild(element);
+                const itemIndex = visibleItems.length;
+                element.addEventListener('mouseenter', () => {
+                    selectedIndex = itemIndex;
+                    highlightSelectedItem();
+                });
                 visibleItems.push({ element, data: item });
             });
             resultsContainer.appendChild(section);
@@ -229,6 +265,11 @@
             movieList.forEach((item) => {
                 const element = createMovieItemElement(item);
                 section.appendChild(element);
+                const itemIndex = visibleItems.length;
+                element.addEventListener('mouseenter', () => {
+                    selectedIndex = itemIndex;
+                    highlightSelectedItem();
+                });
                 visibleItems.push({ element, data: item });
             });
             resultsContainer.appendChild(section);
@@ -247,6 +288,11 @@
             actionList.forEach((item) => {
                 const element = createActionItemElement(item);
                 section.appendChild(element);
+                const itemIndex = visibleItems.length;
+                element.addEventListener('mouseenter', () => {
+                    selectedIndex = itemIndex;
+                    highlightSelectedItem();
+                });
                 visibleItems.push({ element, data: item });
             });
             resultsContainer.appendChild(section);
@@ -259,7 +305,8 @@
     function createAnimeItemElement(item) {
         const div = document.createElement('div');
         div.className = 'spotlight-item';
-        div.role = 'option';
+        div.setAttribute('role', 'option');
+        div.setAttribute('aria-selected', 'false');
 
         const genresText = Array.isArray(item.genres) ? item.genres.join(' · ') : '';
         const statusKind = item.watch_status_kind || 'not_started';
@@ -288,7 +335,8 @@
     function createMovieItemElement(item) {
         const div = document.createElement('div');
         div.className = 'spotlight-item';
-        div.role = 'option';
+        div.setAttribute('role', 'option');
+        div.setAttribute('aria-selected', 'false');
 
         const statusKind = item.watch_status_kind || 'not_started';
         const statusLabel = item.watch_status_label || '';
@@ -315,7 +363,8 @@
     function createActionItemElement(item) {
         const div = document.createElement('div');
         div.className = 'spotlight-item';
-        div.role = 'option';
+        div.setAttribute('role', 'option');
+        div.setAttribute('aria-selected', 'false');
 
         const iconSvg = ACTION_ICONS[item.icon] || ACTION_ICONS.home;
 
@@ -347,6 +396,15 @@
             if (visibleItems.length === 0) return;
             selectedIndex = (selectedIndex - 1 + visibleItems.length) % visibleItems.length;
             highlightSelectedItem();
+        } else if (e.key === 'Tab') {
+            e.preventDefault();
+            if (visibleItems.length === 0) return;
+            if (e.shiftKey) {
+                selectedIndex = (selectedIndex - 1 + visibleItems.length) % visibleItems.length;
+            } else {
+                selectedIndex = (selectedIndex + 1) % visibleItems.length;
+            }
+            highlightSelectedItem();
         } else if (e.key === 'Enter') {
             e.preventDefault();
             executeSelected();
@@ -357,6 +415,7 @@
         visibleItems.forEach((item, index) => {
             const isSelected = index === selectedIndex;
             item.element.classList.toggle('is-selected', isSelected);
+            item.element.setAttribute('aria-selected', isSelected ? 'true' : 'false');
             if (isSelected) {
                 item.element.scrollIntoView({ block: 'nearest' });
             }
@@ -428,7 +487,7 @@
     }
 
     function escapeHtml(str) {
-        if (!str) return '';
+        if (str === null || str === undefined) return '';
         return String(str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
