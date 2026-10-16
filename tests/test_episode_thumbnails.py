@@ -12,7 +12,9 @@ class EpisodeThumbnailBrowserTests(unittest.TestCase):
                          "Set ANIBASE_BROWSER_TESTS=1 to run browser integration tests")
     def test_queue_limits_requests_and_recovers_without_reload(self):
         try:
-            from playwright.sync_api import sync_playwright
+            import importlib
+            playwright_sync = importlib.import_module("playwright.sync_api")
+            sync_playwright = playwright_sync.sync_playwright
         except ImportError:
             self.skipTest("Playwright is not installed")
 
