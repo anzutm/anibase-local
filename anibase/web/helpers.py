@@ -666,3 +666,202 @@ def get_watch_status_payload():
         return None, None, data, None
 
     return anime_name, episode, data, None
+
+
+def get_spotlight_results(query="", limit=20):
+    """Mencari anime, film, dan aksi navigasi cepat untuk Spotlight Command Palette (Ctrl+K)."""
+    norm_query = str(query or "").strip().casefold()
+
+    actions = [
+        {
+            "type": "action",
+            "id": "action_home",
+            "title": "Home",
+            "subtitle": "Go to Home page and continue watching",
+            "url": internal_url_for("index"),
+            "icon": "home",
+            "keywords": ["home", "beranda", "main", "dashboard", "kembali"]
+        },
+        {
+            "type": "action",
+            "id": "action_movies",
+            "title": "Movies",
+            "subtitle": "Browse anime movie collection",
+            "url": internal_url_for("movies"),
+            "icon": "film",
+            "keywords": ["movies", "movie", "film", "bioskop", "cinema"]
+        },
+        {
+            "type": "action",
+            "id": "action_schedule",
+            "title": "Airing Schedule",
+            "subtitle": "View anime release calendar and upcoming countdowns",
+            "url": internal_url_for("schedule"),
+            "icon": "calendar",
+            "keywords": ["schedule", "jadwal", "airing", "kalender", "rilis", "calendar"]
+        },
+        {
+            "type": "action",
+            "id": "action_settings",
+            "title": "Settings",
+            "subtitle": "Configure libraries, MAL connection, shortcuts, and cache",
+            "url": internal_url_for("settings_page"),
+            "icon": "gear",
+            "keywords": ["settings", "pengaturan", "konfigurasi", "config", "mal", "shortcuts", "preferences"]
+        },
+        {
+            "type": "action",
+            "id": "action_mal_profile",
+            "title": "MyAnimeList Profile",
+            "subtitle": "View your MAL statistics and watch profile",
+            "url": internal_url_for("mal_profile_page"),
+            "icon": "user",
+            "keywords": ["mal", "profile", "myanimelist", "akun", "stats", "statistik", "user"]
+        },
+        {
+            "type": "action",
+            "id": "action_refresh_library",
+            "title": "Refresh Library Sync",
+            "subtitle": "Scan local directories and synchronize newly added anime",
+            "url": "#action:refresh_library",
+            "icon": "refresh",
+            "keywords": ["refresh", "sync", "sinkronisasi", "pindai", "scan", "update"]
+        },
+    ]
+
+    matched_actions = []
+    for action in actions:
+        if not norm_query:
+            matched_actions.append(action)
+        else:
+            words = [action["title"].casefold(), action["subtitle"].casefold()] + action["keywords"]
+            if any(norm_query in w for w in words):
+                matched_actions.append(action)
+
+    all_anime = get_anime()
+    matched_anime = []
+
+    for item in all_anime:
+        name = item["name"]
+        metadata = get_cached_metadata_only(name) or {}
+        display_title = metadata.get("title") or name
+        score = item.get("score")
+        genres = metadata.get("genres") or []
+        if isinstance(genres, str):
+            try:
+                genres = json.loads(genres)
+            except Exception:
+                genres = [g.strip() for g in genres.split(",") if g.strip()]
+
+        poster_url = internal_url_for("poster", anime_name=name)
+        detail_url = internal_url_for("anime_detail", anime_name=name)
+
+        if not norm_query:
+            # Query kosong: prioritaskan anime yang sedang ditonton
+            relevance = 10 if item.get("watch_status_kind") == "watching" else 5
+            matched_anime.append({
+                "type": "anime",
+                "name": name,
+                "title": display_title,
+                "folder_name": name,
+                "url": detail_url,
+                "poster": poster_url,
+                "year": item.get("year"),
+                "score": f"{score:.1f}" if score else None,
+                "episodes": item.get("episodes"),
+                "genres": genres[:3],
+                "watch_status_label": item.get("watch_status_label"),
+                "watch_status_kind": item.get("watch_status_kind"),
+                "watch_progress_label": item.get("watch_progress_label"),
+                "relevance": relevance
+            })
+        else:
+            searchable_text = f"{name} {display_title} {' '.join(genres)}".casefold()
+            synonyms = metadata.get("synonyms") or []
+            if isinstance(synonyms, list):
+                searchable_text += " " + " ".join(str(s).casefold() for s in synonyms)
+
+            if norm_query in searchable_text:
+                relevance = 0
+                if name.casefold().startswith(norm_query) or display_title.casefold().startswith(norm_query):
+                    relevance += 100
+                elif norm_query in display_title.casefold() or norm_query in name.casefold():
+                    relevance += 50
+                if any(norm_query in g.casefold() for g in genres):
+                    relevance += 20
+                if item.get("watch_status_kind") == "watching":
+                    relevance += 10
+
+                matched_anime.append({
+                    "type": "anime",
+                    "name": name,
+                    "title": display_title,
+                    "folder_name": name,
+                    "url": detail_url,
+                    "poster": poster_url,
+                    "year": item.get("year"),
+                    "score": f"{score:.1f}" if score else None,
+                    "episodes": item.get("episodes"),
+                    "genres": genres[:3],
+                    "watch_status_label": item.get("watch_status_label"),
+                    "watch_status_kind": item.get("watch_status_kind"),
+                    "watch_progress_label": item.get("watch_progress_label"),
+                    "relevance": relevance
+                })
+
+    matched_anime.sort(key=lambda x: x["relevance"], reverse=True)
+
+    all_movies = get_movies()
+    matched_movies = []
+    for m in all_movies:
+        m_title = m.get("title", "")
+        m_genres = m.get("genres") or []
+        m_file = m.get("file", "")
+        player_url = internal_url_for("player", anime_name="Movies", episode=m_file) if m_file else internal_url_for("movies")
+        if not norm_query:
+            matched_movies.append({
+                "type": "movie",
+                "title": m_title,
+                "file": m_file,
+                "url": player_url,
+                "detail_url": internal_url_for("movies"),
+                "poster": m.get("poster"),
+                "year": m.get("year"),
+                "score": f"{m['score']:.1f}" if m.get("score") else None,
+                "genres": m_genres[:3],
+                "watch_status_label": m.get("watch_status_label"),
+                "watch_status_kind": m.get("watch_status_kind"),
+                "relevance": 5
+            })
+        else:
+            m_text = f"{m_title} {m_file} {' '.join(m_genres)}".casefold()
+            if norm_query in m_text:
+                relevance = 50 if m_title.casefold().startswith(norm_query) else 25
+                matched_movies.append({
+                    "type": "movie",
+                    "title": m_title,
+                    "file": m_file,
+                    "url": player_url,
+                    "detail_url": internal_url_for("movies"),
+                    "poster": m.get("poster"),
+                    "year": m.get("year"),
+                    "score": f"{m['score']:.1f}" if m.get("score") else None,
+                    "genres": m_genres[:3],
+                    "watch_status_label": m.get("watch_status_label"),
+                    "watch_status_kind": m.get("watch_status_kind"),
+                    "relevance": relevance
+                })
+
+    matched_movies.sort(key=lambda x: x["relevance"], reverse=True)
+
+    return {
+        "ok": True,
+        "query": query,
+        "results": {
+            "anime": matched_anime[:limit],
+            "movies": matched_movies[:5],
+            "actions": matched_actions[:6]
+        },
+        "total": len(matched_anime[:limit]) + len(matched_movies[:5]) + len(matched_actions[:6])
+    }
+

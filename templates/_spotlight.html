@@ -1,0 +1,45 @@
+<div class="spotlight-overlay" id="spotlightOverlay" hidden aria-hidden="true">
+    <div class="spotlight-backdrop" id="spotlightBackdrop"></div>
+    <div class="spotlight-modal" role="dialog" aria-modal="true" aria-label="Spotlight Command Palette">
+        <div class="spotlight-header">
+            <span class="spotlight-search-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </span>
+            <input
+                type="text"
+                id="spotlightInput"
+                class="spotlight-input"
+                placeholder="Search anime, movies, genres, or commands..."
+                autocomplete="off"
+                spellcheck="false"
+                aria-autocomplete="list"
+                aria-controls="spotlightResults"
+            >
+            <div class="spotlight-header-actions">
+                <button type="button" class="spotlight-clear-btn" id="spotlightClearBtn" aria-label="Clear query" hidden>&times;</button>
+                <kbd class="spotlight-esc-badge" id="spotlightEscBtn" title="Close (Esc)">ESC</kbd>
+            </div>
+        </div>
+
+        <div class="spotlight-results" id="spotlightResults" role="listbox" tabIndex="-1">
+            <div class="spotlight-empty-state">
+                <div class="spotlight-spinner" id="spotlightSpinner" hidden></div>
+                <p class="spotlight-empty-text" id="spotlightEmptyText">Type to search your local library...</p>
+            </div>
+        </div>
+
+        <div class="spotlight-footer">
+            <div class="spotlight-footer-hints">
+                <span class="spotlight-hint"><kbd>&uarr;</kbd><kbd>&darr;</kbd> Navigate</span>
+                <span class="spotlight-hint"><kbd>&crarr;</kbd> Open</span>
+                <span class="spotlight-hint"><kbd>Esc</kbd> Close</span>
+            </div>
+            <div class="spotlight-footer-brand">
+                <span>AniBase Spotlight</span>
+            </div>
+        </div>
+    </div>
+</div>

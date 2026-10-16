@@ -33,9 +33,10 @@ SOURCE_RELEASE_DIRS = ("templates", "static")
 SOURCE_RELEASE_PACKAGES = ("anibase",)
 REQUIRED_ASSETS = (
     'templates/index.html', 'templates/anime.html', 'templates/player.html',
-    'templates/setup.html', 'templates/setup_loading.html',
+    'templates/setup.html', 'templates/setup_loading.html', 'templates/_spotlight.html',
     'static/home-motion.js', 'static/home.css', 'static/player.js',
     'static/discord-presence.js', 'static/episode-thumbnails.js',
+    'static/spotlight.js', 'static/spotlight.css',
     'static/subtitles.js', 'static/subtitles.css',
     'static/plyr.js', 'static/plyr.css', 'static/plyr.svg',
     'static/vendor/subtitles-octopus/subtitles-octopus.js',

@@ -193,6 +193,7 @@ from anibase.web.helpers import (
     get_watch_status_payload,
     pick_windows_path,
     get_character_image_cache_path,
+    get_spotlight_results,
 )
 
 
@@ -617,6 +618,17 @@ def api_anilist_search():
     if media_type == "movie":
         results = [item for item in results if str(item.get("format") or "").upper() == "MOVIE"]
     return jsonify({"ok": True, "provider": provider, "results": results})
+
+
+@host_only
+def api_spotlight_search():
+    query = request.args.get("q", "").strip()
+    limit = request.args.get("limit", default=20, type=int)
+    limit = max(1, min(50, limit))
+    results = get_spotlight_results(query=query, limit=limit)
+    response = jsonify(results)
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @host_only
@@ -1978,6 +1990,7 @@ def register_api_routes(app):
     app.add_url_rule("/settings/pick-folder", endpoint="pick_settings_folder", view_func=pick_settings_folder)
     app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file)
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
+    app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)
     app.add_url_rule("/api/anime/metadata-match", endpoint="api_update_anime_metadata_match", view_func=api_update_anime_metadata_match, methods=["POST"])
     app.add_url_rule("/api/episode/display-name", endpoint="api_update_episode_display_name", view_func=api_update_episode_display_name, methods=["POST"])

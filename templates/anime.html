@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='13') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='1') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -28,6 +29,19 @@
 >
     &larr; Back
 </a>
+<button
+    type="button"
+    class="anime-floating-spotlight"
+    onclick="window.AniBaseSpotlight?.open()"
+    aria-label="Search library (Ctrl+K)"
+    title="Search library (Ctrl+K)"
+>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <span>Ctrl K</span>
+</button>
 
 {% if is_movie %}
 <header class="cinema-hero">
@@ -1767,5 +1781,7 @@ window.initializeMetadataMatch = function initializeMetadataMatch() {
 window.initializeMetadataMatch();
 </script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
+{% include "_spotlight.html" %}
+<script src="{{ url_for('static', filename='spotlight.js', v='1') }}"></script>
 </body>
 </html>
