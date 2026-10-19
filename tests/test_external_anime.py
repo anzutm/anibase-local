@@ -117,8 +117,8 @@ class ExternalAnimeTests(unittest.TestCase):
         resp = self.client.get("/anime/external/16498")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("DITEMUKAN DI LIBRARY LOKAL", html)
-        self.assertIn("Buka & Tonton di Library", html)
+        self.assertIn("FOUND IN LOCAL LIBRARY", html)
+        self.assertIn("Open & Watch in Library", html)
 
     @patch("main.get_cached_external_anime_info")
     def test_external_anime_detail_not_found_returns_404(self, mock_get_cached):
@@ -127,7 +127,7 @@ class ExternalAnimeTests(unittest.TestCase):
         resp = self.client.get("/anime/external/999999")
         self.assertEqual(resp.status_code, 404)
         html = resp.data.decode("utf-8")
-        self.assertIn("Informasi Anime Tidak Ditemukan", html)
+        self.assertIn("Anime Information Not Found", html)
         self.assertIn("999999", html)
 
     @patch("main.get_cached_external_anime_info")
@@ -175,7 +175,7 @@ class ExternalAnimeTests(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn('/anime/external/12345', html)
         self.assertIn("Outside Library", html)
-        self.assertIn("Info Anime", html)
+        self.assertIn("Anime Info", html)
 
 if __name__ == "__main__":
     unittest.main()

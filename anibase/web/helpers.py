@@ -669,7 +669,7 @@ def get_watch_status_payload():
 
 
 def get_spotlight_results(query="", limit=20):
-    """Mencari anime, film, dan aksi navigasi cepat untuk Spotlight Command Palette (Ctrl+K)."""
+    """Search anime, movies, and quick navigation actions for Spotlight Command Palette (Ctrl+K)."""
     norm_query = str(query or "").strip().casefold()
 
     actions = [
@@ -680,7 +680,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "Go to Home page and continue watching",
             "url": internal_url_for("index"),
             "icon": "home",
-            "keywords": ["home", "beranda", "main", "dashboard", "kembali"]
+            "keywords": ["home", "main", "dashboard", "index", "catalog"]
         },
         {
             "type": "action",
@@ -689,7 +689,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "Browse anime movie collection",
             "url": internal_url_for("movies"),
             "icon": "film",
-            "keywords": ["movies", "movie", "film", "bioskop", "cinema"]
+            "keywords": ["movies", "movie", "films", "cinema", "theatrical"]
         },
         {
             "type": "action",
@@ -698,7 +698,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "View anime release calendar and upcoming countdowns",
             "url": internal_url_for("schedule"),
             "icon": "calendar",
-            "keywords": ["schedule", "jadwal", "airing", "kalender", "rilis", "calendar"]
+            "keywords": ["schedule", "airing", "calendar", "releases", "episodes"]
         },
         {
             "type": "action",
@@ -707,7 +707,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "Configure libraries, MAL connection, shortcuts, and cache",
             "url": internal_url_for("settings_page"),
             "icon": "gear",
-            "keywords": ["settings", "pengaturan", "konfigurasi", "config", "mal", "shortcuts", "preferences"]
+            "keywords": ["settings", "preferences", "config", "configuration", "mal", "shortcuts", "options"]
         },
         {
             "type": "action",
@@ -716,7 +716,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "View your MAL statistics and watch profile",
             "url": internal_url_for("mal_profile_page"),
             "icon": "user",
-            "keywords": ["mal", "profile", "myanimelist", "akun", "stats", "statistik", "user"]
+            "keywords": ["mal", "profile", "myanimelist", "account", "stats", "statistics", "user"]
         },
         {
             "type": "action",
@@ -725,7 +725,7 @@ def get_spotlight_results(query="", limit=20):
             "subtitle": "Scan local directories and synchronize newly added anime",
             "url": "#action:refresh_library",
             "icon": "refresh",
-            "keywords": ["refresh", "sync", "sinkronisasi", "pindai", "scan", "update"]
+            "keywords": ["refresh", "sync", "rescan", "scan", "update", "library"]
         },
     ]
 

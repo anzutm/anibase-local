@@ -229,7 +229,7 @@ class MalProfileTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         content = resp.data.decode("utf-8")
         self.assertIn("HeroAnzu", content)
-        self.assertIn("Waktu Menonton", content)
+        self.assertIn("Watch Time", content)
         self.assertIn("50.2", content)
         self.assertIn("Currently Watching", content)
 

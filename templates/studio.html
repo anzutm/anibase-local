@@ -269,7 +269,7 @@
                          data-year="{{ anime.year or 0 }}"
                          data-title="{{ anime.name | lower }}">
                         {% if anime.id %}
-                        <a href="{{ url_for('external_anime_detail', anilist_id=anime.id, return_to=request.full_path if request.full_path else request.path) }}" class="studio-card-link" title="Lihat Informasi {{ anime.name }}">
+                        <a href="{{ url_for('external_anime_detail', anilist_id=anime.id, return_to=request.full_path if request.full_path else request.path) }}" class="studio-card-link" title="View Information for {{ anime.name }}">
                         {% else %}
                         <div class="studio-card-static">
                         {% endif %}
@@ -308,7 +308,7 @@
                                     {% endif %}
                                 </div>
                                 {% if anime.id %}
-                                <span class="play-hover-btn studio-explore-btn">&#8505; Info Anime</span>
+                                <span class="play-hover-btn studio-explore-btn">&#8505; Anime Info</span>
                                 {% else %}
                                 <span class="play-hover-btn is-disabled">Not in Library</span>
                                 {% endif %}
