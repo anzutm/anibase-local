@@ -1007,7 +1007,7 @@ let watchProgressInterval;
 
 function formatTime(seconds) {
     if (isNaN(seconds)) return "00:00";
-    if (seconds < 0) return "00:00"; // Tangani nilai negatif atau NaN
+    if (seconds < 0) return "00:00"; // Handle negative values or NaN
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -1399,7 +1399,7 @@ player.on('pause', () => {
     sendWatchProgress();
 });
 
-// Hapus status Discord saat pengguna menutup tab atau pindah halaman
+// Clear Discord status when user closes the tab or navigates away
 window.addEventListener('beforeunload', () => {
     sendWatchProgress(true);
 });
@@ -1520,7 +1520,7 @@ function showToast(toastId, messageId, actionButton, message, options = {}) {
         clearTimeout(toast.hideTimer);
     }
     
-    // Sembunyikan notifikasi setelah durasi yang ditentukan atau default 3 detik
+    // Hide notification after specified duration or default 3 seconds
     toast.hideTimer = setTimeout(() => {
         toast.classList.remove('show');
     }, options.duration || 3000);
