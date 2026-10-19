@@ -313,19 +313,22 @@
         const statusLabel = item.watch_status_label || '';
         const progressLabel = item.watch_progress_label ? `(${item.watch_progress_label})` : '';
 
+        const STAR_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+        const ENTER_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`;
+
         div.innerHTML = `
             <img class="spotlight-item-poster" src="${escapeHtml(item.poster)}" alt="" loading="lazy">
             <div class="spotlight-item-body">
                 <div class="spotlight-item-title-row">
                     <span class="spotlight-item-title">${escapeHtml(item.title)}</span>
-                    ${item.score ? `<span class="spotlight-score-badge">&#9733; ${escapeHtml(item.score)}</span>` : ''}
+                    ${item.score ? `<span class="spotlight-score-badge">${STAR_ICON} ${escapeHtml(item.score)}</span>` : ''}
                 </div>
                 <div class="spotlight-item-desc">
                     ${statusLabel ? `<span class="spotlight-status-badge ${statusKind}">${escapeHtml(statusLabel)} ${escapeHtml(progressLabel)}</span>` : ''}
                     <span>${item.year ? escapeHtml(item.year) + (genresText ? ' · ' : '') : ''}${escapeHtml(genresText)}</span>
                 </div>
             </div>
-            <span class="spotlight-item-enter">&crarr;</span>
+            <span class="spotlight-item-enter">${ENTER_ICON}</span>
         `;
 
         div.addEventListener('click', () => executeItem(item));
@@ -340,20 +343,22 @@
 
         const statusKind = item.watch_status_kind || 'not_started';
         const statusLabel = item.watch_status_label || '';
+        const STAR_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+        const ENTER_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`;
 
         div.innerHTML = `
             <img class="spotlight-item-poster" src="${escapeHtml(item.poster)}" alt="" loading="lazy">
             <div class="spotlight-item-body">
                 <div class="spotlight-item-title-row">
                     <span class="spotlight-item-title">${escapeHtml(item.title)}</span>
-                    ${item.score ? `<span class="spotlight-score-badge">&#9733; ${escapeHtml(item.score)}</span>` : ''}
+                    ${item.score ? `<span class="spotlight-score-badge">${STAR_ICON} ${escapeHtml(item.score)}</span>` : ''}
                 </div>
                 <div class="spotlight-item-desc">
                     ${statusLabel ? `<span class="spotlight-status-badge ${statusKind}">${escapeHtml(statusLabel)}</span>` : ''}
                     <span>Movie${item.year ? ' · ' + escapeHtml(item.year) : ''}</span>
                 </div>
             </div>
-            <span class="spotlight-item-enter">&crarr;</span>
+            <span class="spotlight-item-enter">${ENTER_ICON}</span>
         `;
 
         div.addEventListener('click', () => executeItem(item));
@@ -367,6 +372,7 @@
         div.setAttribute('aria-selected', 'false');
 
         const iconSvg = ACTION_ICONS[item.icon] || ACTION_ICONS.home;
+        const ENTER_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>`;
 
         div.innerHTML = `
             <div class="spotlight-action-icon" aria-hidden="true">${iconSvg}</div>
@@ -378,7 +384,7 @@
                     <span>${escapeHtml(item.subtitle)}</span>
                 </div>
             </div>
-            <span class="spotlight-item-enter">&crarr;</span>
+            <span class="spotlight-item-enter">${ENTER_ICON}</span>
         `;
 
         div.addEventListener('click', () => executeItem(item));

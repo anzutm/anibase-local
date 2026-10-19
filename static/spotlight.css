@@ -13,7 +13,7 @@
     padding-bottom: 24px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s;
+    transition: opacity 0.22s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)), visibility 0.22s;
     pointer-events: none;
 }
 
@@ -26,9 +26,9 @@
 .spotlight-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(4, 6, 10, 0.72);
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    background: rgba(0, 1, 6, 0.78);
+    backdrop-filter: var(--glass, blur(24px) saturate(180%));
+    -webkit-backdrop-filter: var(--glass, blur(24px) saturate(180%));
 }
 
 .spotlight-modal {
@@ -36,18 +36,20 @@
     width: 100%;
     max-width: 680px;
     max-height: calc(100vh - clamp(60px, 16vh, 160px));
-    background: linear-gradient(180deg, rgba(22, 26, 36, 0.94) 0%, rgba(13, 16, 23, 0.96) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
+    background:
+        radial-gradient(ellipse 90% 45% at 50% -12%, color-mix(in srgb, var(--primary, #0000FF) 18%, transparent), transparent 75%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg2, #03050a) 94%, #141826 6%) 0%, color-mix(in srgb, var(--bg, #000004) 96%, #05070f 4%) 100%);
+    border: 1px solid color-mix(in srgb, var(--border-bright, rgba(255, 255, 255, 0.22)) 70%, transparent);
+    border-radius: 20px;
     box-shadow: 
-        0 24px 64px -12px rgba(0, 0, 0, 0.75),
-        0 0 0 1px rgba(255, 255, 255, 0.08),
-        0 0 40px rgba(59, 130, 246, 0.08);
+        0 28px 75px -15px rgba(0, 0, 0, 0.88),
+        0 0 0 1px color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 55%, transparent),
+        0 0 50px -10px var(--card-glow, rgba(0, 0, 255, 0.25));
     display: flex;
     flex-direction: column;
     overflow: hidden;
     transform: scale(0.96) translateY(-8px);
-    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.24s var(--ease, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .spotlight-overlay.is-open .spotlight-modal {
@@ -60,15 +62,16 @@
     align-items: center;
     gap: 12px;
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 75%, transparent);
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 40%, transparent);
 }
 
 .spotlight-search-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #60a5fa;
+    color: var(--cyan, #00D8FF);
+    filter: drop-shadow(0 0 6px var(--glow-cyan, rgba(0, 216, 255, 0.28)));
     flex-shrink: 0;
 }
 
@@ -77,15 +80,15 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #f8fafc;
-    font-size: 1.08rem;
+    color: var(--text, #F5F7FF);
+    font-size: 1.05rem;
     font-weight: 500;
     line-height: 1.4;
     font-family: inherit;
 }
 
 .spotlight-input::placeholder {
-    color: rgba(148, 163, 184, 0.65);
+    color: color-mix(in srgb, var(--text-secondary, #A5B4D6) 60%, transparent);
     font-weight: 400;
 }
 
@@ -97,42 +100,45 @@
 }
 
 .spotlight-clear-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: none;
-    color: #94a3b8;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 75%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    color: var(--text-secondary, #A5B4D6);
     width: 24px;
     height: 24px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s var(--ease, ease), color 0.15s, border-color 0.15s;
 }
 
 .spotlight-clear-btn:hover {
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
+    background: var(--card-hover, rgba(255, 255, 255, 0.1));
+    border-color: var(--border-bright, rgba(255, 255, 255, 0.22));
+    color: var(--text, #F5F7FF);
 }
 
 .spotlight-esc-badge {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #94a3b8;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 75%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    color: var(--text-secondary, #A5B4D6);
     font-size: 0.72rem;
-    font-weight: 600;
-    padding: 3px 6px;
+    font-weight: 650;
+    padding: 3px 7px;
     border-radius: 6px;
     letter-spacing: 0.04em;
     cursor: pointer;
     user-select: none;
+    transition: background 0.15s var(--ease, ease), color 0.15s, border-color 0.15s;
 }
 
 .spotlight-esc-badge:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #f1f5f9;
+    background: var(--card-hover, rgba(255, 255, 255, 0.1));
+    border-color: var(--border-bright, rgba(255, 255, 255, 0.22));
+    color: var(--text, #F5F7FF);
 }
 
 /* Results List */
@@ -150,8 +156,12 @@
 }
 
 .spotlight-results::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.16);
+    background: color-mix(in srgb, var(--text-secondary, #A5B4D6) 24%, transparent);
     border-radius: 4px;
+}
+
+.spotlight-results::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-secondary, #A5B4D6) 40%, transparent);
 }
 
 /* Section Grouping */
@@ -160,11 +170,12 @@
 }
 
 .spotlight-section-title {
-    font-size: 0.74rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    font-weight: 750;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #64748b;
+    color: var(--text-secondary, #A5B4D6);
+    opacity: 0.85;
     padding: 6px 10px;
     margin-bottom: 4px;
     display: flex;
@@ -174,10 +185,12 @@
 
 .spotlight-section-count {
     font-size: 0.68rem;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 2px 6px;
-    border-radius: 10px;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--primary, #0000FF) 14%, var(--card, rgba(255, 255, 255, 0.055)));
+    border: 1px solid color-mix(in srgb, var(--primary, #0000FF) 30%, var(--border, rgba(255, 255, 255, 0.12)));
+    color: var(--text, #F5F7FF);
+    padding: 2px 7px;
+    border-radius: 999px;
 }
 
 /* Result Items */
@@ -186,55 +199,58 @@
     align-items: center;
     gap: 14px;
     padding: 9px 12px;
-    border-radius: 10px;
-    color: inherit;
+    border-radius: 12px;
+    color: var(--text, #F5F7FF);
     text-decoration: none;
     cursor: pointer;
-    transition: background 0.14s ease, transform 0.14s ease;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: background 0.16s var(--ease, ease), border-color 0.16s var(--ease, ease), transform 0.16s var(--ease, ease), box-shadow 0.16s var(--ease, ease);
     user-select: none;
 }
 
 .spotlight-item:hover,
 .spotlight-item.is-selected {
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.32);
-    transform: translateX(2px);
-}
-
-.spotlight-item:not(.is-selected) {
-    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--primary, #0000FF) 15%, var(--card, rgba(255, 255, 255, 0.055)));
+    border-color: color-mix(in srgb, var(--primary, #0000FF) 52%, var(--border-bright, rgba(255, 255, 255, 0.22)));
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--primary, #0000FF) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transform: translateX(3px);
 }
 
 /* Item Thumbnails */
 .spotlight-item-poster {
     width: 44px;
     height: 62px;
-    border-radius: 6px;
+    border-radius: 8px;
     object-fit: cover;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card, rgba(255, 255, 255, 0.055));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     flex-shrink: 0;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .spotlight-action-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    background: rgba(59, 130, 246, 0.14);
-    border: 1px solid rgba(59, 130, 246, 0.28);
-    color: #60a5fa;
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--cyan, #00D8FF) 12%, var(--card, rgba(255, 255, 255, 0.055)));
+    border: 1px solid color-mix(in srgb, var(--cyan, #00D8FF) 32%, var(--border, rgba(255, 255, 255, 0.12)));
+    color: var(--cyan, #00D8FF);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--cyan, #00D8FF) 15%, transparent);
 }
 
 .spotlight-action-icon svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     stroke: currentColor;
     fill: none;
     stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* Item Meta Content */
@@ -251,16 +267,18 @@
 }
 
 .spotlight-item-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #f1f5f9;
+    font-size: 0.94rem;
+    font-weight: 650;
+    color: var(--text, #F5F7FF);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.15s ease, text-shadow 0.15s ease;
 }
 
 .spotlight-item.is-selected .spotlight-item-title {
-    color: #93c5fd;
+    color: #ffffff;
+    text-shadow: 0 0 14px color-mix(in srgb, var(--cyan, #00D8FF) 45%, transparent);
 }
 
 .spotlight-score-badge {
@@ -268,17 +286,22 @@
     align-items: center;
     gap: 3px;
     font-size: 0.72rem;
-    font-weight: 700;
-    color: #fcd34d;
-    background: rgba(252, 211, 77, 0.12);
-    padding: 1px 6px;
-    border-radius: 4px;
+    font-weight: 750;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.32);
+    padding: 1.5px 6px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.spotlight-score-badge svg {
     flex-shrink: 0;
 }
 
 .spotlight-item-desc {
-    font-size: 0.8rem;
-    color: #94a3b8;
+    font-size: 0.81rem;
+    color: var(--text-secondary, #A5B4D6);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -289,60 +312,63 @@
 
 /* Status Badges */
 .spotlight-status-badge {
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: 0.67rem;
+    font-weight: 750;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 2px 7px;
-    border-radius: 4px;
+    border-radius: 5px;
     flex-shrink: 0;
+    line-height: 1.35;
 }
 
 .spotlight-status-badge.watching {
-    background: rgba(56, 189, 248, 0.16);
-    color: #38bdf8;
-    border: 1px solid rgba(56, 189, 248, 0.3);
+    background: color-mix(in srgb, var(--cyan, #00D8FF) 14%, transparent);
+    color: var(--cyan, #00D8FF);
+    border: 1px solid color-mix(in srgb, var(--cyan, #00D8FF) 38%, transparent);
 }
 
 .spotlight-status-badge.completed {
-    background: rgba(74, 222, 128, 0.16);
+    background: rgba(34, 197, 94, 0.14);
     color: #4ade80;
-    border: 1px solid rgba(74, 222, 128, 0.3);
+    border: 1px solid rgba(34, 197, 94, 0.35);
 }
 
 .spotlight-status-badge.up_to_date {
-    background: rgba(192, 132, 252, 0.16);
+    background: rgba(168, 85, 247, 0.14);
     color: #c084fc;
-    border: 1px solid rgba(192, 132, 252, 0.3);
+    border: 1px solid rgba(168, 85, 247, 0.35);
 }
 
 .spotlight-status-badge.not_started {
-    background: rgba(148, 163, 184, 0.12);
-    color: #94a3b8;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 60%, transparent);
+    color: var(--text-secondary, #A5B4D6);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
 }
 
 /* Item Action Key Shortcut */
 .spotlight-item-enter {
-    color: #64748b;
-    font-size: 0.8rem;
+    color: var(--text-secondary, #A5B4D6);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0;
     transform: translateX(-4px);
-    transition: opacity 0.14s, transform 0.14s, color 0.14s;
+    transition: opacity 0.16s var(--ease, ease), transform 0.16s var(--ease, ease), color 0.16s var(--ease, ease);
     flex-shrink: 0;
 }
 
 .spotlight-item.is-selected .spotlight-item-enter {
     opacity: 1;
     transform: translateX(0);
-    color: #60a5fa;
+    color: var(--cyan, #00D8FF);
 }
 
 /* Empty State */
 .spotlight-empty-state {
     padding: 40px 20px;
     text-align: center;
-    color: #64748b;
+    color: var(--text-secondary, #A5B4D6);
 }
 
 .spotlight-empty-text {
@@ -351,10 +377,11 @@
 }
 
 .spotlight-spinner {
-    width: 24px;
-    height: 24px;
-    border: 2px solid rgba(255, 255, 255, 0.12);
-    border-top-color: #60a5fa;
+    width: 26px;
+    height: 26px;
+    border: 2.5px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 80%, transparent);
+    border-top-color: var(--cyan, #00D8FF);
+    filter: drop-shadow(0 0 6px var(--glow-cyan, rgba(0, 216, 255, 0.28)));
     border-radius: 50%;
     margin: 0 auto 12px;
     animation: spotlightSpin 0.7s linear infinite;
@@ -369,11 +396,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 18px;
-    background: rgba(10, 13, 20, 0.95);
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 12px 20px;
+    background: color-mix(in srgb, var(--bg2, #03050a) 95%, var(--bg, #000004));
+    border-top: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 70%, transparent);
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--text-secondary, #A5B4D6);
 }
 
 .spotlight-footer-hints {
@@ -383,19 +410,32 @@
 }
 
 .spotlight-hint kbd {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #cbd5e1;
-    padding: 1px 5px;
-    border-radius: 4px;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 85%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    color: var(--text, #F5F7FF);
+    padding: 2px 6px;
+    border-radius: 5px;
     font-size: 0.68rem;
-    margin-right: 3px;
+    margin-right: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .spotlight-footer-brand {
-    font-size: 0.7rem;
-    color: #475569;
-    font-weight: 500;
+    font-size: 0.72rem;
+    color: var(--text-secondary, #A5B4D6);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.spotlight-footer-brand::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cyan, #00D8FF);
+    box-shadow: 0 0 8px var(--cyan, #00D8FF);
 }
 
 /* Topbar search box shortcut chip */
@@ -409,12 +449,12 @@
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.09);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: #94a3b8;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 2px 5px;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 80%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    color: var(--text-secondary, #A5B4D6);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
     border-radius: 5px;
     pointer-events: none;
     user-select: none;
@@ -435,13 +475,14 @@
     padding: 0 16px;
     border-radius: 14px;
     background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
-        rgba(2, 3, 12, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+        linear-gradient(135deg, color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 60%, transparent), transparent),
+        color-mix(in srgb, var(--bg2, #03050a) 82%, transparent);
+    border: 1px solid var(--border-bright, rgba(255, 255, 255, 0.22));
     box-shadow:
-        0 18px 48px rgba(0, 0, 0, 0.42),
+        0 18px 48px rgba(0, 0, 0, 0.45),
+        0 0 25px var(--card-glow, rgba(0, 0, 255, 0.25)),
         inset 0 1px 0 rgba(255, 255, 255, 0.14);
-    color: #f1f5f9;
+    color: var(--text, #F5F7FF);
     font-family: inherit;
     font-size: 0.85rem;
     font-weight: 600;
@@ -449,34 +490,34 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, background 0.2s ease;
+    backdrop-filter: var(--glass, blur(24px) saturate(180%));
+    -webkit-backdrop-filter: var(--glass, blur(24px) saturate(180%));
+    transition: transform 0.2s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .anime-floating-spotlight:hover {
     transform: translateY(-2px);
-    border-color: rgba(96, 165, 250, 0.45);
+    border-color: var(--cyan, #00D8FF);
     background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06)),
-        rgba(2, 3, 12, 0.82);
+        linear-gradient(135deg, color-mix(in srgb, var(--primary, #0000FF) 16%, var(--card, rgba(255, 255, 255, 0.055))), transparent),
+        color-mix(in srgb, var(--bg2, #03050a) 88%, transparent);
     box-shadow:
         0 20px 48px rgba(0, 0, 0, 0.5),
-        0 0 20px rgba(59, 130, 246, 0.2),
+        0 0 30px var(--card-glow, rgba(0, 0, 255, 0.3)),
         inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .anime-floating-spotlight svg {
-    color: #60a5fa;
+    color: var(--cyan, #00D8FF);
 }
 
 .anime-floating-spotlight span {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.055)) 85%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     padding: 2px 6px;
     border-radius: 5px;
     font-size: 0.72rem;
-    color: #cbd5e1;
+    color: var(--text-secondary, #A5B4D6);
 }
 
 @media (max-width: 640px) {
@@ -488,11 +529,11 @@
     }
     .spotlight-modal {
         max-height: 85vh;
-        border-radius: 12px;
+        border-radius: 14px;
     }
     .spotlight-item-poster {
-        width: 36px;
-        height: 50px;
+        width: 38px;
+        height: 52px;
     }
     .spotlight-footer-hints {
         gap: 8px;
