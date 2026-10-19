@@ -1,11 +1,12 @@
 # anibase/integrations/aniskip.py
-"""Integrasi AniSkip API untuk deteksi skip opening dan ending."""
+"""AniSkip API integration for opening and ending skip detection."""
 
 import os
 import json
 import time
 import requests
 import anibase.constants as _constants
+from anibase import __version__
 from anibase.logging import app_log
 
 
@@ -19,7 +20,7 @@ def get_aniskip_session():
         if _ANISKIP_SESSION is None:
             _ANISKIP_SESSION = requests.Session()
             _ANISKIP_SESSION.headers.update({
-                "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.5",
+                "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/{__version__}",
                 "Accept": "application/json",
             })
         return _ANISKIP_SESSION
