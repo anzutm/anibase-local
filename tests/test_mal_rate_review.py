@@ -27,6 +27,14 @@ class MalRateReviewTests(unittest.TestCase):
 
         with main.db_connection() as conn:
             conn.execute("DELETE FROM anime_user_reviews")
+        self.addCleanup(self.cleanup_db)
+
+    def cleanup_db(self):
+        try:
+            with main.db_connection() as conn:
+                conn.execute("DELETE FROM anime_user_reviews")
+        except Exception:
+            pass
 
     def restore_globals(self):
         main.MAL_AUTH_FILE = self.orig_auth_file

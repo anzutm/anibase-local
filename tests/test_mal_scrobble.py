@@ -29,8 +29,22 @@ class MalScrobbleTests(unittest.TestCase):
         main.MAL_SCROBBLE_CACHE = self.test_scrobble_file
         self.addCleanup(self.restore_globals)
 
+        self._cleanup_state()
+        self.addCleanup(self._cleanup_state)
+
         self.video = self.root / "Episode 05.mkv"
         self.video.write_bytes(b"video content")
+
+    def _cleanup_state(self):
+        try:
+            with main.db_connection() as conn:
+                conn.execute("DELETE FROM anime_user_reviews")
+                conn.execute("DELETE FROM mal_pending_scrobbles")
+        except Exception:
+            pass
+        from anibase.integrations.mal import _MAL_USER_ANIME_STATUS_CACHE, _MAL_USER_ANIME_STATUS_CACHE_LOCK
+        with _MAL_USER_ANIME_STATUS_CACHE_LOCK:
+            _MAL_USER_ANIME_STATUS_CACHE.clear()
 
     def restore_globals(self):
         main.MAL_AUTH_FILE = self.orig_auth_file

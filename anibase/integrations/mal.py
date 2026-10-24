@@ -806,7 +806,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
         or (local_review and local_review.get("score"))
     )
 
-    rewatch_mode = str(settings.get("mal_rewatch_mode", "rewatch")).strip().lower()
+    rewatch_mode = str(settings.get("mal_rewatch_mode", "ignore")).strip().lower()
     is_final_episode = bool(
         (anime_name == "Movies")
         or (not is_airing and total_episodes > 0 and ep_num >= total_episodes)

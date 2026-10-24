@@ -393,7 +393,7 @@ def update_settings():
         "mal_rewatch_mode": (
             request.form.get("mal_rewatch_mode", "").strip().lower()
             if request.form.get("mal_rewatch_mode", "").strip().lower() in {"rewatch", "ignore", "revert"}
-            else existing_settings.get("mal_rewatch_mode", "rewatch")
+            else existing_settings.get("mal_rewatch_mode", "ignore")
         ),
         "shortcuts": effective_shortcuts
     }
@@ -1318,7 +1318,7 @@ def mal_status():
         "picture": auth.get("picture", "") if is_authed else "",
         "scrobble_enabled": settings.get("mal_scrobble_enabled", False),
         "threshold": settings.get("mal_scrobble_threshold", 90),
-        "rewatch_mode": settings.get("mal_rewatch_mode", "rewatch"),
+        "rewatch_mode": settings.get("mal_rewatch_mode", "ignore"),
         "client_id_configured": bool(get_effective_mal_client_id(settings)),
         "pending_scrobbles": len(pending_list),
     })

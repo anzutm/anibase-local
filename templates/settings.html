@@ -784,8 +784,8 @@
                             <label class="settings-label" for="mal_rewatch_mode">Completed Anime Rewatch Behavior</label>
                             <p class="settings-helper">Controls how AniBase syncs when rewatching an anime that is already marked as Completed on MyAnimeList.</p>
                             <select class="settings-input" id="mal_rewatch_mode" name="mal_rewatch_mode">
-                                <option value="rewatch" {% if settings.mal_rewatch_mode == 'rewatch' or not settings.mal_rewatch_mode %}selected{% endif %}>Keep Completed & Track Rewatch (Recommended)</option>
-                                <option value="ignore" {% if settings.mal_rewatch_mode == 'ignore' %}selected{% endif %}>Ignore / Do Not Scrobble Completed Anime</option>
+                                <option value="ignore" {% if settings.mal_rewatch_mode == 'ignore' or not settings.mal_rewatch_mode %}selected{% endif %}>Ignore / Do Not Change Completed Anime (Recommended)</option>
+                                <option value="rewatch" {% if settings.mal_rewatch_mode == 'rewatch' %}selected{% endif %}>Keep Completed & Track Rewatch</option>
                                 <option value="revert" {% if settings.mal_rewatch_mode == 'revert' %}selected{% endif %}>Change Status Back to Watching</option>
                             </select>
                         </div>
