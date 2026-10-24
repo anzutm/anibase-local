@@ -831,7 +831,8 @@ def poster(anime_name):
         poster_path
     ):
         return send_file(
-            poster_path
+            poster_path,
+            max_age=86400
         )
 
     poster_path = get_anilist_poster(
@@ -840,7 +841,8 @@ def poster(anime_name):
 
     if poster_path:
         return send_file(
-            poster_path
+            poster_path,
+            max_age=86400
         )
 
     return "", 404
@@ -857,7 +859,8 @@ def banner(anime_name):
         banner_path
     ):
         return send_file(
-            banner_path
+            banner_path,
+            max_age=86400
         )
 
     get_anilist_poster(
@@ -869,7 +872,8 @@ def banner(anime_name):
         banner_path
     ):
         return send_file(
-            banner_path
+            banner_path,
+            max_age=86400
         )
 
     poster_path = os.path.join(
@@ -881,7 +885,8 @@ def banner(anime_name):
         poster_path
     ):
         return send_file(
-            poster_path
+            poster_path,
+            max_age=86400
         )
 
     return "", 404
@@ -959,7 +964,8 @@ def thumbnail(anime_name, episode):
 
     if thumbnail_result.get("ok"):
         return send_file(
-            thumbnail_result["path"]
+            thumbnail_result["path"],
+            max_age=86400
         )
 
     return media_generation_error_response(thumbnail_result)
@@ -1002,7 +1008,7 @@ def stream_video(anime_name, episode):
 def character_img(anime_name, filename):
     img_path = get_character_image_cache_path(anime_name, filename)
     if img_path and os.path.isfile(img_path):
-        return send_file(img_path)
+        return send_file(img_path, max_age=86400)
     abort(404)
 
 

@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import json
+import gzip
 import sqlite3
 import secrets
 import functools
@@ -864,4 +865,91 @@ def get_spotlight_results(query="", limit=20):
         },
         "total": len(matched_anime[:limit]) + len(matched_movies[:5]) + len(matched_actions[:6])
     }
+
+
+COMPRESSIBLE_MIMETYPES = (
+    "text/html",
+    "text/css",
+    "text/plain",
+    "text/xml",
+    "application/javascript",
+    "application/x-javascript",
+    "application/json",
+    "application/xml",
+    "application/xhtml+xml",
+    "image/svg+xml",
+)
+
+
+def apply_cache_headers(response):
+    """Apply optimized Cache-Control headers for static assets and media."""
+    if response.status_code < 200 or response.status_code >= 300:
+        return response
+
+    path = request.path
+    if path.startswith("/static/"):
+        if "v" in request.args:
+            response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+    elif path.startswith(("/poster/", "/banner/", "/thumbnail/", "/character_img/", "/image-proxy", "/seek-preview/")):
+        response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+
+    return response
+
+
+def compress_response(response):
+    """Compress compressible HTTP responses using gzip when supported by client."""
+    accept_encoding = request.headers.get("Accept-Encoding", "").lower()
+    if "gzip" not in accept_encoding:
+        return response
+
+    if (
+        response.status_code < 200
+        or response.status_code >= 300
+        or "Content-Encoding" in response.headers
+    ):
+        return response
+
+    mimetype = (response.mimetype or "").lower()
+    if not (
+        mimetype.startswith("text/")
+        or mimetype in COMPRESSIBLE_MIMETYPES
+    ):
+        return response
+
+    # Don't buffer huge files (safety limit: 10MB)
+    if response.content_length and response.content_length > 10 * 1024 * 1024:
+        return response
+
+    if getattr(response, "direct_passthrough", False):
+        response.direct_passthrough = False
+
+    try:
+        data = response.get_data()
+    except Exception:
+        return response
+
+    if len(data) < 500:
+        return response
+
+    compressed_data = gzip.compress(data, compresslevel=6)
+    if len(compressed_data) >= len(data):
+        return response
+
+    response.set_data(compressed_data)
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"] = len(compressed_data)
+
+    if "Accept-Ranges" in response.headers:
+        del response.headers["Accept-Ranges"]
+
+    vary = response.headers.get("Vary")
+    if vary:
+        if "Accept-Encoding" not in vary:
+            response.headers["Vary"] = f"{vary}, Accept-Encoding"
+    else:
+        response.headers["Vary"] = "Accept-Encoding"
+
+    return response
 

@@ -18,6 +18,8 @@ from anibase.web.helpers import (
     validate_action_token,
     require_action_token,
     inject_action_token,
+    apply_cache_headers,
+    compress_response,
     internal_url_for,
     is_local_client_address,
     is_local_request,
@@ -118,10 +120,13 @@ def setup_web_app(app):
     """Configure errorhandlers, hooks, context processors, and routes on the Flask app."""
     set_app(app)
     app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BODY_BYTES
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
     app.errorhandler(RequestEntityTooLarge)(handle_request_entity_too_large)
     app.before_request(reject_new_work_during_shutdown)
     app.before_request(block_lan_access_when_disabled)
     app.before_request(redirect_to_setup_when_needed)
+    app.after_request(compress_response)
+    app.after_request(apply_cache_headers)
     app.context_processor(inject_action_token)
     app.context_processor(inject_theme)
     app.context_processor(inject_shortcuts)
