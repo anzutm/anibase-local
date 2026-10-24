@@ -104,6 +104,7 @@ body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:f
 
 /* Episode cards: artwork first, with playback cues revealed on interaction. */
 #episodeGrid .episode-card {
+    cursor: pointer;
     transition: transform .3s var(--ease), border-color .3s ease, box-shadow .3s ease;
     content-visibility: auto;
     contain-intrinsic-size: auto 240px;
@@ -200,9 +201,128 @@ body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:f
 #episodeGrid .episode-resume-progress { height: 2px; background: rgba(255,255,255,.08); }
 #episodeGrid .episode-resume-progress span { display: block; height: 100%; background: var(--cyan); }
 @media (max-width: 700px) {
-    #episodeGrid .episode-card-shell { position: relative; }
-    #episodeGrid .episode-resume-progress { position: absolute; bottom: 0; left: 0; right: 0; z-index: 9; }
+    #episodeGrid .episode-card {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        contain-intrinsic-size: auto 76px;
+    }
+    #episodeGrid .episode-card:active {
+        transform: scale(0.985);
+    }
+    #episodeGrid .episode-card-shell {
+        position: relative;
+        display: grid;
+        grid-template-columns: 128px minmax(0, 1fr);
+        min-height: 72px;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+    #episodeGrid .thumbnail-wrapper,
+    #episodeGrid .episode-thumbnail {
+        width: 128px;
+        height: 72px;
+        min-height: 72px;
+        border-radius: 0;
+    }
+    #episodeGrid .resolution-badge {
+        top: 6px;
+        left: 6px;
+        bottom: auto;
+        right: auto;
+        max-width: none;
+        padding: 2px 6px;
+        font-size: 9px;
+        line-height: 1.2;
+    }
+    #episodeGrid .duration-badge {
+        bottom: 6px;
+        right: 6px;
+        top: auto;
+        left: auto;
+        max-width: none;
+        padding: 2px 6px;
+        font-size: 9px;
+        line-height: 1.2;
+    }
     #episodeGrid .episode-overlay .episode-meta { display: none; }
+    #episodeGrid .episode-resume-progress { position: absolute; bottom: 0; left: 0; right: 0; z-index: 9; }
+    #episodeGrid .episode-card-footer {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: stretch;
+        min-height: 72px;
+        padding: 8px 12px;
+    }
+    #episodeGrid .episode-footer-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        align-items: center;
+        row-gap: 5px;
+        column-gap: 8px;
+        min-height: 0;
+        width: 100%;
+    }
+    #episodeGrid .episode-title-block {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+    }
+    #episodeGrid .episode-display-name {
+        font-size: 14.5px;
+        font-weight: 600;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #episodeGrid .episode-rename-trigger {
+        grid-column: 2;
+        grid-row: 1;
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+        justify-self: end;
+    }
+    #episodeGrid :is(.watch-status-badge, .watch-progress-badge) {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-self: start;
+        width: fit-content;
+        padding: 2.5px 7px;
+        font-size: 9.5px;
+        line-height: 1.3;
+        white-space: nowrap;
+        border-radius: 4px;
+    }
+}
+@media (max-width: 380px) {
+    #episodeGrid .episode-card-shell {
+        grid-template-columns: 110px minmax(0, 1fr);
+        min-height: 62px;
+    }
+    #episodeGrid .thumbnail-wrapper,
+    #episodeGrid .episode-thumbnail {
+        width: 110px;
+        height: 62px;
+        min-height: 62px;
+    }
+    #episodeGrid .episode-card-footer {
+        min-height: 62px;
+        padding: 6px 10px;
+    }
+    #episodeGrid .episode-display-name {
+        font-size: 13.5px;
+    }
+    #episodeGrid .episode-rename-trigger {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
 }
 @media (hover: none) {
     #episodeGrid .episode-overlay .play-circle { opacity: .85; transform: none; }
