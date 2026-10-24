@@ -567,6 +567,8 @@
     animation: none;
     filter: none;
     opacity: 1;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 330px;
 }
 
 .home-page #animeCollectionGrid .card:hover,
@@ -1252,12 +1254,16 @@
 .home-page :is(.home-primary-action, .home-secondary-action, .filter-btn, .resume-arrow):active {
     scale: .97;
 }
-@media (hover: none), (pointer: coarse) {
+@media (hover: none), (pointer: coarse), (max-width: 768px) {
     .home-page #animeCollectionGrid .card:hover,
     .home-page #animeCollectionGrid .card:hover .poster,
     .home-page .continue-card:hover,
     .home-page .continue-card:hover .continue-thumb img {
         transform: none !important;
+    }
+    .home-page .home-spotlight-image {
+        transition-duration: 0.15s !important;
+        will-change: auto !important;
     }
 }
 @media (prefers-reduced-motion: reduce) {

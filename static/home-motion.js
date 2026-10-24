@@ -2,10 +2,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const hover = matchMedia('(hover: hover) and (pointer: fine)');
+    const isMobile = matchMedia('(max-width: 768px)').matches || !hover.matches;
     const animations = new Map();
     function reveal(element, delay = 0) {
         animations.get(element)?.cancel();
-        if (!element || reduced.matches || document.hidden || !element.animate) return;
+        if (!element || reduced.matches || isMobile || document.hidden || !element.animate) return;
         const animation = element.animate([
             { opacity: 0, translate: '0 14px' },
             { opacity: 1, translate: '0 0' }
@@ -15,12 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (animations.get(element) === animation) animations.delete(element);
         };
     }
-    document.querySelectorAll('.home-intro .home-section-eyebrow, .home-intro h1, .home-collection-summary, .home-spotlight')
-        .forEach((element, index) => reveal(element, index * 65));
+    if (!isMobile) {
+        document.querySelectorAll('.home-intro .home-section-eyebrow, .home-intro h1, .home-collection-summary, .home-spotlight')
+            .forEach((element, index) => reveal(element, index * 65));
+    }
 
     const targets = document.querySelectorAll('.resume-section-head, .collection-top, .collection-toolbar');
     const seen = new WeakSet();
-    if ('IntersectionObserver' in window) {
+    if ('IntersectionObserver' in window && !isMobile) {
         const observer = new IntersectionObserver(entries => {
             let index = 0;
             entries.forEach(entry => {
@@ -48,6 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let imageMotion = null;
     let hovered = false;
     let inView = true;
+    let isScrolling = false;
+    let scrollEndTimer = null;
     const duration = 5000;
 
     function paint() {
@@ -58,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         imageMotion?.cancel();
         imageMotion = null;
         const image = slides[index]?.querySelector('.home-spotlight-image');
-        if (image?.animate && slides.length > 1 && !reduced.matches) {
+        if (image?.animate && slides.length > 1 && !reduced.matches && !isMobile) {
             imageMotion = image.animate([{ transform: 'scale(1.01)' }, { transform: 'scale(1.05)' }],
                 { duration, fill: 'both', easing: 'linear' });
             imageMotion.pause();
@@ -84,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function canRun() {
         return slides.length > 1 && !reduced.matches && !document.hidden && inView
-            && !hovered && !hero.contains(document.activeElement)
+            && !hovered && !isScrolling && !hero.contains(document.activeElement)
             && hero.style.display !== 'none';
     }
     function tick(time) {
@@ -107,6 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dots.forEach((dot, next) => dot.addEventListener('click', () => { showSlide(next); sync(); }));
         hero.addEventListener('pointerenter', () => { hovered = hover.matches; sync(); });
         hero.addEventListener('pointerleave', () => { hovered = false; sync(); });
+        hero.addEventListener('touchstart', () => { hovered = true; sync(); }, { passive: true });
+        hero.addEventListener('touchend', () => { hovered = false; sync(); }, { passive: true });
         hero.addEventListener('focusin', sync);
         hero.addEventListener('focusout', () => queueMicrotask(sync));
         if ('IntersectionObserver' in window) {
@@ -115,6 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
         prepareImage();
         sync();
     }
+    window.addEventListener('scroll', () => {
+        isScrolling = true;
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => {
+            isScrolling = false;
+            sync();
+        }, 150);
+    }, { passive: true });
     document.addEventListener('home:filtered', sync);
     document.addEventListener('visibilitychange', () => {
         animations.forEach(animation => document.hidden ? animation.pause() : animation.play());

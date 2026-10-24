@@ -851,9 +851,27 @@ function initializeAnimeDetailContent() {
         });
     }
 
+    let detailAiringInterval = null;
+    function startDetailAiringTimer() {
+        if (detailAiringInterval) clearInterval(detailAiringInterval);
+        if (!document.hidden && airingCards.length) {
+            updateDetailAiringCountdowns();
+            detailAiringInterval = setInterval(updateDetailAiringCountdowns, 1000);
+        }
+    }
+    function stopDetailAiringTimer() {
+        if (detailAiringInterval) {
+            clearInterval(detailAiringInterval);
+            detailAiringInterval = null;
+        }
+    }
+
     if (airingCards.length) {
-        updateDetailAiringCountdowns();
-        setInterval(updateDetailAiringCountdowns, 1000);
+        startDetailAiringTimer();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) stopDetailAiringTimer();
+            else startDetailAiringTimer();
+        });
     }
 
     const grid = document.getElementById('episodeGrid');

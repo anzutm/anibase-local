@@ -105,6 +105,8 @@ body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:f
 /* Episode cards: artwork first, with playback cues revealed on interaction. */
 #episodeGrid .episode-card {
     transition: transform .3s var(--ease), border-color .3s ease, box-shadow .3s ease;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 #episodeGrid .episode-card:hover,
 #episodeGrid .episode-card:focus-within {
@@ -1966,5 +1968,16 @@ body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
         min-width: 0;
+    }
+}
+
+@media (hover: none), (pointer: coarse), (max-width: 768px) {
+    #episodeGrid .episode-card:hover {
+        transform: none !important;
+    }
+    body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:hover .char-side img,
+    body.anime-detail-body:not(.movie-detail-body) .character-grid .character-card:hover .va-side img {
+        transform: none !important;
+        box-shadow: none !important;
     }
 }

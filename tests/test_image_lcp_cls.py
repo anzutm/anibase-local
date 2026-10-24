@@ -100,6 +100,55 @@ class ImageLcpClsTestCase(unittest.TestCase):
             content = f.read()
         self.assertNotIn('@font-face', content)
 
+    def test_mobile_glass_and_card_rendering_throttled(self):
+        with open('static/style.css', 'r', encoding='utf-8') as f:
+            style_css = f.read()
+        self.assertIn('@media (max-width: 768px), (hover: none)', style_css)
+        self.assertIn('--glass: blur(6px) saturate(120%);', style_css)
+        self.assertIn('--glass: none;', style_css)
+        self.assertIn('content-visibility: auto;', style_css)
+
+        with open('static/home.css', 'r', encoding='utf-8') as f:
+            home_css = f.read()
+        self.assertIn('content-visibility: auto;', home_css)
+        self.assertIn('contain-intrinsic-size: auto 330px;', home_css)
+        self.assertIn('@media (hover: none), (pointer: coarse), (max-width: 768px)', home_css)
+
+        with open('static/anime-redesign.css', 'r', encoding='utf-8') as f:
+            anime_css = f.read()
+        self.assertIn('content-visibility: auto;', anime_css)
+        self.assertIn('contain-intrinsic-size: auto 240px;', anime_css)
+
+        with open('static/movies-redesign.css', 'r', encoding='utf-8') as f:
+            movies_css = f.read()
+        self.assertIn('content-visibility: auto;', movies_css)
+        self.assertIn('contain-intrinsic-size: auto 330px;', movies_css)
+
+    def test_mobile_motion_throttled_in_js(self):
+        with open('static/home-motion.js', 'r', encoding='utf-8') as f:
+            home_js = f.read()
+        self.assertIn('const isMobile = matchMedia', home_js)
+        self.assertIn('if (!element || reduced.matches || isMobile || document.hidden || !element.animate) return;', home_js)
+        self.assertIn('window.addEventListener(\'scroll\'', home_js)
+
+        with open('static/movies.js', 'r', encoding='utf-8') as f:
+            movies_js = f.read()
+        self.assertIn('IntersectionObserver', movies_js)
+        self.assertIn('window.addEventListener(\'scroll\'', movies_js)
+        self.assertIn('document.addEventListener(\'visibilitychange\'', movies_js)
+
+    def test_airing_countdown_paused_on_visibility_hidden(self):
+        with open('templates/index.html', 'r', encoding='utf-8') as f:
+            index_html = f.read()
+        self.assertIn('document.addEventListener(\'visibilitychange\'', index_html)
+        self.assertIn('stopHomeAiringTimer()', index_html)
+
+        with open('templates/anime.html', 'r', encoding='utf-8') as f:
+            anime_html = f.read()
+        self.assertIn('document.addEventListener(\'visibilitychange\'', anime_html)
+        self.assertIn('stopDetailAiringTimer()', anime_html)
+
 
 if __name__ == '__main__':
     unittest.main()
+

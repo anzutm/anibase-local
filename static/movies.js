@@ -8,11 +8,14 @@
     let activeIndex = 0;
     let paused = motion.matches;
     let timer;
+    let inView = true;
+    let isScrolling = false;
+    let scrollEndTimer = null;
 
     function stopSlider() { window.clearInterval(timer); }
     function startSlider() {
         stopSlider();
-        if (paused || document.hidden || hero?.hidden || hero?.matches(':hover') || hero?.contains(document.activeElement) || slides.length < 2) return;
+        if (paused || document.hidden || !inView || isScrolling || hero?.hidden || hero?.matches(':hover') || hero?.contains(document.activeElement) || slides.length < 2) return;
         timer = window.setInterval(() => showSlide(activeIndex + 1), 4500);
     }
     function showSlide(index) {
@@ -36,9 +39,30 @@
     pauseButton?.addEventListener('click', () => { paused = !paused; updatePauseButton(); startSlider(); });
     hero?.addEventListener('mouseenter', stopSlider);
     hero?.addEventListener('mouseleave', startSlider);
+    hero?.addEventListener('touchstart', stopSlider, { passive: true });
+    hero?.addEventListener('touchend', startSlider, { passive: true });
     hero?.addEventListener('focusin', stopSlider);
     hero?.addEventListener('focusout', () => window.setTimeout(startSlider, 0));
-    document.addEventListener('visibilitychange', startSlider);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopSlider();
+        else startSlider();
+    });
+    if ('IntersectionObserver' in window && hero) {
+        new IntersectionObserver(entries => {
+            inView = entries[0].isIntersecting;
+            if (inView) startSlider();
+            else stopSlider();
+        }, { threshold: 0.05 }).observe(hero);
+    }
+    window.addEventListener('scroll', () => {
+        isScrolling = true;
+        stopSlider();
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => {
+            isScrolling = false;
+            startSlider();
+        }, 150);
+    }, { passive: true });
     motion.addEventListener('change', () => { paused = motion.matches; updatePauseButton(); startSlider(); });
     updatePauseButton();
     startSlider();

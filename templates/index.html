@@ -650,9 +650,27 @@
             });
         }
 
+        let homeAiringInterval = null;
+        function startHomeAiringTimer() {
+            if (homeAiringInterval) clearInterval(homeAiringInterval);
+            if (!document.hidden && airingCountdowns.length) {
+                updateAiringCountdowns();
+                homeAiringInterval = setInterval(updateAiringCountdowns, 1000);
+            }
+        }
+        function stopHomeAiringTimer() {
+            if (homeAiringInterval) {
+                clearInterval(homeAiringInterval);
+                homeAiringInterval = null;
+            }
+        }
+
         if (airingCountdowns.length) {
-            updateAiringCountdowns();
-            setInterval(updateAiringCountdowns, 1000);
+            startHomeAiringTimer();
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) stopHomeAiringTimer();
+                else startHomeAiringTimer();
+            });
         }
 
         if (continueGrid && resumePrev && resumeNext) {

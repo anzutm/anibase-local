@@ -62,6 +62,18 @@
     --glass: blur(24px) saturate(180%);
 }
 
+@media (max-width: 768px), (hover: none) {
+    :root {
+        --glass: blur(6px) saturate(120%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --glass: none;
+    }
+}
+
 :root[data-theme="dark-orange"] {
     --card-glow: rgba(217, 119, 6, 0.30);
     --text-secondary: #d2b99b;
@@ -3978,6 +3990,8 @@ video::cue {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     height: 145px;
     position: relative;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 145px;
 }
 
 /* Responsivitas untuk layar yang lebih kecil agar tidak pecah */
