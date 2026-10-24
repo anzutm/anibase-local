@@ -3,6 +3,7 @@
 {% block title %}
 {% if authenticated and user and user.name %}{{ user.name }} - MyAnimeList Profile{% else %}MyAnimeList Profile{% endif %} - AniBase
 {% endblock %}
+{% block meta_description %}View your synchronized MyAnimeList profile, anime statistics, watch progress, and scrobble logs on AniBase.{% endblock %}
 
 {% block content %}
 <div class="mal-profile-container">

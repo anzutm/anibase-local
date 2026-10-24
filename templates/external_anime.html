@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}{{ anime.name }} - AniBase Discovery{% endblock %}
+{% block title %}{{ anime.title or anime.name }} - AniBase Discovery{% endblock %}
+{% block meta_description %}{{ ((anime.description | striptags | replace('\n', ' ') | replace('\"', ''))[:160] | trim) if anime.description else ('Discover ' ~ (anime.title or anime.name) ~ ' details, cast, and airing schedule on AniBase.') }}{% endblock %}
+{% block og_image %}{{ anime.banner or anime.poster or url_for('static', filename='arcana.jpg') }}{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='4') }}">

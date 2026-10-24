@@ -2,6 +2,7 @@
 {% block body_class %}support-page seiyuu-body{% endblock %}
 
 {% block title %}{{ seiyuu_data.name_full if seiyuu_data else 'Voice Actor Profile' }} - AniBase{% endblock %}
+{% block meta_description %}Explore voice actor profiles, anime appearances, and character roles across your anime collection on AniBase.{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='seiyuu.css', v='4') }}">

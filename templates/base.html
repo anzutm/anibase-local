@@ -3,7 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}AniBase{% endblock %}</title>
+    <title>{% block title %}AniBase - Private Anime Screening Room{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}AniBase is your private local anime screening room and media library manager with AniList metadata, ASS subtitles, and offline tracking.{% endblock %}">
+
+    <!-- Open Graph & Social Meta -->
+    <meta property="og:site_name" content="AniBase">
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ self.meta_description() }}{% endblock %}">
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ url_for('static', filename='arcana.jpg') }}{% endblock %}">
+
+    <!-- Twitter Card Meta -->
+    <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ self.title() }}{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}{{ self.meta_description() }}{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ self.og_image() }}{% endblock %}">
     <style>
         @font-face {
             font-family: 'Inter';

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Settings - AniBase{% endblock %}
+{% block meta_description %}Manage library paths, playback, integrations, and automation on AniBase.{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='settings.css', v='6') }}">
 {% endblock %}
@@ -15,7 +16,7 @@
             <span class="settings-eyebrow">Local configuration</span>
             <div class="section-title">
                 <div class="section-line"></div>
-                <h2 class="section-heading">Settings</h2>
+                <h1 class="section-heading">Settings</h1>
             </div>
             <p class="section-subtitle settings-heading-copy">Manage library paths, playback, integrations, and automation.</p>
         </div>

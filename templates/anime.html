@@ -3,7 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ anime_name }}</title>
+    <title>{{ (anime_info.title or anime_name) if anime_info else anime_name }} - AniBase</title>
+    {% if anime_info and anime_info.description %}
+    <meta name="description" content="{{ (anime_info.description | striptags | replace('\n', ' ') | replace('\"', ''))[:160] | trim }}">
+    {% else %}
+    <meta name="description" content="Watch {{ anime_name }} on AniBase. Stream episodes with subtitles, track progress, and view character and staff details.">
+    {% endif %}
+
+    <!-- Open Graph & Social Meta -->
+    <meta property="og:site_name" content="AniBase">
+    <meta property="og:title" content="{{ (anime_info.title or anime_name) if anime_info else anime_name }} - AniBase">
+    {% if anime_info and anime_info.description %}
+    <meta property="og:description" content="{{ (anime_info.description | striptags | replace('\n', ' ') | replace('\"', ''))[:160] | trim }}">
+    {% else %}
+    <meta property="og:description" content="Watch {{ anime_name }} on AniBase. Stream episodes with subtitles, track progress, and view character and staff details.">
+    {% endif %}
+    <meta property="og:type" content="{{ 'video.movie' if is_movie else 'video.tv_show' }}">
+    <meta property="og:image" content="{{ (anime_info.banner or anime_info.poster) if anime_info else url_for('banner', anime_name=anime_name) }}">
+
+    <!-- Twitter Card Meta -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ (anime_info.title or anime_name) if anime_info else anime_name }} - AniBase">
+    {% if anime_info and anime_info.description %}
+    <meta name="twitter:description" content="{{ (anime_info.description | striptags | replace('\n', ' ') | replace('\"', ''))[:160] | trim }}">
+    {% else %}
+    <meta name="twitter:description" content="Watch {{ anime_name }} on AniBase. Stream episodes with subtitles, track progress, and view character and staff details.">
+    {% endif %}
+    <meta name="twitter:image" content="{{ (anime_info.banner or anime_info.poster) if anime_info else url_for('banner', anime_name=anime_name) }}">
     <style>
         @font-face {
             font-family: 'Inter';
