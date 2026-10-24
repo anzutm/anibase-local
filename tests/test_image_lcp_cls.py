@@ -77,10 +77,28 @@ class ImageLcpClsTestCase(unittest.TestCase):
 
         # No blocking external font @import
         self.assertNotIn('@import url(\'https://fonts.googleapis.com', content)
+        self.assertNotIn('@import', content)
+
+        # Local typography @font-face declared
+        self.assertIn('@font-face', content)
+        self.assertIn("src: url('vendor/subtitles-octopus/InterVariable.woff2')", content)
+        self.assertIn('font-display: swap;', content)
 
         # Aspect ratios defined
         self.assertIn('aspect-ratio: 2 / 3;', content)
         self.assertIn('aspect-ratio:16/9;', content)
+
+    def test_font_preloading_across_templates(self):
+        for template in ['templates/base.html', 'templates/anime.html', 'templates/player.html']:
+            with open(template, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self.assertIn('as="font"', content, f"Missing font preload in {template}")
+            self.assertIn('InterVariable.woff2', content, f"Missing InterVariable font preload in {template}")
+
+    def test_no_duplicate_font_face_in_external_css(self):
+        with open('static/external-anime.css', 'r', encoding='utf-8') as f:
+            content = f.read()
+        self.assertNotIn('@font-face', content)
 
 
 if __name__ == '__main__':

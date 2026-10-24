@@ -3,13 +3,6 @@
    Modern Dark-Glassmorphism Theme
    ========================================================================== */
 
-@font-face {
-    font-family: 'Inter';
-    font-style: normal;
-    font-weight: 100 900;
-    font-display: swap;
-    src: url('/static/vendor/subtitles-octopus/InterVariable.woff2') format('woff2');
-}
 
 .external-anime-body {
     background-color: var(--bg2, #08090b);
