@@ -28,11 +28,15 @@ Browse, press play, and pick up right where you left off.
 ![AniBase Home — your private screening room](assets/screenshots/Home.png)
 
 <details>
-<summary><strong>Inside the library: anime details & player</strong></summary>
+<summary><strong>Inside the library: movies, series, player & profile</strong></summary>
 
-| Explore the story | Enjoy the episode |
+| Cinema & Movies | Explore the story |
 | :---: | :---: |
-| ![Anime detail](assets/screenshots/Anime.png) | ![Player](assets/screenshots/Player.png) |
+| ![Anime Movies](assets/screenshots/AnimeMovies.png) | ![Anime detail](assets/screenshots/Anime.png) |
+
+| Enjoy the episode | MyAnimeList Profile |
+| :---: | :---: |
+| ![Player](assets/screenshots/Player.png) | ![Profile](assets/screenshots/Profile.png) |
 
 </details>
 
