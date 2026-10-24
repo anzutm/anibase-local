@@ -4,7 +4,10 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='42') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v='43') }}">
+{% if featured_slides %}
+<link rel="preload" as="image" href="{{ url_for('banner', anime_name=featured_slides[0].anime.name) }}" fetchpriority="high">
+{% endif %}
 {% endblock %}
 {% block content %}
 <div class="home-intro">
@@ -15,7 +18,7 @@
 <section class="home-spotlight featured-anime" aria-label="Featured collection">
     {% for slide in featured_slides %}
     <div class="home-spotlight-slide featured-slide {% if loop.first %}active{% endif %}" aria-hidden="{{ 'false' if loop.first else 'true' }}" {% if not loop.first %}inert{% endif %}>
-        <img src="{{ url_for('banner', anime_name=slide.anime.name) }}" class="home-spotlight-image" alt="" {% if loop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %}>
+        <img src="{{ url_for('banner', anime_name=slide.anime.name) }}" class="home-spotlight-image" alt="" {% if loop.first %}fetchpriority="high" decoding="async"{% else %}loading="lazy" decoding="async"{% endif %} width="1200" height="440">
         <div class="home-spotlight-copy">
             <span class="home-feature-label"><i aria-hidden="true"></i> THE SPOTLIGHT <span>{{ "%02d"|format(loop.index) }} / {{ "%02d"|format(featured_slides|length) }}</span></span>
             <h2>{{ slide.anime.name }}</h2>
@@ -59,7 +62,7 @@
             <div class="continue-card" data-history-key="{{ item.history_key }}">
                 <a href="{{ url_for('player', anime_name=item.name, episode=item.episode) }}" class="continue-card-link">
                     <div class="continue-thumb">
-                        <img src="{{ item.image_url }}" alt="{{ item.display_name }}">
+                        <img src="{{ item.image_url }}" alt="{{ item.display_name }}" loading="lazy" decoding="async" width="280" height="158">
                         <div class="continue-badge">Resume</div>
                         <div class="progress-bar-container">
                             <div class="progress-fill" style="width: 0%;" data-progress="{{ item.progress_percent }}"></div>
@@ -216,6 +219,9 @@
                     src="{{ url_for('poster', anime_name=anime.name) }}"
                     alt="{{ anime.name }}"
                     loading="lazy"
+                    decoding="async"
+                    width="225"
+                    height="330"
                 >
 
                 <div class="anime-watch-corner-badge {% if anime.watch_status_kind in ['up_to_date', 'completed'] %}is-complete{% elif anime.watch_status_kind == 'not_started' %}not-started{% endif %}">
@@ -292,6 +298,9 @@
                     src="{{ url_for('poster', anime_name=movie.title) }}"
                     alt="{{ movie.title }}"
                     loading="lazy"
+                    decoding="async"
+                    width="225"
+                    height="330"
                 >
 
                 <div class="anime-watch-corner-badge {% if movie.watch_status_kind in ['up_to_date', 'completed'] %}is-complete{% elif movie.watch_status_kind == 'not_started' %}not-started{% endif %}">

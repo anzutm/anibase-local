@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 /* Modern View Transitions API */
 @view-transition {
     navigation: auto;
@@ -4064,6 +4062,8 @@ video::cue {
 
 .rel-poster-wrapper {
     position: relative;
+    aspect-ratio: 2 / 3;
+    background: #111722;
 }
 
 .rel-poster-wrapper img {
@@ -7058,6 +7058,8 @@ body:has(.hero-foreground) .character-section {
     height: auto;
     max-height: 430px;
     aspect-ratio: 2 / 3;
+    object-fit: cover;
+    background: #111722;
 }
 
 .hero-details {

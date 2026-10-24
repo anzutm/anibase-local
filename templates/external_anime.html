@@ -3,7 +3,8 @@
 {% block title %}{{ anime.name }} - AniBase Discovery{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='4') }}">
+<link rel="preload" as="image" href="{{ anime.banner or anime.poster }}" fetchpriority="high">
 {% endblock %}
 
 {% block body_class %}external-anime-body support-page{% endblock %}
@@ -32,9 +33,9 @@
     <header class="ext-hero">
         <div class="ext-backdrop-shell">
             {% if anime.banner %}
-            <img class="ext-backdrop-img" src="{{ anime.banner }}" alt="" loading="lazy">
+            <img class="ext-backdrop-img" src="{{ anime.banner }}" alt="" fetchpriority="high" decoding="async">
             {% else %}
-            <img class="ext-backdrop-img is-blurred-poster" src="{{ anime.poster }}" alt="" loading="lazy">
+            <img class="ext-backdrop-img is-blurred-poster" src="{{ anime.poster }}" alt="" fetchpriority="high" decoding="async">
             {% endif %}
             <div class="ext-backdrop-gradient"></div>
         </div>
@@ -42,7 +43,7 @@
         <div class="ext-hero-inner">
             <div class="ext-poster-column">
                 <div class="ext-poster-frame">
-                    <img class="ext-poster-img" src="{{ anime.poster }}" alt="{{ anime.name }}" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                    <img class="ext-poster-img" src="{{ anime.poster }}" alt="{{ anime.name }}" fetchpriority="high" decoding="async" width="250" height="375" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
                     <div class="ext-poster-badge">{{ anime.format or 'ANIME' }}</div>
                 </div>
             </div>
@@ -261,7 +262,7 @@
                     <div class="ext-char-card">
                         <div class="ext-char-avatar">
                             {% if char.character_image %}
-                            <img src="{{ char.character_image }}" alt="{{ char.character_name }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                            <img src="{{ char.character_image }}" alt="{{ char.character_name }}" loading="lazy" decoding="async" width="60" height="60" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
                             {% else %}
                             <div class="ext-avatar-fallback">{{ char.character_name[:1] }}</div>
                             {% endif %}
@@ -274,7 +275,7 @@
                             {% if char.va_name %}
                             <div class="ext-va-box">
                                 {% if char.va_image %}
-                                <img src="{{ char.va_image }}" alt="{{ char.va_name }}" class="ext-va-avatar" loading="lazy">
+                                <img src="{{ char.va_image }}" alt="{{ char.va_name }}" class="ext-va-avatar" loading="lazy" decoding="async" width="40" height="40">
                                 {% endif %}
                                 <div class="ext-va-text">
                                     {% if char.va_id %}
@@ -308,7 +309,7 @@
                     {% for rel in relations %}
                     <div class="ext-relation-card{% if rel.in_library %} is-in-library{% endif %}">
                         <div class="ext-rel-poster-shell">
-                            <img src="{{ rel.poster }}" alt="{{ rel.title }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                            <img src="{{ rel.poster }}" alt="{{ rel.title }}" loading="lazy" decoding="async" width="160" height="240" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
                             {% if rel.in_library %}
                             <div class="ext-rel-badge ext-badge-library">In Library</div>
                             {% else %}
@@ -353,7 +354,7 @@
                         <a href="{{ rec.detail_url }}" class="ext-rec-link">
                         {% endif %}
                             <div class="ext-rec-poster-frame">
-                                <img src="{{ rec.poster }}" alt="{{ rec.title }}" loading="lazy" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
+                                <img src="{{ rec.poster }}" alt="{{ rec.title }}" loading="lazy" decoding="async" width="160" height="240" onerror="this.src='/static/arcana.jpg'; this.onerror=null;">
                                 {% if rec.in_library %}
                                 <div class="ext-rel-badge ext-badge-library">In Library</div>
                                 {% endif %}

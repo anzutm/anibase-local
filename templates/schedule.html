@@ -73,7 +73,7 @@
         style="--schedule-focus-poster: url('{{ schedule_focus.poster }}');"
     >
         <div class="schedule-now-hero-bg" aria-hidden="true"></div>
-        <img class="schedule-now-hero-poster" src="{{ schedule_focus.poster }}" alt="{{ schedule_focus.title }}" loading="lazy">
+        <img class="schedule-now-hero-poster" src="{{ schedule_focus.poster }}" alt="{{ schedule_focus.title }}" fetchpriority="high" decoding="async" width="160" height="230">
 
         <div class="schedule-now-hero-content">
             <div class="schedule-now-hero-topline">
@@ -146,7 +146,7 @@
                             data-in-library="{{ '1' if item.is_in_library else '0' }}"
                         >
                         {% endif %}
-                            <img class="schedule-thumb" src="{{ item.poster }}" alt="{{ item.title }}" loading="lazy">
+                            <img class="schedule-thumb" src="{{ item.poster }}" alt="{{ item.title }}" loading="lazy" decoding="async" width="56" height="80">
 
                             <div class="schedule-entry-main">
                                 <div class="schedule-entry-top">

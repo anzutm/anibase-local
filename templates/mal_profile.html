@@ -48,7 +48,7 @@
             <div class="mal-user-identity">
                 <div class="mal-avatar-wrapper">
                     {% if user.picture %}
-                    <img src="{{ user.picture }}" alt="{{ user.name }}" class="mal-avatar-img" />
+                    <img src="{{ user.picture }}" alt="{{ user.name }}" class="mal-avatar-img" decoding="async" width="96" height="96" />
                     {% else %}
                     <div class="mal-avatar-fallback">{{ user.name[:1].upper() if user.name else 'M' }}</div>
                     {% endif %}
@@ -224,7 +224,7 @@
         <div class="mal-card" data-mal-id="{{ mal_id }}">
             <div class="mal-poster-wrap">
                 {% if poster %}
-                <img src="{{ poster }}" alt="{{ node.title }}" class="mal-poster-img" loading="lazy" />
+                <img src="{{ poster }}" alt="{{ node.title }}" class="mal-poster-img" loading="lazy" decoding="async" width="160" height="230" />
                 {% else %}
                 <div class="mal-poster-img" style="display: grid; place-items: center; color: var(--text-secondary); font-size: 11px;">No Poster</div>
                 {% endif %}

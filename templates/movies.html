@@ -4,8 +4,11 @@
 {% block body_class %}movies-page support-page{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='movies.css', v='3') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='movies-redesign.css', v='9') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='movies.css', v='4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='movies-redesign.css', v='10') }}">
+{% if featured_movies %}
+<link rel="preload" as="image" href="{{ featured_movies[0].banner or url_for('banner', anime_name=featured_movies[0].title) }}" fetchpriority="high">
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -28,6 +31,7 @@
             src="{{ featured.banner or url_for('banner', anime_name=featured.title) }}"
             alt=""
             aria-hidden="true"
+            {% if loop.first %}fetchpriority="high" decoding="async"{% else %}loading="lazy" decoding="async"{% endif %}
         >
         <div class="movies-hero-shade" aria-hidden="true"></div>
         <div class="movies-hero-grain" aria-hidden="true"></div>
@@ -68,7 +72,7 @@
             href="{{ url_for('movie_detail_page', filename=featured.file) }}"
             aria-label="Open {{ featured.title }}"
         >
-            <img src="{{ url_for('poster', anime_name=featured.title) }}" alt="">
+            <img src="{{ url_for('poster', anime_name=featured.title) }}" alt="" {% if loop.first %}fetchpriority="high" decoding="async"{% else %}loading="lazy" decoding="async"{% endif %} width="220" height="330">
         </a>
 
         </div>
@@ -137,6 +141,9 @@
                         src="{{ url_for('poster', anime_name=movie.title) }}"
                         alt=""
                         loading="lazy"
+                        decoding="async"
+                        width="220"
+                        height="330"
                     >
                     <div class="movie-poster-vignette" aria-hidden="true"></div>
                 </div>

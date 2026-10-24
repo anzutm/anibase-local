@@ -65,7 +65,7 @@ class CachingAndCompressionTestCase(unittest.TestCase):
             content = f.read()
         self.assertNotIn('range(1, 9999)', content)
         self.assertNotIn('random', content)
-        self.assertIn("url_for('static', filename='style.css', v='11')", content)
+        self.assertRegex(content, r"url_for\('static',\s*filename='style\.css',\s*v='\d+'\)")
 
 
 if __name__ == '__main__':

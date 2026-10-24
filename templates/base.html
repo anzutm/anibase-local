@@ -102,7 +102,7 @@
                 {% if mal_authenticated %}
                 <a href="{{ url_for('mal_profile_page') }}" class="topbar-user-avatar-btn {% if request.path in ['/profile', '/mal/profile'] %}active{% endif %}" aria-label="MyAnimeList Profile" title="MAL Profile ({{ mal_username }})">
                     {% if mal_picture %}
-                    <img src="{{ mal_picture }}" alt="{{ mal_username }}" loading="lazy" />
+                    <img src="{{ mal_picture }}" alt="{{ mal_username }}" loading="lazy" decoding="async" width="32" height="32" />
                     {% else %}
                     <span class="topbar-avatar-initial">{{ mal_username[:1].upper() if mal_username else 'M' }}</span>
                     {% endif %}
