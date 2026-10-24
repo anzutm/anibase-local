@@ -42,13 +42,15 @@ Browse, press play, and pick up right where you left off.
 
 ## Features
 
-| Your library, organized | Your playback, remembered |
+| Your library, organized | Cinematic playback & styling |
 | :--- | :--- |
-| **One collection.** Anime, movies, seasons, and automatic imports. | **Keep watching.** Resume episodes and track watch progress. |
-| **More than posters.** Studios, voice actors, schedules, and manual metadata matching. | **Fansub styling.** ASS positioning, effects, and embedded MKV fonts. |
-| **Make it yours.** Theme presets, optional Discord presence, and controlled LAN access. | **Watch your way.** Built-in web player or an external media player. |
+| **Unified collection.** Anime series, dedicated movies theater, multi-season grouping, and automatic background imports. | **Keep watching.** Resumes right where you left off with progress tracking and seek thumbnails. |
+| **Rich metadata & discovery.** AniList & Tenrai metadata, studio archives, voice actor filmographies, relations, and airing schedules. | **Fansub styling.** Advanced ASS/SSA subtitle engine with precise typography, effects, and embedded MKV fonts via WebAssembly. |
+| **Spotlight search (`Ctrl+K`).** Instant fuzzy command palette across titles, voice actors, studios, and quick actions. | **AniSkip integration.** Automatically detect and skip opening/ending sequences. |
+| **MyAnimeList sync & scrobble.** OAuth2 integration, personal profile statistics, and resilient offline watch scrobbling. | **Watch your way.** Built-in cinema web player or launch directly in VLC / external media players. |
+| **Make it yours.** Curated themes, Discord Rich Presence, mobile-optimized GPU throttling, and local token encryption. | **Local-first privacy.** Hardware-backed encrypted credential vault (DPAPI), token protection, and controlled LAN access. |
 
-<sub>Metadata: AniList first, Tenrai fallback. Subtitles: Inter when the requested font is unavailable; WebVTT when ASS rendering is unavailable.</sub>
+<sub>Metadata: AniList primary with Tenrai fallback · Subtitles: Full ASS/SSA via SubtitlesOctopus (WASM) & Inter font fallback · Tracking: MyAnimeList OAuth2 & Discord RPC · Performance: Gzip compressed, HTTP cached, & mobile throttled</sub>
 
 ## Get started
 
