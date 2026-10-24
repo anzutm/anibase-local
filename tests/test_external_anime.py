@@ -1,5 +1,6 @@
+import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 import main
 
 class ExternalAnimeTests(unittest.TestCase):
@@ -101,6 +102,7 @@ class ExternalAnimeTests(unittest.TestCase):
         self.assertIn("Attack on Titan", html)
         self.assertIn("Wit Studio", html)
         self.assertIn("Eren Jaeger", html)
+        self.assertIn("https://example.com/eren.jpg", html)
         self.assertIn("Yuki Kaji", html)
         self.assertIn("Attack on Titan Season 2", html)
         self.assertIn("Kabaneri of the Iron Fortress", html)
@@ -176,6 +178,27 @@ class ExternalAnimeTests(unittest.TestCase):
         self.assertIn('/anime/external/12345', html)
         self.assertIn("Outside Library", html)
         self.assertIn("Anime Info", html)
+
+    def test_external_anime_query_includes_character_images(self):
+        from anibase.integrations.anilist import EXTERNAL_ANIME_QUERY
+        self.assertIn("characters", EXTERNAL_ANIME_QUERY)
+        self.assertIn("image { large medium }", EXTERNAL_ANIME_QUERY)
+
+    def test_cached_external_anime_refreshes_when_missing_character_images(self):
+        from anibase.metadata import get_cached_external_anime_info
+        stale_data = dict(self.sample_anime)
+        stale_data["characters"] = [
+            {"character_name": "Eren Jaeger", "character_image": None}
+        ]
+        fresh_data = dict(self.sample_anime)
+
+        with patch("os.path.exists", return_value=True), \
+             patch("builtins.open", mock_open(read_data=json.dumps(stale_data))), \
+             patch("anibase.metadata.fetch_external_anime_metadata", return_value=fresh_data) as mock_fetch, \
+             patch("anibase.metadata.atomic_write_json_file"):
+            result = get_cached_external_anime_info(anilist_id=16498)
+            mock_fetch.assert_called_once_with(anilist_id=16498, mal_id=None)
+            self.assertEqual(result["characters"][0]["character_image"], "https://example.com/eren.jpg")
 
 if __name__ == "__main__":
     unittest.main()

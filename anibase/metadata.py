@@ -1127,13 +1127,13 @@ def fetch_external_anime_metadata(anilist_id=None, mal_id=None):
         for edge in (media.get("characters") or {}).get("edges") or []:
             c_node = edge.get("node") or {}
             c_name = c_node.get("name") or {}
-            c_image = (c_node.get("image") or {}).get("large")
+            c_image = (c_node.get("image") or {}).get("large") or (c_node.get("image") or {}).get("medium")
             role = edge.get("role")
             vas = edge.get("voiceActors") or []
             va = vas[0] if vas else {}
             va_name = (va.get("name") or {}).get("full")
             va_native = (va.get("name") or {}).get("native")
-            va_image = (va.get("image") or {}).get("large")
+            va_image = (va.get("image") or {}).get("large") or (va.get("image") or {}).get("medium")
             va_id = va.get("id")
 
             characters.append({
@@ -1255,7 +1255,10 @@ def get_cached_external_anime_info(anilist_id=None, mal_id=None, force=False):
             with open(cache_file, "r", encoding="utf-8") as f:
                 cached_data = json.load(f)
                 if isinstance(cached_data, dict):
-                    return cached_data
+                    chars = cached_data.get("characters") or []
+                    needs_refresh = bool(chars and all(not c.get("character_image") for c in chars))
+                    if not needs_refresh:
+                        return cached_data
         except Exception as e:
             app_log(f"Failed reading external anime cache {cache_key}: {e}", "WARN")
 

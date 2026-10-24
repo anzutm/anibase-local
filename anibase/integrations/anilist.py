@@ -85,6 +85,7 @@ query ($id: Int) {
         node {
           id
           name { full native }
+          image { large medium }
         }
         voiceActors(language: JAPANESE) {
           id
