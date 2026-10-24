@@ -528,9 +528,9 @@
 .home-hero-actions .home-primary-action { margin-top: 0; }
 .home-secondary-action { color: #ecf2fa; text-decoration: none; font-size: 13px; padding: 14px 0; }
 /* Continue Watching */
-.home-page .continue-card-link { display: block; height: auto; }
-.home-page .continue-card .continue-thumb { position: relative; inset: auto; height: 134px !important; aspect-ratio: 16 / 9; overflow: hidden; background: #161f2e; }
-.home-page .continue-card .continue-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.home-page .continue-card-link { display: block; width: 100%; height: auto; }
+.home-page .continue-card .continue-thumb { position: relative; inset: auto; width: 100% !important; height: 134px !important; aspect-ratio: auto !important; overflow: hidden; background: #161f2e; }
+.home-page .continue-card .continue-thumb img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
 .home-page .continue-grid:has(.continue-card.empty:only-child) { display: block; }
 .home-page .continue-card.empty {
     width: 100%;
@@ -831,7 +831,7 @@
     .home-page .collection-toolbar { padding: 0 0 18px; }
     .home-page .continue-grid { padding: 0; scroll-padding-inline: 0; }
     .home-page .continue-card { flex-basis: 240px; width: 240px; min-width: 240px; max-width: 240px; height: 180px !important; min-height: 180px !important; }
-    .home-page .continue-card .continue-thumb { height: 112px !important; }
+    .home-page .continue-card .continue-thumb { width: 100% !important; height: 112px !important; aspect-ratio: auto !important; }
     .home-page .continue-card .continue-info { min-height: 68px; padding: 9px 10px; }
 
     /* Collection Grid Mobile */
