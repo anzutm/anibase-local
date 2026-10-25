@@ -36,7 +36,7 @@
     --text: #F5F7FF;
     --text-secondary: #A5B4D6;
 
-    /* Accent */
+    /* Accent & Theming */
     --primary: #0000FF;
     --primary-hover: #3333FF;
     --primary-gradient: linear-gradient(
@@ -46,9 +46,20 @@
         #0000FF 70%,
         #8B5CF6 100%
     );
+    --heading-gradient: linear-gradient(90deg, #fff 12%, #e0e7ff 48%, #00D8FF 76%, #3333FF 100%);
     --cyan: #00D8FF;
     --glow-cyan: rgba(0, 216, 255, 0.28);
     --glass-highlight: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(255,255,255,.035);
+
+    /* Primary Interactive Tokens */
+    --btn-primary-bg: var(--primary-gradient);
+    --btn-primary-color: #ffffff;
+    --btn-primary-border: rgba(0, 216, 255, 0.40);
+    --btn-primary-hover-bg: linear-gradient(135deg, #00D8FF, #3333FF);
+    --btn-primary-hover-color: #ffffff;
+    --btn-primary-hover-border: rgba(0, 216, 255, 0.62);
+    --accent-glow-sm: 0 0 14px rgba(0, 216, 255, 0.24);
+    --focus-ring: 0 0 0 4px rgba(0, 0, 255, 0.15), 0 0 28px rgba(0, 216, 255, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 
     /* Radius */
     --radius: 24px;
@@ -72,6 +83,14 @@
     :root {
         --glass: none;
     }
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
 }
 
 :root[data-theme="dark-orange"] {
@@ -86,8 +105,18 @@
         #d97706 68%,
         #92400e 100%
     );
+    --heading-gradient: linear-gradient(90deg, #fff 12%, #fff1d6 48%, #fbbf24 76%, #d97706 100%);
     --cyan: #fbbf24;
     --glow-cyan: rgba(251, 191, 36, 0.26);
+
+    --btn-primary-bg: linear-gradient(135deg, rgba(251,191,36,.92), rgba(217,119,6,.74)), var(--primary);
+    --btn-primary-color: #1c1004;
+    --btn-primary-border: rgba(245, 158, 11, 0.40);
+    --btn-primary-hover-bg: linear-gradient(135deg, #fcd34d, #d97706), var(--primary);
+    --btn-primary-hover-color: #1c1004;
+    --btn-primary-hover-border: rgba(251, 191, 36, 0.62);
+    --accent-glow-sm: 0 0 14px rgba(245, 158, 11, 0.24);
+    --focus-ring: 0 0 0 4px rgba(217, 119, 6, 0.15), 0 0 28px rgba(251, 191, 36, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 :root[data-theme="dark-green"] {
@@ -102,8 +131,18 @@
         #16a34a 68%,
         #14532d 100%
     );
+    --heading-gradient: linear-gradient(90deg, #fff 12%, #d1fae5 48%, #4ade80 76%, #16a34a 100%);
     --cyan: #4ade80;
     --glow-cyan: rgba(74, 222, 128, 0.26);
+
+    --btn-primary-bg: linear-gradient(135deg, rgba(74,222,128,.92), rgba(22,163,74,.74)), var(--primary);
+    --btn-primary-color: #052e16;
+    --btn-primary-border: rgba(34, 197, 94, 0.40);
+    --btn-primary-hover-bg: linear-gradient(135deg, #86efac, #16a34a), var(--primary);
+    --btn-primary-hover-color: #052e16;
+    --btn-primary-hover-border: rgba(74, 222, 128, 0.62);
+    --accent-glow-sm: 0 0 14px rgba(34, 197, 94, 0.24);
+    --focus-ring: 0 0 0 4px rgba(22, 163, 74, 0.15), 0 0 28px rgba(74, 222, 128, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 body{
@@ -10070,36 +10109,42 @@ body.metadata-modal-open {
 }
 
 .section-line {
-    background: linear-gradient(180deg, rgba(0,216,255,.86), rgba(255,190,96,.70));
+    background: linear-gradient(180deg, var(--cyan, rgba(0,216,255,.86)), var(--primary-hover, rgba(51,51,255,.70)));
     box-shadow:
-        0 0 18px rgba(0,216,255,.28),
-        0 0 16px rgba(255,190,96,.10);
+        0 0 18px var(--glow-cyan, rgba(0,216,255,.28));
 }
 
 .watch-btn,
 .play-mini-btn,
 .settings-save-btn {
-    background:
-        linear-gradient(135deg, #00D8FF 0%, #3333FF 62%, rgba(255,190,96,.62) 100%);
+    background: var(--btn-primary-bg, var(--primary-gradient));
+    color: var(--btn-primary-color, #ffffff);
+    border-color: var(--btn-primary-border, rgba(0, 216, 255, 0.40));
     box-shadow:
         0 16px 34px rgba(0,0,0,.38),
-        0 0 22px rgba(0,216,255,.18),
-        0 0 14px rgba(255,190,96,.08);
+        0 0 22px var(--glow-cyan, rgba(0,216,255,.18));
+}
+
+.watch-btn:hover,
+.play-mini-btn:hover,
+.settings-save-btn:hover {
+    background: var(--btn-primary-hover-bg, var(--primary-hover));
+    color: var(--btn-primary-hover-color, #ffffff);
+    border-color: var(--btn-primary-hover-border, rgba(0, 216, 255, 0.62));
 }
 
 .play-circle {
     background:
-        linear-gradient(135deg, rgba(0,216,255,.94), var(--primary-hover) 66%, rgba(255,190,96,.66));
+        linear-gradient(135deg, var(--cyan, rgba(0,216,255,.94)), var(--primary-hover) 66%);
     box-shadow:
         0 14px 32px rgba(0,0,0,.42),
-        0 0 24px rgba(0,216,255,.22),
-        0 0 12px rgba(255,190,96,.08);
+        0 0 24px var(--glow-cyan, rgba(0,216,255,.22));
 }
 
 .progress-fill,
 .watch-progress-badge {
     background:
-        linear-gradient(90deg, rgba(0,216,255,.88), rgba(51,51,255,.74));
+        linear-gradient(90deg, var(--cyan, rgba(0,216,255,.88)), var(--primary-hover, rgba(51,51,255,.74)));
 }
 
 .watch-progress-badge {
@@ -11581,399 +11626,6 @@ body:has(.hero-foreground) .relation-section .related-grid:has(.related-card:onl
     background: rgba(0,216,255,.095);
 }
 
-/* Theme preset: Dark Orange */
-:root[data-theme="dark-orange"] .topbar {
-    box-shadow:
-        0 22px 72px rgba(0,0,0,.60),
-        0 0 34px rgba(217,119,6,.16),
-        0 0 36px rgba(251,191,36,.06),
-        var(--glass-highlight);
-}
-
-:root[data-theme="dark-orange"] .brand h1,
-:root[data-theme="dark-orange"] .player-title-stack h1,
-:root[data-theme="dark-orange"] .settings-heading-panel .section-heading,
-:root[data-theme="dark-orange"] .schedule-page .section-heading {
-    background: linear-gradient(90deg, #fff 12%, #fff1d6 48%, #fbbf24 76%, #d97706 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-:root[data-theme="dark-orange"] .nav-link.active {
-    background:
-        linear-gradient(135deg, rgba(255,255,255,.095), rgba(255,255,255,.040)),
-        rgba(217,119,6,.16);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 0 18px rgba(217,119,6,.24),
-        0 0 12px rgba(251,191,36,.12);
-}
-
-:root[data-theme="dark-orange"] .nav-link::after,
-:root[data-theme="dark-orange"] .section-line,
-:root[data-theme="dark-orange"] .toolbar-line {
-    background: linear-gradient(90deg, rgba(251,191,36,0), rgba(251,191,36,.86), rgba(217,119,6,.72));
-    box-shadow: 0 0 14px rgba(245,158,11,.24);
-}
-
-:root[data-theme="dark-orange"] .search-box input:focus,
-:root[data-theme="dark-orange"] .notification-button:hover,
-:root[data-theme="dark-orange"] .profile-circle:hover,
-:root[data-theme="dark-orange"] .settings-input:focus,
-:root[data-theme="dark-orange"] .theme-preset-card:hover,
-:root[data-theme="dark-orange"] .theme-preset-card:has(input:checked) {
-    border-color: rgba(245,158,11,.50);
-    box-shadow:
-        0 0 0 4px rgba(217,119,6,.15),
-        0 0 28px rgba(251,191,36,.13),
-        inset 0 1px 0 rgba(255,255,255,.16);
-}
-
-:root[data-theme="dark-orange"] .settings-browse-btn,
-:root[data-theme="dark-orange"] .settings-save-btn,
-:root[data-theme="dark-orange"] .settings-cleanup-btn,
-:root[data-theme="dark-orange"] .schedule-now-hero-action,
-:root[data-theme="dark-orange"] .watch-btn,
-:root[data-theme="dark-orange"] .play-hover-btn,
-:root[data-theme="dark-orange"] .nav-btn {
-    border-color: rgba(245,158,11,.40);
-}
-
-:root[data-theme="dark-orange"] .settings-save-btn,
-:root[data-theme="dark-orange"] .watch-btn,
-:root[data-theme="dark-orange"] .play-hover-btn {
-    background:
-        linear-gradient(135deg, rgba(251,191,36,.92), rgba(217,119,6,.74)),
-        var(--primary);
-    color: #1c1004;
-}
-
-:root[data-theme="dark-orange"] .index-collection-section > .grid .play-hover-btn:hover,
-:root[data-theme="dark-orange"] .index-collection-section > .grid .play-hover-btn:focus-visible {
-    color: #1c1004;
-    border-color: rgba(251,191,36,.62);
-    background:
-        linear-gradient(135deg, #fcd34d, #d97706),
-        var(--primary);
-    box-shadow:
-        0 14px 30px rgba(0,0,0,.36),
-        0 0 22px rgba(251,191,36,.24),
-        inset 0 1px 0 rgba(255,255,255,.28);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-past .schedule-slot-list {
-    background:
-        linear-gradient(90deg, rgba(146,64,14,.18), rgba(120,53,15,.060) 44%, rgba(146,64,14,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(180,83,9,.25),
-        0 0 28px rgba(120,53,15,.08);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-past::before {
-    background: rgba(180,83,9,.68);
-    box-shadow: 0 0 18px rgba(180,83,9,.22);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-past .schedule-time {
-    color: #ffe8c2;
-    border-color: #b45309;
-    background: #3b1f0a;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 12px 34px rgba(0,0,0,.30),
-        0 0 24px rgba(180,83,9,.24);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-entry-card.is-past {
-    border-color: rgba(180,83,9,.42);
-    background:
-        radial-gradient(circle at 0% 24%, rgba(180,83,9,.20), transparent 36%),
-        linear-gradient(145deg, rgba(255,255,255,.068), rgba(120,53,15,.070)),
-        rgba(5,7,18,.72);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-entry-card.is-past .schedule-status-aired {
-    color: #ffe8c2;
-    border-color: rgba(180,83,9,.62);
-    background:
-        linear-gradient(135deg, rgba(180,83,9,.30), rgba(120,53,15,.20)),
-        rgba(32,18,8,.86);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-current .schedule-slot-list {
-    background:
-        radial-gradient(circle at 12% 42%, rgba(251,191,36,.22), transparent 34%),
-        linear-gradient(90deg, rgba(251,191,36,.20), rgba(245,158,11,.090) 48%, rgba(251,191,36,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(251,191,36,.34),
-        0 0 34px rgba(251,191,36,.16);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-current::before {
-    background: rgba(251,191,36,.78);
-    box-shadow: 0 0 22px rgba(251,191,36,.32);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-current .schedule-time,
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-current .schedule-slot-now-label {
-    color: #fff7dc;
-    border-color: #fbbf24;
-    background: #5a3308;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.16),
-        0 12px 34px rgba(0,0,0,.34),
-        0 0 30px rgba(251,191,36,.34);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-entry-card.is-current,
-:root[data-theme="dark-orange"] .player-episode-card.active {
-    border-color: rgba(251,191,36,.54);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 16px 44px rgba(0,0,0,.30),
-        0 0 30px rgba(251,191,36,.16);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-entry-card.is-current .schedule-status-airing-now,
-:root[data-theme="dark-orange"] .schedule-now-hero-badge {
-    color: #fff7dc;
-    border-color: rgba(251,191,36,.56);
-    background: rgba(251,191,36,.17);
-    box-shadow: 0 0 18px rgba(251,191,36,.22);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-upcoming .schedule-slot-list {
-    background:
-        linear-gradient(90deg, rgba(245,158,11,.14), rgba(217,119,6,.060) 46%, rgba(245,158,11,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(245,158,11,.22),
-        0 0 24px rgba(217,119,6,.07);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-upcoming::before {
-    background: rgba(245,158,11,.46);
-    box-shadow: 0 0 16px rgba(245,158,11,.16);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-slot.is-upcoming .schedule-time {
-    color: #fff0c4;
-    border-color: #f59e0b;
-    background: #452706;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.13),
-        0 12px 34px rgba(0,0,0,.30),
-        0 0 22px rgba(245,158,11,.22);
-}
-
-:root[data-theme="dark-orange"] .schedule-page .schedule-entry-card.is-upcoming .schedule-status-upcoming {
-    color: #fff0c4;
-    border-color: rgba(245,158,11,.36);
-    background: rgba(245,158,11,.12);
-}
-
-
-/* Theme preset: Dark Green */
-:root[data-theme="dark-green"] .topbar {
-    box-shadow:
-        0 22px 72px rgba(0,0,0,.60),
-        0 0 34px rgba(22,163,74,.14),
-        0 0 36px rgba(74,222,128,.06),
-        var(--glass-highlight);
-}
-
-:root[data-theme="dark-green"] .brand h1,
-:root[data-theme="dark-green"] .player-title-stack h1,
-:root[data-theme="dark-green"] .settings-heading-panel .section-heading,
-:root[data-theme="dark-green"] .schedule-page .section-heading {
-    background: linear-gradient(90deg, #fff 12%, #d1fae5 48%, #4ade80 76%, #16a34a 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-:root[data-theme="dark-green"] .nav-link.active {
-    background:
-        linear-gradient(135deg, rgba(255,255,255,.095), rgba(255,255,255,.040)),
-        rgba(22,163,74,.16);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 0 18px rgba(22,163,74,.24),
-        0 0 12px rgba(74,222,128,.12);
-}
-
-:root[data-theme="dark-green"] .nav-link::after,
-:root[data-theme="dark-green"] .section-line,
-:root[data-theme="dark-green"] .toolbar-line {
-    background: linear-gradient(90deg, rgba(74,222,128,0), rgba(74,222,128,.86), rgba(22,163,74,.72));
-    box-shadow: 0 0 14px rgba(34,197,94,.24);
-}
-
-:root[data-theme="dark-green"] .search-box input:focus,
-:root[data-theme="dark-green"] .notification-button:hover,
-:root[data-theme="dark-green"] .profile-circle:hover,
-:root[data-theme="dark-green"] .settings-input:focus,
-:root[data-theme="dark-green"] .theme-preset-card:hover,
-:root[data-theme="dark-green"] .theme-preset-card:has(input:checked) {
-    border-color: rgba(34,197,94,.50);
-    box-shadow:
-        0 0 0 4px rgba(22,163,74,.15),
-        0 0 28px rgba(74,222,128,.13),
-        inset 0 1px 0 rgba(255,255,255,.16);
-}
-
-:root[data-theme="dark-green"] .settings-browse-btn,
-:root[data-theme="dark-green"] .settings-save-btn,
-:root[data-theme="dark-green"] .settings-cleanup-btn,
-:root[data-theme="dark-green"] .schedule-now-hero-action,
-:root[data-theme="dark-green"] .watch-btn,
-:root[data-theme="dark-green"] .play-hover-btn,
-:root[data-theme="dark-green"] .nav-btn {
-    border-color: rgba(34,197,94,.40);
-}
-
-:root[data-theme="dark-green"] .settings-save-btn,
-:root[data-theme="dark-green"] .watch-btn,
-:root[data-theme="dark-green"] .play-hover-btn {
-    background:
-        linear-gradient(135deg, rgba(74,222,128,.92), rgba(22,163,74,.74)),
-        var(--primary);
-    color: #052e16;
-}
-
-:root[data-theme="dark-green"] .index-collection-section > .grid .play-hover-btn:hover,
-:root[data-theme="dark-green"] .index-collection-section > .grid .play-hover-btn:focus-visible {
-    color: #052e16;
-    border-color: rgba(74,222,128,.62);
-    background:
-        linear-gradient(135deg, #86efac, #16a34a),
-        var(--primary);
-    box-shadow:
-        0 14px 30px rgba(0,0,0,.36),
-        0 0 22px rgba(74,222,128,.24),
-        inset 0 1px 0 rgba(255,255,255,.28);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-past .schedule-slot-list {
-    background:
-        linear-gradient(90deg, rgba(20,83,45,.18), rgba(15,64,36,.060) 44%, rgba(20,83,45,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(21,128,61,.25),
-        0 0 28px rgba(15,64,36,.08);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-past::before {
-    background: rgba(21,128,61,.68);
-    box-shadow: 0 0 18px rgba(21,128,61,.22);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-past .schedule-time {
-    color: #d1fae5;
-    border-color: #15803d;
-    background: #052e16;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 12px 34px rgba(0,0,0,.30),
-        0 0 24px rgba(21,128,61,.24);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-entry-card.is-past {
-    border-color: rgba(21,128,61,.42);
-    background:
-        radial-gradient(circle at 0% 24%, rgba(21,128,61,.20), transparent 36%),
-        linear-gradient(145deg, rgba(255,255,255,.068), rgba(15,64,36,.070)),
-        rgba(5,7,18,.72);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-entry-card.is-past .schedule-status-aired {
-    color: #d1fae5;
-    border-color: rgba(21,128,61,.62);
-    background:
-        linear-gradient(135deg, rgba(21,128,61,.30), rgba(15,64,36,.20)),
-        rgba(8,18,12,.86);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-current .schedule-slot-list {
-    background:
-        radial-gradient(circle at 12% 42%, rgba(74,222,128,.22), transparent 34%),
-        linear-gradient(90deg, rgba(74,222,128,.20), rgba(34,197,94,.090) 48%, rgba(74,222,128,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(74,222,128,.34),
-        0 0 34px rgba(74,222,128,.16);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-current::before {
-    background: rgba(74,222,128,.78);
-    box-shadow: 0 0 22px rgba(74,222,128,.32);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-current .schedule-time,
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-current .schedule-slot-now-label {
-    color: #f0fdf4;
-    border-color: #4ade80;
-    background: #052e16;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.16),
-        0 12px 34px rgba(0,0,0,.34),
-        0 0 30px rgba(74,222,128,.34);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-entry-card.is-current,
-:root[data-theme="dark-green"] .player-episode-card.active {
-    border-color: rgba(74,222,128,.54);
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.14),
-        0 16px 44px rgba(0,0,0,.30),
-        0 0 30px rgba(74,222,128,.16);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-entry-card.is-current .schedule-status-airing-now,
-:root[data-theme="dark-green"] .schedule-now-hero-badge {
-    color: #f0fdf4;
-    border-color: rgba(74,222,128,.56);
-    background: rgba(74,222,128,.17);
-    box-shadow: 0 0 18px rgba(74,222,128,.22);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-upcoming .schedule-slot-list {
-    background:
-        linear-gradient(90deg, rgba(34,197,94,.14), rgba(22,163,74,.060) 46%, rgba(34,197,94,0) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(34,197,94,.22),
-        0 0 24px rgba(22,163,74,.07);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-upcoming::before {
-    background: rgba(34,197,94,.46);
-    box-shadow: 0 0 16px rgba(34,197,94,.16);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-slot.is-upcoming .schedule-time {
-    color: #dcfce7;
-    border-color: #22c55e;
-    background: #052e16;
-    box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.13),
-        0 12px 34px rgba(0,0,0,.30),
-        0 0 22px rgba(34,197,94,.22);
-}
-
-:root[data-theme="dark-green"] .schedule-page .schedule-entry-card.is-upcoming .schedule-status-upcoming {
-    color: #dcfce7;
-    border-color: rgba(34,197,94,.36);
-    background: rgba(34,197,94,.12);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
-        scroll-behavior: auto !important;
-        transition-duration: .01ms !important;
-    }
-}
 
 /* Anime detail mobile refinement */
 body.anime-detail-body .hero {
