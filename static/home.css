@@ -805,13 +805,13 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
-    min-height: 35px;
-    padding: 0 14px;
+    min-height: 36px;
+    padding: 0 16px;
     margin-top: 3px;
-    border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
-    border-radius: 16px;
-    background: var(--cyan);
-    color: #071018;
+    border: 1px solid var(--btn-primary-border, color-mix(in srgb, var(--cyan) 24%, transparent));
+    border-radius: 999px;
+    background: var(--btn-primary-bg, var(--cyan));
+    color: var(--btn-primary-color, #071018);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -823,12 +823,14 @@
 }
 
 .home-page #animeCollectionGrid .play-hover-btn:hover,
-.home-page #animeCollectionGrid .card:focus-within .play-hover-btn {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--cyan) 42%, transparent);
-    background: color-mix(in srgb, var(--cyan) 92%, white);
+.home-page #animeCollectionGrid .card:focus-within .play-hover-btn,
+.home-page #animeCollectionGrid .play-hover-btn:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--btn-primary-hover-border, color-mix(in srgb, var(--cyan) 42%, transparent));
+    background: var(--btn-primary-hover-bg, color-mix(in srgb, var(--cyan) 92%, white));
+    color: var(--btn-primary-hover-color, #071018);
     filter: none;
-    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.38);
 }
 
 /* =========================================================
@@ -1484,33 +1486,3 @@
     font-weight: 700;
 }
 
-.home-page #animeCollectionGrid .play-hover-btn {
-    display: inline-flex;
-    align-items: center;
-    min-height: 35px;
-    padding: 0 14px;
-    border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
-    border-radius: 8px;
-    background: var(--primary);
-    box-shadow: 0 10px 22px rgba(0, 0, 0, .34);
-    font-size: 12px;
-    line-height: 1;
-    transition:
-        opacity .36s var(--ease),
-        transform .22s var(--ease),
-        border-color .22s var(--ease),
-        background .22s var(--ease),
-        box-shadow .22s var(--ease),
-        filter .22s var(--ease);
-}
-
-.home-page #animeCollectionGrid .play-hover-btn:hover,
-.home-page #animeCollectionGrid .play-hover-btn:focus-visible {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--primary) 42%, transparent);
-    background: var(--primary-hover);
-    box-shadow:
-        0 12px 26px rgba(0, 0, 0, .42),
-        0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
-    filter: brightness(1.06);
-}
