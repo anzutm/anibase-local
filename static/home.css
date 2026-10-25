@@ -115,8 +115,8 @@
 }
 .home-page .home-hero-actions :is(.home-primary-action, .home-secondary-action),
 .home-page .home-hero-actions :is(.home-primary-action, .home-secondary-action) * {
-    animation: none !important;
-    transition: none !important;
+    animation: none;
+    transition: none;
 }
 .home-page .index-section-panel { max-width: 1800px; width: 100%; margin: 0 auto 36px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
 .home-page .index-section-panel::before, .home-page .index-section-panel::after, .home-page .collection-glow, .home-page .toolbar-line, .home-page .section-line { display: none; }
@@ -529,8 +529,8 @@
 .home-secondary-action { color: #ecf2fa; text-decoration: none; font-size: 13px; padding: 14px 0; }
 /* Continue Watching */
 .home-page .continue-card-link { display: block; width: 100%; height: auto; }
-.home-page .continue-card .continue-thumb { position: relative; inset: auto; width: 100% !important; height: 134px !important; aspect-ratio: auto !important; overflow: hidden; background: #161f2e; }
-.home-page .continue-card .continue-thumb img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
+.home-page .continue-card .continue-thumb { position: relative; inset: auto; width: 100%; height: 134px; aspect-ratio: auto; overflow: hidden; background: #161f2e; }
+.home-page .continue-card .continue-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .home-page .continue-grid:has(.continue-card.empty:only-child) { display: block; }
 .home-page .continue-card.empty {
     width: 100%;
@@ -830,8 +830,8 @@
     .home-spotlight-copy { padding: 24px; padding-bottom: 48px; background: linear-gradient(90deg,rgba(9,13,20,.94),rgba(9,13,20,.55)); }
     .home-page .collection-toolbar { padding: 0 0 18px; }
     .home-page .continue-grid { padding: 0; scroll-padding-inline: 0; }
-    .home-page .continue-card { flex-basis: 240px; width: 240px; min-width: 240px; max-width: 240px; height: 180px !important; min-height: 180px !important; }
-    .home-page .continue-card .continue-thumb { width: 100% !important; height: 112px !important; aspect-ratio: auto !important; }
+    .home-page .continue-card { flex-basis: 240px; width: 240px; min-width: 240px; max-width: 240px; height: 180px; min-height: 180px; }
+    .home-page .continue-card .continue-thumb { width: 100%; height: 112px; aspect-ratio: auto; }
     .home-page .continue-card .continue-info { min-height: 68px; padding: 9px 10px; }
 
     /* Collection Grid Mobile */
@@ -903,23 +903,23 @@
     max-width: 300px;
     aspect-ratio: auto;
     position: relative;
-    height: 194px !important;
-    min-height: 194px !important;
+    height: 194px;
+    min-height: 194px;
     overflow: hidden;
     border: 1px solid var(--home-line);
     border-color: var(--border);
     border-radius: 14px;
     background: linear-gradient(180deg, rgba(255, 255, 255, .028), rgba(255, 255, 255, .008));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .055);
-    transition: transform .42s var(--ease), border-color .32s var(--ease), box-shadow .42s var(--ease) !important;
+    transition: transform .42s var(--ease), border-color .32s var(--ease), box-shadow .42s var(--ease);
 }
 
 .home-page .continue-card:hover {
-    transform: translateY(-4px) !important;
-    border-color: color-mix(in srgb, var(--continue-accent-hover) 42%, var(--border)) !important;
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--continue-accent-hover) 42%, var(--border));
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, .10),
-        0 16px 32px rgba(0, 0, 0, .30) !important;
+        0 16px 32px rgba(0, 0, 0, .30);
 }
 
 .home-page .continue-card .continue-thumb {
@@ -943,31 +943,31 @@
 }
 
 .home-page .continue-card .continue-thumb img {
-    transition: transform .55s var(--ease), filter .42s var(--ease) !important;
+    transition: transform .55s var(--ease), filter .42s var(--ease);
 }
 
 .home-page .continue-card:hover .continue-thumb img {
-    transform: scale(1.035) !important;
-    filter: saturate(1.025) contrast(1.015) !important;
+    transform: scale(1.035);
+    filter: saturate(1.025) contrast(1.015);
 }
 
 .home-page .continue-card .continue-overlay,
 .home-page .continue-card:hover .continue-overlay {
     z-index: 3;
-    background: rgba(5, 8, 13, .10) !important;
-    backdrop-filter: blur(1px) !important;
-    -webkit-backdrop-filter: blur(1px) !important;
+    background: rgba(5, 8, 13, .10);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
 }
 
 .home-page .continue-card .play-mini-btn {
-    width: 36px !important;
-    height: 36px !important;
-    flex-basis: 36px !important;
-    border: 1px solid color-mix(in srgb, var(--continue-accent) 30%, var(--border)) !important;
-    background: color-mix(in srgb, var(--continue-accent) 16%, rgba(8, 12, 18, .80)) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .11) !important;
-    color: rgba(255, 255, 255, .94) !important;
-    font-size: 12px !important;
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+    border: 1px solid color-mix(in srgb, var(--continue-accent) 30%, var(--border));
+    background: color-mix(in srgb, var(--continue-accent) 16%, rgba(8, 12, 18, .80));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .11);
+    color: rgba(255, 255, 255, .94);
+    font-size: 12px;
 }
 
 .home-page .continue-card .continue-badge,
@@ -1000,7 +1000,7 @@
     font-size: 15px;
     line-height: 1;
     opacity: .72;
-    transition: opacity .25s ease, color .25s ease, background .25s ease, border-color .25s ease !important;
+    transition: opacity .25s ease, color .25s ease, background .25s ease, border-color .25s ease;
 }
 
 .home-page .continue-card:hover .continue-remove-btn,
@@ -1067,8 +1067,8 @@
 
 @media (max-width: 768px) {
     .home-page .continue-card {
-        height: 166px !important;
-        min-height: 166px !important;
+        height: 166px;
+        min-height: 166px;
     }
 
     .home-page .continue-card .continue-info {
@@ -1259,11 +1259,11 @@
     .home-page #animeCollectionGrid .card:hover .poster,
     .home-page .continue-card:hover,
     .home-page .continue-card:hover .continue-thumb img {
-        transform: none !important;
+        transform: none;
     }
     .home-page .home-spotlight-image {
-        transition-duration: 0.15s !important;
-        will-change: auto !important;
+        transition-duration: 0.15s;
+        will-change: auto;
     }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1271,8 +1271,81 @@
     .home-page :is(.home-spotlight-image, #animeCollectionGrid .card, #animeCollectionGrid .poster,
         .continue-card, .continue-card .continue-thumb img, .filter-btn, .home-primary-action,
         .home-secondary-action, .resume-arrow) {
-        animation: none !important;
-        transition: none !important;
+        animation: none;
+        transition: none;
         scale: none;
     }
+}
+
+/* Home collection poster hover: let the artwork breathe while keeping details legible. */
+.home-page #animeCollectionGrid .card:hover .poster-overlay,
+.home-page #animeCollectionGrid .card:focus-within .poster-overlay {
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        transparent 38%,
+        rgba(3, 6, 10, .16) 53%,
+        rgba(3, 6, 10, .48) 74%,
+        rgba(3, 6, 10, .88) 100%
+    );
+}
+
+.home-page #animeCollectionGrid .poster-overlay h3 {
+    display: -webkit-box;
+    margin-bottom: 8px;
+    overflow: hidden;
+    color: #f8fafc;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    -webkit-box-orient: vertical;
+    line-clamp: 3;
+    -webkit-line-clamp: 3;
+}
+
+.home-page #animeCollectionGrid .poster-card-meta {
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.home-page #animeCollectionGrid .poster-card-meta span,
+.home-page #animeCollectionGrid .poster-card-meta span:first-child {
+    min-height: 21px;
+    padding: 3px 7px;
+    border-color: rgba(255, 255, 255, .12);
+    background: rgba(6, 10, 18, .40);
+    color: rgba(226, 232, 240, .76);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.home-page #animeCollectionGrid .play-hover-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 35px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+    border-radius: 8px;
+    background: var(--primary);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, .34);
+    font-size: 12px;
+    line-height: 1;
+    transition:
+        opacity .36s var(--ease),
+        transform .22s var(--ease),
+        border-color .22s var(--ease),
+        background .22s var(--ease),
+        box-shadow .22s var(--ease),
+        filter .22s var(--ease);
+}
+
+.home-page #animeCollectionGrid .play-hover-btn:hover,
+.home-page #animeCollectionGrid .play-hover-btn:focus-visible {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 42%, transparent);
+    background: var(--primary-hover);
+    box-shadow:
+        0 12px 26px rgba(0, 0, 0, .42),
+        0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+    filter: brightness(1.06);
 }
