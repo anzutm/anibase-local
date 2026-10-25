@@ -261,11 +261,11 @@ body{
     pointer-events:none;
 }
 
-.card a{
-
-    text-decoration:none;
-
-    color:white;
+.card a,
+.continue-card a,
+.continue-card-link {
+    text-decoration: none;
+    color: inherit;
 }
 
 .poster-container,
