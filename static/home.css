@@ -200,6 +200,10 @@
 .home-page #continueWatchingSection { scroll-margin-top: 112px; }
 .home-page .continue-card::after { display: none; }
 /* Preserve the Continue Watching card layout while matching the quieter page chrome. */
+.home-page .index-collection-top {
+    margin-bottom: 20px;
+}
+
 .home-page .collection-toolbar {
     display: flex;
     align-items: center;
@@ -508,6 +512,19 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     z-index: 50;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px) scale(0.98);
+    transform-origin: top right;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+.home-page .sort-control.open .sort-menu {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
 }
 
 .home-page .sort-option {
