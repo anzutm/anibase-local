@@ -1,4 +1,3 @@
-/* Note: movie-detail.css styles have been consolidated into anime-redesign.css as of Phase 5 CSS refactoring. */
 /* Movie-only presentation; shared series detail styles stay in style.css. */
 body.movie-detail-body {
     --cinema-accent: var(--primary-hover, #74b9ff);
