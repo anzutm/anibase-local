@@ -159,8 +159,18 @@ document.addEventListener('DOMContentLoaded', function() {
         button.disabled = true;
         button.textContent = 'Opening...';
 
+        const actionToken = window.ANIBASE_ACTION_TOKEN || document.querySelector('input[name="action_token"]')?.value || '';
+
         try {
-            const response = await fetch("{{ url_for('pick_settings_folder') }}");
+            const response = await fetch("{{ url_for('pick_settings_folder') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': actionToken,
+                    'X-Action-Token': actionToken
+                },
+                body: JSON.stringify({ action_token: actionToken })
+            });
             const data = await response.json();
             if (!response.ok || data.error) {
                 showPickerMessage(data.message || data.error || 'Unable to open folder picker.', true);

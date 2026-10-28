@@ -546,11 +546,13 @@ def cleanup_cache_settings():
 
 
 @host_only
+@require_action_token
 def pick_settings_folder():
     return pick_windows_path("folder")
 
 
 @host_only
+@require_action_token
 def pick_settings_file():
     return pick_windows_path("file")
 
@@ -1993,8 +1995,8 @@ def register_api_routes(app):
     app.add_url_rule("/settings/auto-import/dismiss", endpoint="dismiss_auto_import_unmatched", view_func=dismiss_auto_import_unmatched, methods=["POST"])
     app.add_url_rule("/settings/auto-import/dismiss-all", endpoint="dismiss_all_auto_import_unmatched", view_func=dismiss_all_auto_import_unmatched, methods=["POST"])
     app.add_url_rule("/settings/cleanup-cache", endpoint="cleanup_cache_settings", view_func=cleanup_cache_settings, methods=["POST"])
-    app.add_url_rule("/settings/pick-folder", endpoint="pick_settings_folder", view_func=pick_settings_folder)
-    app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file)
+    app.add_url_rule("/settings/pick-folder", endpoint="pick_settings_folder", view_func=pick_settings_folder, methods=["POST"])
+    app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file, methods=["POST"])
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)

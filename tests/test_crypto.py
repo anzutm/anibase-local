@@ -68,10 +68,43 @@ class CryptoTests(unittest.TestCase):
         payload = {"token": "portable_secret_456"}
         with patch.dict(os.environ, {"ANIBASE_DISABLE_DPAPI": "1"}):
             envelope = encrypt_auth_payload(payload)
-            self.assertEqual(envelope.get("_format"), "portable_v1")
+            self.assertEqual(envelope.get("_format"), "portable_v2")
+            self.assertTrue(envelope.get("encrypted"))
+            # Pastikan token tidak bocor dalam teks dasar
+            self.assertNotIn("portable_secret_456", envelope.get("payload", ""))
             decrypted = decrypt_auth_payload(envelope)
             self.assertEqual(decrypted, payload)
+
+    def test_legacy_portable_v1_compatibility(self):
+        import base64
+        import json
+        payload = {"token": "legacy_portable_secret_123"}
+        legacy_envelope = {
+            "_format": "portable_v1",
+            "encrypted": True,
+            "payload": base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii"),
+            "updated_at": 123456
+        }
+        decrypted = decrypt_auth_payload(legacy_envelope)
+        self.assertEqual(decrypted, payload)
+
+    def test_portable_v2_tamper_detection(self):
+        import base64
+        payload = {"token": "secret_data"}
+        with patch.dict(os.environ, {"ANIBASE_DISABLE_DPAPI": "1"}):
+            envelope = encrypt_auth_payload(payload)
+            raw = bytearray(base64.b64decode(envelope["payload"]))
+            # Ubah satu byte di ciphertext
+            raw[-1] ^= 0xFF
+            tampered_envelope = {
+                "_format": "portable_v2",
+                "encrypted": True,
+                "payload": base64.b64encode(raw).decode("ascii"),
+                "updated_at": 123456
+            }
+            self.assertEqual(decrypt_auth_payload(tampered_envelope), {})
 
 
 if __name__ == "__main__":
     unittest.main()
+

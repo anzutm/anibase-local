@@ -3464,9 +3464,42 @@ class LanHostOnlyAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_folder_picker_from_lan_is_rejected(self):
-        response = self.request("GET", "/settings/pick-folder", "192.168.1.20")
-
+        response = self.request(
+            "POST",
+            "/settings/pick-folder",
+            "192.168.1.20",
+            headers={"X-Action-Token": self.token},
+            json={"action_token": self.token},
+        )
         self.assertEqual(response.status_code, 403)
+
+    def test_folder_picker_get_is_rejected_method_not_allowed(self):
+        response = self.request("GET", "/settings/pick-folder", "127.0.0.1")
+        self.assertEqual(response.status_code, 405)
+
+    def test_file_picker_get_is_rejected_method_not_allowed(self):
+        response = self.request("GET", "/settings/pick-file", "127.0.0.1")
+        self.assertEqual(response.status_code, 405)
+
+    def test_folder_picker_without_action_token_is_rejected(self):
+        response = self.request(
+            "POST",
+            "/settings/pick-folder",
+            "127.0.0.1",
+            headers={"X-AniBase-Action-Token": "", "X-Action-Token": ""},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_folder_picker_accepts_local_with_valid_token(self):
+        from unittest.mock import patch
+        with patch("anibase.web.routes_api.pick_windows_path", return_value=({"ok": True, "path": "C:/test"}, 200)):
+            response = self.request(
+                "POST",
+                "/settings/pick-folder",
+                "127.0.0.1",
+                headers={"X-AniBase-Action-Token": self.token},
+            )
+            self.assertEqual(response.status_code, 200)
 
     def test_open_vlc_from_lan_is_rejected(self):
         response = self.request(
