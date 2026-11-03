@@ -869,7 +869,12 @@ window.addEventListener('keydown', (event) => {
     if (isShortcutPressed(event, 'toggle_mini_player')) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        toggleMiniPlayer();
+        if (isMiniFloating) {
+            isManualMini = false;
+            toggleMiniPlayer(false);
+        } else {
+            toggleMiniPlayer(true, true);
+        }
         return;
     }
 
@@ -2125,12 +2130,40 @@ const miniPlayerCloseBtn = document.getElementById('miniPlayerCloseBtn');
 const miniPlayerSubtitle = document.getElementById('miniPlayerSubtitle');
 const miniPlayerBrowseBtn = document.getElementById('miniPlayerBrowseBtn');
 
+let isMiniFloating = false;
+let userDismissedMini = false;
+let isManualMini = false;
+let isActivelyPlaying = false;
+let isNavigatingAway = false;
+
+if (videoElement) {
+    videoElement.addEventListener('play', () => { isActivelyPlaying = true; });
+    videoElement.addEventListener('playing', () => { isActivelyPlaying = true; });
+    videoElement.addEventListener('pause', () => {
+        if (!isNavigatingAway) {
+            isActivelyPlaying = false;
+        }
+    });
+}
+
 function savePersistentMiniPlayerState(active = true) {
     try {
         if (!window.ANIME_NAME || !window.EPISODE_PATH || !videoElement) return;
         const curTime = Number(videoElement.currentTime || (player && player.currentTime) || 0);
         const dur = Number(videoElement.duration || (player && player.duration) || 0);
-        const streamSrc = (sourceElement && sourceElement.src) ? sourceElement.src : (videoElement.currentSrc || videoElement.src || '');
+        let streamSrc = (sourceElement && sourceElement.src) || (videoElement && videoElement.currentSrc) || (videoElement && videoElement.src) || '';
+        if (!streamSrc && window.STREAM_URL_TEMPLATE && window.ANIME_NAME && window.EPISODE_PATH) {
+            streamSrc = window.STREAM_URL_TEMPLATE
+                .replace('__ANIME__', encodeURIComponent(window.ANIME_NAME))
+                .replace('__EPISODE__', encodeURIComponent(window.EPISODE_PATH));
+        }
+        let subSrc = (subtitleTrack && subtitleTrack.dataset.subtitleSrc) || '';
+        if (!subSrc && window.SUBTITLE_URL_TEMPLATE && window.ANIME_NAME && window.EPISODE_PATH) {
+            subSrc = window.SUBTITLE_URL_TEMPLATE
+                .replace('__ANIME__', encodeURIComponent(window.ANIME_NAME))
+                .replace('__EPISODE__', encodeURIComponent(window.EPISODE_PATH));
+        }
+        const wasPlaying = isActivelyPlaying || (!videoElement.paused && !videoElement.ended);
         const state = {
             active: Boolean(active),
             animeName: window.ANIME_NAME,
@@ -2141,11 +2174,11 @@ function savePersistentMiniPlayerState(active = true) {
             episodeNum: window.CURRENT_EP_NUM || '',
             currentTime: curTime,
             duration: dur,
-            paused: Boolean(videoElement.paused),
+            paused: !wasPlaying,
             volume: typeof videoElement.volume === 'number' ? videoElement.volume : 1,
             muted: Boolean(videoElement.muted),
             streamUrl: streamSrc,
-            subtitleUrl: (subtitleTrack && subtitleTrack.dataset.subtitleSrc) ? subtitleTrack.dataset.subtitleSrc : '',
+            subtitleUrl: subSrc,
             playerUrl: window.location.href,
             updatedAt: Date.now()
         };
@@ -2158,9 +2191,6 @@ function clearPersistentMiniPlayerState() {
         sessionStorage.removeItem('anibase_persistent_mini_player');
     } catch (_) {}
 }
-
-let isMiniFloating = false;
-let userDismissedMini = false;
 
 function isPipSupported() {
     return Boolean(document.pictureInPictureEnabled && !videoElement.disablePictureInPicture);
@@ -2217,7 +2247,7 @@ function updateMiniPlayerSubtitle(text) {
     }
 }
 
-function toggleMiniPlayer(forceState) {
+function toggleMiniPlayer(forceState, isManual = false) {
     if (!videoPlayerContainer) return;
     const nextState = typeof forceState === 'boolean' ? forceState : !isMiniFloating;
     if (nextState === isMiniFloating) return;
@@ -2241,6 +2271,9 @@ function toggleMiniPlayer(forceState) {
         }
         isMiniFloating = true;
         userDismissedMini = false;
+        if (isManual) {
+            isManualMini = true;
+        }
         savePersistentMiniPlayerState(true);
         showScreenshotToast('Mini Player active. Navigate anywhere to keep watching!', { icon: '&#128250;', duration: 2500 });
 
@@ -2257,6 +2290,7 @@ function toggleMiniPlayer(forceState) {
             miniFloatBtn.setAttribute('aria-pressed', 'false');
         }
         isMiniFloating = false;
+        isManualMini = false;
         clearPersistentMiniPlayerState();
 
         window.dispatchEvent(new Event('resize'));
@@ -2264,6 +2298,7 @@ function toggleMiniPlayer(forceState) {
 }
 
 function restoreFromMiniPlayer() {
+    isManualMini = false;
     toggleMiniPlayer(false);
     const mainSection = document.querySelector('.main-player-section');
     if (mainSection) {
@@ -2274,15 +2309,21 @@ function restoreFromMiniPlayer() {
 }
 
 function closeMiniPlayer() {
-    toggleMiniPlayer(false);
+    isManualMini = false;
     userDismissedMini = true;
+    toggleMiniPlayer(false);
     clearPersistentMiniPlayerState();
 }
 
 if (miniFloatBtn) {
     miniFloatBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        toggleMiniPlayer();
+        if (isMiniFloating) {
+            isManualMini = false;
+            toggleMiniPlayer(false);
+        } else {
+            toggleMiniPlayer(true, true);
+        }
     });
 }
 
@@ -2312,12 +2353,12 @@ function initMiniPlayerScrollObserver() {
             if (!entry.isIntersecting || entry.intersectionRatio < 0.15) {
                 const scrolledPast = (entry.boundingClientRect.top < 0);
                 if (scrolledPast && !userDismissedMini && !isMiniFloating && !document.pictureInPictureElement) {
-                    toggleMiniPlayer(true);
+                    toggleMiniPlayer(true, false);
                 }
             } else if (entry.intersectionRatio >= 0.5) {
                 userDismissedMini = false;
-                if (isMiniFloating) {
-                    toggleMiniPlayer(false);
+                if (isMiniFloating && !isManualMini) {
+                    toggleMiniPlayer(false, false);
                 }
             }
         });
@@ -2332,20 +2373,24 @@ initMiniPlayerScrollObserver();
 
 document.querySelectorAll('a.player-back, a.player-home, #miniPlayerBrowseBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
-        if (isMiniFloating || btn.id === 'miniPlayerBrowseBtn') {
+        isNavigatingAway = true;
+        const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
+        if (isMiniFloating || isManualMini || btn.id === 'miniPlayerBrowseBtn' || wasPlaying) {
             savePersistentMiniPlayerState(true);
         }
     });
 });
 
 window.addEventListener('beforeunload', () => {
-    if (isMiniFloating) {
+    const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
+    if (isMiniFloating || isManualMini || wasPlaying) {
         savePersistentMiniPlayerState(true);
     }
 });
 
 window.addEventListener('pagehide', () => {
-    if (isMiniFloating) {
+    const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
+    if (isMiniFloating || isManualMini || wasPlaying) {
         savePersistentMiniPlayerState(true);
     }
 });

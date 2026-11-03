@@ -115,6 +115,7 @@
         }
 
         // Setup stream source
+        video.crossOrigin = 'anonymous';
         video.src = state.streamUrl;
         if (state.subtitleUrl) {
             const track = document.createElement('track');
@@ -123,6 +124,11 @@
             track.srclang = 'und';
             track.default = true;
             video.appendChild(track);
+            track.addEventListener('load', () => {
+                if (video.textTracks && video.textTracks[0]) {
+                    video.textTracks[0].mode = 'showing';
+                }
+            });
         }
 
         // Volume & Mute
@@ -139,11 +145,13 @@
 
         function restorePlayback() {
             if (!hasRestoredTime) {
-                hasRestoredTime = true;
                 if (targetTime > 0) {
                     try {
                         video.currentTime = targetTime;
+                        hasRestoredTime = true;
                     } catch (_) {}
+                } else {
+                    hasRestoredTime = true;
                 }
             }
 
@@ -167,6 +175,13 @@
         } else {
             video.addEventListener('loadedmetadata', restorePlayback, { once: true });
         }
+        video.addEventListener('canplay', () => {
+            if (targetTime > 0 && Math.abs((video.currentTime || 0) - targetTime) > 1.5) {
+                try {
+                    video.currentTime = targetTime;
+                } catch (_) {}
+            }
+        }, { once: true });
 
         // Playback state updates
         function updatePlayPauseUI() {

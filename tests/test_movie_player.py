@@ -99,6 +99,15 @@ class MoviePlayerTests(unittest.TestCase):
         self.assertIn('global-mini-player.css', html)
         self.assertIn('global-mini-player.js', html)
 
+        # Ensure anime details page (anime.html) also includes the global mini player
+        response_detail = self.client.get(f"/movie/{self.movie1_file}")
+        self.assertEqual(response_detail.status_code, 200)
+        html_detail = response_detail.get_data(as_text=True)
+        self.assertIn('id="globalMiniPlayer"', html_detail)
+        self.assertIn('id="globalMiniVideo"', html_detail)
+        self.assertIn('global-mini-player.css', html_detail)
+        self.assertIn('global-mini-player.js', html_detail)
+
 
 if __name__ == "__main__":
     unittest.main()

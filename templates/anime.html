@@ -52,6 +52,7 @@
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='1') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -1550,5 +1551,7 @@ window.initializeMetadataMatch();
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
 {% include "_spotlight.html" %}
 <script src="{{ url_for('static', filename='spotlight.js', v='1') }}"></script>
+{% include "_global_mini_player.html" %}
+<script src="{{ url_for('static', filename='global-mini-player.js', v='1') }}"></script>
 </body>
 </html>
