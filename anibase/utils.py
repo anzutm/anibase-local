@@ -34,11 +34,15 @@ def hidden_subprocess_kwargs():
 
 def with_hidden_subprocess_window(kwargs):
     merged = dict(kwargs)
+    low_priority = merged.pop("low_priority", False)
     for key, value in hidden_subprocess_kwargs().items():
         if key == "creationflags":
             merged[key] = merged.get(key, 0) | value
         else:
             merged.setdefault(key, value)
+    if os.name == "nt" and low_priority:
+        # BELOW_NORMAL_PRIORITY_CLASS (0x00004000) prevents background tasks from starving media playback
+        merged["creationflags"] = merged.get("creationflags", 0) | 0x00004000
     return merged
 
 def run_hidden_subprocess(args, **kwargs):

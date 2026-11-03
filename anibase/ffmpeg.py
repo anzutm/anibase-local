@@ -150,7 +150,8 @@ def run_ffmpeg_command(args, timeout):
             command,
             capture_output=True,
             text=True,
-            timeout=timeout
+            timeout=timeout,
+            low_priority=True
         )
     except FileNotFoundError:
         return make_media_generation_result(

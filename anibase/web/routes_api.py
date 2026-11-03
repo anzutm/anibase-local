@@ -981,6 +981,82 @@ def thumbnail(anime_name, episode):
     return media_generation_error_response(thumbnail_result)
 
 
+STREAM_CHUNK_SIZE = 262144  # 256 KB per I/O read block
+STREAM_MAX_BURST_SIZE = 16 * 1024 * 1024  # 16 MB max for open-ended range requests
+
+
+def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST_SIZE):
+    """
+    Mengurai header HTTP Range dan mengembalikan tuple (start, end, length).
+    Jika range_header kosong, mengembalikan None.
+    Jika tidak valid / out of bounds, melempar ValueError.
+    """
+    if not range_header or not range_header.startswith("bytes="):
+        return None
+
+    range_val = range_header[6:].strip()
+    if "," in range_val:
+        range_val = range_val.split(",", 1)[0].strip()
+
+    if range_val.startswith("-"):
+        try:
+            suffix_len = int(range_val[1:])
+        except ValueError:
+            raise ValueError("Invalid suffix range")
+        if suffix_len <= 0:
+            raise ValueError("Invalid suffix length")
+        start = max(0, file_size - suffix_len)
+        end = file_size - 1
+    elif "-" in range_val:
+        parts = range_val.split("-", 1)
+        try:
+            start = int(parts[0])
+        except ValueError:
+            raise ValueError("Invalid range start")
+
+        if parts[1].strip():
+            try:
+                end = int(parts[1])
+            except ValueError:
+                raise ValueError("Invalid range end")
+            end = min(end, file_size - 1)
+        else:
+            end = min(start + max_burst - 1, file_size - 1)
+    else:
+        raise ValueError("Malformed range header")
+
+    if start < 0 or start >= file_size or end < start:
+        raise ValueError("Range Not Satisfiable")
+
+    length = end - start + 1
+    return start, end, length
+
+
+def _generate_video_chunks(video_path, start, length, chunk_size=STREAM_CHUNK_SIZE):
+    """Membaca segmen video dalam blok 256 KB dengan auto-close dan penanganan client disconnect."""
+    bytes_remaining = length
+    file_handle = None
+    try:
+        file_handle = open(video_path, "rb")
+        if start > 0:
+            file_handle.seek(start)
+        while bytes_remaining > 0:
+            to_read = min(chunk_size, bytes_remaining)
+            chunk = file_handle.read(to_read)
+            if not chunk:
+                break
+            bytes_remaining -= len(chunk)
+            yield chunk
+    except (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, OSError):
+        pass
+    finally:
+        if file_handle is not None:
+            try:
+                file_handle.close()
+            except Exception:
+                pass
+
+
 def stream_video(anime_name, episode):
     anime_path = find_media_path(
         anime_name
@@ -999,20 +1075,79 @@ def stream_video(anime_name, episode):
         app_log("Video path invalid or not found.", "WARN")
         abort(404)
 
-    mime_type = "video/mp4"
-    if not video_path.lower().endswith('.mkv'):
+    try:
+        stat_result = os.stat(video_path)
+        file_size = stat_result.st_size
+    except OSError:
+        abort(404)
+
+    ext = os.path.splitext(video_path)[1].lower()
+    if ext == ".mp4":
+        mime_type = "video/mp4"
+    elif ext == ".mkv":
+        mime_type = "video/x-matroska"
+    elif ext == ".webm":
+        mime_type = "video/webm"
+    elif ext in (".m4v", ".mov"):
+        mime_type = "video/mp4"
+    else:
         mime_type = mimetypes.guess_type(video_path)[0] or "video/mp4"
 
-    response = send_file(
-        video_path,
-        mimetype=mime_type,
-        conditional=True,
-        etag=True,
-        max_age=3600,
+    etag = f'"{int(stat_result.st_mtime)}-{file_size}"'
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        try:
+            range_info = _parse_stream_byte_range(range_header, file_size)
+        except ValueError:
+            return Response(
+                "",
+                status=416,
+                headers={
+                    "Content-Range": f"bytes */{file_size}",
+                    "Accept-Ranges": "bytes",
+                }
+            )
+
+        if range_info is not None:
+            start, end, length = range_info
+            headers = {
+                "Content-Type": mime_type,
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(length),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "private, max-age=3600",
+                "ETag": etag,
+            }
+
+            if request.method == "HEAD":
+                return Response(b"", status=206, headers=headers)
+
+            return Response(
+                _generate_video_chunks(video_path, start, length),
+                status=206,
+                headers=headers,
+                direct_passthrough=True,
+            )
+
+    # Permintaan penuh (tanpa header Range)
+    headers = {
+        "Content-Type": mime_type,
+        "Content-Length": str(file_size),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
+        "ETag": etag,
+    }
+
+    if request.method == "HEAD":
+        return Response(b"", status=200, headers=headers)
+
+    return Response(
+        _generate_video_chunks(video_path, 0, file_size),
+        status=200,
+        headers=headers,
+        direct_passthrough=True,
     )
-    response.cache_control.public = False
-    response.cache_control.private = True
-    return response
 
 
 def character_img(anime_name, filename):
