@@ -445,6 +445,15 @@ player.on('ready', () => {
     }
 
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramT = parseFloat(urlParams.get('t'));
+        if (Number.isFinite(paramT) && paramT > 0) {
+            window.RESUME_TIME = paramT;
+        }
+        sessionStorage.removeItem('anibase_persistent_mini_player');
+    } catch (_) {}
+
     if (window.RESUME_TIME > 0) {
         // Seek once metadata is available, before waiting for the first frame.
         const resume = () => { player.currentTime = window.RESUME_TIME; };
@@ -2122,6 +2131,41 @@ const miniPlayerOverlay = document.getElementById('miniPlayerOverlay');
 const miniPlayerExpandBtn = document.getElementById('miniPlayerExpandBtn');
 const miniPlayerCloseBtn = document.getElementById('miniPlayerCloseBtn');
 const miniPlayerSubtitle = document.getElementById('miniPlayerSubtitle');
+const miniPlayerBrowseBtn = document.getElementById('miniPlayerBrowseBtn');
+
+function savePersistentMiniPlayerState(active = true) {
+    try {
+        if (!window.ANIME_NAME || !window.EPISODE_PATH || !videoElement) return;
+        const curTime = Number(videoElement.currentTime || (player && player.currentTime) || 0);
+        const dur = Number(videoElement.duration || (player && player.duration) || 0);
+        const streamSrc = (sourceElement && sourceElement.src) ? sourceElement.src : (videoElement.currentSrc || videoElement.src || '');
+        const state = {
+            active: Boolean(active),
+            animeName: window.ANIME_NAME,
+            isMovie: Boolean(window.IS_MOVIE),
+            displayTitle: window.DISPLAY_TITLE || window.ANIME_NAME,
+            episodePath: window.EPISODE_PATH,
+            episodeDisplayName: window.CURRENT_EP_DISPLAY_NAME || '',
+            episodeNum: window.CURRENT_EP_NUM || '',
+            currentTime: curTime,
+            duration: dur,
+            paused: Boolean(videoElement.paused),
+            volume: typeof videoElement.volume === 'number' ? videoElement.volume : 1,
+            muted: Boolean(videoElement.muted),
+            streamUrl: streamSrc,
+            subtitleUrl: (subtitleTrack && subtitleTrack.dataset.subtitleSrc) ? subtitleTrack.dataset.subtitleSrc : '',
+            playerUrl: window.location.href,
+            updatedAt: Date.now()
+        };
+        sessionStorage.setItem('anibase_persistent_mini_player', JSON.stringify(state));
+    } catch (_) {}
+}
+
+function clearPersistentMiniPlayerState() {
+    try {
+        sessionStorage.removeItem('anibase_persistent_mini_player');
+    } catch (_) {}
+}
 
 let isMiniFloating = false;
 let userDismissedMini = false;
@@ -2205,7 +2249,8 @@ function toggleMiniPlayer(forceState) {
         }
         isMiniFloating = true;
         userDismissedMini = false;
-        showScreenshotToast('Mini Player active', { icon: '&#128250;', duration: 1500 });
+        savePersistentMiniPlayerState(true);
+        showScreenshotToast('Mini Player active. Navigate anywhere to keep watching!', { icon: '&#128250;', duration: 2500 });
 
         window.dispatchEvent(new Event('resize'));
     } else {
@@ -2220,6 +2265,7 @@ function toggleMiniPlayer(forceState) {
             miniFloatBtn.setAttribute('aria-pressed', 'false');
         }
         isMiniFloating = false;
+        clearPersistentMiniPlayerState();
 
         window.dispatchEvent(new Event('resize'));
     }
@@ -2238,6 +2284,7 @@ function restoreFromMiniPlayer() {
 function closeMiniPlayer() {
     toggleMiniPlayer(false);
     userDismissedMini = true;
+    clearPersistentMiniPlayerState();
 }
 
 if (miniFloatBtn) {
@@ -2290,4 +2337,24 @@ function initMiniPlayerScrollObserver() {
 }
 
 initMiniPlayerScrollObserver();
+
+document.querySelectorAll('a.player-back, a.player-home, #miniPlayerBrowseBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        if (isMiniFloating || btn.id === 'miniPlayerBrowseBtn') {
+            savePersistentMiniPlayerState(true);
+        }
+    });
+});
+
+window.addEventListener('beforeunload', () => {
+    if (isMiniFloating) {
+        savePersistentMiniPlayerState(true);
+    }
+});
+
+window.addEventListener('pagehide', () => {
+    if (isMiniFloating) {
+        savePersistentMiniPlayerState(true);
+    }
+});
 

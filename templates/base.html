@@ -52,6 +52,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='topbar.css', v='9') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='1') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
     {% block topbar %}
@@ -322,6 +323,8 @@
     </script>
     {% include "_spotlight.html" %}
     <script src="{{ url_for('static', filename='spotlight.js', v='3') }}"></script>
+    {% include "_global_mini_player.html" %}
+    <script src="{{ url_for('static', filename='global-mini-player.js', v='1') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

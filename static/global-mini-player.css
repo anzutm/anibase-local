@@ -1,0 +1,251 @@
+/* static/global-mini-player.css */
+/* Global Persistent Floating Mini Player across Pages */
+
+.global-mini-player {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    background: rgba(14, 17, 24, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    z-index: 99999;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    animation: globalMiniSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.global-mini-player.is-hiding {
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+}
+
+@keyframes globalMiniSlideIn {
+    from {
+        transform: translateY(32px) scale(0.92);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.global-mini-player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 38px;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.global-mini-player-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-width: calc(100% - 68px);
+    line-height: 1.25;
+}
+
+.global-mini-player-title {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text, #F3F4F5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.global-mini-player-ep {
+    font-size: 0.68rem;
+    color: var(--accent, #6366f1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.global-mini-player-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.global-mini-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-dim, rgba(255, 255, 255, 0.65));
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.global-mini-action-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.global-mini-action-btn.global-mini-close:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: #f87171;
+}
+
+.global-mini-player-body {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000000;
+    overflow: hidden;
+}
+
+.global-mini-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000000;
+}
+
+.global-mini-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.65) 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    padding: 8px 10px;
+    pointer-events: none;
+}
+
+.global-mini-player:hover .global-mini-overlay,
+.global-mini-overlay.is-paused {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.global-mini-controls-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: auto 0;
+}
+
+.global-mini-ctrl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.global-mini-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.26);
+    transform: scale(1.08);
+}
+
+.global-mini-ctrl-btn:active {
+    transform: scale(0.95);
+}
+
+.global-mini-ctrl-btn.global-mini-play-btn {
+    width: 44px;
+    height: 44px;
+    background: var(--accent, #6366f1);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+}
+
+.global-mini-ctrl-btn.global-mini-play-btn:hover {
+    background: #4f46e5;
+    transform: scale(1.06);
+}
+
+.global-mini-bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.global-mini-mini-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.global-mini-mini-btn:hover {
+    color: #ffffff;
+}
+
+.global-mini-time {
+    font-size: 0.65rem;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.global-mini-progress-track {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+    transition: height 0.15s ease;
+}
+
+.global-mini-player:hover .global-mini-progress-track {
+    height: 6px;
+}
+
+.global-mini-progress-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--accent, #6366f1);
+    border-radius: 0 2px 2px 0;
+    transition: width 0.12s linear;
+}
+
+/* Responsiveness on small displays */
+@media (max-width: 600px) {
+    .global-mini-player {
+        bottom: 16px;
+        right: 16px;
+        width: 320px;
+    }
+}
+

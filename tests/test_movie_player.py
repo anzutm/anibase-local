@@ -83,6 +83,21 @@ class MoviePlayerTests(unittest.TestCase):
         self.assertIn('id="miniPlayerOverlay"', html)
         self.assertIn('id="miniPlayerExpandBtn"', html)
         self.assertIn('id="miniPlayerCloseBtn"', html)
+        self.assertIn('id="miniPlayerBrowseBtn"', html)
+
+    def test_global_persistent_mini_player_in_base_pages(self):
+        from build import REQUIRED_ASSETS
+        self.assertIn("templates/_global_mini_player.html", REQUIRED_ASSETS)
+        self.assertIn("static/global-mini-player.css", REQUIRED_ASSETS)
+        self.assertIn("static/global-mini-player.js", REQUIRED_ASSETS)
+
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="globalMiniPlayer"', html)
+        self.assertIn('id="globalMiniVideo"', html)
+        self.assertIn('global-mini-player.css', html)
+        self.assertIn('global-mini-player.js', html)
 
 
 if __name__ == "__main__":
