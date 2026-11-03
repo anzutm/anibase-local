@@ -316,14 +316,101 @@
             });
         }
 
+        // Draggable floating mini player & Cinema size toggle
+        const dragHandle = document.getElementById('globalMiniDragHandle') || container;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let initialLeft = 0;
+        let initialTop = 0;
+
+        if (state.customPos && typeof state.customPos.left === 'number' && typeof state.customPos.top === 'number') {
+            container.style.left = `${Math.max(12, Math.min(window.innerWidth - 380 - 12, state.customPos.left))}px`;
+            container.style.top = `${Math.max(12, Math.min(window.innerHeight - 214 - 12, state.customPos.top))}px`;
+            container.style.right = 'auto';
+            container.style.bottom = 'auto';
+        }
+
+        if (state.isLarge) {
+            container.classList.add('is-large');
+        }
+
+        if (dragHandle) {
+            dragHandle.addEventListener('dblclick', (e) => {
+                if (e.target.closest('button, a')) return;
+                container.classList.toggle('is-large');
+                saveCurrentState({ isLarge: container.classList.contains('is-large') });
+            });
+
+            dragHandle.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button, a')) return;
+                isDragging = true;
+                container.classList.add('is-dragging');
+                try {
+                    dragHandle.setPointerCapture(e.pointerId);
+                } catch (_) {}
+
+                const rect = container.getBoundingClientRect();
+                startX = e.clientX;
+                startY = e.clientY;
+                initialLeft = rect.left;
+                initialTop = rect.top;
+
+                container.style.left = `${rect.left}px`;
+                container.style.top = `${rect.top}px`;
+                container.style.right = 'auto';
+                container.style.bottom = 'auto';
+            });
+
+            dragHandle.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                let nextLeft = initialLeft + dx;
+                let nextTop = initialTop + dy;
+
+                const maxLeft = Math.max(12, window.innerWidth - container.offsetWidth - 12);
+                const maxTop = Math.max(12, window.innerHeight - container.offsetHeight - 12);
+
+                nextLeft = Math.max(12, Math.min(maxLeft, nextLeft));
+                nextTop = Math.max(12, Math.min(maxTop, nextTop));
+
+                container.style.left = `${nextLeft}px`;
+                container.style.top = `${nextTop}px`;
+            });
+
+            const stopDrag = (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                container.classList.remove('is-dragging');
+                try {
+                    dragHandle.releasePointerCapture(e.pointerId);
+                } catch (_) {}
+
+                const rect = container.getBoundingClientRect();
+                saveCurrentState({
+                    customPos: { left: rect.left, top: rect.top },
+                    isLarge: container.classList.contains('is-large')
+                });
+            };
+
+            dragHandle.addEventListener('pointerup', stopDrag);
+            dragHandle.addEventListener('pointercancel', stopDrag);
+        }
+
         // Save position on page navigation across site
         function handleUnload() {
             if (!container.hidden && video) {
+                const rect = container.getBoundingClientRect();
+                const hasCustomPos = container.style.left !== '' && container.style.left !== 'auto';
                 saveCurrentState({
                     currentTime: video.currentTime || 0,
                     paused: video.paused,
                     volume: video.volume,
-                    muted: video.muted
+                    muted: video.muted,
+                    customPos: hasCustomPos ? { left: rect.left, top: rect.top } : null,
+                    isLarge: container.classList.contains('is-large')
                 });
                 reportWatchProgress(state, video, true);
             }

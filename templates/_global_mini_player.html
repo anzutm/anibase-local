@@ -1,59 +1,63 @@
 <!-- templates/_global_mini_player.html -->
 <!-- Global Persistent Floating Mini Player across Pages -->
 <div id="globalMiniPlayer" class="global-mini-player" hidden aria-label="Persistent Mini Video Player">
-    <div class="global-mini-player-header">
-        <div class="global-mini-player-info">
-            <span class="global-mini-player-title" id="globalMiniPlayerTitle">Anime Title</span>
-            <span class="global-mini-player-ep" id="globalMiniPlayerEp">Episode</span>
-        </div>
-        <div class="global-mini-player-header-actions">
-            <button type="button" id="globalMiniPlayerExpandBtn" class="global-mini-action-btn" title="Expand to full player" aria-label="Expand to full player">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="15 3 21 3 21 9"></polyline>
-                    <polyline points="9 21 3 21 3 15"></polyline>
-                    <line x1="21" y1="3" x2="14" y2="10"></line>
-                    <line x1="3" y1="21" x2="10" y2="14"></line>
-                </svg>
-            </button>
-            <button type="button" id="globalMiniPlayerCloseBtn" class="global-mini-action-btn global-mini-close" title="Close mini player" aria-label="Close mini player">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-        </div>
-    </div>
+    <video id="globalMiniVideo" class="global-mini-video" playsinline preload="auto"></video>
 
-    <div class="global-mini-player-body" id="globalMiniPlayerBody">
-        <video id="globalMiniVideo" class="global-mini-video" playsinline preload="auto"></video>
-
-        <div class="global-mini-overlay" id="globalMiniOverlay">
-            <div class="global-mini-controls-center">
-                <button type="button" id="globalMiniSeekBackBtn" class="global-mini-ctrl-btn" title="Seek back 10s" aria-label="Seek back 10 seconds">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                        <polygon points="22 19 13 12 22 5 22 19"></polygon>
+    <!-- Unified Cinematic Floating Overlay (Visible on hover or when paused) -->
+    <div class="global-mini-overlay" id="globalMiniOverlay">
+        <!-- Topbar: Title, Episode Pill Badge & Controls -->
+        <div class="global-mini-topbar" id="globalMiniDragHandle">
+            <div class="global-mini-info">
+                <span class="global-mini-title" id="globalMiniPlayerTitle">Anime Title</span>
+                <span class="global-mini-badge" id="globalMiniPlayerEp">Episode</span>
+            </div>
+            <div class="global-mini-actions">
+                <button type="button" id="globalMiniPlayerExpandBtn" class="global-mini-btn" title="Expand to full player" aria-label="Expand to full player">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <polyline points="9 21 3 21 3 15"></polyline>
+                        <line x1="21" y1="3" x2="14" y2="10"></line>
+                        <line x1="3" y1="21" x2="10" y2="14"></line>
                     </svg>
                 </button>
-                <button type="button" id="globalMiniPlayBtn" class="global-mini-ctrl-btn global-mini-play-btn" title="Toggle play/pause" aria-label="Toggle playback">
-                    <svg id="globalMiniPlayIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                    <svg id="globalMiniPauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" hidden>
-                        <rect x="6" y="4" width="4" height="16"></rect>
-                        <rect x="14" y="4" width="4" height="16"></rect>
-                    </svg>
-                </button>
-                <button type="button" id="globalMiniSeekForwardBtn" class="global-mini-ctrl-btn" title="Seek forward 10s" aria-label="Seek forward 10 seconds">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                        <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                <button type="button" id="globalMiniPlayerCloseBtn" class="global-mini-btn global-mini-close-btn" title="Close mini player" aria-label="Close mini player">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
             </div>
+        </div>
 
-            <div class="global-mini-bottom-bar">
-                <button type="button" id="globalMiniMuteBtn" class="global-mini-mini-btn" title="Toggle mute" aria-label="Toggle mute">
+        <!-- Center Controls: Rewind 10s, Play/Pause, Forward 10s -->
+        <div class="global-mini-center-controls">
+            <button type="button" id="globalMiniSeekBackBtn" class="global-mini-ctrl-btn" title="Rewind 10s" aria-label="Rewind 10 seconds">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                    <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                </svg>
+            </button>
+            <button type="button" id="globalMiniPlayBtn" class="global-mini-ctrl-btn global-mini-play-btn" title="Toggle play/pause" aria-label="Toggle playback">
+                <svg id="globalMiniPlayIcon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <svg id="globalMiniPauseIcon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" hidden>
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+            </button>
+            <button type="button" id="globalMiniSeekForwardBtn" class="global-mini-ctrl-btn" title="Forward 10s" aria-label="Forward 10 seconds">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                    <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Bottom Bar: Mute, Time Display & Progress Bar -->
+        <div class="global-mini-bottom-bar">
+            <div class="global-mini-bottom-controls">
+                <button type="button" id="globalMiniMuteBtn" class="global-mini-btn" title="Toggle mute" aria-label="Toggle mute">
                     <svg id="globalMiniVolumeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                         <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
@@ -66,11 +70,10 @@
                 </button>
                 <span class="global-mini-time" id="globalMiniTimeDisplay">00:00 / 00:00</span>
             </div>
-        </div>
 
-        <div class="global-mini-progress-track" id="globalMiniProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" title="Click to seek">
-            <div class="global-mini-progress-fill" id="globalMiniProgressFill"></div>
+            <div class="global-mini-progress-track" id="globalMiniProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" title="Click to seek">
+                <div class="global-mini-progress-fill" id="globalMiniProgressFill"></div>
+            </div>
         </div>
     </div>
 </div>
-
