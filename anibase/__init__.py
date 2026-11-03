@@ -75,6 +75,11 @@ from anibase.db import (
     db_connection,
     init_db,
     count_library_rows,
+    sanitize_fts5_query,
+    sync_anime_fts,
+    delete_anime_fts,
+    search_anime_fts,
+    rebuild_anime_fts,
 )
 from anibase.watch import (
     load_watch_json_file,
@@ -118,6 +123,8 @@ from anibase.ffmpeg import (
     make_dependency_result,
     diagnose_path_executable,
     get_media_dependency_diagnostics,
+    detect_available_hwaccels,
+    get_ffmpeg_hwaccel_args,
 )
 from anibase.player import (
     diagnose_vlc_path,

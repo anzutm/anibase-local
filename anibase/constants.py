@@ -266,8 +266,20 @@ SHORTCUT_DEFINITIONS = [
         "category": "Special Features",
         "category_id": "special",
         "icon": "&#10024;",
-        "description": "AniSkip markers, instant screenshots, and help overlay.",
+        "description": "AniSkip markers, instant screenshots, PiP, and help overlay.",
         "actions": [
+            {
+                "id": "toggle_pip",
+                "label": "Picture-in-Picture",
+                "description": "Pop out video to native Picture-in-Picture window",
+                "default": "p",
+            },
+            {
+                "id": "toggle_mini_player",
+                "label": "Mini Floating Player",
+                "description": "Toggle in-page floating player dock",
+                "default": "i",
+            },
             {
                 "id": "aniskip",
                 "label": "Skip Intro / Outro",

@@ -26,11 +26,39 @@ from anibase.ffmpeg import (
     run_ffmpeg_command,
     temporary_media_cache_path,
     remove_file_quietly,
+    get_ffmpeg_hwaccel_args,
 )
 from anibase.media import (
     get_video_duration_seconds,
     format_timestamp,
 )
+
+
+HWACCEL_ERROR_MARKERS = (
+    "hwaccel",
+    "hardware",
+    "cuda",
+    "d3d11",
+    "d3d",
+    "dxva",
+    "vulkan",
+    "vaapi",
+    "qsv",
+    "opencl",
+    "device",
+    "driver",
+    "gpu",
+)
+
+
+def is_hwaccel_failure(result):
+    """Menentukan apakah kegagalan perintah FFmpeg disebabkan oleh device/codec hardware acceleration."""
+    if not result or result.get("ok"):
+        return False
+    if result.get("status") in {"busy", "shutting_down", "timeout", "ffmpeg_unavailable"}:
+        return False
+    msg = str(result.get("message") or "").casefold()
+    return any(marker in msg for marker in HWACCEL_ERROR_MARKERS)
 
 
 def get_thumbnail_seek_points(video_path):
@@ -125,33 +153,47 @@ def get_thumbnail_result(video_path):
         os.makedirs(os.path.dirname(thumbnail_path), exist_ok=True)
         seek_points = get_thumbnail_seek_points(video_path)
         app_log(f"Starting thumbnail generation for {os.path.basename(video_path)}", "INFO")
+        hw_args = get_ffmpeg_hwaccel_args()
 
         for seek_point in seek_points:
             temp_path = temporary_media_cache_path(thumbnail_path, ".jpg")
+            cmd = (
+                ["ffmpeg", "-y"]
+                + hw_args
+                + [
+                    "-threads", "1",
+                    "-ss", format_timestamp(seek_point),
+                    "-i", video_path,
+                    "-frames:v", "1",
+                    "-vf", "scale=640:-2:force_original_aspect_ratio=decrease",
+                    "-filter_threads", "1",
+                    "-threads", "1",
+                    "-q:v", "2",
+                    temp_path,
+                ]
+            )
             result = run_ffmpeg_command(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-threads",
-                    "1",
-                    "-ss",
-                    format_timestamp(seek_point),
-                    "-i",
-                    video_path,
-                    "-frames:v",
-                    "1",
-                    "-vf",
-                    "scale=640:-2:force_original_aspect_ratio=decrease",
-                    "-filter_threads",
-                    "1",
-                    "-threads",
-                    "1",
-                    "-q:v",
-                    "2",
-                    temp_path
-                ],
+                cmd,
                 timeout=_constants.THUMBNAIL_GENERATION_TIMEOUT_SECONDS
             )
+
+            # Fallback ke software decoding jika akselerasi GPU gagal pada format tertentu
+            if not result["ok"] and hw_args and is_hwaccel_failure(result):
+                fallback_cmd = [
+                    "ffmpeg", "-y", "-threads", "1",
+                    "-ss", format_timestamp(seek_point),
+                    "-i", video_path,
+                    "-frames:v", "1",
+                    "-vf", "scale=640:-2:force_original_aspect_ratio=decrease",
+                    "-filter_threads", "1",
+                    "-threads", "1",
+                    "-q:v", "2",
+                    temp_path,
+                ]
+                result = run_ffmpeg_command(
+                    fallback_cmd,
+                    timeout=_constants.THUMBNAIL_GENERATION_TIMEOUT_SECONDS
+                )
 
             if result["ok"] and is_valid_cache_file(temp_path):
                 os.replace(temp_path, thumbnail_path)
@@ -257,16 +299,35 @@ def generate_seek_preview(video_path, folder, version):
         prefix = ".preview-" + secrets.token_hex(8)
         sprite_names = sorted({frame["text"] for frame in frames})
         temp_files = [os.path.join(folder, prefix + name) for name in sprite_names]
-        result = run_ffmpeg_command([
-            "ffmpeg", "-y", "-threads", "1", "-skip_frame", "nokey", "-i", video_path,
-            "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1",
-            "-vf", f"fps=1/{interval}:start_time=0:round=up,"
-            f"tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration},"
-            "scale=384:216:force_original_aspect_ratio=decrease:flags=lanczos,"
-            "pad=384:216:(ow-iw)/2:(oh-ih)/2,setsar=1,tile=10x10:nb_frames=100",
-            "-frames:v", str(len(sprite_names)), "-threads", "1", "-q:v", "2",
-            os.path.join(folder, prefix + "sprite-%02d.jpg"),
-        ], timeout=180)
+        hw_args = get_ffmpeg_hwaccel_args()
+        cmd = (
+            ["ffmpeg", "-y"]
+            + hw_args
+            + [
+                "-threads", "1", "-skip_frame", "nokey", "-i", video_path,
+                "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1",
+                "-vf", f"fps=1/{interval}:start_time=0:round=up,"
+                f"tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration},"
+                "scale=384:216:force_original_aspect_ratio=decrease:flags=lanczos,"
+                "pad=384:216:(ow-iw)/2:(oh-ih)/2,setsar=1,tile=10x10:nb_frames=100",
+                "-frames:v", str(len(sprite_names)), "-threads", "1", "-q:v", "2",
+                os.path.join(folder, prefix + "sprite-%02d.jpg"),
+            ]
+        )
+        result = run_ffmpeg_command(cmd, timeout=180)
+        # Fallback ke software decoding jika akselerasi GPU gagal
+        if not result["ok"] and hw_args and is_hwaccel_failure(result):
+            fallback_cmd = [
+                "ffmpeg", "-y", "-threads", "1", "-skip_frame", "nokey", "-i", video_path,
+                "-map", "0:v:0", "-an", "-sn", "-dn", "-filter_threads", "1",
+                "-vf", f"fps=1/{interval}:start_time=0:round=up,"
+                f"tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration},"
+                "scale=384:216:force_original_aspect_ratio=decrease:flags=lanczos,"
+                "pad=384:216:(ow-iw)/2:(oh-ih)/2,setsar=1,tile=10x10:nb_frames=100",
+                "-frames:v", str(len(sprite_names)), "-threads", "1", "-q:v", "2",
+                os.path.join(folder, prefix + "sprite-%02d.jpg"),
+            ]
+            result = run_ffmpeg_command(fallback_cmd, timeout=180)
         if not result["ok"] or not all(is_valid_cache_file(path) for path in temp_files):
             app_log(f'Seek preview generation failed: {result.get("status", "incomplete")} '
                     f'for {os.path.basename(video_path)}', "WARN")

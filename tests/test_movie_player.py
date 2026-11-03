@@ -73,6 +73,17 @@ class MoviePlayerTests(unittest.TestCase):
         # Back button links back to movie detail
         self.assertIn(f"/movie/{self.movie1_file}", html)
 
+    def test_player_pip_and_mini_floating_elements(self):
+        response = self.client.get(f"/player/Movies/{self.movie1_file}")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="playerPipBtn"', html)
+        self.assertIn('id="playerMiniFloatBtn"', html)
+        self.assertIn('id="playerPlaceholder"', html)
+        self.assertIn('id="miniPlayerOverlay"', html)
+        self.assertIn('id="miniPlayerExpandBtn"', html)
+        self.assertIn('id="miniPlayerCloseBtn"', html)
+
 
 if __name__ == "__main__":
     unittest.main()

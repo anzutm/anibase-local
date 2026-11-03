@@ -46,7 +46,7 @@ from anibase.settings import (
     get_effective_mal_client_id,
     apply_settings as core_apply_settings,
 )
-from anibase.db import db_connection
+from anibase.db import db_connection, search_anime_fts
 from anibase.watch import (
     load_watch_status,
     get_episode_watch_status,
@@ -742,6 +742,13 @@ def get_spotlight_results(query="", limit=20):
     all_anime = get_anime()
     matched_anime = []
 
+    fts_rank_map = {}
+    if norm_query:
+        fts_matches = search_anime_fts(norm_query, limit=limit * 3)
+        for m in fts_matches:
+            if m.get("name"):
+                fts_rank_map[m["name"]] = m.get("rank")
+
     for item in all_anime:
         name = item["name"]
         metadata = get_cached_metadata_only(name) or {}
@@ -782,7 +789,10 @@ def get_spotlight_results(query="", limit=20):
             if isinstance(synonyms, list):
                 searchable_text += " " + " ".join(str(s).casefold() for s in synonyms)
 
-            if norm_query in searchable_text:
+            is_fts_match = name in fts_rank_map
+            is_substring_match = norm_query in searchable_text
+
+            if is_substring_match or is_fts_match:
                 relevance = 0
                 if name.casefold().startswith(norm_query) or display_title.casefold().startswith(norm_query):
                     relevance += 100
@@ -792,6 +802,12 @@ def get_spotlight_results(query="", limit=20):
                     relevance += 20
                 if item.get("watch_status_kind") == "watching":
                     relevance += 10
+
+                if is_fts_match:
+                    fts_rank = fts_rank_map.get(name)
+                    relevance += 25
+                    if fts_rank is not None and fts_rank < -1.0:
+                        relevance += 15
 
                 matched_anime.append({
                     "type": "anime",

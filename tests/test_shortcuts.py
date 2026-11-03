@@ -53,7 +53,7 @@ class TestShortcuts(unittest.TestCase):
             "volume_up",
             "volume_down",
             "speed_up",
-            "speed_down",
+            "speed_down", "toggle_pip", "toggle_mini_player",
             "aniskip",
             "screenshot",
             "shortcut_help",
@@ -79,6 +79,8 @@ class TestShortcuts(unittest.TestCase):
         self.assertEqual(DEFAULT_PLAYER_SHORTCUTS["seek_forward_large"], "Ctrl+ArrowRight")
         self.assertEqual(DEFAULT_PLAYER_SHORTCUTS["previous_episode"], "Shift+P")
         self.assertEqual(DEFAULT_PLAYER_SHORTCUTS["next_episode"], "Shift+N")
+        self.assertEqual(DEFAULT_PLAYER_SHORTCUTS["toggle_pip"], "p")
+        self.assertEqual(DEFAULT_PLAYER_SHORTCUTS["toggle_mini_player"], "i")
 
     def test_normalize_shortcuts(self):
         # Non-dict fallback

@@ -287,6 +287,79 @@ def diagnose_path_executable(label, executable, run_version=True):
     )
 
 
+_HWACCEL_PROBE_LOCK = threading.Lock()
+_HWACCEL_CACHE = None
+
+
+def detect_available_hwaccels(force=False):
+    """Mendeteksi metode akselerasi perangkat keras GPU yang didukung oleh biner FFmpeg."""
+    global _HWACCEL_CACHE
+    now = time.monotonic()
+    with _HWACCEL_PROBE_LOCK:
+        if not force and _HWACCEL_CACHE and _HWACCEL_CACHE.get("expires_at", 0) > now:
+            return _HWACCEL_CACHE
+
+        methods = []
+        ffmpeg_path = get_media_tool_path("ffmpeg")
+        candidate = ffmpeg_path if os.path.isfile(ffmpeg_path) else shutil.which(ffmpeg_path)
+
+        if candidate:
+            try:
+                result = run_hidden_subprocess(
+                    [candidate, "-hwaccels"],
+                    capture_output=True,
+                    text=True,
+                    timeout=_constants.MEDIA_DIAGNOSTIC_TIMEOUT_SECONDS
+                )
+                if result.returncode == 0:
+                    for line in (result.stdout or "").splitlines():
+                        line = line.strip()
+                        if (
+                            line
+                            and not line.startswith("Hardware")
+                            and not line.startswith("ffmpeg")
+                            and not line.startswith("built")
+                            and not line.startswith("configuration")
+                            and not line.startswith("lib")
+                        ):
+                            methods.append(line.lower())
+            except Exception as e:
+                debug_log(f"Probe FFmpeg -hwaccels failed: {e}")
+
+        env_choice = os.environ.get("ANIBASE_HWACCEL", "").strip().lower()
+        disabled = (
+            os.environ.get("ANIBASE_DISABLE_HWACCEL", "").strip().lower() in {"1", "true", "yes"}
+            or env_choice in {"none", "off", "disable", "disabled"}
+        )
+
+        selected = "none"
+        if not disabled and candidate and methods:
+            if env_choice and (env_choice in methods or env_choice == "auto"):
+                selected = env_choice
+            else:
+                for preferred in ("auto", "d3d11va", "dxva2", "cuda"):
+                    if preferred in methods or preferred == "auto":
+                        selected = preferred
+                        break
+
+        _HWACCEL_CACHE = {
+            "methods": methods,
+            "selected": selected,
+            "available": bool(selected and selected != "none"),
+            "expires_at": now + 300
+        }
+        return _HWACCEL_CACHE
+
+
+def get_ffmpeg_hwaccel_args():
+    """Mengembalikan argumen -hwaccel untuk disisipkan sebelum input file (-i)."""
+    hw_info = detect_available_hwaccels()
+    selected = hw_info.get("selected", "none")
+    if selected and selected != "none":
+        return ["-hwaccel", selected]
+    return []
+
+
 def get_media_dependency_diagnostics(settings=None, force=False):
     from anibase.player import diagnose_vlc_path
     settings = settings if isinstance(settings, dict) else load_settings()
@@ -306,10 +379,25 @@ def get_media_dependency_diagnostics(settings=None, force=False):
         ):
             return cached["value"]
 
+    hw_info = detect_available_hwaccels(force=force)
+    hw_status = "available" if hw_info.get("available") else "disabled"
+    hw_msg = (
+        f"Hardware acceleration active ({hw_info.get('selected')})."
+        if hw_info.get("available")
+        else "Hardware acceleration disabled or not available."
+    )
+
     diagnostics = {
         "ffmpeg": diagnose_path_executable("FFmpeg", "ffmpeg"),
         "ffprobe": diagnose_path_executable("FFprobe", "ffprobe"),
-        "vlc": diagnose_vlc_path(vlc_path)
+        "vlc": diagnose_vlc_path(vlc_path),
+        "hwaccel": make_dependency_result(
+            hw_info.get("available"),
+            hw_info.get("selected", "none"),
+            ", ".join(hw_info.get("methods", [])[:5]),
+            hw_status,
+            hw_msg
+        )
     }
 
     with _constants.MEDIA_DIAGNOSTIC_CACHE_LOCK:

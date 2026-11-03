@@ -71,7 +71,7 @@ from anibase.settings import (
     save_settings,
     get_effective_mal_client_id,
 )
-from anibase.db import db_connection, count_library_rows
+from anibase.db import db_connection, count_library_rows, sync_anime_fts, delete_anime_fts
 from anibase.watch import (
     mark_episode_watched,
     mark_episode_unwatched,
@@ -731,6 +731,14 @@ def api_update_anime_metadata_match():
                         anime_name,
                     ),
                 )
+            sync_anime_fts(
+                conn,
+                anime_name,
+                title=metadata.get("title") or anime_name,
+                genres=metadata.get("genres"),
+                synonyms=metadata.get("synonyms"),
+                description=metadata.get("description"),
+            )
     except sqlite3.Error as error:
         app_log(f"Unable to update matched metadata row for {anime_name}: {error}", "WARN")
 
@@ -1960,6 +1968,7 @@ def api_delete_anime():
                 conn.execute("DELETE FROM anime_library WHERE name = ?", (anime_name,))
                 conn.execute("DELETE FROM episode_watch_status WHERE anime_name = ?", (anime_name,))
                 conn.execute("DELETE FROM watch_history WHERE history_key = ? OR media_name = ?", (anime_name, anime_name))
+                delete_anime_fts(conn, anime_name)
         except Exception as e:
             app_log(f"Failed to remove {anime_name} from database: {e}", "WARN")
 

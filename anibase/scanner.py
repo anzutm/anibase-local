@@ -20,7 +20,12 @@ from anibase.utils import (
     get_active_cache_dir,
     get_protected_cache_files,
 )
-from anibase.db import db_connection, count_library_rows
+from anibase.db import (
+    db_connection,
+    count_library_rows,
+    sync_anime_fts,
+    delete_anime_fts,
+)
 from anibase.watch import (
     load_history_data,
     load_watch_status,
@@ -547,6 +552,7 @@ def sync_anime_to_db(anime_name, trigger_label=None):
             with db_connection() as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("DELETE FROM anime_library WHERE name = ?", (anime_name,))
+                delete_anime_fts(conn, anime_name)
             summary = cleanup_anime_cache(anime_name)
             app_log(
                 f"Cleaned cache for deleted anime {anime_name}: "
@@ -576,6 +582,14 @@ def sync_anime_to_db(anime_name, trigger_label=None):
                 info.get("season") if info else None,
                 info.get("status") if info else None
             ))
+            sync_anime_fts(
+                conn,
+                anime_name,
+                title=info.get("title") if info else anime_name,
+                genres=info.get("genres") if info else None,
+                synonyms=info.get("synonyms") if info else None,
+                description=info.get("description") if info else None
+            )
         return {"ok": True, "skipped": False, "anime_name": anime_name}
     finally:
         _constants.LIBRARY_SYNC_LOCK.release()
@@ -722,12 +736,25 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
                     INSERT OR REPLACE INTO anime_library (name, episodes, score, genres, year, season, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, found_data)
+                for item in found_data:
+                    a_name = item[0]
+                    a_info = get_cached_anilist_info(a_name)
+                    sync_anime_fts(
+                        conn,
+                        a_name,
+                        title=a_info.get("title") if a_info else a_name,
+                        genres=a_info.get("genres") if a_info else item[3],
+                        synonyms=a_info.get("synonyms") if a_info else None,
+                        description=a_info.get("description") if a_info else None
+                    )
 
             if can_delete_stale and found_names:
                 placeholders = ','.join(['?'] * len(found_names))
                 conn.execute(f"DELETE FROM anime_library WHERE name NOT IN ({placeholders})", found_names)
+                conn.execute(f"DELETE FROM anime_fts WHERE name NOT IN ({placeholders})", found_names)
             elif can_delete_stale:
                 conn.execute("DELETE FROM anime_library")
+                conn.execute("DELETE FROM anime_fts")
 
         if not can_delete_stale:
             stale_names = []

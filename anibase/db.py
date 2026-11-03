@@ -124,6 +124,141 @@ def init_db(db_path=None):
             )
         """)
 
+        # Inisialisasi virtual table FTS5 untuk pencarian teks penuh (Full-Text Search)
+        try:
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS anime_fts USING fts5(
+                    name,
+                    title,
+                    genres,
+                    synonyms,
+                    description,
+                    tokenize='unicode61 remove_diacritics 2'
+                )
+            """)
+        except sqlite3.OperationalError as e:
+            app_log(f"FTS5 virtual table initialization note: {e}", "INFO")
+
+
+def sanitize_fts5_query(raw_query):
+    """Membersihkan dan memformat query pengguna agar aman dan optimal untuk SQLite FTS5 prefix search."""
+    import re
+    if not raw_query or not isinstance(raw_query, str):
+        return None
+    words = re.findall(r'[^\W_]+', raw_query.strip(), re.UNICODE)
+    if not words:
+        return None
+    return ' '.join(f'"{w}"*' for w in words)
+
+
+def sync_anime_fts(conn, name, title=None, genres=None, synonyms=None, description=None):
+    """Menyinkronkan atau memperbarui indeks FTS5 untuk satu anime."""
+    if not name:
+        return False
+    try:
+        conn.execute("DELETE FROM anime_fts WHERE name = ?", (name,))
+
+        genres_str = ""
+        if isinstance(genres, (list, tuple, set)):
+            genres_str = ", ".join(str(g) for g in genres if g)
+        elif isinstance(genres, str):
+            genres_str = genres
+
+        synonyms_str = ""
+        if isinstance(synonyms, (list, tuple, set)):
+            synonyms_str = " ".join(str(s) for s in synonyms if s)
+        elif isinstance(synonyms, str):
+            synonyms_str = synonyms
+
+        clean_desc = str(description or "").strip()
+        if clean_desc and ("<" in clean_desc and ">" in clean_desc):
+            import re
+            clean_desc = re.sub(r'<[^>]+>', ' ', clean_desc).strip()
+
+        conn.execute("""
+            INSERT INTO anime_fts (name, title, genres, synonyms, description)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            name,
+            title or name,
+            genres_str,
+            synonyms_str,
+            clean_desc
+        ))
+        return True
+    except sqlite3.Error as e:
+        debug_log(f"FTS sync error for {name}: {e}")
+        return False
+
+
+def delete_anime_fts(conn, name):
+    """Menghapus entri anime dari indeks FTS5."""
+    if not name:
+        return False
+    try:
+        conn.execute("DELETE FROM anime_fts WHERE name = ?", (name,))
+        return True
+    except sqlite3.Error as e:
+        debug_log(f"FTS delete error for {name}: {e}")
+        return False
+
+
+def search_anime_fts(query, limit=20, conn=None):
+    """
+    Melakukan pencarian Full-Text Search pada anime_fts dengan perankingan BM25.
+    Bobot: Title (10.0), Name (5.0), Synonyms (3.0), Genres (2.0), Description (1.0).
+    Mengembalikan daftar dict: [{"name": name, "rank": rank}, ...]
+    """
+    clean_query = sanitize_fts5_query(query)
+    if not clean_query:
+        return []
+
+    sql = """
+        SELECT name, bm25(anime_fts, 5.0, 10.0, 2.0, 3.0, 1.0) as rank
+        FROM anime_fts
+        WHERE anime_fts MATCH ?
+        ORDER BY rank ASC
+        LIMIT ?
+    """
+    try:
+        if conn is not None:
+            rows = conn.execute(sql, (clean_query, limit)).fetchall()
+        else:
+            with db_connection() as c:
+                rows = c.execute(sql, (clean_query, limit)).fetchall()
+        return [{"name": r[0], "rank": r[1]} for r in rows if r and r[0]]
+    except sqlite3.Error as e:
+        debug_log(f"FTS search error for '{query}': {e}")
+        return []
+
+
+def rebuild_anime_fts(conn=None):
+    """Membangun ulang seluruh indeks FTS5 dari database dan cache metadata."""
+    from anibase.metadata import get_cached_metadata_only
+    def _do_rebuild(c):
+        rows = c.execute("SELECT name, genres FROM anime_library").fetchall()
+        c.execute("DELETE FROM anime_fts")
+        count = 0
+        for row in rows:
+            name = row[0]
+            meta = get_cached_metadata_only(name) or {}
+            genres = meta.get("genres") or row[1]
+            title = meta.get("title") or name
+            synonyms = meta.get("synonyms")
+            description = meta.get("description")
+            if sync_anime_fts(c, name, title=title, genres=genres, synonyms=synonyms, description=description):
+                count += 1
+        return count
+
+    try:
+        if conn is not None:
+            return _do_rebuild(conn)
+        with db_connection() as c:
+            return _do_rebuild(c)
+    except sqlite3.Error as e:
+        app_log(f"FTS rebuild failed: {e}", "WARN")
+        return 0
+
 
 def count_library_rows(conn=None):
     """Menghitung total baris di tabel anime_library."""

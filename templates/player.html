@@ -37,7 +37,7 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='17') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='18') }}">
 </head>
 
 <body class="player-body">
@@ -86,7 +86,8 @@
     </header>
 
     <div class="main-player-section">
-        <div class="video-player-container">
+        <div id="playerPlaceholder" class="player-placeholder" hidden aria-hidden="true"></div>
+        <div class="video-player-container" id="videoPlayerContainer">
             <div class="video-player">
                 <video id="player" playsinline controls crossorigin preload="auto">
                     <source src="{{ url_for('stream_video', anime_name=anime_name, episode=episode) }}" type="video/mp4">
@@ -100,6 +101,31 @@
                     >
                     <p>Your browser does not support this video codec (H.265/10-bit). Use <b>Open in Media Player</b> to watch.</p>
                 </video>
+            </div>
+
+            <div id="miniPlayerOverlay" class="mini-player-overlay" hidden>
+                <div class="mini-player-topbar">
+                    <div class="mini-player-info">
+                        <span class="mini-player-title">{{ watch_display_name if is_movie else anime_name }}</span>
+                        <span class="mini-player-subtitle" id="miniPlayerSubtitle">{% if is_movie %}Movie{% else %}{{ current_episode_display_name }}{% endif %}</span>
+                    </div>
+                    <div class="mini-player-actions">
+                        <button type="button" id="miniPlayerExpandBtn" class="mini-player-action-btn" title="Restore to full player" aria-label="Restore to full player">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <polyline points="9 21 3 21 3 15"></polyline>
+                                <line x1="21" y1="3" x2="14" y2="10"></line>
+                                <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                        </button>
+                        <button type="button" id="miniPlayerCloseBtn" class="mini-player-action-btn mini-player-close" title="Close mini player" aria-label="Close mini player">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div id="episodeSwitchNotice" class="player-switch-notice" hidden>
@@ -139,6 +165,26 @@
                     <button type="button" id="playerAutoSkipBtn" class="player-sub-btn player-autoskip-btn" title="Toggle automatic skip for opening and ending (AniSkip)">
                         <span class="sub-icon" aria-hidden="true">&#9197;</span>
                         <span id="playerAutoSkipLabel">Auto-Skip: OFF</span>
+                    </button>
+
+                    <button type="button" id="playerPipBtn" class="player-sub-btn player-pip-btn" title="Picture-in-Picture ({{ player_shortcuts.toggle_pip|default('p') }})" aria-label="Picture-in-Picture">
+                        <span class="sub-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <rect x="12" y="9" width="8" height="6" rx="1" ry="1" fill="currentColor"></rect>
+                            </svg>
+                        </span>
+                        <span>PiP</span>
+                    </button>
+
+                    <button type="button" id="playerMiniFloatBtn" class="player-sub-btn player-mini-float-btn" title="Mini Floating Player ({{ player_shortcuts.toggle_mini_player|default('i') }})" aria-label="Mini Floating Player">
+                        <span class="sub-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"></path>
+                                <rect x="13" y="13" width="9" height="7" rx="1.5"></rect>
+                            </svg>
+                        </span>
+                        <span>Mini</span>
                     </button>
 
                     <button type="button" id="playerShortcutsBtn" class="player-sub-btn player-shortcuts-btn" title="Keyboard shortcuts ({{ player_shortcuts.shortcut_help }})">
@@ -471,7 +517,7 @@
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
 <script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-21') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-22') }}"></script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
 
 </body>
