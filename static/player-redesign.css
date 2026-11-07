@@ -2181,3 +2181,176 @@ body.player-body .player-drawer-empty {
 body.player-body .plyr__control--playlist {
     order: 8;
 }
+
+/* Double-Tap / Double-Click Seek Ripple Animation */
+body.player-body .player-doubletap-ripple {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 38%;
+    z-index: 25;
+    pointer-events: none;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.player-body .player-doubletap-ripple[hidden] {
+    display: none !important;
+}
+
+body.player-body .player-doubletap-ripple--left {
+    left: 0;
+}
+
+body.player-body .player-doubletap-ripple--right {
+    right: 0;
+}
+
+body.player-body .player-doubletap-ripple .ripple-wave {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease;
+}
+
+body.player-body .player-doubletap-ripple--left .ripple-wave {
+    background: radial-gradient(circle at left center, rgba(255, 255, 255, 0.26) 0%, color-mix(in srgb, var(--player-accent, #38bdf8) 28%, transparent) 45%, transparent 75%);
+    border-radius: 0 100% 100% 0 / 0 50% 50% 0;
+    transform: scaleX(0.2);
+    transform-origin: left center;
+}
+
+body.player-body .player-doubletap-ripple--right .ripple-wave {
+    background: radial-gradient(circle at right center, rgba(255, 255, 255, 0.26) 0%, color-mix(in srgb, var(--player-accent, #38bdf8) 28%, transparent) 45%, transparent 75%);
+    border-radius: 100% 0 0 100% / 50% 0 0 50%;
+    transform: scaleX(0.2);
+    transform-origin: right center;
+}
+
+body.player-body .player-doubletap-ripple.is-active .ripple-wave {
+    opacity: 1;
+    transform: scaleX(1);
+}
+
+body.player-body .player-doubletap-ripple.is-fading .ripple-wave {
+    opacity: 0;
+    transform: scaleX(1.06);
+}
+
+body.player-body .player-doubletap-ripple .ripple-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: #ffffff;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+    opacity: 0;
+    transform: scale(0.85);
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+body.player-body .player-doubletap-ripple.is-active .ripple-content {
+    opacity: 1;
+    transform: scale(1);
+}
+
+body.player-body .player-doubletap-ripple.is-fading .ripple-content {
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+body.player-body .player-doubletap-ripple .ripple-arrows {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    color: var(--player-accent, #38bdf8);
+    animation: ripple-arrow-bounce 0.5s infinite alternate ease-in-out;
+}
+
+body.player-body .player-doubletap-ripple .ripple-text {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+@keyframes ripple-arrow-bounce {
+    0% { transform: scale(0.92); opacity: 0.8; }
+    100% { transform: scale(1.1); opacity: 1; }
+}
+
+/* Centered Volume HUD Overlay (OSD) */
+body.player-body .player-hud-volume {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 22px;
+    min-width: 220px;
+    background: rgba(13, 17, 28, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 16px color-mix(in srgb, var(--player-accent, #38bdf8) 25%, transparent);
+    color: #f1f5f9;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+body.player-body .player-hud-volume[hidden] {
+    display: none !important;
+}
+
+body.player-body .player-hud-volume.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+body.player-body .player-hud-volume.is-fading-out {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+}
+
+body.player-body .player-hud-vol-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--player-accent, #38bdf8);
+    flex-shrink: 0;
+}
+
+body.player-body .player-hud-vol-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+body.player-body .player-hud-vol-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--player-accent, #38bdf8), #60a5fa);
+    border-radius: 999px;
+    transition: width 0.08s linear;
+}
+
+body.player-body .player-hud-vol-text {
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 40px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #f8fafc;
+}

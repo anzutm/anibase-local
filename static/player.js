@@ -437,6 +437,7 @@ player.on('ready', () => {
         getSeekFeedback('forward');
     }
     createEpisodesDrawer();
+    initDoubleTapSeek();
 
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
     try {
@@ -456,6 +457,108 @@ player.on('ready', () => {
             { once: true, signal: mediaLoadController.signal });
     }
 });
+
+// --- Double-Click / Double-Tap Side Seek with Wave Ripple (YouTube Style) ---
+let doubleTapRippleTimer = { backward: null, forward: null };
+let doubleTapRippleAccumulator = { backward: 0, forward: 0 };
+let doubleTapRippleElements = { backward: null, forward: null };
+let preDblClickPlaying = false;
+
+function getDoubleTapRippleElement(direction) {
+    if (!doubleTapRippleElements[direction] && player.elements && player.elements.container) {
+        const isLeft = direction === 'backward';
+        const ripple = document.createElement('div');
+        ripple.className = `player-doubletap-ripple player-doubletap-ripple--${isLeft ? 'left' : 'right'}`;
+        ripple.hidden = true;
+        ripple.setAttribute('aria-hidden', 'true');
+        ripple.innerHTML = `
+            <div class="ripple-wave"></div>
+            <div class="ripple-content">
+                <span class="ripple-arrows" aria-hidden="true">${isLeft ? '&#171;&#171;' : '&#187;&#187;'}</span>
+                <span class="ripple-text">10 seconds</span>
+            </div>
+        `;
+        player.elements.container.appendChild(ripple);
+        doubleTapRippleElements[direction] = ripple;
+    }
+    return doubleTapRippleElements[direction];
+}
+
+function showDoubleTapRipple(direction, seconds) {
+    const ripple = getDoubleTapRippleElement(direction);
+    if (!ripple) return;
+
+    const textEl = ripple.querySelector('.ripple-text');
+    if (textEl) textEl.textContent = `${seconds} seconds`;
+
+    ripple.hidden = false;
+    ripple.classList.remove('is-active', 'is-fading');
+    void ripple.offsetWidth;
+    ripple.classList.add('is-active');
+
+    clearTimeout(doubleTapRippleTimer[direction]);
+    doubleTapRippleTimer[direction] = setTimeout(() => {
+        ripple.classList.remove('is-active');
+        ripple.classList.add('is-fading');
+        setTimeout(() => {
+            if (!ripple.classList.contains('is-active')) {
+                ripple.hidden = true;
+                ripple.classList.remove('is-fading');
+                doubleTapRippleAccumulator[direction] = 0;
+            }
+        }, 250);
+    }, 650);
+}
+
+function handleSideDoubleTap(direction) {
+    doubleTapRippleAccumulator[direction] = (doubleTapRippleAccumulator[direction] || 0) + 10;
+    showDoubleTapRipple(direction, doubleTapRippleAccumulator[direction]);
+    seekByShortcut(direction, 10);
+}
+
+function initDoubleTapSeek() {
+    const container = player.elements?.container;
+    if (!container || container.dataset.doubleTapBound) return;
+    container.dataset.doubleTapBound = 'true';
+
+    container.addEventListener('pointerdown', (e) => {
+        if (!e.target.closest('.plyr__controls, #playerEpisodesDrawer, .player-shortcuts-modal-overlay, button, input, a, select')) {
+            preDblClickPlaying = !player.paused;
+        }
+    }, true);
+
+    container.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.plyr__controls, #playerEpisodesDrawer, .player-shortcuts-modal-overlay, button, input, a, select')) {
+            return;
+        }
+
+        const rect = container.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const ratio = (e.clientX - rect.left) / rect.width;
+
+        if (ratio < 0.35) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (preDblClickPlaying && player.paused) {
+                player.play().catch(() => {});
+            }
+            handleSideDoubleTap('backward');
+        } else if (ratio > 0.65) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (preDblClickPlaying && player.paused) {
+                player.play().catch(() => {});
+            }
+            handleSideDoubleTap('forward');
+        }
+    }, true);
+}
+
+if (player.elements?.container) {
+    initDoubleTapSeek();
+}
 
 // Master Keyboard Shortcut Dispatcher
 const shortcutsModal = document.getElementById('playerShortcutsModal');
@@ -716,6 +819,68 @@ if (completionRatingForm) {
 }
 
 
+// --- Centered Volume HUD Overlay (OSD) ---
+let volumeHudTimer = null;
+let volumeHudEl = null;
+
+function getVolumeHUD() {
+    if (!volumeHudEl && player.elements && player.elements.container) {
+        volumeHudEl = document.createElement('div');
+        volumeHudEl.className = 'player-hud-volume';
+        volumeHudEl.hidden = true;
+        volumeHudEl.setAttribute('aria-hidden', 'true');
+        volumeHudEl.innerHTML = `
+            <span class="player-hud-vol-icon" aria-hidden="true"></span>
+            <div class="player-hud-vol-track">
+                <div class="player-hud-vol-fill"></div>
+            </div>
+            <span class="player-hud-vol-text"></span>
+        `;
+        player.elements.container.appendChild(volumeHudEl);
+    }
+    return volumeHudEl;
+}
+
+function showVolumeHUD(percent, isMuted = false) {
+    const hud = getVolumeHUD();
+    if (!hud) return;
+
+    const fill = hud.querySelector('.player-hud-vol-fill');
+    const text = hud.querySelector('.player-hud-vol-text');
+    const icon = hud.querySelector('.player-hud-vol-icon');
+
+    const displayPercent = isMuted ? 0 : Math.max(0, Math.min(100, Math.round(percent)));
+    if (fill) fill.style.width = `${displayPercent}%`;
+    if (text) text.textContent = isMuted ? 'Muted' : `${displayPercent}%`;
+
+    if (icon) {
+        if (isMuted || displayPercent === 0) {
+            icon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+        } else if (displayPercent < 40) {
+            icon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        } else {
+            icon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+        }
+    }
+
+    hud.hidden = false;
+    hud.classList.remove('is-fading-out');
+    void hud.offsetWidth;
+    hud.classList.add('is-visible');
+
+    clearTimeout(volumeHudTimer);
+    volumeHudTimer = setTimeout(() => {
+        hud.classList.remove('is-visible');
+        hud.classList.add('is-fading-out');
+        setTimeout(() => {
+            if (!hud.classList.contains('is-visible')) {
+                hud.hidden = true;
+                hud.classList.remove('is-fading-out');
+            }
+        }, 220);
+    }, 1200);
+}
+
 function adjustVolume(delta) {
     if (delta > 0 && player.muted) {
         player.muted = false;
@@ -723,11 +888,7 @@ function adjustVolume(delta) {
     const newVol = Math.max(0, Math.min(1, (player.volume || 1) + delta));
     player.volume = newVol;
     const volPercent = Math.round(newVol * 100);
-    let volIcon = '&#128266;';
-    if (volPercent === 0) volIcon = '&#128263;';
-    else if (volPercent < 33) volIcon = '&#128264;';
-    else if (volPercent < 66) volIcon = '&#128265;';
-    showScreenshotToast(`Volume: ${volPercent}%`, { icon: volIcon, duration: 1500 });
+    showVolumeHUD(volPercent, player.muted);
 }
 
 function toggleSubtitlesShortcut() {
@@ -854,8 +1015,7 @@ window.addEventListener('keydown', (event) => {
         event.preventDefault();
         event.stopImmediatePropagation();
         player.muted = !player.muted;
-        const icon = player.muted ? '&#128263;' : '&#128266;';
-        showScreenshotToast(player.muted ? 'Muted' : `Volume: ${Math.round(player.volume * 100)}%`, { icon, duration: 1200 });
+        showVolumeHUD(Math.round(player.volume * 100), player.muted);
         return;
     }
 
@@ -1679,7 +1839,7 @@ let volumeScrollTime = 0;
 player.elements.container.addEventListener('wheel', event => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
         || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)
-        || event.target.closest('.plyr__menu__container, textarea, select, [contenteditable="true"]')) return;
+        || event.target.closest('#playerEpisodesDrawer, .player-drawer-panel, .player-drawer-list, .player-shortcuts-modal-overlay, .plyr__menu__container, textarea, select, [contenteditable="true"]')) return;
     event.preventDefault();
     const direction = event.deltaY < 0 ? 1 : -1;
     const now = performance.now();
@@ -1699,9 +1859,7 @@ player.elements.container.addEventListener('wheel', event => {
     const percent = Math.max(0, Math.min(100, Math.round(player.volume * 100) + direction * 5));
     if (direction > 0 && player.muted) player.muted = false;
     player.volume = percent / 100;
-    const icon = percent === 0 ? '&#128263;' : percent < 33 ? '&#128264;'
-        : percent < 66 ? '&#128265;' : '&#128266;';
-    showScreenshotToast(`Volume: ${percent}%`, { icon, duration: 1500 });
+    showVolumeHUD(percent, player.muted);
 }, { passive: false });
 
 const grid = document.getElementById("episodeGrid");
