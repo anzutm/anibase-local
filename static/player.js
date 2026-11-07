@@ -51,7 +51,8 @@ const DEFAULT_SHORTCUTS = {
     speed_down: '-',
     aniskip: 's',
     screenshot: 's',
-    shortcut_help: '?'
+    shortcut_help: '?',
+    toggle_playlist: 'q'
 };
 
 const userShortcuts = Object.assign({}, DEFAULT_SHORTCUTS, window.PLAYER_SHORTCUTS || {});
@@ -435,6 +436,7 @@ player.on('ready', () => {
         getSeekFeedback('backward');
         getSeekFeedback('forward');
     }
+    createEpisodesDrawer();
 
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
     try {
@@ -803,6 +805,11 @@ window.addEventListener('keydown', (event) => {
             closeCompletionRatingModal(true);
             return;
         }
+        if (typeof isEpisodesDrawerOpen === 'function' && isEpisodesDrawerOpen()) {
+            event.preventDefault();
+            toggleEpisodesDrawer(false);
+            return;
+        }
         if (typeof isMiniFloating !== 'undefined' && isMiniFloating) {
             event.preventDefault();
             closeMiniPlayer();
@@ -939,6 +946,13 @@ window.addEventListener('keydown', (event) => {
         event.preventDefault();
         event.stopImmediatePropagation();
         navigateEpisodeShortcut('previous');
+        return;
+    }
+
+    if (isShortcutPressed(event, 'toggle_playlist')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toggleEpisodesDrawer();
         return;
     }
 
@@ -1296,6 +1310,10 @@ function updatePlayerEpisodeState(episodePath, options = {}) {
 
     updateEpisodeLink(prevEpisodeLink, state.previous);
     updateEpisodeLink(nextEpisodeLink, state.next);
+
+    if (typeof updateDrawerActiveState === 'function') {
+        updateDrawerActiveState(episodePath);
+    }
 
     return state;
 }
@@ -2010,28 +2028,62 @@ skipBtn.addEventListener('click', (e) => {
     performSkip();
 });
 
+function initTimelineMarkerHover() {
+    const progressTrack = player.elements.container?.querySelector('.plyr__progress');
+    if (!progressTrack || progressTrack.dataset.markersHoverBound) return;
+    progressTrack.dataset.markersHoverBound = 'true';
+
+    progressTrack.addEventListener('mousemove', (e) => {
+        const duration = player.duration || videoElement.duration || 0;
+        if (!duration || !episodeSkipIntervals.length) return;
+
+        const rect = progressTrack.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const hoverTime = pct * duration;
+
+        const activeInterval = episodeSkipIntervals.find(i => hoverTime >= i.start && hoverTime <= i.end);
+        const tooltip = progressTrack.querySelector('.plyr__tooltip');
+        if (tooltip && activeInterval) {
+            const cleanText = tooltip.textContent.replace(/\s*•\s*(Opening|Ending|Recap).*/gi, '').trim();
+            tooltip.textContent = `${cleanText} • ${activeInterval.name}`;
+        }
+    });
+}
+
 function renderTimelineMarkers() {
-    const progressTrack = player.elements.container.querySelector('.plyr__progress');
+    const progressTrack = player.elements.container?.querySelector('.plyr__progress');
     if (!progressTrack) return;
     if (!timelineMarkersContainer) {
         timelineMarkersContainer = document.createElement('div');
         timelineMarkersContainer.className = 'player-timeline-markers';
         progressTrack.appendChild(timelineMarkersContainer);
     }
+    initTimelineMarkerHover();
     timelineMarkersContainer.innerHTML = '';
-    const duration = player.duration;
+    const duration = player.duration || videoElement.duration || 0;
     if (!duration || duration <= 0 || !episodeSkipIntervals.length) return;
 
     episodeSkipIntervals.forEach(interval => {
         if (interval.end <= interval.start) return;
         const marker = document.createElement('div');
-        const typeClass = interval.type.includes('ed') ? 'marker-ed' : (interval.type.includes('recap') ? 'marker-recap' : 'marker-op');
+        const isEd = interval.type.includes('ed');
+        const isRecap = interval.type.includes('recap');
+        const typeClass = isEd ? 'marker-ed' : (isRecap ? 'marker-recap' : 'marker-op');
+        const tagText = isEd ? 'ED' : (isRecap ? 'RECAP' : 'OP');
+
         marker.className = `player-timeline-marker ${typeClass}`;
         marker.title = `${interval.name}: ${Math.floor(interval.start / 60)}:${String(Math.floor(interval.start % 60)).padStart(2, '0')} - ${Math.floor(interval.end / 60)}:${String(Math.floor(interval.end % 60)).padStart(2, '0')}`;
         const leftPct = (interval.start / duration) * 100;
         const widthPct = ((interval.end - interval.start) / duration) * 100;
         marker.style.left = `${Math.max(0, Math.min(100, leftPct))}%`;
         marker.style.width = `${Math.max(0, Math.min(100 - leftPct, widthPct))}%`;
+
+        const tag = document.createElement('span');
+        tag.className = 'player-timeline-marker-tag';
+        tag.textContent = tagText;
+        marker.appendChild(tag);
+
         timelineMarkersContainer.appendChild(marker);
     });
 }
@@ -2118,6 +2170,312 @@ function initAniSkip() {
 }
 
 initAniSkip();
+
+// --- In-Player Quick Episode Drawer (Slide-Over Playlist) ---
+let episodesDrawerEl = null;
+let episodesDrawerListEl = null;
+let episodesDrawerSearchInput = null;
+let episodesDrawerClearBtn = null;
+let episodesDrawerOpen = false;
+
+function isEpisodesDrawerOpen() {
+    return episodesDrawerOpen;
+}
+
+function filterDrawerEpisodes(query) {
+    if (!episodesDrawerListEl) return;
+    const q = (query || '').trim().toLowerCase();
+    const items = episodesDrawerListEl.querySelectorAll('.player-drawer-item');
+    let matchCount = 0;
+
+    items.forEach(item => {
+        const text = item.dataset.searchFilter || '';
+        const matches = !q || text.includes(q);
+        item.style.display = matches ? '' : 'none';
+        if (matches) matchCount++;
+    });
+
+    let emptyNotice = episodesDrawerListEl.querySelector('.player-drawer-empty');
+    if (matchCount === 0) {
+        if (!emptyNotice) {
+            emptyNotice = document.createElement('div');
+            emptyNotice.className = 'player-drawer-empty';
+            emptyNotice.textContent = 'No episodes match your search';
+            episodesDrawerListEl.appendChild(emptyNotice);
+        }
+        emptyNotice.hidden = false;
+    } else if (emptyNotice) {
+        emptyNotice.hidden = true;
+    }
+}
+
+function updateDrawerActiveState(episodePath) {
+    if (!episodesDrawerListEl) return;
+    const targetPath = episodePath || window.EPISODE_PATH;
+    const items = episodesDrawerListEl.querySelectorAll('.player-drawer-item');
+
+    items.forEach(item => {
+        const isCurrent = item.dataset.episodePath === targetPath;
+        item.classList.toggle('active', isCurrent);
+        const labelRow = item.querySelector('.player-drawer-ep-label');
+        if (labelRow) {
+            let playingTag = labelRow.querySelector('.player-drawer-now-playing');
+            if (isCurrent && !playingTag) {
+                playingTag = document.createElement('span');
+                playingTag.className = 'player-drawer-now-playing';
+                playingTag.textContent = 'NOW PLAYING';
+                labelRow.appendChild(playingTag);
+            } else if (!isCurrent && playingTag) {
+                playingTag.remove();
+            }
+        }
+    });
+}
+
+function populateDrawerEpisodes() {
+    if (!episodesDrawerListEl) return;
+    episodesDrawerListEl.innerHTML = '';
+    const cards = getEpisodeCards();
+
+    if (!cards.length) {
+        episodesDrawerListEl.innerHTML = '<div class="player-drawer-empty">No episodes in queue</div>';
+        return;
+    }
+
+    const titleEl = episodesDrawerEl ? episodesDrawerEl.querySelector('.player-drawer-title') : null;
+    if (titleEl) {
+        titleEl.textContent = `${window.IS_MOVIE ? 'Movie Collection' : 'Episodes'} (${cards.length})`;
+    }
+
+    cards.forEach((card, index) => {
+        const path = card.dataset.episodePath;
+        const num = card.dataset.episodeNum || '';
+        const label = card.dataset.episodeLabel || num || String(index + 1);
+        const displayName = card.dataset.episodeDisplayName || (window.IS_MOVIE ? `Movie ${index + 1}` : `Episode ${label}`);
+        const thumbImg = card.querySelector('.player-thumb');
+        const thumbSrc = (thumbImg && (thumbImg.dataset.thumbnailSrc || thumbImg.src)) || '';
+        const duration = card.querySelector('.duration-badge')?.textContent.trim() || '';
+        const progressEl = card.querySelector('.player-episode-resume-progress');
+        const progress = progressEl ? Math.max(0, Math.min(100, parseFloat(progressEl.dataset.progress || '0'))) : 0;
+        const isActive = path === window.EPISODE_PATH;
+
+        const item = document.createElement('div');
+        item.className = `player-drawer-item ${isActive ? 'active' : ''}`;
+        item.dataset.episodePath = path;
+        item.dataset.searchFilter = `${label} ${displayName}`.toLowerCase();
+        item.setAttribute('role', 'listitem');
+        item.tabIndex = 0;
+
+        item.innerHTML = `
+            <div class="player-drawer-thumb-wrap">
+                <img class="player-drawer-thumb" src="${thumbSrc || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" alt="${displayName}" loading="lazy">
+                ${duration ? `<span class="player-drawer-duration">${duration}</span>` : ''}
+                ${progress > 0 && !isActive ? `<div class="player-drawer-progress"><span style="width: ${progress}%"></span></div>` : ''}
+                <div class="player-drawer-play-icon" aria-hidden="true">&#9654;</div>
+            </div>
+            <div class="player-drawer-meta">
+                <div class="player-drawer-ep-label">
+                    <span>${window.IS_MOVIE ? 'Movie' : `Episode ${label}`}</span>
+                    ${isActive ? '<span class="player-drawer-now-playing">NOW PLAYING</span>' : ''}
+                </div>
+                <div class="player-drawer-ep-title" title="${displayName}">${displayName}</div>
+            </div>
+        `;
+
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (path !== window.EPISODE_PATH) {
+                switchEpisode(path, { autoplay: true });
+                updateDrawerActiveState(path);
+                if (player.fullscreen && player.fullscreen.active) {
+                    window.setTimeout(() => toggleEpisodesDrawer(false), 250);
+                }
+            }
+        });
+
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                item.click();
+            }
+        });
+
+        episodesDrawerListEl.appendChild(item);
+    });
+}
+
+function createEpisodesDrawer() {
+    if (episodesDrawerEl || !player.elements || !player.elements.container) return;
+
+    episodesDrawerEl = document.createElement('div');
+    episodesDrawerEl.id = 'playerEpisodesDrawer';
+    episodesDrawerEl.className = 'player-episodes-drawer';
+    episodesDrawerEl.hidden = true;
+    episodesDrawerEl.setAttribute('aria-hidden', 'true');
+
+    episodesDrawerEl.innerHTML = `
+        <div class="player-drawer-backdrop" data-drawer-close></div>
+        <div class="player-drawer-panel" role="dialog" aria-label="Episodes Playlist">
+            <div class="player-drawer-header">
+                <div class="player-drawer-title-group">
+                    <span class="player-drawer-eyebrow">Playlist</span>
+                    <h3 class="player-drawer-title">${window.IS_MOVIE ? 'Movie Collection' : 'Episodes'}</h3>
+                </div>
+                <button type="button" class="player-drawer-close-btn" data-drawer-close title="Close Playlist (Esc)" aria-label="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="player-drawer-search-wrap">
+                <svg class="drawer-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" class="player-drawer-search-input" placeholder="Search episode or title..." aria-label="Search episodes">
+                <button type="button" class="player-drawer-clear-search" hidden aria-label="Clear search">&times;</button>
+            </div>
+            <div class="player-drawer-list" id="playerDrawerList" role="list"></div>
+        </div>
+    `;
+
+    player.elements.container.appendChild(episodesDrawerEl);
+
+    episodesDrawerListEl = episodesDrawerEl.querySelector('#playerDrawerList');
+    episodesDrawerSearchInput = episodesDrawerEl.querySelector('.player-drawer-search-input');
+    episodesDrawerClearBtn = episodesDrawerEl.querySelector('.player-drawer-clear-search');
+
+    episodesDrawerEl.querySelectorAll('[data-drawer-close]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleEpisodesDrawer(false);
+        });
+    });
+
+    const drawerPanel = episodesDrawerEl.querySelector('.player-drawer-panel');
+    if (drawerPanel) {
+        drawerPanel.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    if (episodesDrawerSearchInput) {
+        episodesDrawerSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (episodesDrawerClearBtn) {
+                episodesDrawerClearBtn.hidden = !query;
+            }
+            filterDrawerEpisodes(query);
+        });
+        episodesDrawerSearchInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') {
+                toggleEpisodesDrawer(false);
+            }
+        });
+    }
+
+    if (episodesDrawerClearBtn) {
+        episodesDrawerClearBtn.addEventListener('click', () => {
+            if (episodesDrawerSearchInput) {
+                episodesDrawerSearchInput.value = '';
+                episodesDrawerSearchInput.focus();
+            }
+            episodesDrawerClearBtn.hidden = true;
+            filterDrawerEpisodes('');
+        });
+    }
+
+    // Insert quick playlist button into Plyr's control bar for fullscreen ease
+    if (player.elements.controls) {
+        const plyrDrawerBtn = document.createElement('button');
+        plyrDrawerBtn.type = 'button';
+        plyrDrawerBtn.className = 'plyr__control plyr__control--playlist';
+        plyrDrawerBtn.setAttribute('data-plyr', 'playlist');
+        plyrDrawerBtn.title = `Episode Queue (${userShortcuts.toggle_playlist || 'Q'})`;
+        plyrDrawerBtn.setAttribute('aria-label', 'Toggle Episode Queue');
+        plyrDrawerBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span class="plyr__sr-only">Playlist</span>
+        `;
+        plyrDrawerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleEpisodesDrawer();
+        });
+
+        const fullscreenBtn = player.elements.controls.querySelector('[data-plyr="fullscreen"]');
+        if (fullscreenBtn) {
+            fullscreenBtn.parentNode.insertBefore(plyrDrawerBtn, fullscreenBtn);
+        } else {
+            player.elements.controls.appendChild(plyrDrawerBtn);
+        }
+    }
+
+    populateDrawerEpisodes();
+}
+
+function toggleEpisodesDrawer(forceState) {
+    if (!episodesDrawerEl) {
+        createEpisodesDrawer();
+    }
+    if (!episodesDrawerEl) return;
+
+    const shouldOpen = typeof forceState === 'boolean' ? forceState : !episodesDrawerOpen;
+    if (shouldOpen === episodesDrawerOpen) return;
+
+    episodesDrawerOpen = shouldOpen;
+
+    const actionStripBtn = document.getElementById('playerEpisodesDrawerBtn');
+    if (actionStripBtn) {
+        actionStripBtn.setAttribute('aria-expanded', String(episodesDrawerOpen));
+        actionStripBtn.classList.toggle('is-active', episodesDrawerOpen);
+    }
+
+    if (episodesDrawerOpen) {
+        episodesDrawerEl.hidden = false;
+        episodesDrawerEl.setAttribute('aria-hidden', 'false');
+        void episodesDrawerEl.offsetWidth;
+        episodesDrawerEl.classList.add('is-open');
+
+        window.requestAnimationFrame(() => {
+            const activeItem = episodesDrawerListEl?.querySelector('.player-drawer-item.active');
+            if (activeItem) {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (episodesDrawerSearchInput) {
+                episodesDrawerSearchInput.focus();
+            }
+        });
+    } else {
+        episodesDrawerEl.classList.remove('is-open');
+        episodesDrawerEl.setAttribute('aria-hidden', 'true');
+        window.setTimeout(() => {
+            if (!episodesDrawerOpen && episodesDrawerEl) {
+                episodesDrawerEl.hidden = true;
+                if (episodesDrawerSearchInput) {
+                    episodesDrawerSearchInput.value = '';
+                    if (episodesDrawerClearBtn) episodesDrawerClearBtn.hidden = true;
+                    filterDrawerEpisodes('');
+                }
+            }
+        }, 280);
+    }
+}
+
+const playerEpisodesDrawerBtn = document.getElementById('playerEpisodesDrawerBtn');
+if (playerEpisodesDrawerBtn) {
+    playerEpisodesDrawerBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleEpisodesDrawer();
+    });
+}
 
 // --- Picture-in-Picture (PiP) & In-Page Mini Floating Player ---
 const pipBtn = document.getElementById('playerPipBtn');

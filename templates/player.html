@@ -37,7 +37,7 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='18') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='19') }}">
 </head>
 
 <body class="player-body">
@@ -191,6 +191,20 @@
                             </svg>
                         </span>
                         <span>Mini</span>
+                    </button>
+
+                    <button type="button" id="playerEpisodesDrawerBtn" class="player-sub-btn player-drawer-btn" title="Episode Queue / Playlist ({{ player_shortcuts.toggle_playlist|default('q') }})" aria-label="Toggle Episode Queue" aria-haspopup="dialog" aria-expanded="false">
+                        <span class="sub-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            </svg>
+                        </span>
+                        <span>Playlist</span>
                     </button>
 
                     <button type="button" id="playerShortcutsBtn" class="player-sub-btn player-shortcuts-btn" title="Keyboard shortcuts ({{ player_shortcuts.shortcut_help }})">
@@ -523,7 +537,7 @@
 </script>
 <script src="{{ url_for('static', filename='subtitles.js', v='1') }}"></script>
 <script src="{{ url_for('static', filename='discord-presence.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='player.js', v='player-ui-23') }}"></script>
+<script src="{{ url_for('static', filename='player.js', v='player-ui-24') }}"></script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
 
 </body>

@@ -228,6 +228,12 @@ SHORTCUT_DEFINITIONS = [
                 "description": "Switch immediately to next episode",
                 "default": "Shift+N",
             },
+            {
+                "id": "toggle_playlist",
+                "label": "Episode Playlist",
+                "description": "Toggle in-player slide-over episode queue",
+                "default": "q",
+            },
         ],
     },
     {
