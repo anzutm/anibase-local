@@ -46,7 +46,7 @@
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" as="image" href="{{ (anime_info.banner or anime_info.poster) if anime_info else url_for('banner', anime_name=anime_name) }}" fetchpriority="high">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='12') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='69') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='anime-redesign.css', v='70') }}">
     {% if is_movie %}
     <link rel="stylesheet" href="{{ url_for('static', filename='movie-detail.css', v='15') }}">
     {% endif %}
@@ -557,10 +557,44 @@
                 </div>
             </div>
 
+            <div class="episode-control-group episode-search-group">
+                <div class="episode-search-wrapper">
+                    <svg class="episode-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="episodeSearchInput" class="episode-search-input" placeholder="Search ep # or title..." aria-label="Search episodes">
+                    <button type="button" id="episodeClearSearch" class="episode-clear-search-btn" hidden aria-label="Clear search">&times;</button>
+                </div>
+            </div>
+
             <div class="episode-control-group">
                 <div class="episode-sort-toggle" role="group" aria-label="Episode sort">
                     <button type="button" class="episode-sort-btn active" data-episode-sort="asc">Asc</button>
                     <button type="button" class="episode-sort-btn" data-episode-sort="desc">Desc</button>
+                </div>
+            </div>
+
+            <div class="episode-control-group">
+                <div class="episode-view-toggle" role="group" aria-label="Episode view mode">
+                    <button type="button" class="episode-view-btn active" data-episode-view="grid" title="Grid View" aria-label="Grid view">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                    </button>
+                    <button type="button" class="episode-view-btn" data-episode-view="list" title="Compact List View" aria-label="Compact list view">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -696,7 +730,7 @@
 </div>
 
 <div class="episode-filter-empty" id="episodeFilterEmpty" hidden>
-    No episodes match this filter.
+    <span id="episodeFilterEmptyText">No episodes match this filter.</span>
     <button type="button" class="empty-inline-action" id="episodeResetFilter">Reset Filter</button>
 </div>
 {% else %}
@@ -938,9 +972,46 @@ function initializeAnimeDetailContent() {
     const cards = Array.from(grid.querySelectorAll('.episode-card[data-episode-index]'));
     const filterButtons = Array.from(document.querySelectorAll('.episode-filter-btn[data-episode-filter]'));
     const sortButtons = Array.from(document.querySelectorAll('.episode-sort-btn[data-episode-sort]'));
+    const viewButtons = Array.from(document.querySelectorAll('.episode-view-btn[data-episode-view]'));
     const emptyState = document.getElementById('episodeFilterEmpty');
+    const emptyStateText = document.getElementById('episodeFilterEmptyText');
+    const searchInput = document.getElementById('episodeSearchInput');
+    const clearSearchBtn = document.getElementById('episodeClearSearch');
+
     let currentFilter = 'all';
     let currentSort = 'asc';
+    let currentSearch = '';
+
+    function applyViewMode(mode) {
+        const targetMode = mode === 'list' ? 'list' : 'grid';
+        grid.classList.toggle('is-compact-view', targetMode === 'list');
+        viewButtons.forEach((btn) => {
+            const isActive = btn.dataset.episodeView === targetMode;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+        try {
+            localStorage.setItem('anibase_episode_view_mode', targetMode);
+        } catch (_) {}
+        if (window.initEpisodeThumbnails) {
+            window.initEpisodeThumbnails(grid);
+        }
+    }
+
+    const savedViewMode = (() => {
+        try {
+            return localStorage.getItem('anibase_episode_view_mode') || 'grid';
+        } catch (_) {
+            return 'grid';
+        }
+    })();
+    applyViewMode(savedViewMode);
+
+    viewButtons.forEach((button) => {
+        button.addEventListener('click', function() {
+            applyViewMode(this.dataset.episodeView);
+        });
+    });
 
     function applyEpisodeControls() {
         const sortedCards = [...cards].sort((a, b) => {
@@ -950,11 +1021,28 @@ function initializeAnimeDetailContent() {
         });
 
         let visibleCount = 0;
+        const normSearch = currentSearch.trim().toLowerCase();
+        const numSearch = normSearch.replace(/^ep(isode)?\s*#?/i, '').trim();
 
         sortedCards.forEach((card) => {
             const matchesFilter = currentFilter === 'all' || card.dataset.watchState === currentFilter;
-            card.hidden = !matchesFilter;
-            if (matchesFilter) {
+            let matchesSearch = true;
+            if (normSearch) {
+                const titleText = (card.querySelector('.episode-display-name')?.textContent || '').toLowerCase();
+                const epIndex = String(card.dataset.episodeIndex || '').toLowerCase();
+                const epFile = (card.dataset.episodeFile || '').toLowerCase();
+                matchesSearch = (
+                    titleText.includes(normSearch) ||
+                    epFile.includes(normSearch) ||
+                    (numSearch && epIndex === numSearch) ||
+                    (numSearch && epIndex.padStart(2, '0') === numSearch) ||
+                    (numSearch && titleText.includes(numSearch))
+                );
+            }
+
+            const isVisible = matchesFilter && matchesSearch;
+            card.hidden = !isVisible;
+            if (isVisible) {
                 visibleCount++;
             }
             grid.appendChild(card);
@@ -962,10 +1050,51 @@ function initializeAnimeDetailContent() {
 
         if (emptyState) {
             emptyState.hidden = visibleCount > 0;
+            if (emptyStateText) {
+                if (normSearch && currentFilter !== 'all') {
+                    emptyStateText.textContent = `No episodes matching "${currentSearch.trim()}" with filter "${currentFilter}".`;
+                } else if (normSearch) {
+                    emptyStateText.textContent = `No episodes matching "${currentSearch.trim()}".`;
+                } else {
+                    emptyStateText.textContent = 'No episodes match this filter.';
+                }
+            }
         }
         if (window.initEpisodeThumbnails) {
             window.initEpisodeThumbnails(grid);
         }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            currentSearch = this.value;
+            if (clearSearchBtn) {
+                clearSearchBtn.hidden = !currentSearch.trim();
+            }
+            applyEpisodeControls();
+        });
+
+        searchInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                this.value = '';
+                currentSearch = '';
+                if (clearSearchBtn) clearSearchBtn.hidden = true;
+                applyEpisodeControls();
+                this.blur();
+            }
+        });
+    }
+
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', function() {
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus();
+            }
+            currentSearch = '';
+            clearSearchBtn.hidden = true;
+            applyEpisodeControls();
+        });
     }
 
     filterButtons.forEach((button) => {
@@ -988,6 +1117,9 @@ function initializeAnimeDetailContent() {
     if (resetEpisodeFilter) {
         resetEpisodeFilter.addEventListener('click', function() {
             currentFilter = 'all';
+            currentSearch = '';
+            if (searchInput) searchInput.value = '';
+            if (clearSearchBtn) clearSearchBtn.hidden = true;
             filterButtons.forEach((item) => item.classList.toggle('active', item.dataset.episodeFilter === 'all'));
             applyEpisodeControls();
         });

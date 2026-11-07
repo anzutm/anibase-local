@@ -1247,6 +1247,359 @@ body.anime-detail-body:not(.movie-detail-body) :is(.episode-rename-trigger, .met
     color: #aeb5c3;
 }
 
+/* Episode Search & Quick Jump */
+body.anime-detail-body:not(.movie-detail-body) .episode-search-group {
+    display: flex;
+    align-items: center;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: #080b12;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    min-height: 34px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-wrapper:focus-within {
+    border-color: color-mix(in srgb, var(--cyan) 40%, transparent);
+    background: #0c101a;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 18%, transparent);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-icon {
+    position: absolute;
+    left: 10px;
+    color: #64748b;
+    pointer-events: none;
+    transition: color .2s ease;
+    flex-shrink: 0;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-wrapper:focus-within .episode-search-icon {
+    color: var(--cyan);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-input {
+    width: 155px;
+    height: 34px;
+    padding: 0 26px 0 29px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #e2e8f0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    transition: width .22s ease;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-input::placeholder {
+    color: #586576;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-search-input:focus {
+    width: 185px;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-clear-search-btn {
+    position: absolute;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    color: #718096;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color .15s ease, background .15s ease;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-clear-search-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Episode View Mode Switcher (Grid vs Compact List) */
+body.anime-detail-body:not(.movie-detail-body) .episode-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    background: #080b12;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+    min-height: 34px;
+    box-sizing: border-box;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-view-btn {
+    width: 30px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #718096;
+    cursor: pointer;
+    transition: color .18s ease, background .18s ease, border-color .18s ease;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-view-btn:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .episode-view-btn.active {
+    color: var(--cyan);
+    background: color-mix(in srgb, var(--cyan) 14%, transparent);
+    border-color: color-mix(in srgb, var(--cyan) 28%, transparent);
+}
+
+/* Compact List View Mode (#episodeGrid.is-compact-view) */
+body.anime-detail-body #episodeGrid.is-compact-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    perspective: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card {
+    width: 100% !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.065) !important;
+    background: #080b12 !important;
+    box-shadow: none !important;
+    contain-intrinsic-size: auto 54px !important;
+    transform: none !important;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card:hover,
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card:focus-within {
+    background: #0f1420 !important;
+    border-color: rgba(255, 255, 255, 0.16) !important;
+    transform: none !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32) !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card-shell {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    min-height: 52px !important;
+    padding: 6px 12px 6px 6px !important;
+    gap: 12px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: transparent !important;
+    position: relative !important;
+    overflow: hidden;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .thumbnail-wrapper,
+body.anime-detail-body #episodeGrid.is-compact-view .episode-thumbnail {
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 76px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: 5px !important;
+    object-fit: cover !important;
+    flex-shrink: 0 !important;
+    position: relative !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .duration-badge {
+    position: absolute !important;
+    top: auto !important;
+    left: auto !important;
+    right: 3px !important;
+    bottom: 3px !important;
+    padding: 1px 4px !important;
+    font-size: 8px !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+    border-radius: 3px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 6 !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .resolution-badge {
+    display: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    height: 100% !important;
+    border-radius: 5px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    background: rgba(0, 0, 0, 0.45) !important;
+    opacity: 0 !important;
+    transition: opacity 0.2s ease !important;
+    z-index: 5 !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card:hover .episode-overlay,
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card:focus-within .episode-overlay {
+    opacity: 1 !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-overlay > * {
+    opacity: 1 !important;
+    transform: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .play-circle {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+    background: var(--cyan) !important;
+    color: #071018 !important;
+    border: none !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-meta {
+    display: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-resume-progress {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 2px !important;
+    z-index: 8 !important;
+    border-radius: 0 0 8px 8px !important;
+    overflow: hidden !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card-footer {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: unset !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-footer-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    min-height: unset !important;
+    gap: 12px !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-title-block {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-display-name {
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #e2e8f0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card[data-watch-state="watched"] .episode-display-name {
+    color: #838c99 !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view :is(.watch-status-badge, .watch-progress-badge, .episode-kind-badge) {
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    padding: 2.5px 7px !important;
+    font-size: 10px !important;
+    border-radius: 4px !important;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-rename-trigger {
+    margin-left: 2px !important;
+    flex-shrink: 0 !important;
+    width: 26px !important;
+    height: 26px !important;
+    opacity: 0.6;
+    transition: opacity .18s ease;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-card:hover .episode-rename-trigger {
+    opacity: 1;
+}
+
+body.anime-detail-body #episodeGrid.is-compact-view .episode-rename-form {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #0c101a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 480px) {
+    body.anime-detail-body #episodeGrid.is-compact-view .thumbnail-wrapper,
+    body.anime-detail-body #episodeGrid.is-compact-view .episode-thumbnail {
+        width: 68px !important;
+        min-width: 68px !important;
+        max-width: 68px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+    }
+    body.anime-detail-body #episodeGrid.is-compact-view .episode-card-shell {
+        gap: 8px !important;
+        padding: 5px 8px 5px 5px !important;
+        min-height: 48px !important;
+    }
+    body.anime-detail-body #episodeGrid.is-compact-view .episode-display-name {
+        font-size: 12.5px !important;
+    }
+    body.anime-detail-body #episodeGrid.is-compact-view :is(.watch-status-badge, .watch-progress-badge) {
+        font-size: 9px !important;
+        padding: 2px 5px !important;
+    }
+}
+
 @media (max-width: 700px) {
     body.anime-detail-body:not(.movie-detail-body) .anime-description {
         border-color: rgba(255,255,255,.10) !important;
@@ -2067,10 +2420,32 @@ body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
         gap: 16px;
     }
 
-    body.anime-detail-body:not(.movie-detail-body) :is(.episode-list-controls, .episode-control-group) {
+    body.anime-detail-body:not(.movie-detail-body) .episode-list-controls {
         width: 100%;
         min-width: 0;
         margin-left: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .episode-control-group {
+        width: auto;
+        min-width: 0;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .episode-control-group.episode-search-group {
+        width: 100%;
+        order: 2;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .episode-search-wrapper {
+        width: 100%;
+    }
+
+    body.anime-detail-body:not(.movie-detail-body) .episode-search-input {
+        width: 100% !important;
     }
 
     body.anime-detail-body:not(.movie-detail-body) .episode-filter-tabs {
@@ -2078,7 +2453,7 @@ body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover {
         flex-wrap: wrap;
     }
 
-    body.anime-detail-body:not(.movie-detail-body) .episode-grid {
+    body.anime-detail-body:not(.movie-detail-body) .episode-grid:not(.is-compact-view) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
