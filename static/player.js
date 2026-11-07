@@ -2209,6 +2209,18 @@ function filterDrawerEpisodes(query) {
     }
 }
 
+function scrollDrawerToActive(behavior = 'auto') {
+    if (!episodesDrawerListEl) return;
+    const activeItem = episodesDrawerListEl.querySelector('.player-drawer-item.active');
+    if (!activeItem) return;
+
+    const targetTop = activeItem.offsetTop - (episodesDrawerListEl.clientHeight / 2) + (activeItem.offsetHeight / 2);
+    episodesDrawerListEl.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: behavior
+    });
+}
+
 function updateDrawerActiveState(episodePath) {
     if (!episodesDrawerListEl) return;
     const targetPath = episodePath || window.EPISODE_PATH;
@@ -2230,6 +2242,10 @@ function updateDrawerActiveState(episodePath) {
             }
         }
     });
+
+    if (episodesDrawerOpen) {
+        scrollDrawerToActive('smooth');
+    }
 }
 
 function populateDrawerEpisodes() {
@@ -2440,18 +2456,16 @@ function toggleEpisodesDrawer(forceState) {
     if (episodesDrawerOpen) {
         episodesDrawerEl.hidden = false;
         episodesDrawerEl.setAttribute('aria-hidden', 'false');
+
+        // Pre-scroll list vertically before slide-in without horizontal layout shift
+        scrollDrawerToActive('auto');
+
         void episodesDrawerEl.offsetWidth;
         episodesDrawerEl.classList.add('is-open');
 
-        window.requestAnimationFrame(() => {
-            const activeItem = episodesDrawerListEl?.querySelector('.player-drawer-item.active');
-            if (activeItem) {
-                activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            if (episodesDrawerSearchInput) {
-                episodesDrawerSearchInput.focus();
-            }
-        });
+        if (episodesDrawerSearchInput) {
+            episodesDrawerSearchInput.focus({ preventScroll: true });
+        }
     } else {
         episodesDrawerEl.classList.remove('is-open');
         episodesDrawerEl.setAttribute('aria-hidden', 'true');
