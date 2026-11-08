@@ -173,16 +173,6 @@
                         <span id="playerAutoSkipLabel">Auto-Skip: OFF</span>
                     </button>
 
-                    <button type="button" id="playerPipBtn" class="player-sub-btn player-pip-btn" title="Picture-in-Picture ({{ player_shortcuts.toggle_pip|default('p') }})" aria-label="Picture-in-Picture">
-                        <span class="sub-icon" aria-hidden="true">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                                <rect x="12" y="9" width="8" height="6" rx="1" ry="1" fill="currentColor"></rect>
-                            </svg>
-                        </span>
-                        <span>PiP</span>
-                    </button>
-
                     <button type="button" id="playerMiniFloatBtn" class="player-sub-btn player-mini-float-btn" title="Mini Floating Player ({{ player_shortcuts.toggle_mini_player|default('i') }})" aria-label="Mini Floating Player">
                         <span class="sub-icon" aria-hidden="true">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -191,20 +181,6 @@
                             </svg>
                         </span>
                         <span>Mini</span>
-                    </button>
-
-                    <button type="button" id="playerEpisodesDrawerBtn" class="player-sub-btn player-drawer-btn" title="Episode Queue / Playlist ({{ player_shortcuts.toggle_playlist|default('q') }})" aria-label="Toggle Episode Queue" aria-haspopup="dialog" aria-expanded="false">
-                        <span class="sub-icon" aria-hidden="true">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="8" y1="6" x2="21" y2="6"></line>
-                                <line x1="8" y1="12" x2="21" y2="12"></line>
-                                <line x1="8" y1="18" x2="21" y2="18"></line>
-                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                            </svg>
-                        </span>
-                        <span>Playlist</span>
                     </button>
 
                     <button type="button" id="playerShortcutsBtn" class="player-sub-btn player-shortcuts-btn" title="Keyboard shortcuts ({{ player_shortcuts.shortcut_help }})">
