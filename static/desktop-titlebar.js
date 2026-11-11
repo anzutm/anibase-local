@@ -244,6 +244,15 @@
             }
         }, { passive: false });
 
+        // Universal HTML5 fullscreenchange sync
+        document.addEventListener('fullscreenchange', function() {
+            const isFull = Boolean(document.fullscreenElement);
+            document.body.classList.toggle('is-desktop-fullscreen', isFull);
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.set_fullscreen) {
+                window.pywebview.api.set_fullscreen(isFull);
+            }
+        });
+
         // Sync initial maximized & fullscreen state
         if (window.pywebview && window.pywebview.api && window.pywebview.api.get_state) {
             window.pywebview.api.get_state().then(function(state) {

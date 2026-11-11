@@ -44,8 +44,23 @@ class DesktopApiTests(unittest.TestCase):
         self.mock_window.maximize.assert_called_once()
 
     def test_toggle_fullscreen(self):
-        self.api.toggle_fullscreen()
-        self.mock_window.toggle_fullscreen.assert_called_once()
+        with patch("anibase.desktop.shell.desktop_window", self.mock_window):
+            desktop_shell._window_state["fullscreen"] = False
+            self.mock_window.native.is_fullscreen = False
+            self.mock_window.native.InvokeRequired = False
+            self.api.toggle_fullscreen()
+            self.assertTrue(desktop_shell._window_state["fullscreen"])
+            self.mock_window.native.toggle_fullscreen.assert_called_once()
+
+    def test_set_fullscreen(self):
+        with patch("anibase.desktop.shell.desktop_window", self.mock_window):
+            desktop_shell._window_state["fullscreen"] = False
+            self.mock_window.native.is_fullscreen = False
+            self.mock_window.native.InvokeRequired = False
+            self.api.set_fullscreen(True)
+            self.assertTrue(desktop_shell._window_state["fullscreen"])
+            self.api.set_fullscreen(False)
+            self.assertFalse(desktop_shell._window_state["fullscreen"])
 
     def test_is_fullscreen(self):
         desktop_shell._window_state["fullscreen"] = True
@@ -139,6 +154,33 @@ class DesktopApiTests(unittest.TestCase):
         self.assertTrue(mock_settings.IsZoomControlEnabled)
         self.assertEqual(mock_core.ZoomFactor, 1.25)
         desktop_shell._window_state["zoom"] = 1.0
+
+    @patch("anibase.desktop.shell.get_window_hwnd", return_value=12345)
+    def test_set_desktop_fullscreen_win32_thickframe(self, mock_hwnd):
+        mock_win = MagicMock()
+        mock_win.native.InvokeRequired = False
+        mock_win.native.is_fullscreen = False
+
+        with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("os.name", "nt"), \
+             patch("ctypes.windll") as mock_windll, \
+             patch("anibase.desktop.shell.apply_windows_11_attributes") as mock_apply_w11:
+            mock_user32 = MagicMock()
+            # Current style has WS_THICKFRAME (0x00040000)
+            mock_user32.GetWindowLongW.return_value = 0x10040000
+            mock_windll.user32 = mock_user32
+
+            desktop_shell._window_state["fullscreen"] = False
+            desktop_shell.set_desktop_fullscreen(True)
+            self.assertTrue(desktop_shell._window_state["fullscreen"])
+            # WS_THICKFRAME cleared
+            mock_user32.SetWindowLongW.assert_called_once_with(12345, -16, 0x10000000)
+
+            # Exiting fullscreen
+            mock_win.native.is_fullscreen = True
+            desktop_shell.set_desktop_fullscreen(False)
+            self.assertFalse(desktop_shell._window_state["fullscreen"])
+            mock_apply_w11.assert_called_once_with(12345)
 
 
 class WindowStateTests(unittest.TestCase):

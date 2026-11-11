@@ -45,12 +45,10 @@ class DesktopApi:
             self.window.maximize()
 
     def toggle_fullscreen(self):
-        if not self.window:
-            return
-        try:
-            self.window.toggle_fullscreen()
-        except Exception:
-            pass
+        return toggle_desktop_fullscreen()
+
+    def set_fullscreen(self, enable):
+        return set_desktop_fullscreen(bool(enable))
 
     def is_fullscreen(self):
         return bool(_window_state.get("fullscreen"))
@@ -332,6 +330,18 @@ def configure_webview2_settings(window=None):
                 saved_zoom = float(_window_state.get("zoom", 1.0))
                 if saved_zoom != 1.0:
                     core.ZoomFactor = saved_zoom
+
+                def on_fullscreen_changed(sender, args):
+                    try:
+                        has_fs = bool(getattr(sender, "ContainsFullScreenElement", False))
+                        set_desktop_fullscreen(has_fs)
+                    except Exception:
+                        pass
+
+                try:
+                    core.ContainsFullScreenElementChanged += on_fullscreen_changed
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -380,6 +390,82 @@ def on_window_maximized():
             pass
 
 
+def toggle_desktop_fullscreen() -> bool:
+    current = bool(_window_state.get("fullscreen"))
+    return set_desktop_fullscreen(not current)
+
+
+def set_desktop_fullscreen(enable: bool) -> bool:
+    global desktop_window, _window_state
+    enable = bool(enable)
+    current_fullscreen = bool(_window_state.get("fullscreen"))
+    if current_fullscreen == enable:
+        return enable
+
+    _window_state["fullscreen"] = enable
+    if not desktop_window:
+        return enable
+
+    def _apply():
+        native = getattr(desktop_window, "native", None)
+        if not native:
+            return
+
+        hwnd = get_window_hwnd()
+
+        try:
+            native_is_fs = bool(getattr(native, "is_fullscreen", False))
+            if enable and not native_is_fs:
+                native.toggle_fullscreen()
+            elif not enable and native_is_fs:
+                native.toggle_fullscreen()
+        except Exception:
+            pass
+
+        if os.name == "nt" and hwnd:
+            try:
+                user32 = ctypes.windll.user32
+                GWL_STYLE = -16
+                WS_THICKFRAME = 0x00040000
+                style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+
+                if enable:
+                    if style & WS_THICKFRAME:
+                        user32.SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_THICKFRAME)
+                        SWP_FRAMECHANGED = 0x0020
+                        SWP_NOMOVE = 0x0002
+                        SWP_NOSIZE = 0x0001
+                        SWP_NOZORDER = 0x0004
+                        user32.SetWindowPos(
+                            hwnd, 0, 0, 0, 0, 0,
+                            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+                        )
+                else:
+                    apply_windows_11_attributes(hwnd)
+            except Exception:
+                pass
+
+        try:
+            desktop_window.evaluate_js(
+                f"window.__anibase_set_fullscreen && window.__anibase_set_fullscreen({'true' if enable else 'false'});"
+            )
+        except Exception:
+            pass
+
+    if hasattr(desktop_window.native, "InvokeRequired") and desktop_window.native.InvokeRequired:
+        try:
+            import clr
+            clr.AddReference("System")
+            from System import Action
+            desktop_window.native.Invoke(Action(_apply))
+        except Exception:
+            _apply()
+    else:
+        _apply()
+
+    return enable
+
+
 def on_window_restored():
     _window_state["maximized"] = False
     _window_state["fullscreen"] = False
@@ -391,6 +477,9 @@ def on_window_restored():
             )
         except Exception:
             pass
+        hwnd = get_window_hwnd()
+        if hwnd:
+            apply_windows_11_attributes(hwnd)
 
 
 def on_window_fullscreened():
@@ -402,6 +491,25 @@ def on_window_fullscreened():
             )
         except Exception:
             pass
+        hwnd = get_window_hwnd()
+        if hwnd and os.name == "nt":
+            try:
+                user32 = ctypes.windll.user32
+                GWL_STYLE = -16
+                WS_THICKFRAME = 0x00040000
+                style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+                if style & WS_THICKFRAME:
+                    user32.SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_THICKFRAME)
+                    SWP_FRAMECHANGED = 0x0020
+                    SWP_NOMOVE = 0x0002
+                    SWP_NOSIZE = 0x0001
+                    SWP_NOZORDER = 0x0004
+                    user32.SetWindowPos(
+                        hwnd, 0, 0, 0, 0, 0,
+                        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+                    )
+            except Exception:
+                pass
 
 
 def on_window_resized(width, height):

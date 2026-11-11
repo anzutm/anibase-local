@@ -439,6 +439,21 @@ player.on('ready', () => {
     createEpisodesDrawer();
     initDoubleTapSeek();
 
+    // Sinkronisasi Fullscreen Desktop App
+    player.on('enterfullscreen', () => {
+        document.body.classList.add('is-desktop-fullscreen');
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_fullscreen) {
+            window.pywebview.api.set_fullscreen(true);
+        }
+    });
+
+    player.on('exitfullscreen', () => {
+        document.body.classList.remove('is-desktop-fullscreen');
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_fullscreen) {
+            window.pywebview.api.set_fullscreen(false);
+        }
+    });
+
     // Fitur Resume: Lanjutkan dari detik terakhir jika ada
     try {
         const urlParams = new URLSearchParams(window.location.search);
