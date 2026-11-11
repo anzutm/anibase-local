@@ -5,10 +5,44 @@
 
         document.body.classList.add('is-desktop-app');
 
+        // Startup splash transition: only shown on initial cold start in this session
+        const splash = document.getElementById('desktopSplash');
+        if (splash) {
+            const hasLoadedBefore = sessionStorage.getItem('anibase_desktop_loaded');
+            if (!hasLoadedBefore) {
+                document.body.classList.add('is-desktop-loading');
+                setTimeout(function() {
+                    splash.classList.add('fade-out');
+                    setTimeout(function() {
+                        document.body.classList.remove('is-desktop-loading');
+                        sessionStorage.setItem('anibase_desktop_loaded', '1');
+                    }, 320);
+                }, 380);
+            } else {
+                splash.style.display = 'none';
+            }
+        }
+
         const btnMin = document.getElementById('desktopBtnMin');
         const btnMax = document.getElementById('desktopBtnMax');
         const btnClose = document.getElementById('desktopBtnClose');
         const titlebar = document.getElementById('desktopTitlebar');
+        const titleEl = document.getElementById('desktopTitlebarTitle');
+
+        // Dynamic title synchronization
+        function syncTitle() {
+            if (!titleEl) return;
+            let pageTitle = document.title || 'AniBase';
+            pageTitle = pageTitle.replace(/\s*-\s*AniBase\s*$/, '').trim();
+            titleEl.textContent = pageTitle || 'AniBase';
+        }
+        syncTitle();
+
+        const titleTag = document.querySelector('title');
+        if (titleTag && window.MutationObserver) {
+            const observer = new MutationObserver(syncTitle);
+            observer.observe(titleTag, { childList: true, subtree: true, characterData: true });
+        }
 
         if (btnMin) {
             btnMin.addEventListener('click', function(e) {
@@ -44,7 +78,20 @@
                     window.pywebview.api.toggle_maximize();
                 }
             });
+
+            // Suppress browser context menu on titlebar
+            titlebar.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
         }
+
+        // Suppress default browser context menu on empty space (preserve on inputs/video)
+        document.addEventListener('contextmenu', function(e) {
+            const isInput = e.target.closest('input, textarea, [contenteditable="true"], .plyr, video, audio');
+            if (!isInput) {
+                e.preventDefault();
+            }
+        });
 
         // External link interceptor
         document.addEventListener('click', function(e) {
@@ -66,9 +113,14 @@
             } catch (_) {}
         });
 
-        // Desktop keyboard shortcuts (F11 Fullscreen)
+        // Desktop keyboard shortcuts: F11 Fullscreen, Ctrl+W Close/Hide to Tray
         window.addEventListener('keydown', function(e) {
-            if (e.key === 'F11') {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+                e.preventDefault();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.close) {
+                    window.pywebview.api.close();
+                }
+            } else if (e.key === 'F11') {
                 e.preventDefault();
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_fullscreen) {
                     window.pywebview.api.toggle_fullscreen();
@@ -110,4 +162,3 @@
         window.addEventListener('pywebviewready', initDesktopApp);
     }
 })();
-

@@ -143,3 +143,98 @@ body.is-maximized .desktop-control-btn.btn-max .icon-restore {
     display: inline-block !important;
 }
 
+/* AniBase Desktop Lightweight Startup Splash */
+.desktop-splash {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #080b12;
+    z-index: 100000;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s ease;
+}
+
+body.is-desktop-app.is-desktop-loading .desktop-splash {
+    display: flex;
+}
+
+.desktop-splash.fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.desktop-splash-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+    animation: desktopSplashEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes desktopSplashEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.94);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.desktop-splash-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #00d2ff, #0077ff);
+    color: #071018;
+    font-size: 28px;
+    font-weight: 800;
+    box-shadow: 0 0 32px rgba(0, 210, 255, 0.35);
+}
+
+.desktop-splash-appname {
+    font-size: 24px;
+    font-weight: 800;
+    color: #f3f4f6;
+    letter-spacing: -0.5px;
+    margin: 0;
+}
+
+.desktop-splash-appname span {
+    color: var(--cyan, #00d2ff);
+}
+
+.desktop-splash-caption {
+    font-size: 13px;
+    color: #7b8599;
+    margin: 4px 0 0 0;
+}
+
+.desktop-splash-spinner {
+    width: 24px;
+    height: 24px;
+    margin-top: 8px;
+    border: 2.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #00d2ff;
+    border-radius: 50%;
+    animation: desktopSpin 0.75s linear infinite;
+}
+
+@keyframes desktopSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+

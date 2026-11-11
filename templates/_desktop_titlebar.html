@@ -15,10 +15,10 @@
         </span>
     </div>
     <div class="desktop-titlebar-controls" role="group" aria-label="Window Controls">
-        <button type="button" class="desktop-control-btn btn-min" id="desktopBtnMin" title="Minimize" aria-label="Minimize">
+        <button type="button" class="desktop-control-btn btn-min" id="desktopBtnMin" title="Minimize (Win+Down)" aria-label="Minimize">
             <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
         </button>
-        <button type="button" class="desktop-control-btn btn-max" id="desktopBtnMax" title="Maximize / Restore" aria-label="Maximize or Restore">
+        <button type="button" class="desktop-control-btn btn-max" id="desktopBtnMax" title="Maximize / Restore (Win+Up/Down)" aria-label="Maximize or Restore">
             <svg class="icon-max" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2">
                 <rect x="0.6" y="0.6" width="8.8" height="8.8" rx="1.5"/>
             </svg>
@@ -27,7 +27,7 @@
                 <rect x="1" y="2.5" width="6.5" height="6.5" rx="1"/>
             </svg>
         </button>
-        <button type="button" class="desktop-control-btn btn-close" id="desktopBtnClose" title="Minimize to Tray" aria-label="Minimize to System Tray">
+        <button type="button" class="desktop-control-btn btn-close" id="desktopBtnClose" title="Close (Ctrl+W)" aria-label="Close or Minimize to Tray">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
                 <line x1="1" y1="1" x2="9" y2="9"/>
                 <line x1="9" y1="1" x2="1" y2="9"/>
@@ -36,3 +36,13 @@
     </div>
 </div>
 
+<div class="desktop-splash" id="desktopSplash" aria-hidden="true">
+    <div class="desktop-splash-content">
+        <div class="desktop-splash-logo" aria-hidden="true">A</div>
+        <div class="desktop-splash-text">
+            <h1 class="desktop-splash-appname">Ani<span>Base</span></h1>
+            <p class="desktop-splash-caption">Private Anime Screening Room</p>
+        </div>
+        <div class="desktop-splash-spinner" aria-hidden="true"></div>
+    </div>
+</div>

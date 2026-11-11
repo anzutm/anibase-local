@@ -218,6 +218,8 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.assertIn('id="desktopBtnMin"', html)
         self.assertIn('id="desktopBtnMax"', html)
         self.assertIn('id="desktopBtnClose"', html)
+        self.assertIn('id="desktopTitlebarTitle"', html)
+        self.assertIn('id="desktopSplash"', html)
 
     def test_settings_page_renders_desktop_options(self):
         resp = self.client.get("/settings")
