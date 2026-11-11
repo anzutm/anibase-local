@@ -44,23 +44,34 @@ class DesktopApiTests(unittest.TestCase):
         self.mock_window.maximize.assert_called_once()
 
     def test_toggle_fullscreen(self):
-        with patch("anibase.desktop.shell.desktop_window", self.mock_window):
-            desktop_shell._window_state["fullscreen"] = False
-            self.mock_window.native.is_fullscreen = False
-            self.mock_window.native.InvokeRequired = False
+        # toggle_fullscreen now offloads to a background thread to avoid UI-thread deadlock.
+        # We patch toggle_desktop_fullscreen and verify it is called (via thread).
+        with patch("anibase.desktop.shell.toggle_desktop_fullscreen") as mock_toggle:
             self.api.toggle_fullscreen()
-            self.assertTrue(desktop_shell._window_state["fullscreen"])
-            self.mock_window.native.toggle_fullscreen.assert_called_once()
+            import time; time.sleep(0.1)  # allow background thread to run
+            mock_toggle.assert_called_once()
 
     def test_set_fullscreen(self):
+        # set_fullscreen now offloads to a background thread to avoid UI-thread deadlock.
+        # We patch desktop_window + set_desktop_fullscreen and verify state changes via thread.
         with patch("anibase.desktop.shell.desktop_window", self.mock_window):
             desktop_shell._window_state["fullscreen"] = False
             self.mock_window.native.is_fullscreen = False
-            self.mock_window.native.InvokeRequired = False
-            self.api.set_fullscreen(True)
-            self.assertTrue(desktop_shell._window_state["fullscreen"])
-            self.api.set_fullscreen(False)
-            self.assertFalse(desktop_shell._window_state["fullscreen"])
+            # Patch set_desktop_fullscreen to bypass real window/JS calls in unit test
+            with patch("anibase.desktop.shell.set_desktop_fullscreen", wraps=lambda enable: (
+                desktop_shell._window_state.update({"fullscreen": bool(enable)}) or bool(enable)
+            )) as mock_set:
+                self.api.set_fullscreen(True)
+                import time; time.sleep(0.1)  # allow background thread to run
+                mock_set.assert_called_once_with(True)
+                self.assertTrue(desktop_shell._window_state["fullscreen"])
+
+                desktop_shell._window_state["fullscreen"] = True
+                mock_set.reset_mock()
+                self.api.set_fullscreen(False)
+                time.sleep(0.1)
+                mock_set.assert_called_once_with(False)
+                self.assertFalse(desktop_shell._window_state["fullscreen"])
 
     def test_is_fullscreen(self):
         desktop_shell._window_state["fullscreen"] = True

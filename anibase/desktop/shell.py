@@ -45,10 +45,13 @@ class DesktopApi:
             self.window.maximize()
 
     def toggle_fullscreen(self):
-        return toggle_desktop_fullscreen()
+        # Run via pywebview's safe thread path, not via our _invoke_on_ui_thread
+        # to avoid deadlock with evaluate_js inside the same UI thread call.
+        threading.Thread(target=toggle_desktop_fullscreen, daemon=True).start()
 
     def set_fullscreen(self, enable):
-        return set_desktop_fullscreen(bool(enable))
+        # Same: run on a separate thread to avoid deadlock.
+        threading.Thread(target=set_desktop_fullscreen, args=(bool(enable),), daemon=True).start()
 
     def is_fullscreen(self):
         return bool(_window_state.get("fullscreen"))
@@ -393,12 +396,14 @@ def on_window_shown():
 def on_window_maximized():
     _window_state["maximized"] = True
     if desktop_window:
-        try:
-            desktop_window.evaluate_js(
-                "window.__anibase_set_maximized && window.__anibase_set_maximized(true)"
-            )
-        except Exception:
-            pass
+        def _notify():
+            try:
+                desktop_window.evaluate_js(
+                    "window.__anibase_set_maximized && window.__anibase_set_maximized(true)"
+                )
+            except Exception:
+                pass
+        threading.Thread(target=_notify, daemon=True).start()
 
 
 def toggle_desktop_fullscreen() -> bool:
@@ -417,89 +422,30 @@ def set_desktop_fullscreen(enable: bool) -> bool:
     if not desktop_window:
         return enable
 
-    def _apply():
-        native = getattr(desktop_window, "native", None)
-        if not native:
-            return
+    native = getattr(desktop_window, "native", None)
+    hwnd = get_window_hwnd()
 
-        hwnd = get_window_hwnd()
+    # Step 1: Toggle the native WinForms window state via pywebview's safe path.
+    # We use window.toggle_fullscreen() which internally does InvokeRequired correctly
+    # and does NOT block the caller thread like form.Invoke() would.
+    # This avoids deadlock with evaluate_js (which also uses Invoke + semaphore).
+    try:
+        native_is_fs = bool(getattr(native, "is_fullscreen", False)) if native else False
+        if enable and not native_is_fs:
+            desktop_window.toggle_fullscreen()
+        elif not enable and native_is_fs:
+            desktop_window.toggle_fullscreen()
+    except Exception:
+        pass
 
+    # Step 2: Adjust Win32 WS_THICKFRAME for clean edge-to-edge fullscreen.
+    if os.name == "nt" and hwnd:
         try:
-            native_is_fs = bool(getattr(native, "is_fullscreen", False))
-            if enable and not native_is_fs:
-                native.toggle_fullscreen()
-            elif not enable and native_is_fs:
-                native.toggle_fullscreen()
-        except Exception:
-            pass
-
-        if os.name == "nt" and hwnd:
-            try:
-                user32 = ctypes.windll.user32
-                GWL_STYLE = -16
-                WS_THICKFRAME = 0x00040000
-                style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-
-                if enable:
-                    if style & WS_THICKFRAME:
-                        user32.SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_THICKFRAME)
-                        SWP_FRAMECHANGED = 0x0020
-                        SWP_NOMOVE = 0x0002
-                        SWP_NOSIZE = 0x0001
-                        SWP_NOZORDER = 0x0004
-                        user32.SetWindowPos(
-                            hwnd, 0, 0, 0, 0, 0,
-                            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
-                        )
-                else:
-                    apply_windows_11_attributes(hwnd)
-            except Exception:
-                pass
-
-        try:
-            desktop_window.evaluate_js(
-                f"window.__anibase_set_fullscreen && window.__anibase_set_fullscreen({'true' if enable else 'false'});"
-            )
-        except Exception:
-            pass
-
-    _invoke_on_ui_thread(getattr(desktop_window, "native", None), _apply)
-
-    return enable
-
-
-def on_window_restored():
-    _window_state["maximized"] = False
-    _window_state["fullscreen"] = False
-    if desktop_window:
-        try:
-            desktop_window.evaluate_js(
-                "window.__anibase_set_maximized && window.__anibase_set_maximized(false);"
-                "window.__anibase_set_fullscreen && window.__anibase_set_fullscreen(false);"
-            )
-        except Exception:
-            pass
-        hwnd = get_window_hwnd()
-        if hwnd:
-            apply_windows_11_attributes(hwnd)
-
-
-def on_window_fullscreened():
-    _window_state["fullscreen"] = True
-    if desktop_window:
-        try:
-            desktop_window.evaluate_js(
-                "window.__anibase_set_fullscreen && window.__anibase_set_fullscreen(true)"
-            )
-        except Exception:
-            pass
-        hwnd = get_window_hwnd()
-        if hwnd and os.name == "nt":
-            try:
-                user32 = ctypes.windll.user32
-                GWL_STYLE = -16
-                WS_THICKFRAME = 0x00040000
-                style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            user32 = ctypes.windll.user32
+            GWL_STYLE = -16
+            WS_THICKFRAME = 0x00040000
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            if enable:
                 if style & WS_THICKFRAME:
                     user32.SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_THICKFRAME)
                     SWP_FRAMECHANGED = 0x0020
@@ -510,8 +456,77 @@ def on_window_fullscreened():
                         hwnd, 0, 0, 0, 0, 0,
                         SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
                     )
+            else:
+                apply_windows_11_attributes(hwnd)
+        except Exception:
+            pass
+
+    # Step 3: Notify the JS layer about state change.
+    # Must NOT be called while holding the UI thread (hence the threading.Thread approach
+    # in DesktopApi.toggle_fullscreen/set_fullscreen). evaluate_js is safe to call from
+    # any background thread as it uses its own Invoke + semaphore internally.
+    try:
+        js_val = "true" if enable else "false"
+        desktop_window.evaluate_js(
+            f"window.__anibase_set_fullscreen && window.__anibase_set_fullscreen({js_val});"
+        )
+    except Exception:
+        pass
+
+    return enable
+
+
+def on_window_restored():
+    _window_state["maximized"] = False
+    _window_state["fullscreen"] = False
+    hwnd = get_window_hwnd()
+    if hwnd:
+        try:
+            apply_windows_11_attributes(hwnd)
+        except Exception:
+            pass
+    if desktop_window:
+        def _notify():
+            try:
+                desktop_window.evaluate_js(
+                    "window.__anibase_set_maximized && window.__anibase_set_maximized(false);"
+                    "window.__anibase_set_fullscreen && window.__anibase_set_fullscreen(false);"
+                )
             except Exception:
                 pass
+        threading.Thread(target=_notify, daemon=True).start()
+
+
+def on_window_fullscreened():
+    _window_state["fullscreen"] = True
+    hwnd = get_window_hwnd()
+    if hwnd and os.name == "nt":
+        try:
+            user32 = ctypes.windll.user32
+            GWL_STYLE = -16
+            WS_THICKFRAME = 0x00040000
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            if style & WS_THICKFRAME:
+                user32.SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_THICKFRAME)
+                SWP_FRAMECHANGED = 0x0020
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_NOZORDER = 0x0004
+                user32.SetWindowPos(
+                    hwnd, 0, 0, 0, 0, 0,
+                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+                )
+        except Exception:
+            pass
+    if desktop_window:
+        def _notify():
+            try:
+                desktop_window.evaluate_js(
+                    "window.__anibase_set_fullscreen && window.__anibase_set_fullscreen(true)"
+                )
+            except Exception:
+                pass
+        threading.Thread(target=_notify, daemon=True).start()
 
 
 def on_window_resized(width, height):
