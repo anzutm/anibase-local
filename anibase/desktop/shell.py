@@ -20,8 +20,10 @@ _window_state = {
     "height": 800,
     "maximized": False,
     "fullscreen": False,
+    "zoom": 1.0,
 }
 _is_shutting_down = False
+ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 
 
 class DesktopApi:
@@ -72,12 +74,31 @@ class DesktopApi:
         except Exception:
             pass
 
+    def zoom_in(self):
+        return adjust_desktop_zoom_step(1)
+
+    def zoom_out(self):
+        return adjust_desktop_zoom_step(-1)
+
+    def reset_zoom(self):
+        return set_desktop_zoom(1.0)
+
+    def get_zoom(self):
+        return get_desktop_zoom()
+
+    def set_zoom(self, factor):
+        try:
+            return set_desktop_zoom(float(factor))
+        except (ValueError, TypeError):
+            return {"factor": get_desktop_zoom(), "native": False}
+
     def get_state(self):
         return {
             "maximized": bool(_window_state.get("maximized")),
             "fullscreen": bool(_window_state.get("fullscreen")),
             "width": _window_state.get("width", 1280),
             "height": _window_state.get("height", 800),
+            "zoom": float(_window_state.get("zoom", 1.0)),
         }
 
 
@@ -183,6 +204,9 @@ def load_saved_window_state():
             _window_state["x"] = x
             _window_state["y"] = y
             _window_state["maximized"] = bool(saved.get("maximized", False))
+            zoom = saved.get("zoom")
+            if zoom is not None:
+                _window_state["zoom"] = max(0.5, min(3.0, round(float(zoom), 2)))
     except Exception:
         pass
 
@@ -207,6 +231,7 @@ def save_current_window_state():
             "width": _window_state["width"],
             "height": _window_state["height"],
             "maximized": bool(_window_state["maximized"]),
+            "zoom": float(_window_state.get("zoom", 1.0)),
         }
         save_settings(settings)
     except Exception:
@@ -231,9 +256,117 @@ def on_window_closing():
     return False
 
 
+def get_desktop_zoom() -> float:
+    global desktop_window, _window_state
+    if desktop_window and hasattr(desktop_window, "native") and desktop_window.native:
+        try:
+            webview_ctrl = getattr(desktop_window.native, "webview", None)
+            if webview_ctrl and getattr(webview_ctrl, "CoreWebView2", None):
+                core = webview_ctrl.CoreWebView2
+                val = float(core.ZoomFactor)
+                _window_state["zoom"] = round(val, 2)
+                return _window_state["zoom"]
+        except Exception:
+            pass
+    return float(_window_state.get("zoom", 1.0))
+
+
+def set_desktop_zoom(factor: float) -> dict:
+    global desktop_window, _window_state
+    factor = max(0.5, min(3.0, round(float(factor), 2)))
+    _window_state["zoom"] = factor
+    native_applied = False
+
+    if desktop_window and hasattr(desktop_window, "native") and desktop_window.native:
+        try:
+            webview_ctrl = getattr(desktop_window.native, "webview", None)
+            if webview_ctrl and getattr(webview_ctrl, "CoreWebView2", None):
+                def _apply():
+                    core = getattr(webview_ctrl, "CoreWebView2", None)
+                    if core:
+                        core.ZoomFactor = factor
+
+                if hasattr(desktop_window.native, "InvokeRequired") and desktop_window.native.InvokeRequired:
+                    import clr
+                    clr.AddReference("System")
+                    from System import Action
+                    desktop_window.native.Invoke(Action(_apply))
+                else:
+                    _apply()
+                native_applied = True
+        except Exception:
+            pass
+
+    return {"factor": factor, "native": native_applied}
+
+
+def adjust_desktop_zoom_step(direction: int) -> dict:
+    current = get_desktop_zoom()
+    if direction > 0:
+        target = next((s for s in ZOOM_STEPS if s > current + 0.01), ZOOM_STEPS[-1])
+    else:
+        target = next((s for s in reversed(ZOOM_STEPS) if s < current - 0.01), ZOOM_STEPS[0])
+    return set_desktop_zoom(target)
+
+
+def configure_webview2_settings(window=None):
+    """Enables browser accelerator keys, zoom controls, and restores zoom on Edge WebView2."""
+    win = window or desktop_window
+    if not win or not hasattr(win, "native") or not win.native:
+        return False
+
+    try:
+        webview_ctrl = getattr(win.native, "webview", None)
+        if not webview_ctrl:
+            return False
+
+        def _apply():
+            try:
+                core = getattr(webview_ctrl, "CoreWebView2", None)
+                if not core:
+                    return
+                settings = getattr(core, "Settings", None)
+                if settings:
+                    settings.AreBrowserAcceleratorKeysEnabled = True
+                    settings.IsZoomControlEnabled = True
+                saved_zoom = float(_window_state.get("zoom", 1.0))
+                if saved_zoom != 1.0:
+                    core.ZoomFactor = saved_zoom
+            except Exception:
+                pass
+
+        if hasattr(win.native, "InvokeRequired") and win.native.InvokeRequired:
+            try:
+                import clr
+                clr.AddReference("System")
+                from System import Action
+                win.native.Invoke(Action(_apply))
+            except Exception:
+                _apply()
+        else:
+            _apply()
+
+        if not getattr(webview_ctrl, "CoreWebView2", None):
+            def on_ready(sender, args):
+                if getattr(args, "IsSuccess", False):
+                    _apply()
+            try:
+                webview_ctrl.CoreWebView2InitializationCompleted += on_ready
+            except Exception:
+                pass
+        return True
+    except Exception:
+        return False
+
+
+def on_window_loaded(*args, **kwargs):
+    configure_webview2_settings()
+
+
 def on_window_shown():
     hwnd = get_window_hwnd()
     apply_windows_11_attributes(hwnd)
+    configure_webview2_settings()
 
 
 def on_window_maximized():
@@ -329,12 +462,14 @@ def create_desktop_window(url):
         y=_window_state["y"],
         min_size=(960, 600),
         background_color="#080b12",
+        zoomable=True,
     )
 
     desktop_api = DesktopApi(desktop_window)
     desktop_window.js_api = desktop_api
 
     desktop_window.events.shown += on_window_shown
+    desktop_window.events.loaded += on_window_loaded
     desktop_window.events.closing += on_window_closing
     desktop_window.events.maximized += on_window_maximized
     desktop_window.events.restored += on_window_restored

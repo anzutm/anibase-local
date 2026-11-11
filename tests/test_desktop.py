@@ -78,13 +78,67 @@ class DesktopApiTests(unittest.TestCase):
         desktop_shell._window_state["fullscreen"] = False
         desktop_shell._window_state["width"] = 1400
         desktop_shell._window_state["height"] = 900
+        desktop_shell._window_state["zoom"] = 1.25
         state = self.api.get_state()
         self.assertEqual(state, {
             "maximized": False,
             "fullscreen": False,
             "width": 1400,
-            "height": 900
+            "height": 900,
+            "zoom": 1.25,
         })
+
+    def test_api_zoom_controls(self):
+        self.api.reset_zoom()
+        self.assertAlmostEqual(self.api.get_zoom(), 1.0)
+
+        # Zoom in step
+        res = self.api.zoom_in()
+        self.assertAlmostEqual(res["factor"], 1.10)
+        self.assertAlmostEqual(self.api.get_zoom(), 1.10)
+
+        # Next zoom in step
+        res = self.api.zoom_in()
+        self.assertAlmostEqual(res["factor"], 1.25)
+
+        # Zoom out step
+        res = self.api.zoom_out()
+        self.assertAlmostEqual(res["factor"], 1.10)
+
+        # Reset zoom
+        res = self.api.reset_zoom()
+        self.assertAlmostEqual(res["factor"], 1.0)
+        self.assertAlmostEqual(self.api.get_zoom(), 1.0)
+
+    def test_api_set_zoom_clamps(self):
+        # Exceeds max (3.0)
+        res = self.api.set_zoom(5.0)
+        self.assertAlmostEqual(res["factor"], 3.0)
+
+        # Below min (0.5)
+        res = self.api.set_zoom(0.1)
+        self.assertAlmostEqual(res["factor"], 0.5)
+
+        # Reset back
+        self.api.reset_zoom()
+
+    def test_configure_webview2_settings(self):
+        mock_win = MagicMock()
+        mock_core = MagicMock()
+        mock_settings = MagicMock()
+        mock_core.Settings = mock_settings
+        mock_webview_ctrl = MagicMock()
+        mock_webview_ctrl.CoreWebView2 = mock_core
+        mock_win.native.webview = mock_webview_ctrl
+        mock_win.native.InvokeRequired = False
+
+        desktop_shell._window_state["zoom"] = 1.25
+        res = desktop_shell.configure_webview2_settings(mock_win)
+        self.assertTrue(res)
+        self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
+        self.assertTrue(mock_settings.IsZoomControlEnabled)
+        self.assertEqual(mock_core.ZoomFactor, 1.25)
+        desktop_shell._window_state["zoom"] = 1.0
 
 
 class WindowStateTests(unittest.TestCase):
@@ -96,6 +150,7 @@ class WindowStateTests(unittest.TestCase):
                 "width": 1400,
                 "height": 900,
                 "maximized": True,
+                "zoom": 1.25,
             }
         }
         with patch("anibase.desktop.shell.load_settings", return_value=mock_settings), \
@@ -106,6 +161,7 @@ class WindowStateTests(unittest.TestCase):
             self.assertEqual(desktop_shell._window_state["x"], 100)
             self.assertEqual(desktop_shell._window_state["y"], 150)
             self.assertTrue(desktop_shell._window_state["maximized"])
+            self.assertEqual(desktop_shell._window_state["zoom"], 1.25)
 
     def test_save_current_window_state(self):
         saved_dict = {}
@@ -123,12 +179,14 @@ class WindowStateTests(unittest.TestCase):
              patch("anibase.desktop.shell.save_settings", side_effect=fake_save):
             desktop_shell._window_state["maximized"] = False
             desktop_shell._window_state["fullscreen"] = False
+            desktop_shell._window_state["zoom"] = 1.10
             save_current_window_state()
             self.assertIn("desktop_window", saved_dict)
             self.assertEqual(saved_dict["desktop_window"]["width"], 1350)
             self.assertEqual(saved_dict["desktop_window"]["height"], 850)
             self.assertEqual(saved_dict["desktop_window"]["x"], 200)
             self.assertEqual(saved_dict["desktop_window"]["y"], 100)
+            self.assertEqual(saved_dict["desktop_window"]["zoom"], 1.10)
 
     def test_on_window_closing_intercepts_when_tray_enabled(self):
         mock_win = MagicMock()

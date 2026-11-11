@@ -244,3 +244,33 @@ body.is-desktop-app.is-desktop-loading .desktop-splash {
     }
 }
 
+/* Elegant Desktop Zoom Indicator Toast */
+.desktop-zoom-toast {
+    position: fixed;
+    top: 48px;
+    right: 20px;
+    background: rgba(16, 20, 29, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #f1f5f9;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    z-index: 100000;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.desktop-zoom-toast.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+
