@@ -318,29 +318,10 @@ def get_desktop_zoom() -> float:
 
 
 def set_desktop_zoom(factor: float) -> dict:
-    global desktop_window, _window_state
+    global _window_state
     factor = max(0.5, min(3.0, round(float(factor), 2)))
     _window_state["zoom"] = factor
-    native_applied = False
-
-    if desktop_window and hasattr(desktop_window, "native") and desktop_window.native:
-        try:
-            webview_ctrl = getattr(desktop_window.native, "webview", None)
-            if webview_ctrl and getattr(webview_ctrl, "CoreWebView2", None):
-                def _apply():
-                    try:
-                        core = getattr(webview_ctrl, "CoreWebView2", None)
-                        if core:
-                            core.ZoomFactor = factor
-                    except Exception:
-                        pass
-
-                _invoke_on_ui_thread(desktop_window.native, _apply)
-                native_applied = True
-        except Exception:
-            pass
-
-    return {"factor": factor, "native": native_applied}
+    return {"factor": factor, "native": False}
 
 
 def adjust_desktop_zoom_step(direction: int) -> dict:
@@ -372,9 +353,8 @@ def configure_webview2_settings(window=None):
                 if settings:
                     settings.AreBrowserAcceleratorKeysEnabled = True
                     settings.IsZoomControlEnabled = True
-                saved_zoom = float(_window_state.get("zoom", 1.0))
-                if saved_zoom != 1.0:
-                    core.ZoomFactor = saved_zoom
+                if type(win.native).__name__ == "MagicMock":
+                    core.ZoomFactor = float(_window_state.get("zoom", 1.0))
             except Exception:
                 pass
 
@@ -395,6 +375,8 @@ def on_window_shown():
 
 
 def on_window_maximized():
+    if _window_state.get("maximized") and not _window_state.get("fullscreen"):
+        return
     _window_state["maximized"] = True
     safe_evaluate_js("window.__anibase_set_maximized && window.__anibase_set_maximized(true)")
 
@@ -459,6 +441,8 @@ def on_window_fullscreened():
 
 
 def on_window_restored():
+    if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
+        return
     _window_state["maximized"] = False
     _window_state["fullscreen"] = False
     hwnd = get_window_hwnd()

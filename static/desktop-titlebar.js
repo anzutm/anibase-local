@@ -158,6 +158,7 @@
             }, 1200);
         }
 
+        let syncZoomTimer = null;
         function applyZoom(factor, showToast) {
             factor = Math.max(0.5, Math.min(3.0, Math.round(factor * 100) / 100));
             currentZoom = factor;
@@ -172,8 +173,12 @@
                 showZoomToast(factor);
             }
 
+            // Debounce syncing to python backend to eliminate IPC flooding during rapid wheel or key events
             if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
-                window.pywebview.api.set_zoom(factor).catch(function() {});
+                if (syncZoomTimer) clearTimeout(syncZoomTimer);
+                syncZoomTimer = setTimeout(function() {
+                    window.pywebview.api.set_zoom(factor).catch(function() {});
+                }, 150);
             }
         }
 
