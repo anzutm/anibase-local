@@ -44,30 +44,49 @@
             observer.observe(titleTag, { childList: true, subtree: true, characterData: true });
         }
 
+        const controls = document.querySelector('.desktop-titlebar-controls');
+        if (controls) {
+            controls.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+            });
+        }
+
         if (btnMin) {
             btnMin.addEventListener('click', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.minimize) {
                     window.pywebview.api.minimize();
                 }
+            });
+            btnMin.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
             });
         }
 
         if (btnMax) {
             btnMax.addEventListener('click', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_maximize) {
                     window.pywebview.api.toggle_maximize();
                 }
+            });
+            btnMax.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
             });
         }
 
         if (btnClose) {
             btnClose.addEventListener('click', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.close) {
                     window.pywebview.api.close();
                 }
+            });
+            btnClose.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
             });
         }
 
@@ -280,9 +299,23 @@
         document.body.classList.toggle('is-desktop-fullscreen', Boolean(isFull));
     };
 
-    if (window.pywebview) {
+    let isInitialized = false;
+    function safeInit() {
+        if (isInitialized) return;
+        isInitialized = true;
         initDesktopApp();
+    }
+
+    if (window.pywebview && window.pywebview.api) {
+        safeInit();
     } else {
-        window.addEventListener('pywebviewready', initDesktopApp);
+        window.addEventListener('pywebviewready', safeInit);
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (window.pywebview) {
+                    safeInit();
+                }
+            }, 100);
+        });
     }
 })();

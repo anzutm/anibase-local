@@ -105,7 +105,8 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
     display: flex;
     align-items: stretch;
     height: 100%;
-    -webkit-app-region: no-drag;
+    -webkit-app-region: no-drag !important;
+    pointer-events: auto !important;
     flex-shrink: 0;
 }
 
@@ -121,6 +122,12 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     padding: 0;
+    -webkit-app-region: no-drag !important;
+    pointer-events: auto !important;
+}
+
+.desktop-control-btn svg {
+    pointer-events: none;
 }
 
 .desktop-control-btn:hover {

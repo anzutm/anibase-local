@@ -29,20 +29,22 @@ ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.
 class DesktopApi:
     """Python API exposed to JavaScript via window.pywebview.api."""
 
-    def __init__(self, window):
-        self.window = window
+    def __init__(self, window=None):
+        self._window = window
 
     def minimize(self):
-        if self.window:
-            self.window.minimize()
+        win = self._window or desktop_window
+        if win:
+            win.minimize()
 
     def toggle_maximize(self):
-        if not self.window:
+        win = self._window or desktop_window
+        if not win:
             return
         if _window_state.get("maximized"):
-            self.window.restore()
+            win.restore()
         else:
-            self.window.maximize()
+            win.maximize()
 
     def toggle_fullscreen(self):
         # Run via pywebview's safe thread path, not via our _invoke_on_ui_thread
@@ -58,13 +60,14 @@ class DesktopApi:
 
     def close(self):
         """User clicked close in titlebar."""
-        if not self.window:
+        win = self._window or desktop_window
+        if not win:
             return
         save_current_window_state()
         settings = load_settings()
         minimize_to_tray = settings.get("desktop_minimize_to_tray", True)
         if minimize_to_tray:
-            self.window.hide()
+            win.hide()
         else:
             close_desktop_window_permanent()
 
@@ -575,9 +578,11 @@ def create_desktop_window(url):
     settings = load_settings()
     start_minimized = bool(settings.get("desktop_start_minimized", False))
 
+    desktop_api = DesktopApi()
     desktop_window = webview.create_window(
         title="AniBase",
         url=url,
+        js_api=desktop_api,
         frameless=True,
         easy_drag=False,
         hidden=start_minimized,
@@ -589,9 +594,7 @@ def create_desktop_window(url):
         background_color="#080b12",
         zoomable=True,
     )
-
-    desktop_api = DesktopApi(desktop_window)
-    desktop_window.js_api = desktop_api
+    desktop_api._window = desktop_window
 
     desktop_window.events.shown += on_window_shown
     desktop_window.events.loaded += on_window_loaded
