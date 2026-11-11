@@ -165,22 +165,15 @@
                 localStorage.setItem('anibase_desktop_zoom', String(factor));
             } catch (_) {}
 
-            if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
-                window.pywebview.api.set_zoom(factor).then(function(res) {
-                    if (res && res.native) {
-                        document.documentElement.style.zoom = '';
-                    } else {
-                        document.documentElement.style.zoom = factor === 1.0 ? '' : factor;
-                    }
-                }).catch(function() {
-                    document.documentElement.style.zoom = factor === 1.0 ? '' : factor;
-                });
-            } else {
-                document.documentElement.style.zoom = factor === 1.0 ? '' : factor;
-            }
+            // Always apply CSS zoom immediately for instant, reliable scaling
+            document.documentElement.style.zoom = factor === 1.0 ? '' : factor;
 
             if (showToast) {
                 showZoomToast(factor);
+            }
+
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
+                window.pywebview.api.set_zoom(factor).catch(function() {});
             }
         }
 

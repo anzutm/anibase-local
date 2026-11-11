@@ -356,18 +356,6 @@ def configure_webview2_settings(window=None):
                 saved_zoom = float(_window_state.get("zoom", 1.0))
                 if saved_zoom != 1.0:
                     core.ZoomFactor = saved_zoom
-
-                def on_fullscreen_changed(sender, args):
-                    try:
-                        has_fs = bool(getattr(sender, "ContainsFullScreenElement", False))
-                        set_desktop_fullscreen(has_fs)
-                    except Exception:
-                        pass
-
-                try:
-                    core.ContainsFullScreenElementChanged += on_fullscreen_changed
-                except Exception:
-                    pass
             except Exception:
                 pass
 
@@ -464,17 +452,18 @@ def set_desktop_fullscreen(enable: bool) -> bool:
         except Exception:
             pass
 
-    # Step 3: Notify the JS layer about state change.
-    # Must NOT be called while holding the UI thread (hence the threading.Thread approach
-    # in DesktopApi.toggle_fullscreen/set_fullscreen). evaluate_js is safe to call from
-    # any background thread as it uses its own Invoke + semaphore internally.
-    try:
-        js_val = "true" if enable else "false"
-        desktop_window.evaluate_js(
-            f"window.__anibase_set_fullscreen && window.__anibase_set_fullscreen({js_val});"
-        )
-    except Exception:
-        pass
+    # Step 3: Notify the JS layer about state change safely on a background thread
+    # so evaluate_js never blocks the caller or UI thread with Invoke + semaphore.
+    def _notify():
+        try:
+            js_val = "true" if enable else "false"
+            desktop_window.evaluate_js(
+                f"window.__anibase_set_fullscreen && window.__anibase_set_fullscreen({js_val});"
+            )
+        except Exception:
+            pass
+
+    threading.Thread(target=_notify, daemon=True).start()
 
     return enable
 
