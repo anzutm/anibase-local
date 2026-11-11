@@ -781,7 +781,7 @@ def anime_detail(anime_name):
     )
 
     if not anime_path:
-        return "Anime not found", 404
+        return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     seasons = []
 
@@ -979,7 +979,7 @@ def player(anime_name, episode):
     )
 
     if not anime_path:
-        return "Anime not found", 404
+        return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     current_video_path = safe_join_media_path(
         anime_path,
@@ -1284,7 +1284,7 @@ def season_detail(anime_name, season_name):
     """Keep old season bookmarks working with the integrated season selector."""
     anime_path = find_anime_path(anime_name)
     if not anime_path:
-        return "Anime not found", 404
+        return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     season_path = safe_join_media_path(anime_path, season_name)
     if not season_path or not os.path.isdir(season_path):

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Anime Not Found - AniBase{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='1') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ext-error-container" style="min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px;">
+    <div class="ext-error-card" style="background: rgba(18, 22, 32, 0.95); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 36px 32px; max-width: 520px; text-align: center; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);">
+        <div class="ext-error-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: #f87171; margin-bottom: 20px;">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </div>
+        <h2 style="font-size: 20px; font-weight: 700; color: #f3f4f6; margin-bottom: 12px;">Anime Folder Not Found</h2>
+        <p style="font-size: 14px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px;">
+            The folder for <strong style="color: #e2e8f0;">&ldquo;{{ anime_name }}&rdquo;</strong> could not be located on disk. Please verify that your storage drive is connected or update your library paths in Settings.
+        </p>
+        <div class="ext-error-actions" style="display: flex; gap: 12px; justify-content: center;">
+            <a href="{{ url_for('index') }}" class="home-primary-action" style="padding: 10px 20px; border-radius: 10px; font-size: 14px; text-decoration: none;">
+                &larr; Back to Home
+            </a>
+            <a href="{{ url_for('settings_page') }}" class="home-secondary-action" style="padding: 10px 20px; border-radius: 10px; font-size: 14px; text-decoration: none;">
+                Open Settings
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

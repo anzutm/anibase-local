@@ -18,7 +18,8 @@ from anibase.desktop.shell import (
     _window_state,
 )
 import anibase.desktop.shell as desktop_shell
-from anibase.settings import load_settings, save_settings, get_action_token
+import anibase.constants as anibase_constants
+from anibase.settings import load_settings, save_settings, get_action_token, get_default_settings, apply_settings
 from anibase.web import create_app
 import build
 
@@ -188,9 +189,24 @@ class Windows11DWMTests(unittest.TestCase):
 
 class DesktopWebIntegrationTests(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.orig_settings_file = anibase_constants.SETTINGS_FILE
+        self.orig_anime_paths = anibase_constants.ANIME_PATHS
+        self.test_settings_file = os.path.join(self.temp_dir.name, "settings.json")
+        anibase_constants.SETTINGS_FILE = self.test_settings_file
+        test_defaults = get_default_settings()
+        test_defaults["setup_completed"] = True
+        save_settings(test_defaults)
+        apply_settings(test_defaults)
+
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
+
+    def tearDown(self):
+        anibase_constants.SETTINGS_FILE = self.orig_settings_file
+        anibase_constants.ANIME_PATHS = self.orig_anime_paths
+        self.temp_dir.cleanup()
 
     def test_api_desktop_activate_success(self):
         with patch("anibase.desktop.shell.restore_desktop_window", return_value=True):
@@ -220,6 +236,36 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.assertIn('id="desktopBtnClose"', html)
         self.assertIn('id="desktopTitlebarTitle"', html)
         self.assertIn('id="desktopSplash"', html)
+
+    def test_anime_detail_includes_desktop_titlebar(self):
+        lib_dir = os.path.join(self.temp_dir.name, "Anime")
+        anime_dir = os.path.join(lib_dir, "TestAnime")
+        os.makedirs(anime_dir, exist_ok=True)
+        season_dir = os.path.join(anime_dir, "Season 1")
+        os.makedirs(season_dir, exist_ok=True)
+        open(os.path.join(season_dir, "Episode 1.mp4"), "w").close()
+
+        saved = get_default_settings()
+        saved["library_paths"] = [lib_dir]
+        saved["watchlist_path"] = lib_dir
+        saved["setup_completed"] = True
+        save_settings(saved)
+        apply_settings(saved)
+
+        resp = self.client.get("/anime/TestAnime")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('class="desktop-titlebar pywebview-drag-region"', html)
+        self.assertIn("desktop-titlebar.css", html)
+        self.assertIn("desktop-titlebar.js", html)
+
+    def test_missing_anime_renders_styled_404(self):
+        resp = self.client.get("/anime/NonExistentAnime12345")
+        self.assertEqual(resp.status_code, 404)
+        html = resp.get_data(as_text=True)
+        self.assertIn("Anime Folder Not Found", html)
+        self.assertIn("NonExistentAnime12345", html)
+        self.assertIn("desktop-titlebar.css", html)
 
     def test_settings_page_renders_desktop_options(self):
         resp = self.client.get("/settings")
@@ -253,6 +299,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
 
     def test_build_assets_include_desktop_titlebar(self):
         self.assertIn("templates/_desktop_titlebar.html", build.REQUIRED_ASSETS)
+        self.assertIn("templates/anime_not_found.html", build.REQUIRED_ASSETS)
         self.assertIn("static/desktop-titlebar.css", build.REQUIRED_ASSETS)
         self.assertIn("static/desktop-titlebar.js", build.REQUIRED_ASSETS)
 

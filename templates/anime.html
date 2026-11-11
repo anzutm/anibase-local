@@ -53,9 +53,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='footer.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='1') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
+{% include "_desktop_titlebar.html" %}
 <a
     href="{{ url_for('movies') if is_movie else url_for('index') }}"
     class="back-btn anime-floating-back"
@@ -1685,5 +1687,6 @@ window.initializeMetadataMatch();
 <script src="{{ url_for('static', filename='spotlight.js', v='1') }}"></script>
 {% include "_global_mini_player.html" %}
 <script src="{{ url_for('static', filename='global-mini-player.js', v='3') }}"></script>
+<script src="{{ url_for('static', filename='desktop-titlebar.js', v='1') }}"></script>
 </body>
 </html>

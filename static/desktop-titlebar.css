@@ -30,6 +30,12 @@ body.is-desktop-app.player-body .player-page {
     padding-top: 0;
 }
 
+/* On anime detail page, adjust floating back and spotlight buttons */
+body.is-desktop-app .anime-floating-back,
+body.is-desktop-app .anime-floating-spotlight {
+    top: 46px !important;
+}
+
 /* In fullscreen mode (video player or F11), hide titlebar */
 :fullscreen .desktop-titlebar,
 body.is-fullscreen .desktop-titlebar,
