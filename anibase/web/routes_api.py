@@ -2127,6 +2127,17 @@ def clear_rpc_route():
     return jsonify({"status": "success", "queued": queued})
 
 
+@host_only
+def api_desktop_activate():
+    """Focus or restore the AniBase desktop window if running."""
+    try:
+        from anibase.desktop.shell import restore_desktop_window
+        restored = restore_desktop_window()
+        return jsonify({"status": "success", "ok": True, "restored": bool(restored)})
+    except Exception as error:
+        return jsonify({"status": "error", "ok": False, "error": str(error)}), 500
+
+
 def register_api_routes(app):
     """Register all API, streaming, and RPC endpoints on the Flask application."""
     app.add_url_rule("/setup/sync", endpoint="setup_sync", view_func=setup_sync, methods=["GET", "POST"])
@@ -2174,4 +2185,5 @@ def register_api_routes(app):
     app.add_url_rule("/api/watch-status/progress", endpoint="api_update_watch_status_progress", view_func=api_update_watch_status_progress, methods=["POST"])
     app.add_url_rule("/api/watch-history/remove", endpoint="api_remove_watch_history_entry", view_func=api_remove_watch_history_entry, methods=["POST"])
     app.add_url_rule("/api/anime/delete", endpoint="api_delete_anime", view_func=api_delete_anime, methods=["POST"])
+    app.add_url_rule("/api/desktop/activate", endpoint="api_desktop_activate", view_func=api_desktop_activate, methods=["POST"])
     app.add_url_rule("/clear_rpc", endpoint="clear_rpc_route", view_func=clear_rpc_route, methods=["POST"])

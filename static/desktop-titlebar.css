@@ -1,0 +1,138 @@
+/* AniBase Desktop Frameless Custom Titlebar */
+.desktop-titlebar {
+    display: none; /* Hidden by default for web/LAN browsers */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: #080b12;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    z-index: 99999;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 0 12px;
+    -webkit-app-region: drag;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+body.is-desktop-app .desktop-titlebar {
+    display: flex;
+}
+
+body.is-desktop-app {
+    padding-top: 32px;
+}
+
+/* On player page, ensure backdrop and shell respect desktop titlebar */
+body.is-desktop-app.player-body .player-page {
+    padding-top: 0;
+}
+
+/* In fullscreen mode (video player or F11), hide titlebar */
+:fullscreen .desktop-titlebar,
+body.is-fullscreen .desktop-titlebar,
+.plyr--fullscreen-active .desktop-titlebar {
+    display: none !important;
+}
+
+body.is-desktop-app:is(:fullscreen, .is-fullscreen, .plyr--fullscreen-active) {
+    padding-top: 0 !important;
+}
+
+.desktop-titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.desktop-titlebar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--cyan, #00d2ff);
+    color: #071018;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.desktop-titlebar-appname {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e5e9ef;
+    letter-spacing: 0.3px;
+}
+
+.desktop-titlebar-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 16px;
+}
+
+.desktop-titlebar-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #7f899a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 480px;
+}
+
+.desktop-titlebar-controls {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    -webkit-app-region: no-drag;
+    flex-shrink: 0;
+}
+
+.desktop-control-btn {
+    width: 44px;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #8c95a5;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    padding: 0;
+}
+
+.desktop-control-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+.desktop-control-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.desktop-control-btn.btn-close:hover {
+    background: #e81123 !important;
+    color: #ffffff !important;
+}
+
+.desktop-control-btn.btn-close:active {
+    background: #bf0f1d !important;
+}
+
+/* When maximized, swap square icon */
+body.is-maximized .desktop-control-btn.btn-max .icon-max {
+    display: none !important;
+}
+body.is-maximized .desktop-control-btn.btn-max .icon-restore {
+    display: inline-block !important;
+}
+

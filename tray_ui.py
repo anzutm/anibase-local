@@ -85,6 +85,23 @@ def release_instance_mutex():
         INSTANCE_MUTEX_HANDLE = None
 
 
+def notify_running_instance_to_activate():
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{APP_PORT}/api/desktop/activate",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            if resp.status == 200:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def acquire_single_instance_guard():
     global INSTANCE_MUTEX_HANDLE, INSTANCE_LOCK_FILE
 
@@ -99,7 +116,8 @@ def acquire_single_instance_guard():
         except BlockingIOError:
             INSTANCE_LOCK_FILE.close()
             INSTANCE_LOCK_FILE = None
-            webbrowser.open(APP_URL)
+            if not notify_running_instance_to_activate():
+                webbrowser.open(APP_URL)
             return False
         atexit.register(release_instance_mutex)
         return True
@@ -122,7 +140,8 @@ def acquire_single_instance_guard():
 
     if error_code == ERROR_ALREADY_EXISTS:
         kernel32.CloseHandle(handle)
-        webbrowser.open(APP_URL)
+        if not notify_running_instance_to_activate():
+            webbrowser.open(APP_URL)
         return False
 
     wait_result = kernel32.WaitForSingleObject(handle, INFINITE)
@@ -235,11 +254,21 @@ def get_icon_path():
 
 
 def open_dashboard():
-    webbrowser.open(APP_URL)
+    try:
+        from anibase.desktop.shell import restore_desktop_window
+        if not restore_desktop_window():
+            webbrowser.open(APP_URL)
+    except Exception:
+        webbrowser.open(APP_URL)
 
 
 def perform_graceful_shutdown():
     app_log("Tray exit requested.")
+    try:
+        from anibase.desktop.shell import close_desktop_window_permanent
+        close_desktop_window_permanent()
+    except Exception:
+        pass
     request_shutdown()
     stop_library_observer(timeout=SHUTDOWN_JOIN_TIMEOUT_SECONDS)
     shutdown_flask_server()
@@ -454,8 +483,9 @@ def run_qt_tray():
             if reason in {
                 QSystemTrayIcon.ActivationReason.Trigger,
                 QSystemTrayIcon.ActivationReason.DoubleClick,
-                QSystemTrayIcon.ActivationReason.Context,
             }:
+                open_dashboard()
+            elif reason == QSystemTrayIcon.ActivationReason.Context:
                 self.toggle_popup()
 
         def toggle_popup(self):
@@ -526,7 +556,22 @@ def main():
     try:
         load_application_components()
         start_background_services()
-        return run_qt_tray()
+
+        qt_thread = threading.Thread(target=run_qt_tray, name="qt-tray", daemon=True)
+        qt_thread.start()
+
+        try:
+            import webview
+            from anibase.desktop.shell import create_desktop_window
+            create_desktop_window(APP_URL)
+            webview.start(gui="edgechromium")
+            return 0
+        except Exception as error:
+            fallback_log(f"WebView2 desktop launch failed: {error}. Falling back to browser mode.")
+            webbrowser.open(APP_URL)
+            if qt_thread.is_alive():
+                qt_thread.join()
+            return 0
     finally:
         release_instance_mutex()
 

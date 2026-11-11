@@ -53,8 +53,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='topbar.css', v='9') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='1') }}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
+    {% include "_desktop_titlebar.html" %}
     {% block topbar %}
     <header class="topbar" id="anibaseTopbar">
         <div class="nav-left">
@@ -325,6 +327,7 @@
     <script src="{{ url_for('static', filename='spotlight.js', v='3') }}"></script>
     {% include "_global_mini_player.html" %}
     <script src="{{ url_for('static', filename='global-mini-player.js', v='3') }}"></script>
+    <script src="{{ url_for('static', filename='desktop-titlebar.js', v='1') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
