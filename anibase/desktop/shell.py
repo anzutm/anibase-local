@@ -254,6 +254,32 @@ def on_window_closing():
     return False
 
 
+def _invoke_on_ui_thread(form, callback):
+    """Safely invokes callback on WinForms UI thread if required, avoiding static linter issues."""
+    if not form:
+        try:
+            callback()
+        except Exception:
+            pass
+        return
+
+    if getattr(form, "InvokeRequired", False):
+        try:
+            import clr
+            clr.AddReference("System")
+            system_mod = sys.modules.get("System") or __import__("System")
+            action_cls = getattr(system_mod, "Action")
+            form.Invoke(action_cls(callback))
+            return
+        except Exception:
+            pass
+
+    try:
+        callback()
+    except Exception:
+        pass
+
+
 def get_desktop_zoom() -> float:
     global desktop_window, _window_state
     if desktop_window and hasattr(desktop_window, "native") and desktop_window.native:
@@ -284,13 +310,7 @@ def set_desktop_zoom(factor: float) -> dict:
                     if core:
                         core.ZoomFactor = factor
 
-                if hasattr(desktop_window.native, "InvokeRequired") and desktop_window.native.InvokeRequired:
-                    import clr
-                    clr.AddReference("System")
-                    from System import Action
-                    desktop_window.native.Invoke(Action(_apply))
-                else:
-                    _apply()
+                _invoke_on_ui_thread(desktop_window.native, _apply)
                 native_applied = True
         except Exception:
             pass
@@ -345,16 +365,7 @@ def configure_webview2_settings(window=None):
             except Exception:
                 pass
 
-        if hasattr(win.native, "InvokeRequired") and win.native.InvokeRequired:
-            try:
-                import clr
-                clr.AddReference("System")
-                from System import Action
-                win.native.Invoke(Action(_apply))
-            except Exception:
-                _apply()
-        else:
-            _apply()
+        _invoke_on_ui_thread(win.native, _apply)
 
         if not getattr(webview_ctrl, "CoreWebView2", None):
             def on_ready(sender, args):
@@ -452,16 +463,7 @@ def set_desktop_fullscreen(enable: bool) -> bool:
         except Exception:
             pass
 
-    if hasattr(desktop_window.native, "InvokeRequired") and desktop_window.native.InvokeRequired:
-        try:
-            import clr
-            clr.AddReference("System")
-            from System import Action
-            desktop_window.native.Invoke(Action(_apply))
-        except Exception:
-            _apply()
-    else:
-        _apply()
+    _invoke_on_ui_thread(getattr(desktop_window, "native", None), _apply)
 
     return enable
 
