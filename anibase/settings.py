@@ -49,7 +49,10 @@ def get_default_settings():
         "mal_client_id": "",
         "mal_scrobble_threshold": 90,
         "mal_rewatch_mode": "ignore",
-        "shortcuts": constants.DEFAULT_PLAYER_SHORTCUTS.copy()
+        "shortcuts": constants.DEFAULT_PLAYER_SHORTCUTS.copy(),
+        "desktop_minimize_to_tray": True,
+        "desktop_start_minimized": False,
+        "desktop_window": {}
     }
 
 def get_settings_library_paths(settings):
@@ -171,6 +174,16 @@ def load_settings():
         100
     )
     merged["shortcuts"] = normalize_shortcuts(merged.get("shortcuts"))
+    merged["desktop_minimize_to_tray"] = normalize_bool_setting(
+        merged.get("desktop_minimize_to_tray"),
+        defaults["desktop_minimize_to_tray"]
+    )
+    merged["desktop_start_minimized"] = normalize_bool_setting(
+        merged.get("desktop_start_minimized"),
+        defaults["desktop_start_minimized"]
+    )
+    if not isinstance(merged.get("desktop_window"), dict):
+        merged["desktop_window"] = {}
     return merged
 
 def save_settings(settings):

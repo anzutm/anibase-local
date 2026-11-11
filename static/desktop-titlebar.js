@@ -66,19 +66,42 @@
             } catch (_) {}
         });
 
-        // Sync initial maximized state
+        // Desktop keyboard shortcuts (F11 Fullscreen)
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'F11') {
+                e.preventDefault();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_fullscreen) {
+                    window.pywebview.api.toggle_fullscreen();
+                } else if (document.fullscreenElement) {
+                    document.exitFullscreen().catch(function() {});
+                } else {
+                    document.documentElement.requestFullscreen().catch(function() {});
+                }
+            }
+        });
+
+        // Sync initial maximized & fullscreen state
         if (window.pywebview && window.pywebview.api && window.pywebview.api.get_state) {
             window.pywebview.api.get_state().then(function(state) {
-                if (state && state.maximized) {
-                    document.body.classList.add('is-maximized');
+                if (state) {
+                    if (state.maximized) {
+                        document.body.classList.add('is-maximized');
+                    }
+                    if (state.fullscreen) {
+                        document.body.classList.add('is-desktop-fullscreen');
+                    }
                 }
             }).catch(function() {});
         }
     }
 
-    // Expose hook for python to notify window state changes
+    // Expose hooks for python to notify window state changes
     window.__anibase_set_maximized = function(isMax) {
         document.body.classList.toggle('is-maximized', Boolean(isMax));
+    };
+
+    window.__anibase_set_fullscreen = function(isFull) {
+        document.body.classList.toggle('is-desktop-fullscreen', Boolean(isFull));
     };
 
     if (window.pywebview) {

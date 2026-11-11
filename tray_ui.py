@@ -565,6 +565,7 @@ def main():
             from anibase.desktop.shell import create_desktop_window
             create_desktop_window(APP_URL)
             webview.start(gui="edgechromium")
+            perform_graceful_shutdown()
             return 0
         except Exception as error:
             fallback_log(f"WebView2 desktop launch failed: {error}. Falling back to browser mode.")

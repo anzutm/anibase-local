@@ -395,7 +395,10 @@ def update_settings():
             if request.form.get("mal_rewatch_mode", "").strip().lower() in {"rewatch", "ignore", "revert"}
             else existing_settings.get("mal_rewatch_mode", "ignore")
         ),
-        "shortcuts": effective_shortcuts
+        "shortcuts": effective_shortcuts,
+        "desktop_minimize_to_tray": "desktop_minimize_to_tray" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_minimize_to_tray", True),
+        "desktop_start_minimized": "desktop_start_minimized" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_start_minimized", False),
+        "desktop_window": existing_settings.get("desktop_window", {})
     }
 
     if settings["theme_preset"] not in THEME_PRESETS:

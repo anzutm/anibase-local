@@ -30,10 +30,11 @@
         <a href="#settings-playback"><span>03</span> Playback</a>
         <a href="#settings-shortcuts"><span>04</span> Shortcuts</a>
         <a href="#settings-integrations"><span>05</span> Integrations</a>
-        <a href="#settings-myanimelist"><span>06</span> MyAnimeList</a>
-        <a href="#settings-automation"><span>07</span> Auto import</a>
-        <a href="#settings-maintenance"><span>08</span> Maintenance</a>
-        <a href="#settings-backup"><span>09</span> Backup & restore</a>
+        <a href="#settings-desktop"><span>06</span> Desktop app</a>
+        <a href="#settings-myanimelist"><span>07</span> MyAnimeList</a>
+        <a href="#settings-automation"><span>08</span> Auto import</a>
+        <a href="#settings-maintenance"><span>09</span> Maintenance</a>
+        <a href="#settings-backup"><span>10</span> Backup & restore</a>
         <p>Your library, your preferences.<br>Everything is stored locally.</p>
     </nav>
     <div class="settings-shell">
@@ -746,6 +747,42 @@
                             </select>
                             <p class="settings-helper">Applies on the next playback update. External players show session time because playback position is unavailable.</p>
                         </div>
+                    </section>
+
+                    <section class="settings-card settings-card-compact" id="settings-desktop">
+                        <div class="settings-card-head">
+                            <span class="settings-kicker">Desktop</span>
+                            <h3>Desktop Application</h3>
+                            <p>Configure Windows 11 desktop window and system tray behavior.</p>
+                        </div>
+
+                        <input type="hidden" name="desktop_settings_present" value="1">
+
+                        <label class="settings-toggle-row settings-toggle-row--subtle">
+                            <input
+                                type="checkbox"
+                                name="desktop_minimize_to_tray"
+                                {% if settings.desktop_minimize_to_tray %}checked{% endif %}
+                            >
+                            <span class="settings-toggle-ui" aria-hidden="true"></span>
+                            <span>
+                                <strong>Minimize to System Tray on close</strong>
+                                <small>Closing the desktop window hides it to the Windows notification area instead of quitting.</small>
+                            </span>
+                        </label>
+
+                        <label class="settings-toggle-row settings-toggle-row--subtle">
+                            <input
+                                type="checkbox"
+                                name="desktop_start_minimized"
+                                {% if settings.desktop_start_minimized %}checked{% endif %}
+                            >
+                            <span class="settings-toggle-ui" aria-hidden="true"></span>
+                            <span>
+                                <strong>Start minimized to System Tray</strong>
+                                <small>Launch AniBase silently in the background when the application starts.</small>
+                            </span>
+                        </label>
                     </section>
 
                     <section class="settings-card settings-card-compact" id="settings-myanimelist">

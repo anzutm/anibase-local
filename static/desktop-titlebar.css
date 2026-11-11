@@ -33,12 +33,19 @@ body.is-desktop-app.player-body .player-page {
 /* In fullscreen mode (video player or F11), hide titlebar */
 :fullscreen .desktop-titlebar,
 body.is-fullscreen .desktop-titlebar,
+body.is-desktop-fullscreen .desktop-titlebar,
 .plyr--fullscreen-active .desktop-titlebar {
     display: none !important;
 }
 
-body.is-desktop-app:is(:fullscreen, .is-fullscreen, .plyr--fullscreen-active) {
+body.is-desktop-app:is(:fullscreen, .is-fullscreen, .is-desktop-fullscreen, .plyr--fullscreen-active) {
     padding-top: 0 !important;
+}
+
+/* Rounded top corners on restored/windowed desktop app (Windows 11 Fluent style) */
+body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titlebar {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
 }
 
 .desktop-titlebar-left {

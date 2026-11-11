@@ -8,14 +8,17 @@ from anibase.desktop.shell import (
     load_saved_window_state,
     save_current_window_state,
     restore_desktop_window,
+    apply_windows_11_attributes,
     on_window_closing,
     on_window_maximized,
     on_window_restored,
+    on_window_fullscreened,
     on_window_resized,
     on_window_moved,
     _window_state,
 )
 import anibase.desktop.shell as desktop_shell
+from anibase.settings import load_settings, save_settings, get_action_token
 from anibase.web import create_app
 import build
 
@@ -39,11 +42,30 @@ class DesktopApiTests(unittest.TestCase):
         self.api.toggle_maximize()
         self.mock_window.maximize.assert_called_once()
 
-    def test_close_hides_window(self):
-        with patch("anibase.desktop.shell.save_current_window_state") as mock_save:
+    def test_toggle_fullscreen(self):
+        self.api.toggle_fullscreen()
+        self.mock_window.toggle_fullscreen.assert_called_once()
+
+    def test_is_fullscreen(self):
+        desktop_shell._window_state["fullscreen"] = True
+        self.assertTrue(self.api.is_fullscreen())
+        desktop_shell._window_state["fullscreen"] = False
+        self.assertFalse(self.api.is_fullscreen())
+
+    def test_close_hides_window_when_minimize_to_tray_true(self):
+        with patch("anibase.desktop.shell.save_current_window_state") as mock_save, \
+             patch("anibase.desktop.shell.load_settings", return_value={"desktop_minimize_to_tray": True}):
             self.api.close()
             mock_save.assert_called_once()
             self.mock_window.hide.assert_called_once()
+
+    def test_close_destroys_window_when_minimize_to_tray_false(self):
+        with patch("anibase.desktop.shell.save_current_window_state") as mock_save, \
+             patch("anibase.desktop.shell.load_settings", return_value={"desktop_minimize_to_tray": False}), \
+             patch("anibase.desktop.shell.close_desktop_window_permanent") as mock_close_perm:
+            self.api.close()
+            mock_save.assert_called_once()
+            mock_close_perm.assert_called_once()
 
     @patch("webbrowser.open")
     def test_open_external_calls_webbrowser(self, mock_webbrowser):
@@ -52,10 +74,16 @@ class DesktopApiTests(unittest.TestCase):
 
     def test_get_state_returns_dict(self):
         desktop_shell._window_state["maximized"] = False
+        desktop_shell._window_state["fullscreen"] = False
         desktop_shell._window_state["width"] = 1400
         desktop_shell._window_state["height"] = 900
         state = self.api.get_state()
-        self.assertEqual(state, {"maximized": False, "width": 1400, "height": 900})
+        self.assertEqual(state, {
+            "maximized": False,
+            "fullscreen": False,
+            "width": 1400,
+            "height": 900
+        })
 
 
 class WindowStateTests(unittest.TestCase):
@@ -93,6 +121,7 @@ class WindowStateTests(unittest.TestCase):
              patch("anibase.desktop.shell.load_settings", return_value={}), \
              patch("anibase.desktop.shell.save_settings", side_effect=fake_save):
             desktop_shell._window_state["maximized"] = False
+            desktop_shell._window_state["fullscreen"] = False
             save_current_window_state()
             self.assertIn("desktop_window", saved_dict)
             self.assertEqual(saved_dict["desktop_window"]["width"], 1350)
@@ -100,20 +129,61 @@ class WindowStateTests(unittest.TestCase):
             self.assertEqual(saved_dict["desktop_window"]["x"], 200)
             self.assertEqual(saved_dict["desktop_window"]["y"], 100)
 
-    def test_on_window_closing_intercepts_when_not_shutting_down(self):
+    def test_on_window_closing_intercepts_when_tray_enabled(self):
         mock_win = MagicMock()
         desktop_shell._is_shutting_down = False
         with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("anibase.desktop.shell.load_settings", return_value={"desktop_minimize_to_tray": True}), \
              patch("anibase.desktop.shell.save_current_window_state"):
             ret = on_window_closing()
             self.assertFalse(ret)
             mock_win.hide.assert_called_once()
 
-    def test_on_window_closing_allows_close_when_shutting_down(self):
-        desktop_shell._is_shutting_down = True
-        ret = on_window_closing()
-        self.assertTrue(ret)
+    def test_on_window_closing_allows_close_when_tray_disabled(self):
         desktop_shell._is_shutting_down = False
+        with patch("anibase.desktop.shell.load_settings", return_value={"desktop_minimize_to_tray": False}), \
+             patch("anibase.desktop.shell.save_current_window_state"):
+            ret = on_window_closing()
+            self.assertTrue(ret)
+            self.assertTrue(desktop_shell._is_shutting_down)
+        desktop_shell._is_shutting_down = False
+
+    def test_on_window_fullscreened(self):
+        mock_win = MagicMock()
+        with patch("anibase.desktop.shell.desktop_window", mock_win):
+            on_window_fullscreened()
+            self.assertTrue(desktop_shell._window_state["fullscreen"])
+            mock_win.evaluate_js.assert_called_once()
+
+    def test_on_window_restored(self):
+        mock_win = MagicMock()
+        with patch("anibase.desktop.shell.desktop_window", mock_win):
+            on_window_restored()
+            self.assertFalse(desktop_shell._window_state["maximized"])
+            self.assertFalse(desktop_shell._window_state["fullscreen"])
+            mock_win.evaluate_js.assert_called_once()
+
+
+class Windows11DWMTests(unittest.TestCase):
+    def test_apply_windows_11_attributes(self):
+        with patch("os.name", "nt"), \
+             patch("ctypes.windll") as mock_windll:
+            mock_dwmapi = MagicMock()
+            mock_dwmapi.DwmSetWindowAttribute.return_value = 0
+            mock_user32 = MagicMock()
+            mock_user32.GetWindowLongW.return_value = 0x10000000
+            mock_windll.dwmapi = mock_dwmapi
+            mock_windll.user32 = mock_user32
+
+            apply_windows_11_attributes(12345)
+
+            # Assert DWM calls for dark mode (20), corner preference (33), border color (34)
+            calls = [c[0][1] for c in mock_dwmapi.DwmSetWindowAttribute.call_args_list]
+            self.assertIn(20, calls)
+            self.assertIn(33, calls)
+            self.assertIn(34, calls)
+            # Assert Win32 SetWindowLongW was called to add WS_THICKFRAME
+            mock_user32.SetWindowLongW.assert_called_once()
 
 
 class DesktopWebIntegrationTests(unittest.TestCase):
@@ -148,6 +218,36 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.assertIn('id="desktopBtnMin"', html)
         self.assertIn('id="desktopBtnMax"', html)
         self.assertIn('id="desktopBtnClose"', html)
+
+    def test_settings_page_renders_desktop_options(self):
+        resp = self.client.get("/settings")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="settings-desktop"', html)
+        self.assertIn('name="desktop_minimize_to_tray"', html)
+        self.assertIn('name="desktop_start_minimized"', html)
+
+    def test_settings_post_updates_desktop_preferences(self):
+        with self.app.test_request_context():
+            token = get_action_token()
+
+        initial_settings = load_settings()
+        initial_settings["desktop_window"] = {"width": 1400, "height": 900}
+        save_settings(initial_settings)
+
+        resp = self.client.post("/settings", data={
+            "action_token": token,
+            "desktop_settings_present": "1",
+            "desktop_minimize_to_tray": "on",
+            # desktop_start_minimized left out (unchecked)
+        }, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        updated = load_settings()
+        self.assertTrue(updated["desktop_minimize_to_tray"])
+        self.assertFalse(updated["desktop_start_minimized"])
+        # Preserved desktop_window
+        self.assertEqual(updated.get("desktop_window", {}).get("width"), 1400)
 
     def test_build_assets_include_desktop_titlebar(self):
         self.assertIn("templates/_desktop_titlebar.html", build.REQUIRED_ASSETS)
