@@ -527,6 +527,10 @@ def create_desktop_window(url):
         try:
             os.makedirs(webview2_cache_dir, exist_ok=True)
             os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_cache_dir)
+            os.environ.setdefault(
+                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist",
+            )
         except OSError:
             pass
 

@@ -314,10 +314,11 @@ function isSeekTargetBuffered(targetTime) {
 }
 
 function applyMediaSeek(targetTime) {
-    // `fastSeek()` may jump to a keyframe outside the currently buffered
-    // range, causing an unnecessary network stall even for a nearby seek.
-    // Assigning currentTime lets the browser use the existing buffer first.
-    player.currentTime = targetTime;
+    if (videoElement) {
+        videoElement.currentTime = targetTime;
+    } else if (player) {
+        player.currentTime = targetTime;
+    }
 }
 
 let timelineDragging = false;
@@ -365,14 +366,14 @@ function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
 
     const targetIsBuffered = isSeekTargetBuffered(seekFeedbackState.targetTime);
     clearTimeout(seekFeedbackState.seekTimer);
-    // Jika target sudah ada di dalam buffer, eksekusi sangat cepat (30ms).
-    // Jika belum di-buffer, debounce singkat (100ms) agar ketukan beruntun terkumpul tanpa terasa lag.
+    // Jika target sudah ada di dalam buffer, eksekusi instan (15ms).
+    // Jika belum di-buffer, debounce singkat (70ms) agar ketukan beruntun terkumpul tanpa terasa lag.
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
             applyMediaSeek(seekFeedbackState.targetTime);
             seekFeedbackState.targetTime = null;
         }
-    }, targetIsBuffered ? 30 : 100);
+    }, targetIsBuffered ? 15 : 70);
 }
 
 // Saat tombol panah dilepas (keyup), segera eksekusi seek tanpa menunggu timer

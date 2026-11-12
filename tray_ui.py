@@ -569,6 +569,10 @@ def main():
                 try:
                     os.makedirs(webview2_dir, exist_ok=True)
                     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_dir)
+                    os.environ.setdefault(
+                        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                        "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist",
+                    )
                 except OSError:
                     pass
 
