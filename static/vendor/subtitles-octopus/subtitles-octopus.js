@@ -1425,7 +1425,11 @@ var SubtitlesOctopus = function (options) {
             var newSize = _computeCanvasSize(videoSize.width * self.pixelRatio, videoSize.height * self.pixelRatio);
             width = newSize.width;
             height = newSize.height;
-            var offset = self.canvasParent.getBoundingClientRect().top - self.video.getBoundingClientRect().top;
+            var isAbsoluteParent = self.canvasParent && (
+                self.canvasParent.style.position === 'absolute' ||
+                (window.getComputedStyle && window.getComputedStyle(self.canvasParent).position === 'absolute')
+            );
+            var offset = isAbsoluteParent ? 0 : (self.canvasParent.getBoundingClientRect().top - self.video.getBoundingClientRect().top);
             top = videoSize.y - offset;
             left = videoSize.x;
         }
@@ -1447,7 +1451,9 @@ var SubtitlesOctopus = function (options) {
             self.canvas.height = height;
 
             if (videoSize != null) {
-                self.canvasParent.style.position = 'relative';
+                if (self.canvasParent.style.position !== 'absolute') {
+                    self.canvasParent.style.position = 'relative';
+                }
                 self.canvas.style.display = 'block';
                 self.canvas.style.position = 'absolute';
                 self.canvas.style.width = videoSize.width + 'px';

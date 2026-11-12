@@ -162,8 +162,16 @@ body.player-body .video-player-container::before {
     background: linear-gradient(135deg, color-mix(in srgb, var(--player-accent) 13%, transparent), transparent 29%);
 }
 
-body.player-body .video-player,
+body.player-body .video-player {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9 !important;
+    max-height: none !important;
+    border-radius: 0;
+}
+
 body.player-body .plyr {
+    height: 100%;
     border-radius: 0;
 }
 

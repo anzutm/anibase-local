@@ -146,26 +146,52 @@
                         if (!current()) return;
                         clearTimeout(this.readyTimer);
                         this.video.dataset.subtitleRenderer = 'ass';
+                        if (this.renderer?.canvasParent) {
+                            this.renderer.canvasParent.style.position = 'absolute';
+                            this.renderer.canvasParent.style.top = '0px';
+                            this.renderer.canvasParent.style.left = '0px';
+                            this.renderer.canvasParent.style.width = '100%';
+                            this.renderer.canvasParent.style.height = '100%';
+                            this.renderer.canvasParent.style.pointerEvents = 'none';
+                        }
                         this.syncVisibility();
                     },
                     onError: () => queueMicrotask(() => fallback(true))
                 });
                 const renderer = this.renderer;
+                if (renderer.canvasParent) {
+                    renderer.canvasParent.style.position = 'absolute';
+                    renderer.canvasParent.style.top = '0px';
+                    renderer.canvasParent.style.left = '0px';
+                    renderer.canvasParent.style.width = '100%';
+                    renderer.canvasParent.style.height = '100%';
+                    renderer.canvasParent.style.pointerEvents = 'none';
+                }
                 const resize = renderer.resize;
                 renderer.resize = (...args) => {
                     if (!renderer.worker || !renderer.video) return;
+                    if (renderer.canvasParent) {
+                        renderer.canvasParent.style.position = 'absolute';
+                        renderer.canvasParent.style.top = '0px';
+                        renderer.canvasParent.style.left = '0px';
+                        renderer.canvasParent.style.width = '100%';
+                        renderer.canvasParent.style.height = '100%';
+                    }
                     const position = renderer.getVideoPosition();
+                    renderer.canvas.style.top = `${position.y}px`;
+                    renderer.canvas.style.left = `${position.x}px`;
+                    renderer.canvas.style.width = `${position.width}px`;
+                    renderer.canvas.style.height = `${position.height}px`;
+
                     if (!args.length && renderer.canvas.width === Math.floor(position.width * renderer.pixelRatio)
                         && renderer.canvas.height === Math.floor(position.height * renderer.pixelRatio)) {
-                        // Moving letterboxes need only CSS updates. Resetting the canvas at
-                        // unchanged resolution erases paused subtitles without a worker redraw.
-                        const offset = renderer.canvasParent.getBoundingClientRect().top
-                            - renderer.video.getBoundingClientRect().top;
-                        renderer.canvas.style.top = `${position.y - offset}px`;
-                        renderer.canvas.style.left = `${position.x}px`;
                         return;
                     }
                     resize(...args);
+                    renderer.canvas.style.top = `${position.y}px`;
+                    renderer.canvas.style.left = `${position.x}px`;
+                    renderer.canvas.style.width = `${position.width}px`;
+                    renderer.canvas.style.height = `${position.height}px`;
                 };
                 this.readyTimer = window.setTimeout(() => fallback(true), 30000);
                 this.syncVisibility();

@@ -173,6 +173,11 @@
                 showZoomToast(factor);
             }
 
+            // Immediately trigger resize event so media players, Plyr, and SubtitlesOctopus recalculate coordinates
+            try {
+                window.dispatchEvent(new Event('resize'));
+            } catch (_) {}
+
             // Debounce syncing to python backend to eliminate IPC flooding during rapid wheel or key events
             if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
                 if (syncZoomTimer) clearTimeout(syncZoomTimer);

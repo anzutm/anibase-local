@@ -1,4 +1,11 @@
 /* Native/Plyr captions are only a fallback; never draw them over the ASS canvas. */
 .anibase-ass-active .plyr__captions { display: none !important; }
-.libassjs-canvas-parent { pointer-events: none; }
+.libassjs-canvas-parent {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none !important;
+}
 .subtitle-renderer-notice { margin: 8px 0; font-size: 12px; color: inherit; opacity: .8; }
