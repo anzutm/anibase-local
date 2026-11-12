@@ -25,6 +25,15 @@ body.is-desktop-app {
     padding-top: 32px;
 }
 
+/* On desktop app, offset floating topbar so it floats cleanly below the 32px titlebar */
+body.is-desktop-app #anibaseTopbar {
+    top: 42px;
+}
+
+body.is-desktop-app:is(:fullscreen, .is-fullscreen, .is-desktop-fullscreen, .plyr--fullscreen-active) #anibaseTopbar {
+    top: 18px;
+}
+
 /* On player page, ensure backdrop and shell respect desktop titlebar */
 body.is-desktop-app.player-body .player-page {
     padding-top: 0;
@@ -154,6 +163,10 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
 
 .desktop-control-btn.btn-close:active {
     background: #bf0f1d !important;
+}
+
+body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-control-btn.btn-close {
+    border-top-right-radius: 8px;
 }
 
 /* When maximized, swap square icon */

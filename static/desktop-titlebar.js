@@ -33,7 +33,7 @@
         function syncTitle() {
             if (!titleEl) return;
             let pageTitle = document.title || 'AniBase';
-            pageTitle = pageTitle.replace(/\s*-\s*AniBase\s*$/, '').trim();
+            pageTitle = pageTitle.replace(/^AniBase\s*[-·|:]\s*/i, '').replace(/\s*[-·|:]\s*AniBase$/i, '').trim();
             titleEl.textContent = pageTitle || 'AniBase';
         }
         syncTitle();
@@ -235,6 +235,13 @@
                         window.pywebview.api.close();
                     }
                     return;
+                } else if (e.key.toLowerCase() === 'f') {
+                    const isInput = e.target && e.target.closest && e.target.closest('input, textarea, [contenteditable="true"]');
+                    if (!isInput && window.AniBaseSpotlight && window.AniBaseSpotlight.open) {
+                        e.preventDefault();
+                        window.AniBaseSpotlight.open();
+                        return;
+                    }
                 }
             }
             if (e.key === 'F11') {
@@ -245,6 +252,22 @@
                     document.exitFullscreen().catch(function() {});
                 } else {
                     document.documentElement.requestFullscreen().catch(function() {});
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                const spotlight = document.getElementById('spotlightOverlay');
+                const isSpotlightOpen = spotlight && spotlight.classList.contains('is-open');
+                if (!isSpotlightOpen) {
+                    const isFull = document.body.classList.contains('is-desktop-fullscreen') || Boolean(document.fullscreenElement);
+                    if (isFull) {
+                        e.preventDefault();
+                        if (window.pywebview && window.pywebview.api && window.pywebview.api.set_fullscreen) {
+                            window.pywebview.api.set_fullscreen(false);
+                        } else if (document.fullscreenElement) {
+                            document.exitFullscreen().catch(function() {});
+                        }
+                    }
                 }
             }
         }, { capture: true });

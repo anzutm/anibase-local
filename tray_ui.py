@@ -561,6 +561,17 @@ def main():
         qt_thread.start()
 
         try:
+            if os.name == "nt":
+                local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+                if not local_app_data:
+                    local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+                webview2_dir = os.path.join(local_app_data, "AniBase", "webview2")
+                try:
+                    os.makedirs(webview2_dir, exist_ok=True)
+                    os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_dir)
+                except OSError:
+                    pass
+
             import webview
             from anibase.desktop.shell import create_desktop_window
             create_desktop_window(APP_URL)

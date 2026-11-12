@@ -353,6 +353,12 @@ def configure_webview2_settings(window=None):
                 if settings:
                     settings.AreBrowserAcceleratorKeysEnabled = True
                     settings.IsZoomControlEnabled = True
+                    if hasattr(settings, "IsStatusBarEnabled"):
+                        settings.IsStatusBarEnabled = False
+                    if hasattr(settings, "IsSwipeNavigationEnabled"):
+                        settings.IsSwipeNavigationEnabled = False
+                    if hasattr(settings, "AreDefaultContextMenusEnabled"):
+                        settings.AreDefaultContextMenusEnabled = False
                 if type(win.native).__name__ == "MagicMock":
                     core.ZoomFactor = float(_window_state.get("zoom", 1.0))
             except Exception:
@@ -487,7 +493,19 @@ def restore_desktop_window():
                 hwnd = get_window_hwnd()
                 if hwnd:
                     user32 = ctypes.windll.user32
-                    user32.SetForegroundWindow(hwnd)
+                    SW_RESTORE = 9
+                    user32.ShowWindow(hwnd, SW_RESTORE)
+                    fore_hwnd = user32.GetForegroundWindow()
+                    if fore_hwnd and fore_hwnd != hwnd:
+                        cur_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+                        fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None)
+                        user32.AttachThreadInput(cur_thread, fore_thread, True)
+                        user32.SetForegroundWindow(hwnd)
+                        user32.BringWindowToTop(hwnd)
+                        user32.AttachThreadInput(cur_thread, fore_thread, False)
+                    else:
+                        user32.SetForegroundWindow(hwnd)
+                        user32.BringWindowToTop(hwnd)
             except Exception:
                 pass
         return True
@@ -498,6 +516,17 @@ def restore_desktop_window():
 def create_desktop_window(url):
     """Initializes and returns the pywebview desktop window."""
     global desktop_window, desktop_api
+
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+        if not local_app_data:
+            local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+        webview2_cache_dir = os.path.join(local_app_data, "AniBase", "webview2")
+        try:
+            os.makedirs(webview2_cache_dir, exist_ok=True)
+            os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_cache_dir)
+        except OSError:
+            pass
 
     load_saved_window_state()
     settings = load_settings()

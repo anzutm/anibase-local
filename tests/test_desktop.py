@@ -414,6 +414,53 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.assertIn("static/desktop-titlebar.css", build.REQUIRED_ASSETS)
         self.assertIn("static/desktop-titlebar.js", build.REQUIRED_ASSETS)
 
+    def test_configure_webview2_enhanced_settings(self):
+        mock_win = MagicMock()
+        mock_core = MagicMock()
+        mock_settings = MagicMock()
+        mock_core.Settings = mock_settings
+        mock_webview_ctrl = MagicMock()
+        mock_webview_ctrl.CoreWebView2 = mock_core
+        mock_win.native.webview = mock_webview_ctrl
+        mock_win.native.InvokeRequired = False
+
+        res = desktop_shell.configure_webview2_settings(mock_win)
+        self.assertTrue(res)
+        self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
+        self.assertTrue(mock_settings.IsZoomControlEnabled)
+        self.assertFalse(mock_settings.IsStatusBarEnabled)
+        self.assertFalse(mock_settings.IsSwipeNavigationEnabled)
+        self.assertFalse(mock_settings.AreDefaultContextMenusEnabled)
+
+    def test_restore_desktop_window_win32_calls(self):
+        mock_win = MagicMock()
+        with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("anibase.desktop.shell.get_window_hwnd", return_value=54321), \
+             patch("os.name", "nt"), \
+             patch("ctypes.windll") as mock_windll:
+            mock_user32 = MagicMock()
+            mock_windll.user32 = mock_user32
+            mock_user32.GetForegroundWindow.return_value = 54321
+            mock_win.show = MagicMock()
+            mock_win.restore = MagicMock()
+
+            desktop_shell._window_state["maximized"] = False
+            res = desktop_shell.restore_desktop_window()
+            self.assertTrue(res)
+            mock_win.show.assert_called_once()
+            mock_win.restore.assert_called_once()
+            mock_user32.ShowWindow.assert_called_once_with(54321, 9)
+            mock_user32.SetForegroundWindow.assert_called_once_with(54321)
+            mock_user32.BringWindowToTop.assert_called_once_with(54321)
+
+    def test_desktop_titlebar_css_spacing_and_spacer(self):
+        css_path = os.path.join(build.PROJECT_ROOT, "static", "desktop-titlebar.css")
+        with open(css_path, "r", encoding="utf-8") as f:
+            css_text = f.read()
+        self.assertIn(".desktop-titlebar-spacer", css_text)
+        self.assertIn("body.is-desktop-app #anibaseTopbar", css_text)
+        self.assertIn("top: 42px", css_text)
+
 
 if __name__ == "__main__":
     unittest.main()
