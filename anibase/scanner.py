@@ -6,6 +6,7 @@ import re
 import json
 import shutil
 import hashlib
+import functools
 from datetime import datetime
 
 import anibase.constants as _constants
@@ -125,7 +126,8 @@ def get_existing_anime_names():
     return existing_names
 
 
-def find_anime_path(anime_name):
+@functools.lru_cache(maxsize=256)
+def _find_anime_path_cached(anime_name, paths_tuple):
     if (
         not isinstance(anime_name, str)
         or not anime_name
@@ -153,6 +155,19 @@ def find_anime_path(anime_name):
         if is_anime_library_folder(anime_path):
             return anime_path
     return None
+
+
+def find_anime_path(anime_name):
+    return _find_anime_path_cached(anime_name, tuple(_constants.ANIME_PATHS))
+
+
+def clear_media_path_cache():
+    _find_anime_path_cached.cache_clear()
+    try:
+        from anibase.utils import safe_join_media_path
+        safe_join_media_path.cache_clear()
+    except Exception:
+        pass
 
 
 def find_media_path(library_name):

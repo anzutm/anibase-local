@@ -217,17 +217,33 @@ async function loadSeekPreview(generation, attempts = 0) {
     }
 }
 
-function startSeekPreview() {
+function startSeekPreview(delayMs = 0) {
     if (previewStarted) return;
     previewStarted = true;
     const generation = previewGeneration;
-    previewTimer = setTimeout(() => loadSeekPreview(generation), 1500);
+    clearTimeout(previewTimer);
+    if (delayMs > 0) {
+        previewTimer = setTimeout(() => {
+            if (!_seekingActive && !videoElement.paused) loadSeekPreview(generation);
+        }, delayMs);
+    } else {
+        loadSeekPreview(generation);
+    }
 }
-player.on('playing', startSeekPreview);
-// Autoplay may already have started before this script's listeners were bound.
-if (!videoElement.paused && videoElement.readyState >= 2) startSeekPreview();
-window.addEventListener('pageshow', () => {
-    if (!videoElement.paused) startSeekPreview();
+
+function hookSeekPreviewEvents() {
+    const container = player.elements?.container || videoElement.closest('.video-player');
+    if (!container) return;
+    const progressBar = container.querySelector('input[data-plyr="seek"]') || container.querySelector('.plyr__progress');
+    if (progressBar) {
+        progressBar.addEventListener('pointerenter', () => startSeekPreview(0), { once: true });
+        progressBar.addEventListener('touchstart',   () => startSeekPreview(0), { once: true, passive: true });
+    }
+}
+player.on('ready', hookSeekPreviewEvents);
+// Fallback ramah-I/O: Hanya muat thumbnail seekbar setelah pemutaran stabil >45 detik tanpa interupsi seek
+player.on('playing', () => {
+    if (!previewStarted) startSeekPreview(45000);
 });
 player.on('play seeked', () => {
     const preview = player.previewThumbnails;
@@ -314,6 +330,13 @@ function isSeekTargetBuffered(targetTime) {
 }
 
 function applyMediaSeek(targetTime) {
+    // fastSeek melompat langsung ke I-frame (keyframe) terdekat layaknya VLC, tanpa decode frame perantara
+    if (videoElement && typeof videoElement.fastSeek === 'function') {
+        try {
+            videoElement.fastSeek(targetTime);
+            return;
+        } catch (_) {}
+    }
     if (videoElement) {
         videoElement.currentTime = targetTime;
     } else if (player) {
@@ -354,7 +377,7 @@ window.addEventListener('blur', commitTimelineSeek);
 function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
     const duration = Number(player.duration || videoElement.duration || 0);
     const currentTime = seekFeedbackState.targetTime === null
-        ? Number(player.currentTime || 0)
+        ? Number(videoElement?.currentTime || player.currentTime || 0)
         : seekFeedbackState.targetTime;
     const delta = direction === 'forward' ? stepSeconds : -stepSeconds;
     seekFeedbackState.targetTime = Math.max(
@@ -366,23 +389,24 @@ function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
 
     const targetIsBuffered = isSeekTargetBuffered(seekFeedbackState.targetTime);
     clearTimeout(seekFeedbackState.seekTimer);
-    // Jika target sudah ada di dalam buffer, eksekusi instan (15ms).
-    // Jika belum di-buffer, debounce singkat (70ms) agar ketukan beruntun terkumpul tanpa terasa lag.
+    // Jika target sudah ada di dalam buffer, eksekusi instan (10ms).
+    // Jika belum di-buffer, debounce sangat singkat (35ms) agar ketukan beruntun terkumpul tanpa terasa lag.
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
             applyMediaSeek(seekFeedbackState.targetTime);
             seekFeedbackState.targetTime = null;
         }
-    }, targetIsBuffered ? 15 : 70);
+    }, targetIsBuffered ? 10 : 35);
 }
 
-// Saat tombol panah dilepas (keyup), segera eksekusi seek tanpa menunggu timer
+// Saat tombol seek dilepas (keyup), segera eksekusi seek instan tanpa menunggu sisa timer
 window.addEventListener('keyup', (event) => {
-    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     if (seekFeedbackState.targetTime === null) return;
-    clearTimeout(seekFeedbackState.seekTimer);
-    applyMediaSeek(seekFeedbackState.targetTime);
-    seekFeedbackState.targetTime = null;
+    if (['ArrowLeft', 'ArrowRight', 'j', 'l', 'J', 'L'].includes(event.key) || event.key.startsWith('Arrow')) {
+        clearTimeout(seekFeedbackState.seekTimer);
+        applyMediaSeek(seekFeedbackState.targetTime);
+        seekFeedbackState.targetTime = null;
+    }
 });
 
 // Recover one stalled media connection without restarting the server. A second

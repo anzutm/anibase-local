@@ -16,6 +16,7 @@ import subprocess
 import threading
 import socket
 import select
+import email.utils
 from io import BytesIO
 from datetime import datetime
 from urllib.parse import urlparse, quote_plus
@@ -1043,7 +1044,8 @@ def _generate_video_chunks(video_path, start, length, sock=None):
     file_handle = None
     chunk_count = 0
     try:
-        file_handle = open(video_path, "rb")
+        # Buffer 256 KB pada level C runtime untuk read-ahead throughput maksimal di disk
+        file_handle = open(video_path, "rb", buffering=262144)
         if start > 0:
             file_handle.seek(start)
         while bytes_remaining > 0:
@@ -1057,8 +1059,8 @@ def _generate_video_chunks(video_path, start, length, sock=None):
                     break
 
             # 64 KB untuk 2 chunk awal agar decoder Chromium segera menerima NAL/keyframe (<1ms),
-            # lalu 128 KB untuk throughput stabil tanpa menahan GIL lama-lama.
-            chunk_size = 65536 if chunk_count < 2 else 131072
+            # lalu 256 KB untuk streaming sekuensial berkecepatan tinggi tanpa menahan GIL.
+            chunk_size = 65536 if chunk_count < 2 else 262144
             to_read = min(chunk_size, bytes_remaining)
             chunk = file_handle.read(to_read)
             if not chunk:
@@ -1121,6 +1123,8 @@ def stream_video(anime_name, episode):
             pass
 
     etag = f'"{int(stat_result.st_mtime)}-{file_size}"'
+    last_modified = email.utils.formatdate(stat_result.st_mtime, usegmt=True)
+    expose_headers = "Content-Range, Accept-Ranges, Content-Length, Content-Type, ETag, Last-Modified"
     range_header = request.headers.get("Range")
 
     if range_header:
@@ -1134,6 +1138,7 @@ def stream_video(anime_name, episode):
                     "Content-Range": f"bytes */{file_size}",
                     "Accept-Ranges": "bytes",
                     "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": expose_headers,
                 }
             )
 
@@ -1146,6 +1151,8 @@ def stream_video(anime_name, episode):
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "private, max-age=3600",
                 "Access-Control-Allow-Origin": "*",
+                "Access-Control-Expose-Headers": expose_headers,
+                "Last-Modified": last_modified,
                 "ETag": etag,
             }
 
@@ -1166,6 +1173,8 @@ def stream_video(anime_name, episode):
         "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=3600",
         "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": expose_headers,
+        "Last-Modified": last_modified,
         "ETag": etag,
     }
 

@@ -571,7 +571,7 @@ def main():
                     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_dir)
                     os.environ.setdefault(
                         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                        "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist",
+                        "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
                     )
                 except OSError:
                     pass

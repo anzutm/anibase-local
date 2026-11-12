@@ -242,6 +242,11 @@ def apply_settings(settings, reset_discord_rpc_fn=None):
     constants.ANIME_PATHS = get_settings_library_paths(merged)
     constants.MOVIE_PATH = normalize_library_path(merged["movie_path"])
     constants.VLC_PATH = normalize_library_path(merged["vlc_path"])
+    try:
+        from anibase.scanner import clear_media_path_cache
+        clear_media_path_cache()
+    except Exception:
+        pass
 
     if reset_discord_rpc_fn is None:
         try:

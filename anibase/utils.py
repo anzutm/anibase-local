@@ -9,6 +9,7 @@ import shutil
 import json
 import re
 import threading
+import functools
 from datetime import datetime
 
 import anibase.constants as constants
@@ -41,8 +42,9 @@ def with_hidden_subprocess_window(kwargs):
         else:
             merged.setdefault(key, value)
     if os.name == "nt" and low_priority:
-        # BELOW_NORMAL_PRIORITY_CLASS (0x00004000) prevents background tasks from starving media playback
-        merged["creationflags"] = merged.get("creationflags", 0) | 0x00004000
+        # IDLE_PRIORITY_CLASS (0x00000040) ensures background tasks (FFmpeg thumbnails/previews)
+        # only run when no other process/thread needs CPU or disk I/O, preventing media stream lag.
+        merged["creationflags"] = merged.get("creationflags", 0) | 0x00000040
     return merged
 
 def run_hidden_subprocess(args, **kwargs):
@@ -342,6 +344,7 @@ def clean_movie_title(filename):
     title = re.sub(r"\bBD\b", "", title, flags=re.I)
     return " ".join(title.split())
 
+@functools.lru_cache(maxsize=512)
 def safe_join_media_path(base_path, relative_path):
     if not base_path:
         return None
