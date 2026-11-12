@@ -2065,9 +2065,7 @@ class InternalUrlEncodingTests(unittest.TestCase):
         self.assertEqual(response.data, b"ide")
         self.assertEqual(response.headers.get("Accept-Ranges"), "bytes")
         self.assertEqual(response.headers.get("Content-Range"), "bytes 1-3/5")
-        # Cache-Control untuk video stream: no-store agar browser manage buffer sendiri
-        # dan tidak terjadi konflik antara partial cached range yang berbeda.
-        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        self.assertIn("private", response.headers.get("Cache-Control", ""))
         response.close()
 
     def test_poster_and_character_urls_with_normal_special_names_work(self):

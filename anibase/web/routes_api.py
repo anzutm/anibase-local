@@ -984,15 +984,15 @@ def thumbnail(anime_name, episode):
     return media_generation_error_response(thumbnail_result)
 
 
-STREAM_CHUNK_SIZE = 524288  # 512 KB per I/O read block — lebih cepat untuk disk lokal
-STREAM_MAX_BURST_SIZE = 32 * 1024 * 1024  # 32 MB max untuk open-ended range (cukup untuk 2-3 menit video)
+STREAM_CHUNK_SIZE = 262144  # 256 KB per I/O read block — responsif untuk streaming lokal & seek cepat
 
 
-def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST_SIZE):
+def _parse_stream_byte_range(range_header, file_size):
     """
     Mengurai header HTTP Range dan mengembalikan tuple (start, end, length).
     Jika range_header kosong, mengembalikan None.
     Jika tidak valid / out of bounds, melempar ValueError.
+    Mengikuti RFC 7233: open range 'bytes=start-' mencakup hingga file_size - 1.
     """
     if not range_header or not range_header.startswith("bytes="):
         return None
@@ -1024,7 +1024,7 @@ def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST
                 raise ValueError("Invalid range end")
             end = min(end, file_size - 1)
         else:
-            end = min(start + max_burst - 1, file_size - 1)
+            end = file_size - 1
     else:
         raise ValueError("Malformed range header")
 
@@ -1036,21 +1036,13 @@ def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST
 
 
 def _generate_video_chunks(video_path, start, length, chunk_size=STREAM_CHUNK_SIZE):
-    """Membaca segmen video dalam blok 512 KB dengan auto-close dan penanganan client disconnect."""
+    """Membaca segmen video dalam blok 256 KB dengan auto-close dan penanganan client disconnect."""
     bytes_remaining = length
     file_handle = None
     try:
-        # Buka file dengan flag sequential-scan agar OS prefetch buffer lebih optimal
-        # (tidak ada efek negatif di Linux/Mac — hanya hint di Windows kernel)
-        flags = os.O_RDONLY
-        if hasattr(os, "O_SEQUENTIAL"):
-            flags |= os.O_SEQUENTIAL  # Windows: FILE_FLAG_SEQUENTIAL_SCAN
-        if hasattr(os, "O_BINARY"):
-            flags |= os.O_BINARY  # Windows: buka sebagai binary
-        raw_fd = os.open(video_path, flags)
-        file_handle = os.fdopen(raw_fd, "rb", buffering=0)  # unbuffered — kita buffer sendiri
+        file_handle = open(video_path, "rb")
         if start > 0:
-            os.lseek(raw_fd, start, os.SEEK_SET)
+            file_handle.seek(start)
         while bytes_remaining > 0:
             to_read = min(chunk_size, bytes_remaining)
             chunk = file_handle.read(to_read)
@@ -1127,9 +1119,8 @@ def stream_video(anime_name, episode):
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Content-Length": str(length),
                 "Accept-Ranges": "bytes",
-                "Cache-Control": "no-store",  # jangan cache byte-range partial — browser manage sendiri
+                "Cache-Control": "private, max-age=3600",
                 "ETag": etag,
-                "Vary": "Range",
             }
 
             if request.method == "HEAD":
@@ -1147,7 +1138,7 @@ def stream_video(anime_name, episode):
         "Content-Type": mime_type,
         "Content-Length": str(file_size),
         "Accept-Ranges": "bytes",
-        "Cache-Control": "no-store",  # biarkan browser/WebView2 kelola buffering sendiri
+        "Cache-Control": "private, max-age=3600",
         "ETag": etag,
     }
 

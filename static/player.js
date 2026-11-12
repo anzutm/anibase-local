@@ -363,17 +363,26 @@ function seekByShortcut(direction, stepSeconds = SEEK_STEP_SECONDS) {
 
     showSeekFeedback(direction, stepSeconds);
 
-    // Debounce eksekusi seek (220ms): Mengumpulkan akumulasi ketukan tombol (+5, +10, +15... +30s)
-    // dan hanya mengeksekusi 1 kali seek ke browser decoder setelah penekanan berhenti,
-    // menghindari pembatalan socket dan buffering berulang.
+    const targetIsBuffered = isSeekTargetBuffered(seekFeedbackState.targetTime);
     clearTimeout(seekFeedbackState.seekTimer);
+    // Jika target sudah ada di dalam buffer, eksekusi sangat cepat (30ms).
+    // Jika belum di-buffer, debounce singkat (100ms) agar ketukan beruntun terkumpul tanpa terasa lag.
     seekFeedbackState.seekTimer = setTimeout(() => {
         if (seekFeedbackState.targetTime !== null) {
             applyMediaSeek(seekFeedbackState.targetTime);
             seekFeedbackState.targetTime = null;
         }
-    }, 220);
+    }, targetIsBuffered ? 30 : 100);
 }
+
+// Saat tombol panah dilepas (keyup), segera eksekusi seek tanpa menunggu timer
+window.addEventListener('keyup', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    if (seekFeedbackState.targetTime === null) return;
+    clearTimeout(seekFeedbackState.seekTimer);
+    applyMediaSeek(seekFeedbackState.targetTime);
+    seekFeedbackState.targetTime = null;
+});
 
 // Recover one stalled media connection without restarting the server. A second
 // stall in the same episode is left visible rather than entering a reload loop.
