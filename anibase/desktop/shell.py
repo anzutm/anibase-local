@@ -449,14 +449,16 @@ def on_window_fullscreened():
 def on_window_restored():
     if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
         return
+    was_fullscreen = bool(_window_state.get("fullscreen"))
     _window_state["maximized"] = False
     _window_state["fullscreen"] = False
-    hwnd = get_window_hwnd()
-    if hwnd:
-        try:
-            apply_windows_11_attributes(hwnd)
-        except Exception:
-            pass
+    if was_fullscreen:
+        hwnd = get_window_hwnd()
+        if hwnd:
+            try:
+                apply_windows_11_attributes(hwnd)
+            except Exception:
+                pass
     safe_evaluate_js(
         "window.__anibase_set_maximized && window.__anibase_set_maximized(false);"
         "window.__anibase_set_fullscreen && window.__anibase_set_fullscreen(false);"

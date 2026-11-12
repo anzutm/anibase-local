@@ -159,6 +159,7 @@
         }
 
         let syncZoomTimer = null;
+        let resizeDispatchTimer = null;
         function applyZoom(factor, showToast) {
             factor = Math.max(0.5, Math.min(3.0, Math.round(factor * 100) / 100));
             currentZoom = factor;
@@ -173,17 +174,21 @@
                 showZoomToast(factor);
             }
 
-            // Immediately trigger resize event so media players, Plyr, and SubtitlesOctopus recalculate coordinates
-            try {
-                window.dispatchEvent(new Event('resize'));
-            } catch (_) {}
+            // Debounce synthetic resize event so media players, Plyr, and SubtitlesOctopus recalculate coordinates
+            // without choking WebWorkers or GPU compositor during continuous scrolling/keystrokes
+            if (resizeDispatchTimer) clearTimeout(resizeDispatchTimer);
+            resizeDispatchTimer = setTimeout(function() {
+                try {
+                    window.dispatchEvent(new Event('resize'));
+                } catch (_) {}
+            }, 60);
 
             // Debounce syncing to python backend to eliminate IPC flooding during rapid wheel or key events
             if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
                 if (syncZoomTimer) clearTimeout(syncZoomTimer);
                 syncZoomTimer = setTimeout(function() {
                     window.pywebview.api.set_zoom(factor).catch(function() {});
-                }, 150);
+                }, 200);
             }
         }
 
@@ -277,17 +282,35 @@
             }
         }, { capture: true });
 
-        // Ctrl + Mouse Wheel for instant zoom
+        // Ctrl + Mouse Wheel for smooth, throttled zoom
+        let wheelAccumulator = 0;
+        let wheelThrottleTimer = null;
         window.addEventListener('wheel', function(e) {
             if (e.ctrlKey) {
                 e.preventDefault();
-                if (e.deltaY < 0) {
-                    zoomIn();
-                } else if (e.deltaY > 0) {
-                    zoomOut();
+                wheelAccumulator += e.deltaY;
+                if (!wheelThrottleTimer) {
+                    wheelThrottleTimer = setTimeout(function() {
+                        wheelThrottleTimer = null;
+                        if (wheelAccumulator < -20) {
+                            zoomIn();
+                        } else if (wheelAccumulator > 20) {
+                            zoomOut();
+                        }
+                        wheelAccumulator = 0;
+                    }, 40);
                 }
             }
         }, { passive: false });
+
+        // Maintain maximized class in sync with actual window dimensions
+        window.addEventListener('resize', function() {
+            if (window.screen && window.screen.availWidth) {
+                const isMax = (window.outerWidth >= window.screen.availWidth - 8 &&
+                               window.outerHeight >= window.screen.availHeight - 8);
+                document.body.classList.toggle('is-maximized', isMax);
+            }
+        });
 
         // Universal HTML5 fullscreenchange sync
         document.addEventListener('fullscreenchange', function() {

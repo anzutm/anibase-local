@@ -648,12 +648,14 @@ class LibraryHandler(FileSystemEventHandler):
 
 
 def start_scanner():
-    """Run initial sync and start the watchdog observer."""
-    app_log("Performing initial full library sync...")
-    sync_all_library("Initial library sync")
-    app_log("Initial full library sync complete.")
-
+    """Start the watchdog observer and defer initial full library sync to let the desktop UI boot cleanly."""
     reconfigure_library_observer()
+
+    # Grace period: allow UI, Flask server, and WebView2 window to render without CPU/GIL lockup
+    if not wait_for_shutdown(2):
+        app_log("Performing initial full library sync...")
+        sync_all_library("Initial library sync")
+        app_log("Initial full library sync complete.")
     try:
         while not wait_for_shutdown(1):
             pass

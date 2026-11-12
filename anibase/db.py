@@ -10,9 +10,14 @@ from anibase.logging import app_log, debug_log
 
 @contextmanager
 def db_connection(path=None):
-    """Context manager untuk koneksi SQLite dengan auto-commit dan rollback."""
+    """Context manager untuk koneksi SQLite dengan auto-commit, rollback, timeout aman, dan WAL optimasi."""
     target_path = path or _constants.DB_PATH
-    conn = sqlite3.connect(target_path)
+    conn = sqlite3.connect(target_path, timeout=30.0)
+    try:
+        conn.execute("PRAGMA busy_timeout = 30000")
+        conn.execute("PRAGMA synchronous = NORMAL")
+    except Exception:
+        pass
     try:
         yield conn
         conn.commit()

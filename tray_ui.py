@@ -575,7 +575,11 @@ def main():
             import webview
             from anibase.desktop.shell import create_desktop_window
             create_desktop_window(APP_URL)
-            webview.start(gui="edgechromium")
+            webview.start(
+                gui="edgechromium",
+                private_mode=False,
+                storage_path=webview2_dir if os.name == "nt" else None,
+            )
             perform_graceful_shutdown()
             return 0
         except Exception as error:
