@@ -91,7 +91,7 @@
         <div id="playerPlaceholder" class="player-placeholder" hidden aria-hidden="true"></div>
         <div class="video-player-container" id="videoPlayerContainer">
             <div class="video-player">
-                <video id="player" playsinline controls crossorigin preload="auto">
+                <video id="player" playsinline controls crossorigin preload="metadata">
                     <source src="{{ url_for('stream_video', anime_name=anime_name, episode=episode) }}">
                     <track
                         kind="subtitles" 

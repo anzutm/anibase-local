@@ -384,14 +384,24 @@ function cancelRecoveryTimer() {
     clearTimeout(recoveryTimer);
     recoveryTimer = null;
 }
+
+// Jangan arm recovery saat seeking — seek normal selalu menyebabkan "waiting" sesaat.
+// Recovery hanya untuk stall sejati (bukan seek) di luar periode seeking aktif.
+let _seekingActive = false;
+videoElement.addEventListener('seeking', () => { _seekingActive = true; cancelRecoveryTimer(); });
+videoElement.addEventListener('seeked',  () => { _seekingActive = false; });
+
 function armStreamRecovery() {
-    if (recoveryUsed || videoElement.paused || videoElement.ended || videoElement.error) return;
+    // Jangan recovery saat sedang seeking, paused, ended, atau error
+    if (_seekingActive || recoveryUsed || videoElement.paused || videoElement.ended || videoElement.error) return;
     cancelRecoveryTimer();
     const episode = window.EPISODE_PATH;
     const position = videoElement.currentTime;
+    // Gunakan timeout lebih panjang (20 detik) agar seek ke bagian yang belum di-buffer punya waktu cukup
     recoveryTimer = setTimeout(() => {
         if (episode !== window.EPISODE_PATH || videoElement.paused || videoElement.ended
-            || videoElement.error || Math.abs(videoElement.currentTime - position) > .25) return;
+            || videoElement.error || Math.abs(videoElement.currentTime - position) > .5
+            || _seekingActive) return;
         recoveryUsed = true;
         const target = seekFeedbackState.targetTime ?? videoElement.currentTime;
         clearTimeout(seekFeedbackState.seekTimer);
@@ -405,14 +415,13 @@ function armStreamRecovery() {
         }, { once: true, signal });
         showScreenshotToast('Reconnecting video…', { duration: 2500 });
         videoElement.load();
-    }, 15000);
+    }, 20000);
 }
 videoElement.addEventListener('waiting', armStreamRecovery);
 videoElement.addEventListener('stalled', armStreamRecovery);
-videoElement.addEventListener('seeking', armStreamRecovery);
 videoElement.addEventListener('playing', cancelRecoveryTimer);
 videoElement.addEventListener('play', () => {
-    if (videoElement.seeking || videoElement.readyState < 3) armStreamRecovery();
+    if (!_seekingActive && videoElement.readyState < 3) armStreamRecovery();
 });
 videoElement.addEventListener('pause', cancelRecoveryTimer);
 window.addEventListener('pagehide', cancelRecoveryTimer);
@@ -1543,6 +1552,7 @@ function switchEpisode(episodePath, options = {}) {
     timelineTarget = null;
     cancelRecoveryTimer();
     recoveryUsed = false;
+    _seekingActive = false;
     mediaLoadController.abort();
     mediaLoadController = new AbortController();
     clearTimeout(seekFeedbackState.seekTimer);

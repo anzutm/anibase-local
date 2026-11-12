@@ -984,8 +984,8 @@ def thumbnail(anime_name, episode):
     return media_generation_error_response(thumbnail_result)
 
 
-STREAM_CHUNK_SIZE = 262144  # 256 KB per I/O read block
-STREAM_MAX_BURST_SIZE = 16 * 1024 * 1024  # 16 MB max for open-ended range requests
+STREAM_CHUNK_SIZE = 524288  # 512 KB per I/O read block — lebih cepat untuk disk lokal
+STREAM_MAX_BURST_SIZE = 32 * 1024 * 1024  # 32 MB max untuk open-ended range (cukup untuk 2-3 menit video)
 
 
 def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST_SIZE):
@@ -1036,13 +1036,21 @@ def _parse_stream_byte_range(range_header, file_size, max_burst=STREAM_MAX_BURST
 
 
 def _generate_video_chunks(video_path, start, length, chunk_size=STREAM_CHUNK_SIZE):
-    """Membaca segmen video dalam blok 256 KB dengan auto-close dan penanganan client disconnect."""
+    """Membaca segmen video dalam blok 512 KB dengan auto-close dan penanganan client disconnect."""
     bytes_remaining = length
     file_handle = None
     try:
-        file_handle = open(video_path, "rb")
+        # Buka file dengan flag sequential-scan agar OS prefetch buffer lebih optimal
+        # (tidak ada efek negatif di Linux/Mac — hanya hint di Windows kernel)
+        flags = os.O_RDONLY
+        if hasattr(os, "O_SEQUENTIAL"):
+            flags |= os.O_SEQUENTIAL  # Windows: FILE_FLAG_SEQUENTIAL_SCAN
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY  # Windows: buka sebagai binary
+        raw_fd = os.open(video_path, flags)
+        file_handle = os.fdopen(raw_fd, "rb", buffering=0)  # unbuffered — kita buffer sendiri
         if start > 0:
-            file_handle.seek(start)
+            os.lseek(raw_fd, start, os.SEEK_SET)
         while bytes_remaining > 0:
             to_read = min(chunk_size, bytes_remaining)
             chunk = file_handle.read(to_read)
@@ -1119,8 +1127,9 @@ def stream_video(anime_name, episode):
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Content-Length": str(length),
                 "Accept-Ranges": "bytes",
-                "Cache-Control": "private, max-age=3600",
+                "Cache-Control": "no-store",  # jangan cache byte-range partial — browser manage sendiri
                 "ETag": etag,
+                "Vary": "Range",
             }
 
             if request.method == "HEAD":
@@ -1138,7 +1147,7 @@ def stream_video(anime_name, episode):
         "Content-Type": mime_type,
         "Content-Length": str(file_size),
         "Accept-Ranges": "bytes",
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": "no-store",  # biarkan browser/WebView2 kelola buffering sendiri
         "ETag": etag,
     }
 

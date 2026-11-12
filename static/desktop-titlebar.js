@@ -174,21 +174,24 @@
                 showZoomToast(factor);
             }
 
-            // Debounce synthetic resize event so media players, Plyr, and SubtitlesOctopus recalculate coordinates
-            // without choking WebWorkers or GPU compositor during continuous scrolling/keystrokes
+            // Debounce synthetic resize event: gunakan delay lebih panjang di halaman player
+            // karena SubtitlesOctopus sangat berat saat recalculate di WebView2.
+            // Di halaman non-player 60ms cukup; di player tunda 400ms agar video tetap lancar.
+            var isPlayerPage = !!document.getElementById('player');
+            var resizeDelay = isPlayerPage ? 400 : 60;
             if (resizeDispatchTimer) clearTimeout(resizeDispatchTimer);
             resizeDispatchTimer = setTimeout(function() {
                 try {
                     window.dispatchEvent(new Event('resize'));
                 } catch (_) {}
-            }, 60);
+            }, resizeDelay);
 
             // Debounce syncing to python backend to eliminate IPC flooding during rapid wheel or key events
             if (window.pywebview && window.pywebview.api && window.pywebview.api.set_zoom) {
                 if (syncZoomTimer) clearTimeout(syncZoomTimer);
                 syncZoomTimer = setTimeout(function() {
                     window.pywebview.api.set_zoom(factor).catch(function() {});
-                }, 200);
+                }, 300);
             }
         }
 
