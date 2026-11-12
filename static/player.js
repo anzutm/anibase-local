@@ -2828,9 +2828,9 @@ function toggleMiniPlayer(forceState, isManual = false) {
         userDismissedMini = false;
         if (isManual) {
             isManualMini = true;
+            savePersistentMiniPlayerState(true);
+            showScreenshotToast('Mini Player active. Navigate anywhere to keep watching!', { icon: '&#128250;', duration: 2500 });
         }
-        savePersistentMiniPlayerState(true);
-        showScreenshotToast('Mini Player active. Navigate anywhere to keep watching!', { icon: '&#128250;', duration: 2500 });
 
         window.dispatchEvent(new Event('resize'));
     } else {
@@ -2929,24 +2929,30 @@ initMiniPlayerScrollObserver();
 document.querySelectorAll('a.player-back, a.player-home, #miniPlayerBrowseBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
         isNavigatingAway = true;
-        const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
-        if (isMiniFloating || isManualMini || btn.id === 'miniPlayerBrowseBtn' || wasPlaying) {
+        if (btn.id === 'miniPlayerBrowseBtn') {
+            isManualMini = true;
             savePersistentMiniPlayerState(true);
+        } else if (isManualMini) {
+            savePersistentMiniPlayerState(true);
+        } else {
+            clearPersistentMiniPlayerState();
         }
     });
 });
 
 window.addEventListener('beforeunload', () => {
-    const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
-    if (isMiniFloating || isManualMini || wasPlaying) {
+    if (isManualMini) {
         savePersistentMiniPlayerState(true);
+    } else {
+        clearPersistentMiniPlayerState();
     }
 });
 
 window.addEventListener('pagehide', () => {
-    const wasPlaying = isActivelyPlaying || (videoElement && !videoElement.paused && !videoElement.ended);
-    if (isMiniFloating || isManualMini || wasPlaying) {
+    if (isManualMini) {
         savePersistentMiniPlayerState(true);
+    } else {
+        clearPersistentMiniPlayerState();
     }
 });
 
