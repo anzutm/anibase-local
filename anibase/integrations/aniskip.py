@@ -60,7 +60,7 @@ def get_aniskip_times(mal_id, episode_num, episode_length=0):
 
     last_error = None
     headers = {
-        "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/1.4.5",
+        "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {_constants.APP_NAME}/{__version__}",
         "Accept": "application/json",
     }
     for attempt in range(2):
