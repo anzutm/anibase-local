@@ -111,6 +111,13 @@ from anibase.web.routes_api import (
     api_update_watch_status_progress,
     api_remove_watch_history_entry,
     api_delete_anime,
+    api_samehadaku_search,
+    api_samehadaku_episodes,
+    api_samehadaku_downloads,
+    api_samehadaku_start_download,
+    api_samehadaku_download_status,
+    api_samehadaku_cancel_download,
+    api_samehadaku_clear_downloads,
     clear_rpc_route,
     register_api_routes,
 )

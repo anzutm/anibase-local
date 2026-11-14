@@ -142,6 +142,18 @@ from anibase.integrations.tenrai import (
     get_tenrai_anime_info,
 )
 from anibase.integrations.aniskip import get_aniskip_times
+from anibase.integrations.samehadaku import (
+    search_samehadaku,
+    get_samehadaku_anime_details,
+    get_samehadaku_download_links,
+)
+from anibase.download_manager import (
+    start_download,
+    cancel_download,
+    get_download_task,
+    get_all_download_tasks,
+    clear_completed_download_tasks,
+)
 from anibase.integrations.mal import (
     cleanup_mal_oauth_sessions,
     fetch_mal_user_profile,
@@ -2177,6 +2189,95 @@ def api_desktop_activate():
         return jsonify({"status": "error", "ok": False, "error": str(error)}), 500
 
 
+@host_only
+def api_samehadaku_search():
+    """Pencarian anime di Samehadaku berdasarkan query."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return json_error("invalid_query", "Query pencarian tidak boleh kosong", 400)
+    results = search_samehadaku(query)
+    return jsonify({"ok": True, "results": results})
+
+
+@host_only
+def api_samehadaku_episodes():
+    """Mengambil daftar episode dan info anime Samehadaku."""
+    page_url = request.args.get("url", "").strip()
+    if not page_url:
+        return json_error("invalid_url", "URL anime atau episode tidak boleh kosong", 400)
+    details = get_samehadaku_anime_details(page_url)
+    return jsonify(details)
+
+
+@host_only
+def api_samehadaku_downloads():
+    """Mengambil daftar link download per resolusi dan host dari halaman episode Samehadaku."""
+    page_url = request.args.get("url", "").strip()
+    if not page_url:
+        return json_error("invalid_url", "URL unduhan tidak boleh kosong", 400)
+    downloads = get_samehadaku_download_links(page_url)
+    return jsonify({"ok": True, "downloads": downloads})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_start_download():
+    """Memulai pengunduhan video di latar belakang."""
+    body = get_json_body()
+    url = body.get("url", "").strip()
+    anime_name = body.get("anime_name", "").strip()
+    episode = body.get("episode", "").strip()
+    filename = body.get("filename", "").strip()
+    custom_dest_dir = body.get("destination_dir", "").strip()
+
+    if not url:
+        return json_error("missing_url", "URL berkas unduhan tidak boleh kosong", 400)
+
+    result = start_download(
+        url=url,
+        anime_name=anime_name,
+        episode=episode,
+        filename=filename,
+        custom_dest_dir=custom_dest_dir
+    )
+    if not result.get("ok"):
+        return json_error("download_start_failed", result.get("error", "Gagal memulai unduhan"), 400)
+    return jsonify(result)
+
+
+@host_only
+def api_samehadaku_download_status():
+    """Memeriksa status progres pengunduhan berkas."""
+    task_id = request.args.get("task_id", "").strip()
+    if task_id:
+        task = get_download_task(task_id)
+        if not task:
+            return json_error("task_not_found", "Tugas unduhan tidak ditemukan", 404)
+        return jsonify({"ok": True, "task": task})
+    tasks = get_all_download_tasks()
+    return jsonify({"ok": True, "tasks": tasks})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_cancel_download():
+    """Membatalkan tugas pengunduhan yang sedang berjalan."""
+    body = get_json_body()
+    task_id = body.get("task_id", "").strip()
+    if not task_id:
+        return json_error("missing_task_id", "ID tugas unduhan wajib disertakan", 400)
+    success = cancel_download(task_id)
+    return jsonify({"ok": True, "cancelled": success})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_clear_downloads():
+    """Membersihkan riwayat unduhan yang sudah selesai/gagal/batal."""
+    cleared = clear_completed_download_tasks()
+    return jsonify({"ok": True, "cleared_count": cleared})
+
+
 def register_api_routes(app):
     """Register all API, streaming, and RPC endpoints on the Flask application."""
     app.add_url_rule("/setup/sync", endpoint="setup_sync", view_func=setup_sync, methods=["GET", "POST"])
@@ -2194,6 +2295,13 @@ def register_api_routes(app):
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)
+    app.add_url_rule("/api/samehadaku/search", endpoint="api_samehadaku_search", view_func=api_samehadaku_search)
+    app.add_url_rule("/api/samehadaku/episodes", endpoint="api_samehadaku_episodes", view_func=api_samehadaku_episodes)
+    app.add_url_rule("/api/samehadaku/downloads", endpoint="api_samehadaku_downloads", view_func=api_samehadaku_downloads)
+    app.add_url_rule("/api/samehadaku/download", endpoint="api_samehadaku_start_download", view_func=api_samehadaku_start_download, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/status", endpoint="api_samehadaku_download_status", view_func=api_samehadaku_download_status)
+    app.add_url_rule("/api/samehadaku/download/cancel", endpoint="api_samehadaku_cancel_download", view_func=api_samehadaku_cancel_download, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])
     app.add_url_rule("/api/anime/metadata-match", endpoint="api_update_anime_metadata_match", view_func=api_update_anime_metadata_match, methods=["POST"])
     app.add_url_rule("/api/episode/display-name", endpoint="api_update_episode_display_name", view_func=api_update_episode_display_name, methods=["POST"])
     app.add_url_rule("/api/library/refresh", endpoint="refresh_library", view_func=refresh_library, methods=["POST"])

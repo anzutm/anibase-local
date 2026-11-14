@@ -6,6 +6,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css') }}">
 <link rel="preload" as="image" href="{{ anime.banner or anime.poster }}" fetchpriority="high">
 {% endblock %}
 
@@ -176,6 +177,22 @@
                 <p>This anime is shown as catalog information. Use the action shortcuts below to search or copy the title.</p>
             </div>
             <div class="ext-action-toolbar">
+                <button
+                    type="button"
+                    class="ext-btn ext-btn-primary"
+                    data-samehadaku-trigger
+                    data-anime-title="{{ anime.name }}"
+                    data-query="{{ anime.name }}"
+                    style="background: linear-gradient(135deg, #00b7e0, #0077b6); border-color: #00b7e0;"
+                    title="Cari dan unduh episode langsung dari Samehadaku"
+                >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download (Samehadaku)</span>
+                </button>
                 <button type="button" class="ext-btn ext-btn-secondary" id="extCopyTitleBtn" data-title="{{ anime.name }}">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -526,4 +543,5 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 </script>
+<script src="{{ url_for('static', filename='samehadaku-downloader.js') }}" defer></script>
 {% endblock %}

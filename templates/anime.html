@@ -54,6 +54,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -249,6 +250,19 @@
                     >
                         <span aria-hidden="true">▶</span>
                         <span>{{ resume_label }} · {{ resume_episode.display_name }}</span>
+                    </button>
+                    {% endif %}
+
+                    {% if not is_movie %}
+                    <button
+                        type="button"
+                        class="detail-download-samehadaku-btn"
+                        data-samehadaku-trigger
+                        data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
+                        title="Download episodes directly from Samehadaku"
+                    >
+                        <span aria-hidden="true">📥</span>
+                        <span>Download (Samehadaku)</span>
                     </button>
                     {% endif %}
 
@@ -599,6 +613,20 @@
                     </button>
                 </div>
             </div>
+
+            <div class="episode-control-group">
+                <button
+                    type="button"
+                    class="episode-filter-btn"
+                    data-samehadaku-trigger
+                    data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
+                    title="Download episodes from Samehadaku"
+                    style="display: inline-flex; align-items: center; gap: 5px; color: #00b7e0; border-color: rgba(0, 183, 224, 0.35); background: rgba(0, 183, 224, 0.08);"
+                >
+                    <span aria-hidden="true">📥</span>
+                    <span>Download</span>
+                </button>
+            </div>
         </div>
 
     </div>
@@ -739,7 +767,12 @@
 <div class="compact-empty-state episode-empty-state">
     <span aria-hidden="true">!</span>
     <p>No episodes found in this folder.</p>
-    <a href="{{ url_for('settings_page') }}" class="empty-inline-action">Go to Settings</a>
+    <div style="display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('settings_page') }}" class="empty-inline-action">Go to Settings</a>
+        <button type="button" class="empty-inline-action" data-samehadaku-trigger data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}" style="background: linear-gradient(135deg, #00b7e0, #0077b6); color: #fff; border: none;">
+            Download from Samehadaku
+        </button>
+    </div>
 </div>
 {% endif %}
 </div>
@@ -1688,5 +1721,6 @@ window.initializeMetadataMatch();
 {% include "_global_mini_player.html" %}
 <script src="{{ url_for('static', filename='global-mini-player.js', v='3') }}"></script>
 <script src="{{ url_for('static', filename='desktop-titlebar.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='samehadaku-downloader.js') }}" defer></script>
 </body>
 </html>
