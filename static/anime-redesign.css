@@ -2112,7 +2112,7 @@ body.anime-detail-body:not(.movie-detail-body) .anime-description {
 
 body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
     display: grid;
-    grid-template-columns: minmax(220px, 1.8fr) repeat(6, minmax(74px, 1fr));
+    grid-template-columns: minmax(170px, 1.5fr) minmax(85px, 1fr) repeat(6, minmax(62px, 1fr));
     gap: 6px;
     margin-top: 14px;
     padding-top: 10px;
@@ -2120,11 +2120,12 @@ body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
 }
 
 body.anime-detail-body:not(.movie-detail-body) .detail-info-grid:not(:has(.detail-watch-btn)) {
-    grid-template-columns: repeat(6, minmax(74px, 1fr));
+    grid-template-columns: minmax(85px, 1.1fr) repeat(6, minmax(62px, 1fr));
 }
 
 body.anime-detail-body:not(.movie-detail-body) .info-card,
-body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
+body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn,
+body.anime-detail-body:not(.movie-detail-body) .detail-download-samehadaku-btn {
     min-width: 0;
     height: 58px;
     min-height: 58px;
@@ -2132,6 +2133,32 @@ body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
     border-radius: 9px;
     background: rgba(255, 255, 255, .025) !important;
     box-shadow: none !important;
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-download-samehadaku-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+    background: color-mix(in srgb, var(--primary) 14%, rgba(8, 11, 17, .50)) !important;
+    color: rgba(247, 249, 252, .96);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: border-color .25s ease, background .25s ease, transform .25s var(--ease);
+}
+
+body.anime-detail-body:not(.movie-detail-body) .detail-download-samehadaku-btn:hover,
+body.anime-detail-body:not(.movie-detail-body) .detail-download-samehadaku-btn:focus-visible {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary-hover) 50%, var(--border));
+    background: color-mix(in srgb, var(--primary-hover) 22%, rgba(8, 11, 17, .50)) !important;
 }
 
 body.anime-detail-body:not(.movie-detail-body) .detail-watch-btn {
@@ -2201,11 +2228,11 @@ body.anime-detail-body:not(.movie-detail-body) .detail-delete-card:hover :is(h3,
 
 @media (max-width: 1180px) {
     body.anime-detail-body:not(.movie-detail-body) .detail-info-grid {
-        grid-template-columns: minmax(205px, 1.6fr) repeat(3, minmax(82px, 1fr));
+        grid-template-columns: minmax(150px, 1.4fr) minmax(80px, 1fr) repeat(6, minmax(56px, 1fr));
     }
 
     body.anime-detail-body:not(.movie-detail-body) .detail-info-grid:not(:has(.detail-watch-btn)) {
-        grid-template-columns: repeat(4, minmax(82px, 1fr));
+        grid-template-columns: minmax(80px, 1.1fr) repeat(6, minmax(56px, 1fr));
     }
 }
 

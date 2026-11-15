@@ -37,8 +37,8 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='13') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='3') }}">
     {% block extra_head %}{% endblock %}
     {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_loading', 'external_anime_detail'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='6') }}">
