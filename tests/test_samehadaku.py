@@ -134,6 +134,10 @@ class SamehadakuIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
+        # Point cache dir to temp dir so unit tests never pollute user's AppData cache
+        self.patch_cache_dir = patch("anibase.integrations.samehadaku._get_cache_dir", return_value=self.temp_dir.name)
+        self.patch_cache_dir.start()
+        self.addCleanup(self.patch_cache_dir.stop)
         # Disable cache reading during unit tests
         self.patch_cache = patch("anibase.integrations.samehadaku._get_cached_data", return_value=None)
         self.patch_cache.start()
