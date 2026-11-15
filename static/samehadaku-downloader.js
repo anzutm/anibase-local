@@ -369,14 +369,18 @@
                 return;
             }
 
-            currentSeriesResults = data.results;
+            // Filter defensif: pastikan hanya serial anime dan batch yang ditampilkan (bukan postingan episode)
+            const animeOnly = (data.results || []).filter(r => !r.is_episode || r.is_anime || r.is_batch);
+            const finalResults = (animeOnly.length > 0) ? animeOnly : data.results;
+
+            currentSeriesResults = finalResults;
 
             // Jika hanya ada 1 hasil yang merupakan anime hub, langsung buka detailnya
-            const animeHubs = data.results.filter(r => r.is_anime);
-            if (animeHubs.length === 1 && !data.results[0].is_episode) {
+            const animeHubs = finalResults.filter(r => r.is_anime);
+            if (animeHubs.length === 1 && !finalResults[0].is_episode) {
                 loadAnimeDetails(animeHubs[0].url, animeHubs[0].title);
             } else {
-                renderSearchResults(data.results);
+                renderSearchResults(finalResults);
             }
         } catch (err) {
             showMessage(`Gagal melakukan pencarian: ${err.message}`, true);
@@ -394,7 +398,7 @@
                 <div>
                     <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()">&larr; Kembali ke Rilisan Terbaru</button>
                     <div style="margin-top: 4px; font-size: 13px; color: var(--text-secondary, #A5B4D6);">
-                        Ditemukan ${results.length} hasil di Samehadaku. Pilih serial anime yang sesuai:
+                        Ditemukan ${results.length} serial anime di Samehadaku. Pilih serial anime yang sesuai:
                     </div>
                 </div>
             </div>
@@ -402,7 +406,7 @@
         `;
 
         results.forEach((item, idx) => {
-            const typeLabel = item.is_batch ? 'Batch' : (item.type || (item.is_anime ? 'Anime' : 'Episode'));
+            const typeLabel = item.is_batch ? 'Batch' : (item.type || 'Anime');
             const thumb = item.thumbnail || '';
             html += `
                 <div class="samehadaku-series-card" data-idx="${idx}" onclick="window.__selectSamehadakuSeries(${idx})">

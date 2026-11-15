@@ -71,29 +71,10 @@ def _get_headers() -> Dict[str, str]:
     }
 
 
-def search_samehadaku(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
-    """Cari anime di Samehadaku berdasarkan judul."""
-    clean_query = str(query or "").strip()
-    if not clean_query:
-        return []
-
-    cache_key = "search_" + hashlib.md5(clean_query.lower().encode("utf-8")).hexdigest()
-    cached = _get_cached_data(cache_key)
-    if cached is not None:
-        return cached
-
-    url = f"{SAMEHADAKU_BASE_URL}/?s={urllib.parse.quote_plus(clean_query)}"
-    try:
-        response = requests.get(url, headers=_get_headers(), timeout=timeout)
-        if response.status_code != 200:
-            app_log(f"Samehadaku search failed with status {response.status_code}", "WARNING")
-            return []
-        html_text = response.text
-    except Exception as error:
-        app_log(f"Samehadaku search network error: {error}", "ERROR")
-        return []
-
+def _parse_samehadaku_search_articles(html_text: str, filter_episodes: bool = True) -> List[Dict[str, Any]]:
+    """Helper untuk mem-parsing artikel hasil pencarian Samehadaku."""
     results = []
+    seen_urls = set()
     articles = re.findall(
         r'<article[^>]*class=["\'][^"\']*animepost[^"\']*["\'][^>]*>([\s\S]*?)</article>',
         html_text,
@@ -130,18 +111,65 @@ def search_samehadaku(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[s
 
         is_anime = "/anime/" in href
         is_batch = "/batch/" in href
-        is_episode = bool(re.search(r'-episode-\d+', href, re.I))
+        is_episode = (
+            bool(re.search(r'-episode-\d+', href, re.I))
+            or bool(re.search(r'\b(?:Eps|Episode)\s*\d+\b', title, re.I))
+            or item_type.lower().startswith("eps")
+        )
+
+        # Jika filter_episodes aktif, abaikan postingan episode tunggal (hanya ambil serial anime / batch)
+        if filter_episodes and is_episode and not is_anime:
+            continue
+
+        if href in seen_urls:
+            continue
+        seen_urls.add(href)
 
         results.append({
             "title": title,
             "url": href,
             "thumbnail": img_src,
-            "type": item_type,
+            "type": item_type or ("Anime" if is_anime else ("Batch" if is_batch else "Anime")),
             "score": score,
-            "is_anime": is_anime,
+            "is_anime": is_anime or not is_episode,
             "is_batch": is_batch,
-            "is_episode": is_episode,
+            "is_episode": False if filter_episodes else is_episode,
         })
+
+    return results
+
+
+def search_samehadaku(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
+    """Cari anime di Samehadaku berdasarkan judul (hanya serial anime & batch, mengecualikan episode)."""
+    clean_query = str(query or "").strip()
+    if not clean_query:
+        return []
+
+    cache_key = "search_anime_" + hashlib.md5(clean_query.lower().encode("utf-8")).hexdigest()
+    cached = _get_cached_data(cache_key)
+    if cached is not None:
+        return cached
+
+    results = []
+
+    # 1. Coba pencarian direktori resmi anime Samehadaku (/daftar-anime-2/?title=...)
+    dir_url = f"{SAMEHADAKU_BASE_URL}/daftar-anime-2/?title={urllib.parse.quote_plus(clean_query)}"
+    try:
+        response = requests.get(dir_url, headers=_get_headers(), timeout=timeout)
+        if response.status_code == 200:
+            results = _parse_samehadaku_search_articles(response.text, filter_episodes=True)
+    except Exception as error:
+        app_log(f"Samehadaku directory search error: {error}", "DEBUG")
+
+    # 2. Jika direktori tidak menghasilkan data, gunakan endpoint umum /?s=... dengan filter episode
+    if not results:
+        general_url = f"{SAMEHADAKU_BASE_URL}/?s={urllib.parse.quote_plus(clean_query)}"
+        try:
+            response = requests.get(general_url, headers=_get_headers(), timeout=timeout)
+            if response.status_code == 200:
+                results = _parse_samehadaku_search_articles(response.text, filter_episodes=True)
+        except Exception as error:
+            app_log(f"Samehadaku general search network error: {error}", "ERROR")
 
     _set_cached_data(cache_key, results)
     return results

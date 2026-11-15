@@ -55,6 +55,21 @@ SAMPLE_SEARCH_HTML = """
             </a>
         </div>
     </article>
+    <!-- Episode post yang harus disaring / diabaikan dari pencarian anime -->
+    <article class="animepost post-1003 episode type-episode">
+        <div class="animposx">
+            <a href="https://v2.samehadaku.how/sousou-no-frieren-episode-1/" title="Sousou no Frieren Episode 1">
+                <div class="content-thumb">
+                    <img src="https://v2.samehadaku.how/wp-content/uploads/ep1.jpg" />
+                    <div class="type">Eps 1</div>
+                    <div class="score">8.5</div>
+                </div>
+                <div class="data">
+                    <div class="title"><h2>Sousou no Frieren Episode 1</h2></div>
+                </div>
+            </a>
+        </div>
+    </article>
 </div>
 </body></html>
 """
@@ -151,14 +166,17 @@ class SamehadakuIntegrationTests(unittest.TestCase):
         mock_get.return_value = mock_resp
 
         results = search_samehadaku("frieren")
-        self.assertGreaterEqual(len(results), 2)
+        # Hanya serial anime dan batch yang muncul, postingan episode (Eps 1) harus disaring
+        self.assertEqual(len(results), 2)
         anime_item = results[0]
         self.assertEqual(anime_item["title"], "Sousou no Frieren")
         self.assertTrue(anime_item["is_anime"])
         self.assertFalse(anime_item["is_batch"])
+        self.assertFalse(anime_item["is_episode"])
 
         batch_item = results[1]
         self.assertTrue(batch_item["is_batch"])
+        self.assertFalse(batch_item["is_episode"])
 
     @patch("anibase.integrations.samehadaku.requests.get")
     def test_get_samehadaku_anime_details(self, mock_get):
