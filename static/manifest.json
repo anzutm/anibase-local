@@ -1,0 +1,22 @@
+{
+  "name": "AniBase",
+  "short_name": "AniBase",
+  "description": "Local anime streaming and library manager",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "icons": [
+    {
+      "src": "/static/arcana.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/static/arcana.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

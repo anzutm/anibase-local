@@ -1,6 +1,8 @@
 import atexit
 import ctypes
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -253,13 +255,79 @@ def get_icon_path():
     return os.path.join(RESOURCE_DIR, "static", "arcana.jpg")
 
 
+def find_chromium_browser():
+    """Mencari executable browser berbasis Chromium di sistem untuk mode standalone app window."""
+    if os.name != "nt":
+        for name in ("google-chrome", "brave-browser", "chromium", "microsoft-edge"):
+            path = shutil.which(name)
+            if path:
+                return path
+        return None
+
+    # 1. Cek Windows Registry App Paths (mendukung instalasi custom drive/folder)
+    try:
+        import winreg
+
+        for exe_name in ("chrome.exe", "brave.exe", "msedge.exe", "opera.exe", "vivaldi.exe"):
+            for root_key in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(
+                        root_key,
+                        rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}",
+                    ) as key:
+                        app_path, _ = winreg.QueryValueEx(key, "")
+                        if app_path and os.path.isfile(app_path):
+                            return app_path
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+    # 2. Cek lokasi standar instalasi
+    candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Opera\launcher.exe"),
+        r"C:\Program Files\Opera GX\launcher.exe",
+        r"C:\Program Files\Vivaldi\Application\vivaldi.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Vivaldi\Application\vivaldi.exe"),
+    ]
+    for exe in candidates:
+        if os.path.isfile(exe):
+            return exe
+    return None
+
+
+def launch_app_window(url):
+    """Membuka URL dalam mode standalone app window (--app) tanpa bar URL/tab,
+
+    sehingga tampil persis seperti Desktop App asli tanpa perlu install WebView2.
+    """
+    browser_exe = find_chromium_browser()
+    if browser_exe:
+        try:
+            subprocess.Popen([browser_exe, f"--app={url}"])
+            return True
+        except Exception as err:
+            fallback_log(f"Failed to launch browser app window: {err}")
+    webbrowser.open(url)
+    return False
+
+
 def open_dashboard():
     try:
         from anibase.desktop.shell import restore_desktop_window
         if not restore_desktop_window():
-            webbrowser.open(APP_URL)
+            launch_app_window(APP_URL)
     except Exception:
-        webbrowser.open(APP_URL)
+        launch_app_window(APP_URL)
 
 
 def perform_graceful_shutdown():
@@ -629,27 +697,8 @@ def main():
             return 0
         except Exception as error:
             error_msg = str(error)
-            fallback_log(f"WebView2 desktop launch failed: {error_msg}. Falling back to browser mode.")
-            if os.name == "nt":
-                try:
-                    user32 = ctypes.windll.user32
-                    MB_OK = 0x00000000
-                    MB_ICONWARNING = 0x00000030
-                    user32.MessageBoxW(
-                        None,
-                        (
-                            "Jendela Desktop AniBase tidak dapat dibuka:\n\n"
-                            f"{error_msg}\n\n"
-                            f"AniBase dibuka melalui web browser ({APP_URL}).\n\n"
-                            "Jika Microsoft Edge WebView2 Runtime belum terpasang atau perlu diperbaiki, "
-                            "silakan unduh dan pasang Microsoft Edge WebView2 Runtime."
-                        ),
-                        "AniBase - Desktop Window Fallback",
-                        MB_OK | MB_ICONWARNING,
-                    )
-                except Exception:
-                    pass
-            webbrowser.open(APP_URL)
+            fallback_log(f"WebView2 desktop launch failed: {error_msg}. Launching standalone app window mode.")
+            launch_app_window(APP_URL)
             if qt_thread.is_alive():
                 qt_thread.join()
             return 0
