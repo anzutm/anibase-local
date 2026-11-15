@@ -19,8 +19,11 @@
 
     // Dapatkan action token untuk otorisasi POST request
     function getActionToken() {
+        if (window.ANIBASE_ACTION_TOKEN) return window.ANIBASE_ACTION_TOKEN;
         const meta = document.querySelector('meta[name="action-token"]');
         if (meta && meta.content) return meta.content;
+        const input = document.querySelector('input[name="action_token"]');
+        if (input && input.value) return input.value;
         return window.__ACTION_TOKEN__ || '';
     }
 
@@ -480,6 +483,7 @@
         const batchLinks = details.batch_links || [];
         const rawTitle = details.title || currentAnimeName || 'Detail Anime';
         const cleanTitle = rawTitle.replace(/[\s\-–—]+$/, '');
+        currentAnimeName = cleanTitle;
         const posterFallback = details.poster || '/static/arcana.jpg';
 
         let html = `
@@ -701,6 +705,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
                     'X-Action-Token': token,
                 },
                 body: JSON.stringify({
@@ -708,6 +713,7 @@
                     anime_name: currentAnimeName,
                     episode: ep,
                     filename: filename,
+                    action_token: token,
                 })
             });
 
@@ -808,9 +814,13 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
                     'X-Action-Token': token,
                 },
-                body: JSON.stringify({ task_id: taskId })
+                body: JSON.stringify({
+                    task_id: taskId,
+                    action_token: token,
+                })
             });
             pollDownloadStatus();
         } catch (err) {
@@ -826,9 +836,12 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
                     'X-Action-Token': token,
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify({
+                    action_token: token,
+                })
             });
             pollDownloadStatus();
         } catch (err) {
