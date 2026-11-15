@@ -284,13 +284,14 @@ def perform_graceful_shutdown():
 
 def run_qt_tray():
     from PySide6.QtCore import QObject, QPoint, Qt, QThread, QTimer, Signal
-    from PySide6.QtGui import QColor, QCursor, QIcon, QPixmap
+    from PySide6.QtGui import QAction, QColor, QCursor, QIcon, QPixmap
     from PySide6.QtWidgets import (
         QApplication,
         QFrame,
         QGraphicsDropShadowEffect,
         QHBoxLayout,
         QLabel,
+        QMenu,
         QPushButton,
         QSystemTrayIcon,
         QVBoxLayout,
@@ -477,6 +478,48 @@ def run_qt_tray():
             self.popup.exit_requested.connect(self.exit_application)
             self.tray.activated.connect(self.handle_tray_activated)
 
+            # Native Win32 Context Menu for 100% reliable right-click behavior
+            self.context_menu = QMenu()
+            self.context_menu.setStyleSheet("""
+                QMenu {
+                    background-color: #10131c;
+                    color: #eef3ff;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    border-radius: 8px;
+                    padding: 5px;
+                    font-family: "Segoe UI", sans-serif;
+                    font-size: 12px;
+                }
+                QMenu::item {
+                    padding: 7px 22px 7px 10px;
+                    border-radius: 5px;
+                }
+                QMenu::item:selected {
+                    background-color: #20283a;
+                    color: #74f2a6;
+                }
+                QMenu::separator {
+                    height: 1px;
+                    background: rgba(255, 255, 255, 0.12);
+                    margin: 4px 6px;
+                }
+            """)
+
+            action_open = self.context_menu.addAction("Open Desktop App")
+            action_open.triggered.connect(open_dashboard)
+
+            action_browser = self.context_menu.addAction("Open in Web Browser")
+            action_browser.triggered.connect(lambda: webbrowser.open(APP_URL))
+
+            action_refresh = self.context_menu.addAction("Refresh Library")
+            action_refresh.triggered.connect(self.refresh_library)
+
+            self.context_menu.addSeparator()
+
+            action_exit = self.context_menu.addAction("Exit AniBase")
+            action_exit.triggered.connect(self.exit_application)
+
+            self.tray.setContextMenu(self.context_menu)
             self.tray.show()
 
         def handle_tray_activated(self, reason):
@@ -485,8 +528,6 @@ def run_qt_tray():
                 QSystemTrayIcon.ActivationReason.DoubleClick,
             }:
                 open_dashboard()
-            elif reason == QSystemTrayIcon.ActivationReason.Context:
-                self.toggle_popup()
 
         def toggle_popup(self):
             if self.popup.isVisible():
@@ -571,7 +612,7 @@ def main():
                     os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_dir)
                     os.environ.setdefault(
                         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                        "--enable-gpu-rasterization --enable-zero-copy --ignore-gpu-blocklist --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
+                        "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
                     )
                 except OSError:
                     pass
@@ -587,7 +628,27 @@ def main():
             perform_graceful_shutdown()
             return 0
         except Exception as error:
-            fallback_log(f"WebView2 desktop launch failed: {error}. Falling back to browser mode.")
+            error_msg = str(error)
+            fallback_log(f"WebView2 desktop launch failed: {error_msg}. Falling back to browser mode.")
+            if os.name == "nt":
+                try:
+                    user32 = ctypes.windll.user32
+                    MB_OK = 0x00000000
+                    MB_ICONWARNING = 0x00000030
+                    user32.MessageBoxW(
+                        None,
+                        (
+                            "Jendela Desktop AniBase tidak dapat dibuka:\n\n"
+                            f"{error_msg}\n\n"
+                            f"AniBase dibuka melalui web browser ({APP_URL}).\n\n"
+                            "Jika Microsoft Edge WebView2 Runtime belum terpasang atau perlu diperbaiki, "
+                            "silakan unduh dan pasang Microsoft Edge WebView2 Runtime."
+                        ),
+                        "AniBase - Desktop Window Fallback",
+                        MB_OK | MB_ICONWARNING,
+                    )
+                except Exception:
+                    pass
             webbrowser.open(APP_URL)
             if qt_thread.is_alive():
                 qt_thread.join()
