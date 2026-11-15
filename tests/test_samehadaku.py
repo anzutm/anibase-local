@@ -326,6 +326,37 @@ class DownloadManagerTests(unittest.TestCase):
         self.assertEqual(final_status["progress_percent"], 100.0)
         self.assertTrue(os.path.isfile(final_status["save_path"]))
 
+    @patch("anibase.download_manager.requests.get")
+    def test_download_truncated_stream_fails(self, mock_get):
+        # Server klaim 500 byte tapi hanya kirim 100 byte (koneksi terputus prematur)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Length": "500"}
+        mock_resp.iter_content.return_value = [b"A" * 100]
+        mock_get.return_value.__enter__.return_value = mock_resp
+
+        result = start_download(
+            url="https://example.com/truncated.mkv",
+            anime_name="Truncated Anime",
+            filename="truncated.mkv",
+            custom_dest_dir=self.dest_folder
+        )
+        self.assertTrue(result["ok"])
+        task_id = result["task"]["task_id"]
+
+        import time
+        for _ in range(30):
+            status = get_download_task(task_id)
+            if status and status["status"] in ("completed", "error"):
+                break
+            time.sleep(0.05)
+
+        final_status = get_download_task(task_id)
+        self.assertEqual(final_status["status"], "error")
+        self.assertIn("terputus", final_status.get("error", "").lower())
+        # Pastikan berkas rusak tidak dipertahankan
+        self.assertFalse(os.path.isfile(final_status["save_path"]))
+
     def test_cancel_download(self):
         result = start_download(
             url="https://example.com/large.mkv",

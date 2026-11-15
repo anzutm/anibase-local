@@ -528,6 +528,12 @@ def resolve_mediafire_direct_url(page_url: str, timeout: int = 10) -> Optional[s
             m = re.findall(r'href=[\'"](https?://download\d*\.mediafire\.com/[^\'"]+)[\'"]', r.text)
             if m:
                 return m[0].strip()
+            alt_m = re.findall(r'<a[^>]+(?:id=["\']downloadButton["\']|aria-label=["\']Download file["\'])[^>]+href=[\'"](https?://[^\'"]+)[\'"]', r.text)
+            if alt_m:
+                return alt_m[0].strip()
+            alt_m2 = re.findall(r'<a[^>]+href=[\'"](https?://[^\'"]+)[\'"][^>]+(?:id=["\']downloadButton["\']|aria-label=["\']Download file["\'])', r.text)
+            if alt_m2:
+                return alt_m2[0].strip()
     except Exception as error:
         app_log(f"Failed to resolve Mediafire link {clean_url}: {error}", "DEBUG")
     return None

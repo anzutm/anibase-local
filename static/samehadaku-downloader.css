@@ -44,12 +44,13 @@
     border: 1px solid color-mix(in srgb, var(--border-bright, rgba(255, 255, 255, 0.22)) 70%, transparent);
     border-radius: var(--radius-lg, 24px);
     background:
-        radial-gradient(ellipse 90% 45% at 50% -10%, color-mix(in srgb, var(--primary, #0000FF) 18%, transparent), transparent 75%),
-        linear-gradient(180deg, color-mix(in srgb, var(--bg2, #03050a) 95%, #141826 5%) 0%, color-mix(in srgb, var(--bg, #000004) 97%, #05070f 3%) 100%);
+        radial-gradient(ellipse 85% 45% at 50% -12%, color-mix(in srgb, var(--primary, #38bdf8) 20%, transparent), transparent 72%),
+        radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--cyan, var(--primary)) 8%, transparent), transparent 45%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg2, #0e121d) 94%, #1e2436 6%) 0%, color-mix(in srgb, var(--bg, #080a11) 98%, #0f1422 2%) 100%);
     box-shadow: 
-        0 28px 75px -15px rgba(0, 0, 0, 0.88),
-        0 0 0 1px color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 55%, transparent),
-        0 0 50px -10px var(--card-glow, rgba(0, 0, 255, 0.25));
+        0 32px 80px -18px rgba(0, 0, 0, 0.92),
+        0 0 0 1px color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 60%, transparent),
+        0 0 60px -15px var(--card-glow, rgba(56, 189, 248, 0.25));
     color: var(--text, #F5F7FF);
     transform: scale(0.97) translateY(-6px);
     transition: transform 0.24s var(--ease, cubic-bezier(0.16, 1, 0.3, 1));
@@ -71,7 +72,7 @@
 }
 
 .samehadaku-eyebrow {
-    color: var(--cyan, var(--primary, #00D8FF));
+    color: var(--cyan, var(--primary, #38bdf8));
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -79,6 +80,10 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .samehadaku-header h2 {
@@ -684,12 +689,17 @@
 .samehadaku-ep-badge-local {
     font-size: 10px;
     font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 6px;
-    background: rgba(34, 197, 94, 0.15);
-    color: #4ade80;
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 3px 9px;
+    border-radius: 9999px;
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
     flex-shrink: 0;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* Episode Action Button */
@@ -701,8 +711,8 @@
     background: color-mix(in srgb, var(--primary) 14%, rgba(255, 255, 255, 0.05));
     border: 1px solid color-mix(in srgb, var(--primary) 32%, rgba(255, 255, 255, 0.1));
     color: var(--text, #ffffff);
-    border-radius: 8px;
-    padding: 7px 14px;
+    border-radius: 9999px;
+    padding: 7px 16px;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -713,10 +723,10 @@
 }
 
 .samehadaku-ep-expand-btn:hover {
-    background: var(--primary);
-    color: var(--primary-contrast, #ffffff);
+    background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
+    color: #ffffff;
     border-color: var(--primary);
-    box-shadow: 0 2px 10px var(--card-glow);
+    box-shadow: 0 4px 14px var(--card-glow);
     transform: translateY(-1px);
 }
 
@@ -737,22 +747,16 @@
         display: none;
     }
     .samehadaku-ep-expand-btn {
-        padding: 6px 10px;
+        padding: 6px 12px;
         font-size: 11px;
     }
-}
-
-.samehadaku-ep-expand-btn:hover {
-    background: color-mix(in srgb, var(--primary) 22%, transparent);
-    border-color: var(--primary);
-    color: var(--cyan, #ffffff);
 }
 
 /* Download details panel */
 .samehadaku-ep-details {
     padding: 14px 16px;
     border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
-    background: color-mix(in srgb, var(--bg, #000004) 75%, transparent);
+    background: color-mix(in srgb, var(--bg2, #0d111c) 85%, transparent);
 }
 
 .samehadaku-ep-details[hidden] {
@@ -802,27 +806,28 @@
     align-items: center;
     gap: 6px;
     padding: 7px 16px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--primary) 14%, rgba(255, 255, 255, 0.04));
-    border: 1px solid color-mix(in srgb, var(--primary) 32%, rgba(255, 255, 255, 0.1));
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--primary) 12%, rgba(255, 255, 255, 0.04));
+    border: 1px solid color-mix(in srgb, var(--primary) 32%, rgba(255, 255, 255, 0.12));
     color: var(--text, #ffffff);
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     user-select: none;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
 }
 
 .samehadaku-btn-res:hover {
-    background: var(--primary);
+    background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
     border-color: var(--primary);
-    color: var(--primary-contrast, #ffffff);
+    color: #ffffff;
     box-shadow: 0 4px 14px var(--card-glow);
-    transform: translateY(-1px);
+    transform: translateY(-1.5px);
 }
 
 .samehadaku-btn-res:active {
-    transform: scale(0.97);
+    transform: scale(0.96);
 }
 
 .samehadaku-res-icon {
@@ -850,7 +855,7 @@
 
 /* Fallback server mirrors container */
 .samehadaku-fallback-container {
-    margin-top: 6px;
+    margin-top: 8px;
     animation: samehadakuFadeIn 0.2s ease-out;
 }
 
@@ -860,13 +865,15 @@
 }
 
 .samehadaku-fallback-box {
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: color-mix(in srgb, #f59e0b 9%, rgba(0, 0, 0, 0.5));
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: color-mix(in srgb, #f59e0b 10%, rgba(15, 23, 42, 0.85));
     border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.12);
     display: flex;
     flex-direction: column;
     gap: 8px;
+    backdrop-filter: blur(8px);
 }
 
 .samehadaku-fallback-header {
@@ -884,8 +891,8 @@
 }
 
 .samehadaku-fallback-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 3px 9px;
+    border-radius: 9999px;
     font-size: 11px;
     font-weight: 700;
     background: rgba(245, 158, 11, 0.2);
@@ -996,66 +1003,100 @@
 .samehadaku-btn-ext {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-    color: var(--text-secondary, #cbd5e1);
-    font-size: 12px;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, #f59e0b 12%, rgba(255, 255, 255, 0.05));
+    border: 1px solid color-mix(in srgb, #f59e0b 35%, rgba(255, 255, 255, 0.12));
+    color: #fef08a;
+    font-size: 11.5px;
+    font-weight: 600;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .samehadaku-btn-ext:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--primary);
-    color: var(--text, #ffffff);
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #000000;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
 }
 
 /* Active Downloads Bottom Drawer */
 .samehadaku-downloads-tray {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 80%, transparent);
+    animation: samehadakuFadeIn 0.25s ease-out;
 }
 
 .samehadaku-downloads-tray-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .samehadaku-downloads-tray-header h4 {
     margin: 0;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-secondary, #94a3b8);
+    letter-spacing: 0.1em;
+    color: var(--cyan, var(--primary));
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.samehadaku-downloads-tray-header h4::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 10px #10b981;
+    animation: samehadaku-pulse 1.8s infinite;
+}
+
+@keyframes samehadaku-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
 }
 
 .samehadaku-tray-clear-btn {
-    background: transparent;
-    border: none;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.05)) 50%, transparent);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
     color: var(--text-secondary, #94a3b8);
     font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .samehadaku-tray-clear-btn:hover {
     color: var(--text, #ffffff);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
 }
 
 /* Download Task Item */
 .samehadaku-task-item {
-    background: var(--card, rgba(255, 255, 255, 0.03));
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-    border-radius: 10px;
-    padding: 10px 14px;
-    margin-bottom: 8px;
+    background: color-mix(in srgb, var(--card, rgba(255, 255, 255, 0.04)) 85%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.1)) 75%, transparent);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.samehadaku-task-item:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    box-shadow: 0 4px 18px var(--card-glow);
 }
 
 .samehadaku-task-top {
@@ -1063,11 +1104,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .samehadaku-task-filename {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text, #ffffff);
     white-space: nowrap;
@@ -1080,30 +1121,46 @@
     font-size: 11px;
     color: var(--text-secondary, #94a3b8);
     flex-shrink: 0;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
 }
 
 .samehadaku-progress-bar-bg {
     width: 100%;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
+    height: 7px;
+    background: color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.1)) 60%, transparent);
+    border-radius: 9999px;
     overflow: hidden;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .samehadaku-progress-bar-fill {
     height: 100%;
-    background: var(--primary-gradient, linear-gradient(90deg, var(--primary), var(--cyan)));
+    background: linear-gradient(90deg, var(--primary), var(--cyan, var(--primary-hover)));
+    border-radius: 9999px;
     width: 0%;
-    transition: width 0.3s ease;
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+.samehadaku-progress-bar-fill:not(.completed):not(.error) {
+    background-size: 200% 100%;
+    animation: samehadaku-progress-shimmer 2.2s linear infinite;
+}
+
+@keyframes samehadaku-progress-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .samehadaku-progress-bar-fill.completed {
-    background: #22c55e;
+    background: #10b981;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
 }
 
 .samehadaku-progress-bar-fill.error {
     background: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
 }
 
 .samehadaku-task-bottom {
@@ -1115,17 +1172,22 @@
 }
 
 .samehadaku-task-cancel-btn {
-    background: transparent;
-    border: none;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.25);
     color: #ef4444;
     cursor: pointer;
     font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
 }
 
 .samehadaku-task-cancel-btn:hover {
-    background: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #ffffff;
+}
 }
 
 /* Floating indicator in hero or action bar */

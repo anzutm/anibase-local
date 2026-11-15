@@ -500,6 +500,10 @@ def _download_worker(
                     _DOWNLOAD_TASKS[task_id]["updated_at"] = time.time()
             return
 
+        # Periksa integritas: jangan tandai selesai jika koneksi terputus prematur
+        if total > 0 and downloaded < total:
+            raise RuntimeError(f"Unduhan terputus sebelum selesai ({downloaded}/{total} byte)")
+
         # Selesai unduh: ganti nama berkas dari .part ke save_path
         if os.path.exists(temp_path):
             os.replace(temp_path, save_path)
