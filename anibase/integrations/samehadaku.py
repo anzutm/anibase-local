@@ -181,7 +181,7 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
     if not clean_url:
         return {"ok": False, "error": "URL kosong"}
 
-    cache_key = "anime_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()
+    cache_key = "anime_v2_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()
     cached = _get_cached_data(cache_key)
     if cached is not None:
         return cached
@@ -208,13 +208,19 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
 
     # Parse title
     title = ""
-    title_m = re.search(r'<h1[^>]*class=["\'][^"\']*(?:entry-title|title)[^"\']*["\'][^>]*>([\s\S]*?)</h1>', html_text)
+    title_m = re.search(r'<h1[^>]*>([\s\S]*?)</h1>', html_text)
     if title_m:
-        title = html.unescape(re.sub(r'<[^>]+>', '', title_m.group(1))).strip()
+        raw_h1 = html.unescape(re.sub(r'<[^>]+>', '', title_m.group(1))).strip()
+        raw_h1 = re.sub(r'\s*(?:Sub\s*Indo|Subtitle\s*Indonesia|Samehadaku).*$', '', raw_h1, flags=re.I).strip()
+        title = raw_h1
     if not title:
         og_title = re.search(r'<meta[^>]*property=["\']og:title["\'][^>]*content=["\']([^"\']*)["\']', html_text)
         if og_title:
-            title = html.unescape(og_title.group(1).replace("Samehadaku", "").replace("–", "").strip())
+            clean_og = html.unescape(og_title.group(1))
+            clean_og = re.sub(r'\s*(?:[-–—]\s*)?Samehadaku.*$', '', clean_og, flags=re.I).strip()
+            title = clean_og
+    # Hilangkan tanda hubung / strip di akhir judul seperti "Kashita Maryoku -"
+    title = re.sub(r'[\s\-–—]+$', '', title).strip()
 
     # Parse poster
     poster = ""
@@ -225,6 +231,53 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
         thumb_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|content-thumb)[^"\']*["\'][^>]*>\s*<img[^>]*?\bsrc=["\']([^"\']+)["\']', html_text)
         if thumb_m:
             poster = thumb_m.group(1).strip()
+
+    # Parse episode thumbnails (dari featured banner di halaman hub & artikel pencarian Samehadaku)
+    ep_thumbs: Dict[str, str] = {}
+    banner_m = re.search(
+        r'<a[^>]*href=["\'](https://v2\.samehadaku\.how/[^"\']*episode-[^"\']*)["\'][^>]*style=["\'][^"\']*url\([\'"]?([^\'")]+)[\'"]?\)',
+        html_text,
+        re.I
+    )
+    if banner_m:
+        ep_thumbs[banner_m.group(1).strip()] = banner_m.group(2).strip()
+
+    # Ekstraksi thumbnail episode individual dari pencarian artikel episode
+    search_keyword = ""
+    slug_m = re.search(r'/anime/([^/]+)/?', clean_url)
+    if slug_m:
+        search_keyword = slug_m.group(1).replace("-", " ")
+    elif title:
+        search_keyword = title
+
+    if search_keyword:
+        s_cache_key = "ep_thumbs_" + hashlib.md5(search_keyword.lower().encode("utf-8")).hexdigest()
+        cached_thumbs = _get_cached_data(s_cache_key)
+        if cached_thumbs is not None:
+            ep_thumbs.update(cached_thumbs)
+        else:
+            try:
+                s_url = f"{SAMEHADAKU_BASE_URL}/?s={urllib.parse.quote_plus(search_keyword)}"
+                s_resp = requests.get(s_url, headers=_get_headers(), timeout=timeout)
+                if s_resp.status_code == 200:
+                    fetched_thumbs: Dict[str, str] = {}
+                    articles = re.findall(
+                        r'<article[^>]*class=["\'][^"\']*animepost[^"\']*["\'][^>]*>([\s\S]*?)</article>',
+                        s_resp.text,
+                        re.I
+                    )
+                    for art in articles:
+                        art_link = re.search(r'<a\s+[^>]*href=["\'](https://v2\.samehadaku\.how/[^"\']+)["\']', art)
+                        art_img = re.search(r'<img[^>]*?\bsrc=["\']([^"\']+)["\']', art)
+                        if art_link and art_img:
+                            u = art_link.group(1).strip()
+                            img_src = art_img.group(1).strip()
+                            if "/uploads/" in img_src and not img_src.endswith("/uploads/"):
+                                fetched_thumbs[u] = img_src
+                    _set_cached_data(s_cache_key, fetched_thumbs)
+                    ep_thumbs.update(fetched_thumbs)
+            except Exception as error:
+                app_log(f"Failed to fetch episode thumbnails for {search_keyword}: {error}", "DEBUG")
 
     # Parse synopsis
     synopsis = ""
@@ -254,7 +307,7 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
 
         display_title = clean_inner
         if not display_title or display_title == ep_num:
-            display_title = f"Episode {ep_num}"
+            display_title = f"{title} Episode {ep_num}" if title else f"Episode {ep_num}"
 
         if ep_url in seen_urls:
             # Jika URL sudah tercatat tapi judul sekarang lebih deskriptif, perbarui judulnya
@@ -271,10 +324,14 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
             if date_m:
                 date = html.unescape(re.sub(r'<[^>]+>', '', date_m.group(1))).strip()
 
+        # Dapatkan thumbnail episode (dari screenshot episode atau poster anime)
+        ep_thumb = ep_thumbs.get(ep_url) or (poster if poster else "")
+
         entry = {
             "episode": ep_num,
             "title": display_title,
             "url": ep_url,
+            "thumbnail": ep_thumb,
             "date": date,
             "is_batch": False,
         }

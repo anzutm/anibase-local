@@ -188,8 +188,11 @@ class SamehadakuIntegrationTests(unittest.TestCase):
         details = get_samehadaku_anime_details("https://v2.samehadaku.how/anime/frieren-season-2/")
         self.assertTrue(details["ok"])
         self.assertIn("Frieren", details["title"])
+        self.assertFalse(details["title"].endswith("-"))
         self.assertEqual(len(details["episodes"]), 2)
         self.assertEqual(details["episodes"][0]["episode"], "1")
+        self.assertIn("thumbnail", details["episodes"][0])
+        self.assertTrue(bool(details["episodes"][0]["thumbnail"]))
         self.assertEqual(details["episodes"][1]["episode"], "2")
         self.assertEqual(len(details["batch_links"]), 1)
 

@@ -477,39 +477,72 @@
     text-transform: uppercase;
 }
 
-/* Episodes section & Quick Episode View */
+/* Episodes section & Navigation */
 .samehadaku-episodes-header {
+    display: flex;
+    flex-direction: column;
+    margin: 4px 0 16px;
+    gap: 10px;
+}
+
+.samehadaku-episodes-nav-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 8px 0 16px;
     gap: 12px;
 }
 
-.samehadaku-episodes-header h3 {
+.samehadaku-episodes-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.samehadaku-episodes-anime-title {
     margin: 0;
-    font-size: 17px;
+    font-size: 19px;
     font-weight: 700;
     color: var(--text, #ffffff);
+    letter-spacing: -0.01em;
 }
 
 .samehadaku-back-to-series {
-    background: transparent;
-    border: none;
-    color: var(--cyan, var(--primary));
+    background: color-mix(in srgb, var(--primary) 12%, rgba(255, 255, 255, 0.05));
+    border: 1px solid color-mix(in srgb, var(--primary) 28%, rgba(255, 255, 255, 0.12));
+    color: var(--text, #ffffff);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    padding: 4px 0;
+    padding: 6px 14px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    transition: color 0.2s ease;
+    gap: 8px;
+    border-radius: 9999px;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
 }
 
 .samehadaku-back-to-series:hover {
-    text-decoration: underline;
-    color: var(--primary-hover);
+    background: color-mix(in srgb, var(--primary) 24%, rgba(255, 255, 255, 0.1));
+    border-color: color-mix(in srgb, var(--primary) 65%, transparent);
+    color: var(--cyan, var(--primary));
+    transform: translateX(-3px);
+    box-shadow: 0 2px 12px var(--card-glow);
+    text-decoration: none;
+}
+
+.samehadaku-back-to-series:active {
+    transform: scale(0.97) translateX(-2px);
+}
+
+.samehadaku-back-icon {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.samehadaku-back-to-series:hover .samehadaku-back-icon {
+    transform: translateX(-2px);
 }
 
 /* Episode row */
@@ -519,48 +552,104 @@
     margin-bottom: 10px;
     background: var(--card, rgba(255, 255, 255, 0.03));
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .samehadaku-ep-item:hover {
     border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+    background: color-mix(in srgb, var(--primary) 4%, var(--card, rgba(255, 255, 255, 0.03)));
+    box-shadow: 0 4px 16px var(--card-glow);
 }
 
 .samehadaku-ep-summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 10px 14px;
     cursor: pointer;
     user-select: none;
-    gap: 12px;
+    gap: 14px;
 }
 
-.samehadaku-ep-info {
+/* Episode Thumbnail Container */
+.samehadaku-ep-thumb-wrap {
+    position: relative;
+    width: 106px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.samehadaku-ep-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.25s ease;
+}
+
+.samehadaku-ep-item:hover .samehadaku-ep-thumb {
+    transform: scale(1.06);
+}
+
+.samehadaku-ep-thumb-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-width: 0;
-    flex: 1;
+    justify-content: center;
+    transition: opacity 0.2s ease;
 }
 
-.samehadaku-ep-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--primary) 20%, transparent);
-    color: var(--cyan, var(--primary));
-    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
-    font-weight: 700;
+.samehadaku-ep-item:hover .samehadaku-ep-thumb-overlay {
+    opacity: 1;
+}
+
+.samehadaku-ep-play-icon {
     font-size: 13px;
-    flex-shrink: 0;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.samehadaku-ep-badge-num {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    color: var(--cyan, var(--primary));
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    letter-spacing: 0.02em;
+}
+
+/* Episode Info */
+.samehadaku-ep-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+    justify-content: center;
+}
+
+.samehadaku-ep-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .samehadaku-ep-title {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--text, #ffffff);
     white-space: nowrap;
@@ -568,10 +657,28 @@
     text-overflow: ellipsis;
 }
 
+.samehadaku-ep-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--text-secondary, #A5B4D6);
+}
+
 .samehadaku-ep-date {
     font-size: 11px;
     color: var(--text-secondary, #A5B4D6);
     flex-shrink: 0;
+}
+
+.samehadaku-ep-status-hint {
+    font-size: 11px;
+    color: var(--text-muted, #71717a);
+    transition: color 0.15s ease;
+}
+
+.samehadaku-ep-item:hover .samehadaku-ep-status-hint {
+    color: var(--cyan, var(--primary));
 }
 
 .samehadaku-ep-badge-local {
@@ -585,17 +692,54 @@
     flex-shrink: 0;
 }
 
+/* Episode Action Button */
+.samehadaku-ep-action {
+    flex-shrink: 0;
+}
+
 .samehadaku-ep-expand-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    background: color-mix(in srgb, var(--primary) 14%, rgba(255, 255, 255, 0.05));
+    border: 1px solid color-mix(in srgb, var(--primary) 32%, rgba(255, 255, 255, 0.1));
     color: var(--text, #ffffff);
     border-radius: 8px;
-    padding: 5px 12px;
-    font-size: 11px;
+    padding: 7px 14px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    flex-shrink: 0;
-    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.samehadaku-ep-expand-btn:hover {
+    background: var(--primary);
+    color: var(--primary-contrast, #ffffff);
+    border-color: var(--primary);
+    box-shadow: 0 2px 10px var(--card-glow);
+    transform: translateY(-1px);
+}
+
+.samehadaku-ep-expand-btn:active {
+    transform: scale(0.97);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .samehadaku-ep-thumb-wrap {
+        width: 82px;
+        height: 48px;
+    }
+    .samehadaku-ep-title {
+        font-size: 12.5px;
+    }
+    .samehadaku-ep-status-hint {
+        display: none;
+    }
+    .samehadaku-ep-expand-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
 }
 
 .samehadaku-ep-expand-btn:hover {

@@ -308,12 +308,19 @@
         const epDisplay = epNumber ? `Episode ${epNumber}` : 'Unduhan Episode';
         let html = `
             <div class="samehadaku-episodes-header">
-                <div>
-                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()">&larr; Kembali ke Rilisan Terbaru</button>
-                    <h3 style="margin-top: 6px;">${title} &bull; ${epDisplay}</h3>
+                <div class="samehadaku-episodes-nav-bar">
+                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali">
+                        <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        <span>Kembali</span>
+                    </button>
+                    <div class="samehadaku-section-badge">
+                        Pilihan Unduhan
+                    </div>
                 </div>
-                <div style="font-size: 12px; color: var(--text-secondary, #A5B4D6);">
-                    Pilih format & resolusi di bawah
+                <div class="samehadaku-episodes-title-wrap">
+                    <h3 class="samehadaku-episodes-anime-title">${title} &bull; ${epDisplay}</h3>
                 </div>
             </div>
             <div class="samehadaku-ep-item" style="border-color: color-mix(in srgb, var(--primary) 50%, transparent); box-shadow: 0 4px 20px var(--card-glow);">
@@ -364,7 +371,12 @@
             if (!data.ok || !data.results || data.results.length === 0) {
                 showMessage(`
                     Tidak ditemukan hasil untuk "<strong>${query}</strong>" di Samehadaku. Coba kata kunci yang lebih singkat.<br><br>
-                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()">&larr; Kembali ke Rilisan Terbaru</button>
+                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke Rilisan Terbaru">
+                        <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        <span>Kembali ke Rilisan Terbaru</span>
+                    </button>
                 `);
                 return;
             }
@@ -396,8 +408,13 @@
         let html = `
             <div class="samehadaku-section-header">
                 <div>
-                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()">&larr; Kembali ke Rilisan Terbaru</button>
-                    <div style="margin-top: 4px; font-size: 13px; color: var(--text-secondary, #A5B4D6);">
+                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke Rilisan Terbaru">
+                        <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        <span>Kembali ke Rilisan Terbaru</span>
+                    </button>
+                    <div style="margin-top: 8px; font-size: 13px; color: var(--text-secondary, #A5B4D6);">
                         Ditemukan ${results.length} serial anime di Samehadaku. Pilih serial anime yang sesuai:
                     </div>
                 </div>
@@ -461,15 +478,25 @@
 
         const episodes = details.episodes || [];
         const batchLinks = details.batch_links || [];
+        const rawTitle = details.title || currentAnimeName || 'Detail Anime';
+        const cleanTitle = rawTitle.replace(/[\s\-–—]+$/, '');
+        const posterFallback = details.poster || '/static/arcana.jpg';
 
         let html = `
             <div class="samehadaku-episodes-header">
-                <div>
-                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()">&larr; Kembali</button>
-                    <h3 style="margin-top: 4px;">${details.title || currentAnimeName}</h3>
+                <div class="samehadaku-episodes-nav-bar">
+                    <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke tampilan sebelumnya">
+                        <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        <span>Kembali</span>
+                    </button>
+                    <div class="samehadaku-section-badge">
+                        ${episodes.length} Episode Tersedia
+                    </div>
                 </div>
-                <div style="font-size: 12px; color: var(--text-secondary, #A5B4D6);">
-                    ${episodes.length} Episode tersedia
+                <div class="samehadaku-episodes-title-wrap">
+                    <h3 class="samehadaku-episodes-anime-title">${cleanTitle}</h3>
                 </div>
             </div>
         `;
@@ -484,11 +511,23 @@
                 html += `
                     <div class="samehadaku-ep-item" style="margin-bottom: 6px;">
                         <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('batch-${bIdx}', '${encodeURIComponent(b.url)}')">
-                            <div class="samehadaku-ep-info">
-                                <span class="samehadaku-ep-number" style="width:auto; padding:0 8px; font-size:11px;">BATCH</span>
-                                <span class="samehadaku-ep-title">${b.title}</span>
+                            <div class="samehadaku-ep-thumb-wrap" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--primary) 15%, #0f172a);">
+                                <span style="font-size:18px;">📦</span>
+                                <span class="samehadaku-ep-badge-num">BATCH</span>
                             </div>
-                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-batch-${bIdx}">Tampilkan Link</button>
+                            <div class="samehadaku-ep-info">
+                                <div class="samehadaku-ep-title-row">
+                                    <span class="samehadaku-ep-title">${b.title}</span>
+                                </div>
+                                <div class="samehadaku-ep-meta-row">
+                                    <span class="samehadaku-ep-status-hint">Paket unduhan lengkap satu season</span>
+                                </div>
+                            </div>
+                            <div class="samehadaku-ep-action">
+                                <button type="button" class="samehadaku-ep-expand-btn" id="btn-batch-${bIdx}">
+                                    <span>⚡</span> Tampilkan Link
+                                </button>
+                            </div>
                         </div>
                         <div class="samehadaku-ep-details" id="details-batch-${bIdx}" hidden>
                             <div class="samehadaku-spinner" style="width:20px; height:20px; margin:0;"></div> Memuat tautan unduhan...
@@ -505,21 +544,37 @@
             return;
         }
 
-        // Render setiap episode
+        // Render setiap episode dengan thumbnail 16:9, nomor badge, dan aksi download
         episodes.forEach((ep, epIdx) => {
             const epNum = ep.episode || String(epIdx + 1);
             const isLocal = localEpisodeNumbers.has(String(epNum));
+            const epThumb = ep.thumbnail || posterFallback;
 
             html += `
                 <div class="samehadaku-ep-item" id="item-ep-${epIdx}">
                     <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${encodeURIComponent(ep.url)}', '${epNum}')">
-                        <div class="samehadaku-ep-info">
-                            <span class="samehadaku-ep-number">${epNum}</span>
-                            <span class="samehadaku-ep-title">${ep.title}</span>
-                            ${isLocal ? `<span class="samehadaku-ep-badge-local" title="Episode ini sudah ada di folder library Anda">✓ Local</span>` : ''}
+                        <div class="samehadaku-ep-thumb-wrap">
+                            <img class="samehadaku-ep-thumb" src="${epThumb}" alt="${ep.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${posterFallback}'">
+                            <div class="samehadaku-ep-thumb-overlay">
+                                <span class="samehadaku-ep-play-icon">⚡</span>
+                            </div>
+                            <span class="samehadaku-ep-badge-num">Ep ${epNum}</span>
                         </div>
-                        ${ep.date ? `<span class="samehadaku-ep-date">${ep.date}</span>` : ''}
-                        <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}">Pilih Resolusi</button>
+                        <div class="samehadaku-ep-info">
+                            <div class="samehadaku-ep-title-row">
+                                <span class="samehadaku-ep-title">${ep.title}</span>
+                                ${isLocal ? `<span class="samehadaku-ep-badge-local" title="Episode ini sudah ada di folder library Anda">✓ Di Library</span>` : ''}
+                            </div>
+                            <div class="samehadaku-ep-meta-row">
+                                ${ep.date ? `<span class="samehadaku-ep-date">📅 ${ep.date}</span>` : ''}
+                                <span class="samehadaku-ep-status-hint">Klik untuk melihat pilihan resolusi unduhan</span>
+                            </div>
+                        </div>
+                        <div class="samehadaku-ep-action">
+                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}">
+                                <span>⚡</span> Pilih Resolusi
+                            </button>
+                        </div>
                     </div>
                     <div class="samehadaku-ep-details" id="details-ep-${epIdx}" hidden>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -542,12 +597,12 @@
 
         if (!detailsDiv.hidden) {
             detailsDiv.hidden = true;
-            if (btn) btn.textContent = 'Pilih Resolusi';
+            if (btn) btn.innerHTML = '<span>⚡</span> Pilih Resolusi';
             return;
         }
 
         detailsDiv.hidden = false;
-        if (btn) btn.textContent = 'Tutup';
+        if (btn) btn.innerHTML = '<span>✕</span> Tutup';
 
         // Jika sudah pernah di-load, tidak perlu fetch ulang
         if (detailsDiv.getAttribute('data-loaded') === 'true') {
