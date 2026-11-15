@@ -12078,7 +12078,8 @@ body.anime-detail-body .anime-description.is-collapsed::after {
 }
 
 body.anime-detail-body .detail-info-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    align-items: stretch;
 }
 
 .detail-watch-btn {
@@ -12189,7 +12190,7 @@ html[data-theme="dark-blue"] body.anime-detail-body .studio-card-link:focus-visi
     }
 
     body.anime-detail-body .info-grid:has(.detail-watch-btn) {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
     }
 }
 
@@ -13836,7 +13837,8 @@ body.anime-detail-body .info-grid {
 }
 
 body.anime-detail-body .info-card,
-body.anime-detail-body .detail-watch-btn {
+body.anime-detail-body .detail-watch-btn,
+body.anime-detail-body .detail-download-samehadaku-btn {
     height: 66px;
     min-height: 66px;
     border-radius: 13px;
@@ -13864,14 +13866,24 @@ body.anime-detail-body .info-card p {
 body.anime-detail-body .detail-delete-card {
     border-color: rgba(248,113,113,.38);
     background: rgba(127,29,29,.28);
+    min-width: 0;
+    padding: 6px 4px;
 }
 
 body.anime-detail-body .detail-delete-card h3 {
     color: #fecaca;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 body.anime-detail-body .detail-delete-card p {
     color: rgba(254,202,202,.72);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 body.anime-detail-body .detail-delete-card:hover {
