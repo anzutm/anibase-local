@@ -516,6 +516,23 @@ def get_pixeldrain_file_info(file_id: str, timeout: int = 8) -> Optional[Dict[st
     return None
 
 
+def resolve_mediafire_direct_url(page_url: str, timeout: int = 10) -> Optional[str]:
+    """Ekstraksi URL unduhan langsung dari tautan halaman Mediafire."""
+    clean_url = str(page_url or "").strip()
+    if not clean_url or "mediafire.com" not in clean_url.lower():
+        return None
+
+    try:
+        r = requests.get(clean_url, headers=_get_headers(), timeout=timeout)
+        if r.status_code == 200:
+            m = re.findall(r'href=[\'"](https?://download\d*\.mediafire\.com/[^\'"]+)[\'"]', r.text)
+            if m:
+                return m[0].strip()
+    except Exception as error:
+        app_log(f"Failed to resolve Mediafire link {clean_url}: {error}", "DEBUG")
+    return None
+
+
 def get_samehadaku_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
     """Mengambil daftar episode anime terbaru dari halaman beranda Samehadaku."""
     safe_page = max(1, min(10, int(page or 1)))

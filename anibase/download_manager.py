@@ -121,6 +121,16 @@ def start_download(
                 target_filename = sanitize_filename(pd_info.get("name") or "")
             total_expected_bytes = pd_info.get("size") or 0
 
+    # Jika URL Mediafire, coba ekstraksi direct download URL
+    if "mediafire.com" in clean_url.lower() and "download" not in clean_url.lower():
+        try:
+            from anibase.integrations.samehadaku import resolve_mediafire_direct_url
+            mf_direct = resolve_mediafire_direct_url(clean_url)
+            if mf_direct:
+                clean_url = mf_direct
+        except Exception:
+            pass
+
     # Jika nama berkas masih kosong, buat nama berbasis anime & episode
     if not target_filename or target_filename.startswith("download_"):
         clean_anime = clean_auto_import_folder_name(anime_name) or "Anime"

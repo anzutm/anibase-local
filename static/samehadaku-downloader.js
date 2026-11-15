@@ -712,21 +712,29 @@
             resBtn.innerHTML = `<span class="samehadaku-spinner" style="width:12px; height:12px; margin:0; border-width:2px;"></span> <span>${tier.quality}</span>`;
         }
 
-        // Cari direct download link (misal Pixeldrain)
+        // Cari direct download link (Prioritas 1: Pixeldrain, Prioritas 2: Mediafire direct resolver)
+        let directUrl = null;
         const directLink = (tier.links || []).find(l => l.is_direct && (l.direct_download_url || l.direct_url));
+        if (directLink) {
+            directUrl = directLink.direct_download_url || directLink.direct_url;
+        } else {
+            const mfLink = (tier.links || []).find(l => (l.host || '').toLowerCase().includes('mediafire') || (l.url || '').toLowerCase().includes('mediafire.com'));
+            if (mfLink && mfLink.url) {
+                directUrl = mfLink.url;
+            }
+        }
 
-        if (!directLink) {
+        if (!directUrl) {
             // Direct download tidak tersedia di Samehadaku untuk resolusi ini
             if (resBtn) {
                 resBtn.classList.remove('loading');
                 resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
             }
-            showAlternativeServers(epId, tier, `Tautan unduh langsung (Pixeldrain) tidak tersedia untuk ${tier.format} ${tier.quality}.`);
+            showAlternativeServers(epId, tier, `Tautan unduh langsung tidak tersedia untuk ${tier.format} ${tier.quality}.`);
             return;
         }
 
         // Mulai unduhan langsung ke backend AniBase
-        const directUrl = directLink.direct_download_url || directLink.direct_url;
         const ext = (tier.format || 'mkv').toLowerCase();
         const filename = `${tier.animeName || currentAnimeName || 'Anime'} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
         const token = getActionToken();
@@ -751,7 +759,13 @@
                 })
             });
 
-            const data = await res.json();
+            let data;
+            const rawText = await res.text();
+            try {
+                data = JSON.parse(rawText);
+            } catch (jsonErr) {
+                data = { ok: false, error: `Respon server (${res.status})` };
+            }
 
             if (!data.ok) {
                 // Direct download gagal dimulai di server

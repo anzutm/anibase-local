@@ -361,6 +361,21 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertIsInstance(data["tasks"], list)
 
+    @patch("anibase.web.routes_api.start_download")
+    def test_api_samehadaku_start_download(self, mock_start):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        mock_start.return_value = {"ok": True, "task": {"task_id": "dl_test123"}}
+        res = self.client.post(
+            "/api/samehadaku/download",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={"url": "https://pixeldrain.com/api/file/abc12345?download", "anime_name": "Test", "episode": "1"}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["task"]["task_id"], "dl_test123")
+
 
 if __name__ == "__main__":
     unittest.main()

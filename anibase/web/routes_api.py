@@ -2239,7 +2239,10 @@ def api_samehadaku_downloads():
 @require_action_token
 def api_samehadaku_start_download():
     """Memulai pengunduhan video di latar belakang."""
-    body = get_json_body()
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
     url = body.get("url", "").strip()
     anime_name = body.get("anime_name", "").strip()
     episode = body.get("episode", "").strip()
@@ -2278,7 +2281,10 @@ def api_samehadaku_download_status():
 @require_action_token
 def api_samehadaku_cancel_download():
     """Membatalkan tugas pengunduhan yang sedang berjalan."""
-    body = get_json_body()
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
     task_id = body.get("task_id", "").strip()
     if not task_id:
         return json_error("missing_task_id", "ID tugas unduhan wajib disertakan", 400)
