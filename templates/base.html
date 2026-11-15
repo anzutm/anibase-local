@@ -37,8 +37,8 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='arcana.jpg') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='13') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='14') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='4') }}">
     {% block extra_head %}{% endblock %}
     {% if request.endpoint in ['movies', 'studio_page', 'seiyuu_page', 'schedule', 'about', 'setup_loading', 'external_anime_detail'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='support-pages.css', v='6') }}">
@@ -74,7 +74,7 @@
                 <li><a href="{{ url_for('movies') }}" class="nav-link {% if request.path == '/movies' %}active{% endif %}" {% if request.path == '/movies' %}aria-current="page"{% endif %}>Movies</a></li>
                 <li><a href="{{ url_for('schedule') }}" class="nav-link {% if request.path == '/schedule' %}active{% endif %}" {% if request.path == '/schedule' %}aria-current="page"{% endif %}>Schedule</a></li>
                 <li><a href="{{ url_for('about') }}" class="nav-link {% if request.path == '/about' %}active{% endif %}" {% if request.path == '/about' %}aria-current="page"{% endif %}>About</a></li>
-                <li><button type="button" class="nav-link nav-btn-samehadaku" data-samehadaku-trigger title="Download Anime dari Samehadaku" style="background: none; border: none; cursor: pointer; color: #00b7e0; font: inherit; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; transition: background 0.2s;" onmouseover="this.style.background='rgba(0,183,224,0.1)'" onmouseout="this.style.background='none'">📥 Download</button></li>
+                <li><button type="button" class="topbar-nav-download-btn nav-btn-samehadaku" data-samehadaku-trigger title="Download Anime">Download</button></li>
             </ul>
         </nav>
         <div class="nav-right">

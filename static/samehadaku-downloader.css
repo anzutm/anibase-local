@@ -1226,3 +1226,46 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Distinctive yet matching Topbar Download pill button */
+.topbar-nav-download-btn,
+.nav-btn-samehadaku {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 15px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--primary-hover) 8%, transparent));
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    color: color-mix(in srgb, var(--primary) 85%, #ffffff);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--primary) 12%, transparent);
+    line-height: 1.4;
+    text-decoration: none;
+    outline: none;
+}
+
+.topbar-nav-download-btn:hover,
+.nav-btn-samehadaku:hover {
+    background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
+    border-color: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 4px 18px var(--card-glow);
+    transform: translateY(-1px);
+}
+
+.topbar-nav-download-btn:active,
+.nav-btn-samehadaku:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px var(--card-glow);
+}
+
+.topbar-nav-download-btn::after,
+.nav-btn-samehadaku::after {
+    display: none !important;
+}
