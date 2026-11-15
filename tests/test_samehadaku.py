@@ -15,6 +15,8 @@ from anibase.integrations.samehadaku import (
 )
 from anibase.download_manager import (
     resolve_download_folder,
+    resolve_download_destination,
+    find_matching_library_anime,
     start_download,
     cancel_download,
     get_download_task,
@@ -267,6 +269,30 @@ class DownloadManagerTests(unittest.TestCase):
     def test_resolve_download_folder(self):
         folder = resolve_download_folder("Test Anime Series")
         self.assertTrue(os.path.isdir(folder))
+
+    def test_find_matching_library_anime(self):
+        # Anime yang ada di folder ongoing/watchlist lokal
+        match_clean = find_matching_library_anime("Test Anime Series")
+        if match_clean:
+            self.assertEqual(match_clean["name"], "Test Anime Series")
+
+        # Variasi dengan strip akhiran atau episode
+        match_dash = find_matching_library_anime("Test Anime Series -")
+        if match_dash:
+            self.assertEqual(match_dash["name"], "Test Anime Series")
+
+        match_ep = find_matching_library_anime("Test Anime Series Episode 1")
+        if match_ep:
+            self.assertEqual(match_ep["name"], "Test Anime Series")
+
+        # Anime yang tidak ada sama sekali di library
+        non_existent = find_matching_library_anime("NonExistentAnime99999XYZ")
+        self.assertIsNone(non_existent)
+
+    def test_resolve_download_destination(self):
+        dest = resolve_download_destination("Test Anime Series -")
+        self.assertTrue(os.path.isdir(dest["folder"]))
+        self.assertNotIn("-", os.path.basename(dest["folder"]))
 
     @patch("anibase.download_manager.requests.get")
     def test_start_and_complete_download(self, mock_get):

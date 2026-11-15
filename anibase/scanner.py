@@ -40,7 +40,14 @@ from anibase.metadata import (
 
 def get_valid_anime_paths():
     valid_paths = []
-    for base_path in _constants.ANIME_PATHS:
+    base_paths = _constants.ANIME_PATHS
+    if not base_paths:
+        try:
+            from anibase.settings import load_settings, get_settings_library_paths
+            base_paths = get_settings_library_paths(load_settings())
+        except Exception:
+            base_paths = []
+    for base_path in base_paths:
         normalized_path = normalize_library_path(base_path)
         if normalized_path and os.path.isdir(normalized_path):
             valid_paths.append(normalized_path)
@@ -158,7 +165,14 @@ def _find_anime_path_cached(anime_name, paths_tuple):
 
 
 def find_anime_path(anime_name):
-    return _find_anime_path_cached(anime_name, tuple(_constants.ANIME_PATHS))
+    paths = tuple(_constants.ANIME_PATHS)
+    if not paths:
+        try:
+            from anibase.settings import load_settings, get_settings_library_paths
+            paths = tuple(get_settings_library_paths(load_settings()))
+        except Exception:
+            paths = ()
+    return _find_anime_path_cached(anime_name, paths)
 
 
 def clear_media_path_cache():

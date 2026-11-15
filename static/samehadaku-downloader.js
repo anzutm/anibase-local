@@ -283,11 +283,13 @@
     window.__quickDownloadEpisode = async function (encodedEpUrl, encodedTitle, epNumber) {
         const epUrl = decodeURIComponent(encodedEpUrl);
         const title = decodeURIComponent(encodedTitle);
-        currentAnimeName = title;
+        // Bersihkan kata 'Episode X' atau akhiran tanda hubung dari judul anime agar nama serial bersih
+        const cleanAnime = title.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim();
+        currentAnimeName = cleanAnime || title;
         lastActiveView = 'quick_ep';
 
         const displayEp = epNumber ? `Episode ${epNumber}` : 'Episode';
-        showLoading(`Mengambil opsi resolusi unduhan untuk "${title}" ${displayEp}...`);
+        showLoading(`Mengambil opsi resolusi unduhan untuk "${currentAnimeName}" ${displayEp}...`);
 
         try {
             const res = await fetch(`/api/samehadaku/downloads?url=${encodeURIComponent(epUrl)}`);
@@ -298,7 +300,7 @@
                 return;
             }
 
-            renderQuickEpisodeDownloads(epUrl, title, epNumber, data.downloads);
+            renderQuickEpisodeDownloads(epUrl, currentAnimeName, epNumber, data.downloads);
         } catch (err) {
             showMessage(`Gagal memuat link unduhan: ${err.message}`, true);
         }
@@ -736,7 +738,9 @@
 
         // Mulai unduhan langsung ke backend AniBase
         const ext = (tier.format || 'mkv').toLowerCase();
-        const filename = `${tier.animeName || currentAnimeName || 'Anime'} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
+        const rawAnime = tier.animeName || currentAnimeName || 'Anime';
+        const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
+        const filename = `${cleanAnime} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
         const token = getActionToken();
 
         const tray = document.getElementById('samehadakuTray');
@@ -752,7 +756,7 @@
                 },
                 body: JSON.stringify({
                     url: directUrl,
-                    anime_name: tier.animeName || currentAnimeName,
+                    anime_name: cleanAnime,
                     episode: tier.epNum,
                     filename: filename,
                     action_token: token,
@@ -862,6 +866,8 @@
         const ep = decodeURIComponent(encodedEp);
         const filename = decodeURIComponent(encodedFilename);
         const token = getActionToken();
+        const rawAnime = currentAnimeName || 'Anime';
+        const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
 
         const tray = document.getElementById('samehadakuTray');
         if (tray) tray.hidden = false;
@@ -876,7 +882,7 @@
                 },
                 body: JSON.stringify({
                     url: url,
-                    anime_name: currentAnimeName,
+                    anime_name: cleanAnime,
                     episode: ep,
                     filename: filename,
                     action_token: token,
@@ -897,6 +903,26 @@
         }
     };
 
+    // Fungsi helper untuk memperbarui badge episode di DOM jika episode selesai diunduh
+    function updateEpisodeBadgeInDom(epNum) {
+        if (!epNum) return;
+        const targetNum = String(epNum).trim();
+        const epItems = document.querySelectorAll('.samehadaku-ep-item');
+        epItems.forEach(item => {
+            const badgeNum = item.querySelector('.samehadaku-ep-badge-num');
+            if (badgeNum && badgeNum.textContent.replace(/\D/g, '') === targetNum) {
+                const titleRow = item.querySelector('.samehadaku-ep-title-row');
+                if (titleRow && !titleRow.querySelector('.samehadaku-ep-badge-local')) {
+                    const badge = document.createElement('span');
+                    badge.className = 'samehadaku-ep-badge-local';
+                    badge.title = 'Episode ini sudah ada di folder library Anda';
+                    badge.textContent = '✓ Di Library';
+                    titleRow.appendChild(badge);
+                }
+            }
+        });
+    }
+
     // Polling status unduhan
     async function pollDownloadStatus() {
         try {
@@ -905,6 +931,17 @@
             if (!data.ok || !data.tasks) return;
 
             renderDownloadTasks(data.tasks);
+
+            // Jika ada unduhan yang selesai, tandai episode sebagai ada di library
+            data.tasks.forEach(t => {
+                if (t.status === 'completed' && t.episode) {
+                    const epStr = String(t.episode).trim();
+                    if (!localEpisodeNumbers.has(epStr)) {
+                        localEpisodeNumbers.add(epStr);
+                        updateEpisodeBadgeInDom(epStr);
+                    }
+                }
+            });
 
             // Jika tidak ada unduhan yang sedang berjalan, hentikan polling cepat
             const anyActive = data.tasks.some(t => t.status === 'downloading' || t.status === 'pending');
@@ -950,6 +987,26 @@
             const downloadedText = formatBytes(t.downloaded_bytes);
             const totalText = t.total_bytes > 0 ? formatBytes(t.total_bytes) : '?';
 
+            let statusLabel = t.status;
+            let destInfo = '';
+            if (t.status === 'completed') {
+                statusLabel = '<span style="color:var(--primary, #10b981); font-weight:700;">Selesai</span>';
+                const folderName = t.dest_anime_folder || t.matched_anime;
+                if (folderName) {
+                    destInfo = ` &bull; Tersimpan di: <strong style="color:var(--cyan, #38bdf8);">${folderName}</strong>`;
+                }
+            } else if (t.status === 'downloading') {
+                statusLabel = '<span style="color:var(--cyan, #38bdf8);">Mengunduh</span>';
+                const folderName = t.dest_anime_folder || t.matched_anime;
+                if (folderName) {
+                    destInfo = ` &bull; Tujuan: <em>${folderName}</em>`;
+                }
+            } else if (t.status === 'error') {
+                statusLabel = '<span style="color:#ef4444; font-weight:700;">Gagal</span>';
+            } else if (t.status === 'cancelled') {
+                statusLabel = '<span style="color:var(--muted, #94a3b8);">Dibatalkan</span>';
+            }
+
             html += `
                 <div class="samehadaku-task-item" id="task-${t.task_id}">
                     <div class="samehadaku-task-top">
@@ -960,7 +1017,7 @@
                         <div class="samehadaku-progress-bar-fill ${statusClass}" style="width: ${percent}%;"></div>
                     </div>
                     <div class="samehadaku-task-bottom">
-                        <span>Status: <strong>${t.status}</strong> ${t.error ? ` - ${t.error}` : ''}</span>
+                        <span>Status: ${statusLabel}${destInfo} ${t.error ? ` - <span style="color:#ef4444;">${t.error}</span>` : ''}</span>
                         ${(t.status === 'downloading' || t.status === 'pending') ? `
                             <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')">Batalkan</button>
                         ` : ''}

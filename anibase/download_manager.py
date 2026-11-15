@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any, List
 
 import requests
 from anibase.constants import CACHE_DIR, VIDEO_EXTENSIONS
-from anibase.logging import app_log
+from anibase.logging import app_log, debug_log
 from anibase.settings import load_settings, get_settings_library_paths
 from anibase.scanner import find_media_path, clear_media_path_cache
 from anibase.watcher import clean_auto_import_folder_name, unique_destination_path
@@ -35,60 +35,270 @@ def sanitize_filename(filename: str) -> str:
     return clean or f"download_{secrets.token_hex(4)}"
 
 
+def find_matching_library_anime(
+    anime_name: str,
+    settings: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """Mencari folder anime yang cocok di library lokal pengguna berdasarkan judul.
+
+    Mendukung:
+    1. Pencocokan langsung (exact/normalized) via find_media_path.
+    2. Pemetaan manual pengguna (auto_import_mappings dari pengaturan).
+    3. Riwayat auto-import terakhir (auto_import_recent_imports dari pengaturan).
+    4. Pencarian FTS5 SQLite pada judul resmi, Romaji, English, dan sinonim (anime_fts).
+    5. Pencocokan fuzzy dan token overlap terhadap seluruh folder anime di library (get_anime_folder_index).
+    """
+    if not anime_name or not str(anime_name).strip():
+        return None
+
+    settings = settings or load_settings()
+
+    raw = str(anime_name).strip()
+    clean_title = re.sub(r'[\s\-–—:_]+$', '', raw).strip()
+    title_no_ep = re.sub(r'(?i)\b(?:episode|episodes|eps?|e)\s*\d+.*$', '', clean_title).strip()
+    title_no_ep = re.sub(r'[\s\-–—:_]+$', '', title_no_ep).strip()
+
+    from anibase.watcher import normalize_title_for_match, get_match_key
+    norm_title = normalize_title_for_match(title_no_ep or clean_title)
+    key = get_match_key(norm_title) or get_match_key(clean_title)
+
+    # 1. Cek pencarian langsung ke folder media (exact/normalized)
+    for cand in (raw, clean_title, title_no_ep, norm_title):
+        if cand:
+            path = find_media_path(cand)
+            if path and os.path.isdir(path):
+                return {
+                    "name": os.path.basename(path),
+                    "path": path,
+                    "score": 1.0,
+                    "method": "direct",
+                }
+
+    # 2. Cek auto_import_mappings dari pengaturan pengguna
+    mappings = settings.get("auto_import_mappings", {})
+    if mappings and isinstance(mappings, dict):
+        clean_key = get_match_key(clean_title)
+        raw_key = get_match_key(raw)
+        for map_src, map_dst in mappings.items():
+            src_key = get_match_key(map_src)
+            if src_key and src_key in (key, clean_key, raw_key):
+                path = find_media_path(map_dst)
+                if path and os.path.isdir(path):
+                    return {
+                        "name": map_dst,
+                        "path": path,
+                        "score": 1.0,
+                        "method": "mapping",
+                    }
+
+    # 3. Cek riwayat auto-import terakhir
+    recent_imports = settings.get("auto_import_recent_imports", [])
+    if recent_imports and isinstance(recent_imports, list):
+        for item in recent_imports:
+            if not isinstance(item, dict):
+                continue
+            item_clean = item.get("clean_title") or ""
+            item_anime = item.get("anime") or ""
+            if item_anime and (get_match_key(item_clean) == key or get_match_key(item_clean) == get_match_key(clean_title)):
+                path = find_media_path(item_anime)
+                if path and os.path.isdir(path):
+                    return {
+                        "name": item_anime,
+                        "path": path,
+                        "score": 0.99,
+                        "method": "recent_import",
+                    }
+
+    # 4. Cek pencarian FTS5 SQLite (mendukung judul Inggris vs Romaji dan sinonim AniList)
+    try:
+        from anibase.db import search_anime_fts
+        for fts_query in (title_no_ep, clean_title, norm_title):
+            if fts_query and len(fts_query) >= 3:
+                fts_matches = search_anime_fts(fts_query, limit=3)
+                for m in fts_matches:
+                    m_name = m.get("name")
+                    if m_name:
+                        path = find_media_path(m_name)
+                        if path and os.path.isdir(path):
+                            return {
+                                "name": m_name,
+                                "path": path,
+                                "score": 0.98,
+                                "method": "fts",
+                            }
+    except Exception as fts_err:
+        debug_log(f"FTS lookup during anime folder match: {fts_err}")
+
+    # 5. Pencocokan fuzzy & similarity terhadap seluruh folder anime di library
+    from anibase.scanner import get_anime_folder_index
+    import difflib
+    folders = get_anime_folder_index()
+    best_folder = None
+    best_score = 0.0
+    best_method = ""
+
+    for f in folders:
+        name = f.get("name") or ""
+        f_norm = normalize_title_for_match(name)
+        f_key = get_match_key(f_norm) or get_match_key(name)
+        if not f_key:
+            continue
+
+        # Exact key match
+        if key == f_key or name.casefold() in (clean_title.casefold(), title_no_ep.casefold()):
+            return {
+                "name": name,
+                "path": f["path"],
+                "score": 1.0,
+                "method": "key_exact",
+            }
+
+        # Substring containment (panjang >= 4 agar tidak false positive kata pendek)
+        if len(key) >= 4 and len(f_key) >= 4:
+            if key in f_key or f_key in key:
+                score = 0.95
+                if score > best_score:
+                    best_score = score
+                    best_folder = f
+                    best_method = "containment"
+                    continue
+
+        # Word token overlap (Jaccard / subset score)
+        q_words = set(norm_title.casefold().split())
+        f_words = set(f_norm.casefold().split())
+        word_score = 0.0
+        if q_words and f_words:
+            overlap = q_words & f_words
+            if overlap:
+                subset_score = len(overlap) / min(len(q_words), len(f_words))
+                jaccard = len(overlap) / len(q_words | f_words)
+                word_score = max(subset_score * 0.9, jaccard)
+
+        # SequenceMatcher ratio
+        ratio = difflib.SequenceMatcher(None, key, f_key).ratio()
+        cand_score = max(word_score, ratio)
+        if cand_score > best_score:
+            best_score = cand_score
+            best_folder = f
+            best_method = "similarity"
+
+    if best_folder and best_score >= 0.72:
+        return {
+            "name": best_folder["name"],
+            "path": best_folder["path"],
+            "score": best_score,
+            "method": best_method,
+        }
+
+    return None
+
+
+def resolve_download_destination(anime_name: str) -> Dict[str, Any]:
+    """Menentukan lokasi penyimpanan unduhan dengan mencocokkan ke library anime yang ada.
+
+    Jika ditemukan anime yang cocok di library (misal folder 'Kashita Maryoku'),
+    akan mengembalikan folder anime tersebut.
+    Jika belum ada anime yang cocok, akan membuat folder baru di `ongoing_path`
+    atau library default dengan nama bersih (tanpa sisa karakter seperti '-' atau 'Episode X').
+    """
+    settings = load_settings()
+
+    # 1. Coba cocokkan ke anime library yang sudah ada
+    matched = find_matching_library_anime(anime_name, settings=settings)
+    if matched and matched.get("path") and os.path.isdir(matched["path"]):
+        return {
+            "folder": matched["path"],
+            "matched": True,
+            "matched_anime": matched["name"],
+            "match_method": matched.get("method", "library"),
+            "score": matched.get("score", 1.0),
+        }
+
+    # 2. Tidak ditemukan yang cocok: bersihkan nama anime untuk folder baru
+    raw = str(anime_name or "").strip()
+    clean_raw = re.sub(r'[\s\-–—:_]+$', '', raw).strip()
+    clean_no_ep = re.sub(r'(?i)\b(?:episode|episodes|eps?|e)\s*\d+.*$', '', clean_raw).strip()
+    clean_no_ep = re.sub(r'[\s\-–—:_]+$', '', clean_no_ep).strip()
+    folder_basename = clean_auto_import_folder_name(clean_no_ep or clean_raw) or "Unknown Anime"
+
+    # Prioritas folder baru:
+    # 1. ongoing_path
+    ongoing = settings.get("ongoing_path", "").strip()
+    if ongoing and os.path.isdir(ongoing):
+        target = os.path.join(ongoing, folder_basename)
+        os.makedirs(target, exist_ok=True)
+        return {
+            "folder": target,
+            "matched": False,
+            "matched_anime": folder_basename,
+            "match_method": "new_ongoing",
+            "score": 0.0,
+        }
+
+    # 2. auto_import_destination_root
+    dest_root = settings.get("auto_import_destination_root", "").strip()
+    if dest_root and os.path.isdir(dest_root):
+        target = os.path.join(dest_root, folder_basename)
+        os.makedirs(target, exist_ok=True)
+        return {
+            "folder": target,
+            "matched": False,
+            "matched_anime": folder_basename,
+            "match_method": "new_auto_import",
+            "score": 0.0,
+        }
+
+    # 3. Folder library pertama dari library_paths
+    library_paths = get_settings_library_paths(settings)
+    for lib_path in library_paths:
+        if lib_path and os.path.isdir(lib_path):
+            target = os.path.join(lib_path, folder_basename)
+            os.makedirs(target, exist_ok=True)
+            return {
+                "folder": target,
+                "matched": False,
+                "matched_anime": folder_basename,
+                "match_method": "new_library",
+                "score": 0.0,
+            }
+
+    # 4. auto_import_downloads_path
+    dl_path = settings.get("auto_import_downloads_path", "").strip()
+    if dl_path and os.path.isdir(dl_path):
+        target = os.path.join(dl_path, folder_basename)
+        os.makedirs(target, exist_ok=True)
+        return {
+            "folder": target,
+            "matched": False,
+            "matched_anime": folder_basename,
+            "match_method": "new_downloads_path",
+            "score": 0.0,
+        }
+
+    # 5. Fallback direktori Downloads pengguna
+    fallback = os.path.join(os.path.expanduser("~"), "Downloads", "AniBase", folder_basename)
+    os.makedirs(fallback, exist_ok=True)
+    return {
+        "folder": fallback,
+        "matched": False,
+        "matched_anime": folder_basename,
+        "match_method": "fallback_user_downloads",
+        "score": 0.0,
+    }
+
+
 def resolve_download_folder(anime_name: str) -> str:
     """Menentukan folder penyimpanan yang paling tepat untuk anime yang diunduh.
 
     Prioritas:
-    1. Folder anime yang sudah ada di library (`find_media_path`).
+    1. Folder anime yang sudah ada di library via pencocokan cerdas (`find_matching_library_anime`).
     2. `ongoing_path` dari pengaturan jika valid.
     3. `auto_import_destination_root` dari pengaturan jika valid.
-    4. `auto_import_downloads_path` dari pengaturan jika valid.
-    5. Folder library pertama dari `library_paths`.
+    4. Folder library pertama dari `library_paths`.
+    5. `auto_import_downloads_path` dari pengaturan jika valid.
     6. Direktori Downloads pengguna OS (~/Downloads/AniBase).
     """
-    clean_name = clean_auto_import_folder_name(anime_name) or "Unknown Anime"
-
-    # 1. Cek library lokal jika anime sudah pernah ada
-    if anime_name:
-        existing_path = find_media_path(anime_name)
-        if existing_path and os.path.isdir(existing_path):
-            return existing_path
-
-    settings = load_settings()
-
-    # 2. Ongoing folder
-    ongoing = settings.get("ongoing_path", "").strip()
-    if ongoing and os.path.isdir(ongoing):
-        target = os.path.join(ongoing, clean_name)
-        os.makedirs(target, exist_ok=True)
-        return target
-
-    # 3. Auto import destination root
-    dest_root = settings.get("auto_import_destination_root", "").strip()
-    if dest_root and os.path.isdir(dest_root):
-        target = os.path.join(dest_root, clean_name)
-        os.makedirs(target, exist_ok=True)
-        return target
-
-    # 4. Library paths pertama
-    library_paths = get_settings_library_paths(settings)
-    for lib_path in library_paths:
-        if lib_path and os.path.isdir(lib_path):
-            target = os.path.join(lib_path, clean_name)
-            os.makedirs(target, exist_ok=True)
-            return target
-
-    # 5. Auto import downloads folder
-    dl_path = settings.get("auto_import_downloads_path", "").strip()
-    if dl_path and os.path.isdir(dl_path):
-        target = os.path.join(dl_path, clean_name)
-        os.makedirs(target, exist_ok=True)
-        return target
-
-    # 6. Fallback Downloads pengguna
-    fallback = os.path.join(os.path.expanduser("~"), "Downloads", "AniBase", clean_name)
-    os.makedirs(fallback, exist_ok=True)
-    return fallback
+    return resolve_download_destination(anime_name)["folder"]
 
 
 def start_download(
@@ -142,15 +352,24 @@ def start_download(
     if ext.lower() not in VIDEO_EXTENSIONS:
         target_filename += ".mkv"
 
-    # Tentukan folder tujuan
+    # Tentukan folder tujuan dan pencocokan anime
     if custom_dest_dir and os.path.isdir(custom_dest_dir):
         dest_folder = custom_dest_dir
+        dest_info = {
+            "folder": custom_dest_dir,
+            "matched": False,
+            "matched_anime": os.path.basename(custom_dest_dir),
+            "match_method": "custom",
+            "score": 1.0,
+        }
     else:
-        dest_folder = resolve_download_folder(anime_name)
+        dest_info = resolve_download_destination(anime_name)
+        dest_folder = dest_info["folder"]
 
     os.makedirs(dest_folder, exist_ok=True)
     save_path = unique_destination_path(dest_folder, target_filename)
     temp_path = f"{save_path}.part"
+    matched_anime_name = dest_info.get("matched_anime") or anime_name
 
     task_id = "dl_" + secrets.token_hex(6)
     cancel_event = threading.Event()
@@ -159,6 +378,10 @@ def start_download(
         "task_id": task_id,
         "url": clean_url,
         "anime_name": anime_name,
+        "matched_anime": matched_anime_name,
+        "dest_anime_folder": os.path.basename(dest_folder),
+        "dest_folder": dest_folder,
+        "match_method": dest_info.get("match_method", ""),
         "episode": str(episode or ""),
         "filename": os.path.basename(save_path),
         "save_path": save_path,
@@ -180,7 +403,7 @@ def start_download(
 
     worker = threading.Thread(
         target=_download_worker,
-        args=(task_id, clean_url, save_path, temp_path, cancel_event, anime_name),
+        args=(task_id, clean_url, save_path, temp_path, cancel_event, anime_name, matched_anime_name),
         daemon=True,
         name=f"DownloadWorker-{task_id}"
     )
@@ -196,7 +419,8 @@ def _download_worker(
     save_path: str,
     temp_path: str,
     cancel_event: threading.Event,
-    anime_name: str
+    anime_name: str,
+    matched_anime: Optional[str] = None
 ):
     """Worker fungsi pengunduhan chunk streaming."""
     headers = {
@@ -290,16 +514,25 @@ def _download_worker(
                 t["speed_bps"] = 0
                 t["updated_at"] = time.time()
 
-        app_log(f"Download completed successfully: {save_path} ({downloaded} bytes)", "INFO")
+        dest_folder_name = os.path.basename(os.path.dirname(save_path))
+        target_anime = matched_anime or dest_folder_name or anime_name
+        app_log(
+            f"Download completed successfully: {save_path} ({downloaded} bytes) -> anime folder [{target_anime}]",
+            "INFO"
+        )
 
-        # Segarkan cache media dan antrikan sinkronisasi library jika ada anime_name
+        # Segarkan cache media dan sinkronkan library otomatis
         clear_media_path_cache()
-        if anime_name:
+        if target_anime:
             try:
+                from anibase.scanner import sync_anime_to_db
                 from anibase.watcher import queue_anime_sync
-                queue_anime_sync(anime_name)
+                # Segera sinkronkan anime ini ke database SQLite
+                sync_anime_to_db(target_anime, trigger_label=f"Download completed: {target_anime}")
+                # Jadwalkan debounced sync juga agar file watcher sinkron
+                queue_anime_sync(target_anime)
             except Exception as sync_err:
-                app_log(f"Failed to queue anime sync after download: {sync_err}", "DEBUG")
+                app_log(f"Failed to sync anime library after download: {sync_err}", "DEBUG")
 
     except Exception as error:
         app_log(f"Download task {task_id} failed: {error}", "ERROR")
