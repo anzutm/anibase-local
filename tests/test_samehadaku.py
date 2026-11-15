@@ -10,6 +10,7 @@ from anibase.integrations.samehadaku import (
     search_samehadaku,
     get_samehadaku_anime_details,
     get_samehadaku_download_links,
+    get_samehadaku_latest_episodes,
     get_pixeldrain_file_info,
 )
 from anibase.download_manager import (
@@ -104,6 +105,31 @@ SAMPLE_DOWNLOAD_HTML = """
 """
 
 
+SAMPLE_LATEST_HTML = """
+<html><body>
+<div class="post-show">
+    <ul>
+        <li itemscope="itemscope" itemtype="http://schema.org/CreativeWork">
+            <div class="thumb">
+                <a href="https://v2.samehadaku.how/mock-anime-episode-5/" title="Mock Anime" itemprop="url">
+                    <img src="https://v2.samehadaku.how/wp-content/uploads/mock-thumb.jpg" alt="Mock Anime" loading="lazy" />
+                </a>
+            </div>
+            <div class="dtla">
+                <h2 class="entry-title" itemprop="headline">
+                    <a href="https://v2.samehadaku.how/anime/mock-anime/" title="Mock Anime" itemprop="url">Mock Anime</a>
+                </h2>
+                <span><i class="fa fa-play"></i> <b>Episode</b> 5</span>
+                <span class="author vcard"><i class="fa fa-user"></i> <b>Posted by:</b> <span itemprop="name">Tester</span></span>
+                <span><i class="fa fa-calendar"></i> <b>Released on:</b> 2 Jam yang lalu</span>
+            </div>
+        </li>
+    </ul>
+</div>
+</body></html>
+"""
+
+
 class SamehadakuIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -186,6 +212,22 @@ class SamehadakuIntegrationTests(unittest.TestCase):
         self.assertEqual(info["name"], "Frieren - 01.mkv")
         self.assertEqual(info["size"], 52428800)
 
+    @patch("anibase.integrations.samehadaku.requests.get")
+    def test_get_samehadaku_latest_episodes(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = SAMPLE_LATEST_HTML
+        mock_get.return_value = mock_resp
+
+        results = get_samehadaku_latest_episodes(page=1)
+        self.assertEqual(len(results), 1)
+        item = results[0]
+        self.assertEqual(item["title"], "Mock Anime")
+        self.assertEqual(item["episode"], "Episode 5")
+        self.assertEqual(item["episode_number"], "5")
+        self.assertEqual(item["thumbnail"], "https://v2.samehadaku.how/wp-content/uploads/mock-thumb.jpg")
+        self.assertEqual(item["released_on"], "2 Jam yang lalu")
+
 
 class DownloadManagerTests(unittest.TestCase):
     def setUp(self):
@@ -251,6 +293,15 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
     def setUp(self):
         self.app = create_app()
         self.client = self.app.test_client()
+
+    @patch("anibase.web.routes_api.get_samehadaku_latest_episodes")
+    def test_api_samehadaku_latest(self, mock_latest):
+        mock_latest.return_value = [{"title": "Frieren", "episode": "Episode 1", "thumbnail": "https://example.com/thumb.jpg"}]
+        res = self.client.get("/api/samehadaku/latest")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["results"]), 1)
 
     @patch("anibase.web.routes_api.search_samehadaku")
     def test_api_samehadaku_search(self, mock_search):

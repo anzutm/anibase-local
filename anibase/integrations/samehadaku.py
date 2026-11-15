@@ -119,7 +119,7 @@ def search_samehadaku(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[s
                 title = re.sub(r'<[^>]+>', '', title_m.group(1)).strip()
 
         title = html.unescape(title).strip()
-        img_m = re.search(r'<img\s+[^>]*src=["\']([^"\']+)["\']', art)
+        img_m = re.search(r'<img\s+[^>]*?\bsrc=["\']([^"\']+)["\']', art)
         img_src = img_m.group(1).strip() if img_m else ""
 
         type_m = re.search(r'<div[^>]*class=["\'][^"\']*type[^"\']*["\'][^>]*>([\s\S]*?)</div>', art)
@@ -194,7 +194,7 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
     if og_img:
         poster = og_img.group(1).strip()
     if not poster:
-        thumb_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|content-thumb)[^"\']*["\'][^>]*>\s*<img[^>]*src=["\']([^"\']+)["\']', html_text)
+        thumb_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|content-thumb)[^"\']*["\'][^>]*>\s*<img[^>]*?\bsrc=["\']([^"\']+)["\']', html_text)
         if thumb_m:
             poster = thumb_m.group(1).strip()
 
@@ -429,3 +429,116 @@ def get_pixeldrain_file_info(file_id: str, timeout: int = 8) -> Optional[Dict[st
     except Exception as error:
         app_log(f"Pixeldrain info check error: {error}", "DEBUG")
     return None
+
+
+def get_samehadaku_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
+    """Mengambil daftar episode anime terbaru dari halaman beranda Samehadaku."""
+    safe_page = max(1, min(10, int(page or 1)))
+    cache_key = f"latest_episodes_p{safe_page}"
+    cached = _get_cached_data(cache_key)
+    if cached is not None:
+        return cached
+
+    url = SAMEHADAKU_BASE_URL if safe_page == 1 else f"{SAMEHADAKU_BASE_URL}/page/{safe_page}/"
+    try:
+        response = requests.get(url, headers=_get_headers(), timeout=timeout)
+        if response.status_code != 200:
+            app_log(f"Samehadaku latest episodes failed with status {response.status_code}", "WARNING")
+            return []
+        html_text = response.text
+    except Exception as error:
+        app_log(f"Samehadaku latest episodes network error: {error}", "ERROR")
+        return []
+
+    results: List[Dict[str, Any]] = []
+
+    # 1. Cari elemen daftar episode terbaru dalam kontainer post-show
+    items = re.findall(
+        r'<li[^>]*itemtype=["\']http://schema\.org/CreativeWork["\'][^>]*>([\s\S]*?)</li>',
+        html_text,
+    )
+
+    for item in items:
+        # Thumbnail & link episode
+        thumb_link_m = re.search(
+            r'<div class=["\']thumb["\'][^>]*>\s*<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*title=["\']([^"\']*)["\']',
+            item,
+        )
+        if not thumb_link_m:
+            thumb_link_m = re.search(r'<div class=["\']thumb["\'][^>]*>\s*<a\s+[^>]*href=["\']([^"\']+)["\']', item)
+            episode_url = thumb_link_m.group(1).strip() if thumb_link_m else ""
+            raw_title = ""
+        else:
+            episode_url = thumb_link_m.group(1).strip()
+            raw_title = thumb_link_m.group(2).strip()
+
+        img_m = re.search(r'<img\s+[^>]*?\bsrc=["\']([^"\']+)["\']', item)
+        thumb_img = img_m.group(1).strip() if img_m else ""
+
+        # Judul anime dan tautan hub anime
+        anime_link_m = re.search(
+            r'<h2[^>]*class=["\']entry-title["\'][^>]*>\s*<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>([\s\S]*?)</a>',
+            item,
+        )
+        if anime_link_m:
+            anime_url = anime_link_m.group(1).strip()
+            title = re.sub(r'<[^>]+>', '', anime_link_m.group(2)).strip()
+        else:
+            anime_url = ""
+            title = raw_title
+
+        title = html.unescape(title)
+
+        # Nomor / label episode
+        ep_m = re.search(r'<b>Episode</b>\s*([\s\S]*?)</span>', item)
+        ep_num = re.sub(r'<[^>]+>', '', ep_m.group(1)).strip() if ep_m else ""
+
+        # Tanggal rilis
+        rel_m = re.search(r'<b>Released on:</b>\s*([\s\S]*?)</span>', item)
+        released_on = re.sub(r'<[^>]+>', '', rel_m.group(1)).strip() if rel_m else ""
+
+        # Penulis / Uploader
+        author_m = re.search(r'itemprop=["\']name["\']>([^<]+)</span>', item)
+        author = author_m.group(1).strip() if author_m else ""
+
+        results.append({
+            "title": title,
+            "episode": f"Episode {ep_num}" if ep_num else "",
+            "episode_number": ep_num,
+            "episode_url": episode_url,
+            "anime_url": anime_url,
+            "thumbnail": thumb_img,
+            "released_on": released_on,
+            "author": author,
+        })
+
+    # 2. Fallback: jika post-show tidak ditemukan atau format berbeda
+    if not results:
+        articles = re.findall(
+            r'<article[^>]*class=["\'][^"\']*animepost[^"\']*["\'][^>]*>([\s\S]*?)</article>',
+            html_text,
+        )
+        for art in articles:
+            link_m = re.search(r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*title=["\']([^"\']*)["\']', art)
+            if not link_m:
+                continue
+            href = link_m.group(1).strip()
+            title = html.unescape(link_m.group(2).strip())
+            img_m = re.search(r'<img\s+[^>]*src=["\']([^"\']+)["\']', art)
+            img_src = img_m.group(1).strip() if img_m else ""
+            ep_m = re.search(r'episode-(\d+(?:\.\d+)?)', href, re.I)
+            ep_num = ep_m.group(1) if ep_m else ""
+
+            results.append({
+                "title": title,
+                "episode": f"Episode {ep_num}" if ep_num else "",
+                "episode_number": ep_num,
+                "episode_url": href,
+                "anime_url": "",
+                "thumbnail": img_src,
+                "released_on": "",
+                "author": "",
+            })
+
+    _set_cached_data(cache_key, results)
+    return results

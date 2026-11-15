@@ -146,6 +146,7 @@ from anibase.integrations.samehadaku import (
     search_samehadaku,
     get_samehadaku_anime_details,
     get_samehadaku_download_links,
+    get_samehadaku_latest_episodes,
 )
 from anibase.download_manager import (
     start_download,
@@ -1214,7 +1215,13 @@ def image_proxy():
     if not image_url:
         abort(400)
     parsed = urlparse(image_url)
-    allowed_hosts = {"cdn.myanimelist.net", "s4.anilist.co", "img.anili.st"}
+    allowed_hosts = {
+        "cdn.myanimelist.net",
+        "s4.anilist.co",
+        "img.anili.st",
+        "v2.samehadaku.how",
+        "samehadaku.email",
+    }
     host = (parsed.hostname or "").casefold()
     if host not in allowed_hosts:
         abort(403)
@@ -2190,6 +2197,15 @@ def api_desktop_activate():
 
 
 @host_only
+def api_samehadaku_latest():
+    """Mengambil daftar episode anime terbaru dari Samehadaku."""
+    page = request.args.get("page", default=1, type=int)
+    page = max(1, min(10, page))
+    results = get_samehadaku_latest_episodes(page=page)
+    return jsonify({"ok": True, "page": page, "results": results})
+
+
+@host_only
 def api_samehadaku_search():
     """Pencarian anime di Samehadaku berdasarkan query."""
     query = request.args.get("q", "").strip()
@@ -2295,6 +2311,7 @@ def register_api_routes(app):
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)
+    app.add_url_rule("/api/samehadaku/latest", endpoint="api_samehadaku_latest", view_func=api_samehadaku_latest)
     app.add_url_rule("/api/samehadaku/search", endpoint="api_samehadaku_search", view_func=api_samehadaku_search)
     app.add_url_rule("/api/samehadaku/episodes", endpoint="api_samehadaku_episodes", view_func=api_samehadaku_episodes)
     app.add_url_rule("/api/samehadaku/downloads", endpoint="api_samehadaku_downloads", view_func=api_samehadaku_downloads)

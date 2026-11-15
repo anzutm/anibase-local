@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='external-anime.css', v='4') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='2') }}">
 <link rel="preload" as="image" href="{{ anime.banner or anime.poster }}" fetchpriority="high">
 {% endblock %}
 
@@ -543,5 +543,5 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 </script>
-<script src="{{ url_for('static', filename='samehadaku-downloader.js') }}" defer></script>
+<script src="{{ url_for('static', filename='samehadaku-downloader.js', v='2') }}" defer></script>
 {% endblock %}

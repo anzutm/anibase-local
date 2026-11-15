@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='spotlight.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='global-mini-player.css', v='3') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='1') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='samehadaku-downloader.css', v='2') }}">
 </head>
 
 <body class="anime-detail-body{% if is_movie %} movie-detail-body{% endif %}">
@@ -1722,6 +1722,6 @@ window.initializeMetadataMatch();
 {% include "_global_mini_player.html" %}
 <script src="{{ url_for('static', filename='global-mini-player.js', v='3') }}"></script>
 <script src="{{ url_for('static', filename='desktop-titlebar.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='samehadaku-downloader.js') }}" defer></script>
+<script src="{{ url_for('static', filename='samehadaku-downloader.js', v='2') }}" defer></script>
 </body>
 </html>
