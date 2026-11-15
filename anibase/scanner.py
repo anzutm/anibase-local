@@ -172,7 +172,18 @@ def find_anime_path(anime_name):
             paths = tuple(get_settings_library_paths(load_settings()))
         except Exception:
             paths = ()
-    return _find_anime_path_cached(anime_name, paths)
+    result = _find_anime_path_cached(anime_name, paths)
+    if result:
+        if not os.path.isdir(result):
+            _find_anime_path_cached.cache_clear()
+            return None
+    elif result is None and anime_name:
+        for base_path in get_valid_anime_paths():
+            candidate = os.path.join(base_path, anime_name)
+            if is_anime_library_folder(candidate):
+                _find_anime_path_cached.cache_clear()
+                return _find_anime_path_cached(anime_name, paths)
+    return result
 
 
 def clear_media_path_cache():

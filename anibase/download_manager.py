@@ -226,7 +226,6 @@ def resolve_download_destination(anime_name: str) -> Dict[str, Any]:
     ongoing = settings.get("ongoing_path", "").strip()
     if ongoing and os.path.isdir(ongoing):
         target = os.path.join(ongoing, folder_basename)
-        os.makedirs(target, exist_ok=True)
         return {
             "folder": target,
             "matched": False,
@@ -239,7 +238,6 @@ def resolve_download_destination(anime_name: str) -> Dict[str, Any]:
     dest_root = settings.get("auto_import_destination_root", "").strip()
     if dest_root and os.path.isdir(dest_root):
         target = os.path.join(dest_root, folder_basename)
-        os.makedirs(target, exist_ok=True)
         return {
             "folder": target,
             "matched": False,
@@ -253,7 +251,6 @@ def resolve_download_destination(anime_name: str) -> Dict[str, Any]:
     for lib_path in library_paths:
         if lib_path and os.path.isdir(lib_path):
             target = os.path.join(lib_path, folder_basename)
-            os.makedirs(target, exist_ok=True)
             return {
                 "folder": target,
                 "matched": False,
@@ -266,7 +263,6 @@ def resolve_download_destination(anime_name: str) -> Dict[str, Any]:
     dl_path = settings.get("auto_import_downloads_path", "").strip()
     if dl_path and os.path.isdir(dl_path):
         target = os.path.join(dl_path, folder_basename)
-        os.makedirs(target, exist_ok=True)
         return {
             "folder": target,
             "matched": False,

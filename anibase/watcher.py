@@ -29,6 +29,7 @@ from anibase.scanner import (
     get_valid_anime_paths,
     sync_anime_to_db,
     sync_all_library,
+    clear_media_path_cache,
 )
 
 
@@ -604,6 +605,7 @@ class LibraryHandler(FileSystemEventHandler):
         if is_shutdown_requested():
             return
 
+        clear_media_path_cache()
         event_path = os.path.abspath(event_path)
 
         movie_path = normalize_library_path(_constants.MOVIE_PATH)

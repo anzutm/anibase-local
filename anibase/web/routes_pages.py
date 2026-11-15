@@ -87,6 +87,7 @@ from anibase.scanner import (
     find_anime_path,
     find_media_path,
     get_anime_folder_index,
+    clear_media_path_cache,
 )
 from anibase.watcher import (
     reconfigure_library_observer,
@@ -780,14 +781,19 @@ def anime_detail(anime_name):
         anime_name
     )
 
-    if not anime_path:
+    if not anime_path or not os.path.isdir(anime_path):
+        clear_media_path_cache()
         return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     seasons = []
 
-    for item in os.listdir(
-        anime_path
-    ):
+    try:
+        dir_items = os.listdir(anime_path)
+    except OSError:
+        clear_media_path_cache()
+        return render_template("anime_not_found.html", anime_name=anime_name), 404
+
+    for item in dir_items:
         item_path = os.path.join(
             anime_path,
             item
@@ -826,9 +832,13 @@ def anime_detail(anime_name):
     episodes = []
     video_files = []
 
-    for file in os.listdir(
-        episode_source_path
-    ):
+    try:
+        source_files = os.listdir(episode_source_path)
+    except OSError:
+        clear_media_path_cache()
+        return render_template("anime_not_found.html", anime_name=anime_name), 404
+
+    for file in source_files:
         if file.lower().endswith(
             VIDEO_EXTENSIONS
         ):
@@ -978,7 +988,8 @@ def player(anime_name, episode):
         anime_name
     )
 
-    if not anime_path:
+    if not anime_path or not os.path.isdir(anime_path):
+        clear_media_path_cache()
         return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     current_video_path = safe_join_media_path(
@@ -1020,9 +1031,11 @@ def player(anime_name, episode):
             video_files.insert(0, current_file)
     else:
         video_files = []
-        for file in os.listdir(
-            episode_dir
-        ):
+        try:
+            ep_dir_files = os.listdir(episode_dir)
+        except OSError:
+            ep_dir_files = []
+        for file in ep_dir_files:
             if file.lower().endswith(
                 VIDEO_EXTENSIONS
             ):
@@ -1283,7 +1296,8 @@ def season_list(anime_name):
 def season_detail(anime_name, season_name):
     """Keep old season bookmarks working with the integrated season selector."""
     anime_path = find_anime_path(anime_name)
-    if not anime_path:
+    if not anime_path or not os.path.isdir(anime_path):
+        clear_media_path_cache()
         return render_template("anime_not_found.html", anime_name=anime_name), 404
 
     season_path = safe_join_media_path(anime_path, season_name)
