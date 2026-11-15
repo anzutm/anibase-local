@@ -16,6 +16,7 @@
     let currentAnimeDetailsData = null;
     let pollTimer = null;
     let localEpisodeNumbers = new Set();
+    const downloadTiersRegistry = {};
 
     // Dapatkan action token untuk otorisasi POST request
     function getActionToken() {
@@ -330,7 +331,7 @@
                 <div class="samehadaku-ep-details" style="display:block;">
         `;
 
-        html += generateDownloadTiersHTML(downloads, epNumber || '1');
+        html += generateDownloadTiersHTML(downloads, epNumber || '1', 'quick');
 
         html += `
                 </div>
@@ -623,62 +624,63 @@
                 return;
             }
 
-            detailsDiv.innerHTML = generateDownloadTiersHTML(data.downloads, epNum);
+            detailsDiv.innerHTML = generateDownloadTiersHTML(data.downloads, epNum, id);
             detailsDiv.setAttribute('data-loaded', 'true');
         } catch (err) {
             detailsDiv.innerHTML = `<span style="font-size:12px; color:#ef4444;">Gagal memuat link: ${err.message}</span>`;
         }
     };
 
-    // Helper untuk membuat HTML daftar tier dan link unduhan
-    function generateDownloadTiersHTML(downloads, epNum) {
-        let html = '';
+    // Helper untuk membuat HTML daftar pilihan resolusi per format (MKV, MP4)
+    function generateDownloadTiersHTML(downloads, epNum, epId = 'ep') {
+        if (!downloads || downloads.length === 0) {
+            return '<div class="samehadaku-status-box" style="padding: 12px; font-size: 12px;">Tautan unduhan tidak tersedia.</div>';
+        }
 
-        downloads.forEach((tier) => {
-            const fmt = tier.format || 'MKV';
-            const quality = tier.quality || '720p';
-            const links = tier.links || [];
+        // Kelompokkan per format (MKV, MP4, dll.)
+        const formatGroups = {};
+        downloads.forEach((tier, tIdx) => {
+            const fmt = (tier.format || 'MKV').toUpperCase();
+            if (!formatGroups[fmt]) formatGroups[fmt] = [];
+            formatGroups[fmt].push({ tier, tIdx });
+        });
 
+        let html = `<div class="samehadaku-download-picker">`;
+
+        Object.keys(formatGroups).forEach((fmt) => {
+            const tiers = formatGroups[fmt];
             html += `
-                <div class="samehadaku-tier-group">
-                    <div class="samehadaku-tier-header">
-                        <span class="samehadaku-tier-format">${fmt}</span>
-                        <span class="samehadaku-tier-quality">${quality}</span>
-                    </div>
-                    <div class="samehadaku-links-row">
+                <div class="samehadaku-format-row">
+                    <span class="samehadaku-format-badge">${fmt}</span>
+                    <div class="samehadaku-resolutions-grid">
             `;
 
-            links.forEach((l) => {
-                const directUrl = l.direct_download_url || l.direct_url;
-                if (l.is_direct && directUrl) {
-                    // Host direct (seperti Pixeldrain) dengan tombol unduh langsung ke library
-                    const defaultName = `${currentAnimeName || 'Anime'} - Ep ${epNum || '1'} [${quality}].mkv`;
-                    html += `
-                        <button
-                            type="button"
-                            class="samehadaku-btn-direct"
-                            title="Unduh langsung berkas ke folder library Anda"
-                            onclick="window.__startDirectDownload('${encodeURIComponent(directUrl)}', '${encodeURIComponent(epNum || '')}', '${encodeURIComponent(defaultName)}')"
-                        >
-                            <span aria-hidden="true">⚡</span>
-                            <span>Unduh ${l.host} (Direct)</span>
-                        </button>
-                    `;
-                } else {
-                    // Host eksternal (Gofile, Krakenfiles, Mediafire, dll.)
-                    html += `
-                        <a
-                            href="${l.url}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="samehadaku-btn-ext"
-                            title="Buka tautan ${l.host} di tab baru"
-                        >
-                            <span>${l.host}</span>
-                            <span aria-hidden="true">&nearr;</span>
-                        </a>
-                    `;
-                }
+            tiers.forEach(({ tier, tIdx }) => {
+                const quality = tier.quality || '720p';
+                const tierKey = `${epId}_${fmt}_${tIdx}_${quality}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                // Daftarkan tier ke registry untuk aksi klik resolusi
+                downloadTiersRegistry[tierKey] = {
+                    epId: epId,
+                    epNum: epNum,
+                    format: fmt,
+                    quality: quality,
+                    links: tier.links || [],
+                    animeName: currentAnimeName,
+                };
+
+                html += `
+                    <button
+                        type="button"
+                        class="samehadaku-btn-res"
+                        id="btn-res-${tierKey}"
+                        title="Unduh langsung resolusi ${quality} (${fmt})"
+                        onclick="window.__handleResolutionClick('${tierKey}')"
+                    >
+                        <span class="samehadaku-res-icon">⚡</span>
+                        <span class="samehadaku-res-text">${quality}</span>
+                    </button>
+                `;
             });
 
             html += `
@@ -687,7 +689,157 @@
             `;
         });
 
+        // Kontainer untuk menampilkan mirror alternatif jika direct gagal atau tidak tersedia
+        html += `
+            <div class="samehadaku-fallback-container" id="fallback-${epId}" hidden></div>
+        </div>`;
+
         return html;
+    }
+
+    // Klik tombol resolusi: otomatis unduh direct, jika gagal atau tidak tersedia maka tampilkan alternatif
+    window.__handleResolutionClick = async function (tierKey) {
+        const tier = downloadTiersRegistry[tierKey];
+        if (!tier) return;
+
+        const epId = tier.epId;
+        const resBtn = document.getElementById(`btn-res-${tierKey}`);
+        const fallbackContainer = document.getElementById(`fallback-${epId}`);
+
+        // Tampilkan status loading pada tombol
+        if (resBtn) {
+            resBtn.classList.add('loading');
+            resBtn.innerHTML = `<span class="samehadaku-spinner" style="width:12px; height:12px; margin:0; border-width:2px;"></span> <span>${tier.quality}</span>`;
+        }
+
+        // Cari direct download link (misal Pixeldrain)
+        const directLink = (tier.links || []).find(l => l.is_direct && (l.direct_download_url || l.direct_url));
+
+        if (!directLink) {
+            // Direct download tidak tersedia di Samehadaku untuk resolusi ini
+            if (resBtn) {
+                resBtn.classList.remove('loading');
+                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+            }
+            showAlternativeServers(epId, tier, `Tautan unduh langsung (Pixeldrain) tidak tersedia untuk ${tier.format} ${tier.quality}.`);
+            return;
+        }
+
+        // Mulai unduhan langsung ke backend AniBase
+        const directUrl = directLink.direct_download_url || directLink.direct_url;
+        const ext = (tier.format || 'mkv').toLowerCase();
+        const filename = `${tier.animeName || currentAnimeName || 'Anime'} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
+        const token = getActionToken();
+
+        const tray = document.getElementById('samehadakuTray');
+        if (tray) tray.hidden = false;
+
+        try {
+            const res = await fetch('/api/samehadaku/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    url: directUrl,
+                    anime_name: tier.animeName || currentAnimeName,
+                    episode: tier.epNum,
+                    filename: filename,
+                    action_token: token,
+                })
+            });
+
+            const data = await res.json();
+
+            if (!data.ok) {
+                // Direct download gagal dimulai di server
+                if (resBtn) {
+                    resBtn.classList.remove('loading');
+                    resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                }
+                const errorMsg = data.message || data.error || 'Server unduh langsung tidak merespons';
+                showAlternativeServers(epId, tier, `Unduh direct gagal (${errorMsg}).`);
+                return;
+            }
+
+            // Direct download berhasil dimulai!
+            if (resBtn) {
+                resBtn.classList.remove('loading');
+                resBtn.classList.add('success');
+                resBtn.innerHTML = `<span>✓</span> <span>Mengunduh ${tier.quality}</span>`;
+                setTimeout(() => {
+                    if (resBtn) {
+                        resBtn.classList.remove('success');
+                        resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                    }
+                }, 4000);
+            }
+
+            // Sembunyikan fallback server jika sebelumnya terbuka
+            if (fallbackContainer) {
+                fallbackContainer.hidden = true;
+            }
+
+            // Jalankan polling tray status unduhan
+            startStatusPolling();
+            pollDownloadStatus();
+
+        } catch (err) {
+            if (resBtn) {
+                resBtn.classList.remove('loading');
+                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+            }
+            showAlternativeServers(epId, tier, `Koneksi unduh direct error: ${err.message}`);
+        }
+    };
+
+    // Tampilkan pilihan tempat download lain saat direct tidak berhasil atau tidak tersedia
+    function showAlternativeServers(epId, tier, reason) {
+        const container = document.getElementById(`fallback-${epId}`);
+        if (!container) return;
+
+        const links = tier.links || [];
+        const externalLinks = links.filter(l => !l.is_direct || (!l.direct_download_url && !l.direct_url));
+        const listToDisplay = externalLinks.length > 0 ? externalLinks : links;
+
+        let linksHTML = '';
+        if (listToDisplay.length === 0) {
+            linksHTML = '<span style="font-size:12px; color:var(--text-secondary, #A5B4D6);">Tidak ada mirror download lain yang tersedia untuk resolusi ini.</span>';
+        } else {
+            listToDisplay.forEach((l) => {
+                linksHTML += `
+                    <a
+                        href="${l.url}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="samehadaku-btn-ext"
+                        title="Unduh lewat server ${l.host}"
+                    >
+                        <span>${l.host}</span>
+                        <span aria-hidden="true">&nearr;</span>
+                    </a>
+                `;
+            });
+        }
+
+        container.hidden = false;
+        container.innerHTML = `
+            <div class="samehadaku-fallback-box">
+                <div class="samehadaku-fallback-header">
+                    <div class="samehadaku-fallback-title-wrap">
+                        <span class="samehadaku-fallback-badge">${tier.format} ${tier.quality}</span>
+                        <span class="samehadaku-fallback-msg">${reason}</span>
+                    </div>
+                    <button type="button" class="samehadaku-fallback-close" onclick="document.getElementById('fallback-${epId}').hidden = true;" title="Tutup alternatif">✕</button>
+                </div>
+                <div class="samehadaku-fallback-sub">Silakan pilih tempat download alternatif di bawah ini untuk membuka tautan:</div>
+                <div class="samehadaku-fallback-links">
+                    ${linksHTML}
+                </div>
+            </div>
+        `;
     }
 
     // Memulai unduhan langsung (Pixeldrain) ke background worker

@@ -759,7 +759,176 @@
     display: none;
 }
 
-/* Quality tiers */
+/* Resolution picker layout */
+.samehadaku-download-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.samehadaku-format-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 4px 0;
+}
+
+.samehadaku-format-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    color: var(--cyan, var(--primary));
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    min-width: 52px;
+}
+
+.samehadaku-resolutions-grid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Modern resolution button */
+.samehadaku-btn-res {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--primary) 14%, rgba(255, 255, 255, 0.04));
+    border: 1px solid color-mix(in srgb, var(--primary) 32%, rgba(255, 255, 255, 0.1));
+    color: var(--text, #ffffff);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.samehadaku-btn-res:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-contrast, #ffffff);
+    box-shadow: 0 4px 14px var(--card-glow);
+    transform: translateY(-1px);
+}
+
+.samehadaku-btn-res:active {
+    transform: scale(0.97);
+}
+
+.samehadaku-res-icon {
+    color: var(--cyan, var(--primary));
+    transition: transform 0.2s ease;
+}
+
+.samehadaku-btn-res:hover .samehadaku-res-icon {
+    color: inherit;
+    transform: scale(1.15);
+}
+
+.samehadaku-btn-res.loading {
+    pointer-events: none;
+    opacity: 0.85;
+    background: color-mix(in srgb, var(--primary) 28%, rgba(255, 255, 255, 0.08));
+}
+
+.samehadaku-btn-res.success {
+    background: rgba(34, 197, 94, 0.22);
+    border-color: rgba(34, 197, 94, 0.6);
+    color: #4ade80;
+    box-shadow: 0 2px 10px rgba(34, 197, 94, 0.25);
+}
+
+/* Fallback server mirrors container */
+.samehadaku-fallback-container {
+    margin-top: 6px;
+    animation: samehadakuFadeIn 0.2s ease-out;
+}
+
+@keyframes samehadakuFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.samehadaku-fallback-box {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: color-mix(in srgb, #f59e0b 9%, rgba(0, 0, 0, 0.5));
+    border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.samehadaku-fallback-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.samehadaku-fallback-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.samehadaku-fallback-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.samehadaku-fallback-msg {
+    font-size: 12px;
+    color: #fde68a;
+    font-weight: 500;
+}
+
+.samehadaku-fallback-close {
+    background: transparent;
+    border: none;
+    color: #a1a1aa;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.samehadaku-fallback-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.samehadaku-fallback-sub {
+    font-size: 11.5px;
+    color: var(--text-secondary, #A5B4D6);
+}
+
+.samehadaku-fallback-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+/* Quality tiers (legacy compatibility) */
 .samehadaku-tier-group {
     margin-bottom: 14px;
 }
