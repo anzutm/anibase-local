@@ -23,6 +23,7 @@ from anibase.download_manager import (
     get_all_download_tasks,
     clear_completed_download_tasks,
     sanitize_filename,
+    adapt_filename_to_library_pattern,
 )
 from anibase.web import create_app
 
@@ -369,6 +370,76 @@ class DownloadManagerTests(unittest.TestCase):
         self.assertTrue(cancelled)
         task = get_download_task(task_id)
         self.assertEqual(task["status"], "cancelled")
+
+    def test_adapt_filename_to_library_pattern_with_lendrive_style(self):
+        ep_files = [
+            "[LENDRIVE]_Doumo_Suki_-_01_[1080p_HEVC][Dualsubs].mkv",
+            "[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs].mkv",
+            "[LENDRIVE]_Doumo_Suki_-_03_[1080p_HEVC][Dualsubs].mkv",
+            "[LENDRIVE]_Doumo_Suki_-_04_[1080p_HEVC][Dualsubs].mkv",
+            "[LENDRIVE]_Doumo_Suki_-_05_[1080p_HEVC][Dualsubs].mkv",
+            "[LENDRIVE]_Doumo_Suki_-_06_[1080p_HEVC][Dualsubs].mkv",
+        ]
+        for name in ep_files:
+            open(os.path.join(self.dest_folder, name), "wb").close()
+
+        adapted = adapt_filename_to_library_pattern(
+            folder_path=self.dest_folder,
+            episode="7",
+            default_filename="Doumo, Suki na Hito ni Horegusuri wo Irai sareta Majo desu. - Ep 7 [1080p].mkv"
+        )
+        self.assertEqual(adapted, "[LENDRIVE]_Doumo_Suki_-_07_[1080p_HEVC][Dualsubs].mkv")
+
+    def test_adapt_filename_resolution_and_extension(self):
+        ep_files = [
+            "[Group]_Title_-_01_[1080p].mkv",
+            "[Group]_Title_-_02_[1080p].mkv",
+        ]
+        for name in ep_files:
+            open(os.path.join(self.dest_folder, name), "wb").close()
+
+        adapted = adapt_filename_to_library_pattern(
+            folder_path=self.dest_folder,
+            episode="3",
+            default_filename="Title - Ep 3 [720p].mp4"
+        )
+        self.assertEqual(adapted, "[Group]_Title_-_03_[720p].mp4")
+
+    def test_adapt_filename_fallback_when_empty_or_no_match(self):
+        empty_folder = os.path.join(self.dest_folder, "empty_sub")
+        os.makedirs(empty_folder, exist_ok=True)
+        fallback = "New Anime - Ep 1 [1080p].mkv"
+        res = adapt_filename_to_library_pattern(empty_folder, "1", fallback)
+        self.assertEqual(res, fallback)
+
+    @patch("anibase.download_manager.requests.get")
+    def test_start_download_adapts_filename_automatically(self, mock_get):
+        for i in range(1, 4):
+            open(os.path.join(self.dest_folder, f"[SubsPlease] Frieren - 0{i} (1080p).mkv"), "wb").close()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Length": "10"}
+        mock_resp.iter_content.return_value = [b"1234567890"]
+        mock_get.return_value.__enter__.return_value = mock_resp
+
+        result = start_download(
+            url="https://example.com/frieren4.mkv",
+            anime_name="Frieren",
+            episode="4",
+            filename="Frieren - Ep 4 [1080p].mkv",
+            custom_dest_dir=self.dest_folder
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["task"]["filename"], "[SubsPlease] Frieren - 04 (1080p).mkv")
+
+        task_id = result["task"]["task_id"]
+        import time
+        for _ in range(30):
+            status = get_download_task(task_id)
+            if status and status["status"] in ("completed", "error"):
+                break
+            time.sleep(0.05)
 
 
 class SamehadakuApiRoutesTests(unittest.TestCase):

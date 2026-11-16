@@ -12,6 +12,7 @@ import time
 import secrets
 import threading
 from typing import Optional, Dict, Any, List
+from collections import Counter
 
 import requests
 from anibase.constants import CACHE_DIR, VIDEO_EXTENSIONS
@@ -20,6 +21,7 @@ from anibase.settings import load_settings, get_settings_library_paths
 from anibase.scanner import find_media_path, clear_media_path_cache
 from anibase.watcher import clean_auto_import_folder_name, unique_destination_path
 from anibase.integrations.samehadaku import get_pixeldrain_file_info
+from anibase.media import parse_episode_identity
 
 DEFAULT_CHUNK_SIZE = 128 * 1024  # 128 KB
 MAX_STORED_TASKS = 100
@@ -301,6 +303,118 @@ def resolve_download_folder(anime_name: str) -> str:
     return resolve_download_destination(anime_name)["folder"]
 
 
+def adapt_filename_to_library_pattern(
+    folder_path: str,
+    episode: Any,
+    default_filename: str
+) -> str:
+    """Menyesuaikan nama berkas unduhan baru dengan pola penamaan berkas video yang sudah ada di folder tujuan.
+
+    Jika folder tujuan sudah memiliki berkas episode (misal `[LENDRIVE]_Anime_-_01_[1080p].mkv`),
+    fungsi ini mendeteksi pola prefix, format/padding nomor episode (misal 2 digit '07'), dan suffix/tag kualitas,
+    sehingga berkas baru otomatis seragam dan rapi dengan berkas-berkas sebelumnya di folder tersebut.
+    """
+    if not folder_path or not os.path.isdir(folder_path):
+        return default_filename
+
+    try:
+        entries = os.listdir(folder_path)
+    except OSError:
+        return default_filename
+
+    video_files = [
+        f for f in entries
+        if os.path.isfile(os.path.join(folder_path, f))
+        and os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS
+        and not f.endswith(".part")
+    ]
+    if not video_files:
+        return default_filename
+
+    target_num = None
+    is_int = True
+    clean_ep = str(episode or "").strip()
+    if clean_ep:
+        try:
+            target_num = float(clean_ep)
+            is_int = target_num.is_integer()
+        except (ValueError, TypeError):
+            m = re.search(r'\b(?:ep|episode|e)?\s*(\d+(?:\.\d+)?)\b', clean_ep, re.IGNORECASE)
+            if m:
+                target_num = float(m.group(1))
+                is_int = target_num.is_integer()
+
+    if target_num is None:
+        ident = parse_episode_identity(default_filename)
+        if ident.get("kind") == "episode" and ident.get("number") is not None:
+            target_num = float(ident["number"])
+            is_int = target_num.is_integer()
+        else:
+            m = re.search(r'\b(?:ep|episode|e)?\s*(\d+(?:\.\d+)?)\b', default_filename, re.IGNORECASE)
+            if m:
+                target_num = float(m.group(1))
+                is_int = target_num.is_integer()
+
+    if target_num is None:
+        return default_filename
+
+    patterns = []
+    for f in video_files:
+        if f == default_filename:
+            continue
+        ident = parse_episode_identity(f)
+        if ident.get("kind") != "episode" or ident.get("number") is None:
+            continue
+        num = ident["number"]
+        if num == target_num:
+            continue
+
+        stem, ext = os.path.splitext(f)
+        regexes = [
+            rf'(?i)(?<=[\s._\-\]A-Za-z])(?:S\d{{1,2}}\s*)?(?:E|EP|Episode\s*)[-_. #]*(0*{num})\b',
+            rf'(?i)(?<=[\s._\-\]A-Za-z])(0*{num})(?=[\s._\-\[\]\(\)]|$)',
+        ]
+        for r in regexes:
+            ms = list(re.finditer(r, stem))
+            if ms:
+                m = ms[-1]
+                digits = m.group(1)
+                prefix = stem[:m.start(1)]
+                suffix = stem[m.end(1):] + ext
+                suffix_stem, suffix_ext = os.path.splitext(suffix)
+                suffix_stem = re.sub(r'(?i)v\d+$', '', suffix_stem)
+                suffix_stem = re.sub(r'\[[0-9a-fA-F]{8}\]', '', suffix_stem).rstrip()
+                suffix = suffix_stem + suffix_ext
+                patterns.append((prefix, len(digits), suffix))
+                break
+
+    if not patterns:
+        return default_filename
+
+    best_prefix, _ = Counter(p[0] for p in patterns).most_common(1)[0]
+    best_padding, _ = Counter(p[1] for p in patterns).most_common(1)[0]
+    best_suffix, _ = Counter(p[2] for p in patterns).most_common(1)[0]
+
+    if is_int:
+        pad_len = max(best_padding, 1)
+        formatted_ep = f"{int(target_num):0{pad_len}d}"
+    else:
+        formatted_ep = f"{target_num}"
+
+    # Jika nama default mengandung resolusi tertentu (misal 720p/480p), adaptasikan pada suffix
+    def_res_m = re.search(r'(?i)\b(2160|1440|1080|720|480|360)p(?=[^a-zA-Z]|$)', default_filename)
+    if def_res_m:
+        req_res = def_res_m.group(1) + "p"
+        best_suffix = re.sub(r'(?i)\b(2160|1440|1080|720|480|360)p(?=[^a-zA-Z]|$)', req_res, best_suffix)
+
+    # Pastikan ekstensi wadah video sesuai dengan berkas yang diunduh
+    _, def_ext = os.path.splitext(default_filename)
+    if def_ext:
+        best_suffix = os.path.splitext(best_suffix)[0] + def_ext
+
+    return f"{best_prefix}{formatted_ep}{best_suffix}"
+
+
 def start_download(
     url: str,
     anime_name: str = "",
@@ -367,6 +481,10 @@ def start_download(
         dest_folder = dest_info["folder"]
 
     os.makedirs(dest_folder, exist_ok=True)
+
+    # Sesuaikan nama berkas agar mengikuti konvensi penamaan episode yang sudah ada di folder tujuan
+    target_filename = adapt_filename_to_library_pattern(dest_folder, episode, target_filename)
+
     save_path = unique_destination_path(dest_folder, target_filename)
     temp_path = f"{save_path}.part"
     matched_anime_name = dest_info.get("matched_anime") or anime_name
