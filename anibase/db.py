@@ -2,6 +2,7 @@
 """Manajemen koneksi basis data SQLite dan skema tabel untuk AniBase."""
 
 import os
+import time
 import sqlite3
 from contextlib import contextmanager
 import anibase.constants as _constants
@@ -128,6 +129,37 @@ def init_db(db_path=None):
                 updated_at REAL NOT NULL
             )
         """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ongoing_watchlist (
+                anime_name TEXT PRIMARY KEY,
+                samehadaku_url TEXT,
+                last_known_episode REAL DEFAULT 0,
+                latest_samehadaku_ep REAL DEFAULT 0,
+                last_checked_at REAL DEFAULT 0,
+                is_tracked INTEGER DEFAULT 1,
+                source TEXT DEFAULT 'auto',
+                created_at REAL NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS episode_release_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                anime_name TEXT NOT NULL,
+                episode_number TEXT NOT NULL,
+                episode_title TEXT,
+                episode_url TEXT,
+                thumbnail TEXT,
+                released_on TEXT,
+                is_read INTEGER DEFAULT 0,
+                is_downloaded INTEGER DEFAULT 0,
+                created_at REAL NOT NULL,
+                UNIQUE (anime_name, episode_number)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_notif_created ON episode_release_notifications(created_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_notif_read ON episode_release_notifications(is_read)")
 
         # Inisialisasi virtual table FTS5 untuk pencarian teks penuh (Full-Text Search)
         try:
@@ -274,4 +306,291 @@ def count_library_rows(conn=None):
             return c.execute("SELECT COUNT(*) FROM anime_library").fetchone()[0]
     except sqlite3.Error as e:
         app_log(f"Unable to count library rows before sync: {e}", "WARN")
+        return 0
+
+
+# =========================================================================
+# Ongoing Watchlist & Episode Release Notifications Database Operations
+# =========================================================================
+
+def get_ongoing_watchlist(active_only=False, conn=None):
+    """Mengambil daftar anime yang masuk dalam watchlist ongoing pengguna."""
+    sql = "SELECT anime_name, samehadaku_url, last_known_episode, latest_samehadaku_ep, last_checked_at, is_tracked, source, created_at FROM ongoing_watchlist"
+    if active_only:
+        sql += " WHERE is_tracked = 1"
+    sql += " ORDER BY anime_name ASC"
+
+    def _query(c):
+        cursor = c.execute(sql)
+        rows = cursor.fetchall()
+        return [
+            {
+                "anime_name": r[0],
+                "samehadaku_url": r[1] or "",
+                "last_known_episode": r[2] or 0,
+                "latest_samehadaku_ep": r[3] or 0,
+                "last_checked_at": r[4] or 0,
+                "is_tracked": bool(r[5]),
+                "source": r[6] or "auto",
+                "created_at": r[7] or 0,
+            }
+            for r in rows
+        ]
+
+    try:
+        if conn is not None:
+            return _query(conn)
+        with db_connection() as c:
+            return _query(c)
+    except sqlite3.Error as e:
+        app_log(f"Error fetching ongoing watchlist: {e}", "ERROR")
+        return []
+
+
+def upsert_ongoing_watchlist(anime_name, samehadaku_url=None, is_tracked=1, source="auto", last_known_episode=0, latest_samehadaku_ep=0, conn=None):
+    """Menambahkan atau memperbarui anime dalam watchlist ongoing."""
+    if not anime_name:
+        return False
+    now = time.time()
+    sql = """
+        INSERT INTO ongoing_watchlist (
+            anime_name, samehadaku_url, last_known_episode, latest_samehadaku_ep, is_tracked, source, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(anime_name) DO UPDATE SET
+            samehadaku_url = COALESCE(excluded.samehadaku_url, ongoing_watchlist.samehadaku_url),
+            last_known_episode = CASE WHEN excluded.last_known_episode > 0 THEN excluded.last_known_episode ELSE ongoing_watchlist.last_known_episode END,
+            latest_samehadaku_ep = CASE WHEN excluded.latest_samehadaku_ep > 0 THEN excluded.latest_samehadaku_ep ELSE ongoing_watchlist.latest_samehadaku_ep END,
+            is_tracked = excluded.is_tracked
+    """
+    def _exec(c):
+        c.execute(sql, (
+            anime_name,
+            samehadaku_url,
+            last_known_episode,
+            latest_samehadaku_ep,
+            1 if is_tracked else 0,
+            source,
+            now
+        ))
+        return True
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error upserting ongoing anime '{anime_name}': {e}", "ERROR")
+        return False
+
+
+def update_ongoing_watchlist_check(anime_name, latest_samehadaku_ep=None, last_known_episode=None, samehadaku_url=None, conn=None):
+    """Memperbarui informasi hasil pengecekan rilis episode terbaru untuk anime."""
+    if not anime_name:
+        return False
+    now = time.time()
+    updates = ["last_checked_at = ?"]
+    params = [now]
+    if latest_samehadaku_ep is not None:
+        updates.append("latest_samehadaku_ep = ?")
+        params.append(float(latest_samehadaku_ep))
+    if last_known_episode is not None:
+        updates.append("last_known_episode = ?")
+        params.append(float(last_known_episode))
+    if samehadaku_url:
+        updates.append("samehadaku_url = ?")
+        params.append(samehadaku_url)
+
+    params.append(anime_name)
+    sql = f"UPDATE ongoing_watchlist SET {', '.join(updates)} WHERE anime_name = ?"
+
+    def _exec(c):
+        c.execute(sql, params)
+        return True
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error updating check for '{anime_name}': {e}", "ERROR")
+        return False
+
+
+def set_ongoing_watchlist_tracked(anime_name, is_tracked, conn=None):
+    """Mengaktifkan atau menonaktifkan pemantauan ongoing untuk anime."""
+    if not anime_name:
+        return False
+    sql = "UPDATE ongoing_watchlist SET is_tracked = ? WHERE anime_name = ?"
+    def _exec(c):
+        c.execute(sql, (1 if is_tracked else 0, anime_name))
+        return True
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error setting tracked state for '{anime_name}': {e}", "ERROR")
+        return False
+
+
+def delete_ongoing_watchlist(anime_name, conn=None):
+    """Menghapus anime dari daftar pantau ongoing."""
+    if not anime_name:
+        return False
+    sql = "DELETE FROM ongoing_watchlist WHERE anime_name = ?"
+    def _exec(c):
+        c.execute(sql, (anime_name,))
+        return True
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error deleting ongoing anime '{anime_name}': {e}", "ERROR")
+        return False
+
+
+def save_episode_notification(anime_name, episode_number, episode_title=None, episode_url=None, thumbnail=None, released_on=None, conn=None):
+    """Menyimpan notifikasi episode baru jika belum pernah dicatat sebelumnya.
+    
+    Mengembalikan id notifikasi jika baru dibuat, atau None jika sudah ada (duplikat).
+    """
+    if not anime_name or not episode_number:
+        return None
+    now = time.time()
+    sql = """
+        INSERT OR IGNORE INTO episode_release_notifications (
+            anime_name, episode_number, episode_title, episode_url, thumbnail, released_on, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """
+    def _exec(c):
+        cur = c.execute(sql, (
+            anime_name,
+            str(episode_number).strip(),
+            episode_title or "",
+            episode_url or "",
+            thumbnail or "",
+            released_on or "",
+            now
+        ))
+        if cur.rowcount > 0:
+            return cur.lastrowid
+        return None
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error saving episode notification for {anime_name} ep {episode_number}: {e}", "ERROR")
+        return None
+
+
+def get_episode_notifications(unread_only=False, limit=30, conn=None):
+    """Mengambil daftar notifikasi episode baru."""
+    sql = """
+        SELECT id, anime_name, episode_number, episode_title, episode_url, thumbnail, released_on, is_read, is_downloaded, created_at
+        FROM episode_release_notifications
+    """
+    if unread_only:
+        sql += " WHERE is_read = 0"
+    sql += " ORDER BY created_at DESC LIMIT ?"
+
+    def _query(c):
+        cursor = c.execute(sql, (max(1, int(limit)),))
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "anime_name": r[1],
+                "episode_number": r[2],
+                "episode_title": r[3] or "",
+                "episode_url": r[4] or "",
+                "thumbnail": r[5] or "",
+                "released_on": r[6] or "",
+                "is_read": bool(r[7]),
+                "is_downloaded": bool(r[8]),
+                "created_at": r[9],
+            }
+            for r in rows
+        ]
+
+    try:
+        if conn is not None:
+            return _query(conn)
+        with db_connection() as c:
+            return _query(c)
+    except sqlite3.Error as e:
+        app_log(f"Error fetching episode notifications: {e}", "ERROR")
+        return []
+
+
+def mark_notification_read(notification_id=None, mark_all=False, conn=None):
+    """Menandai satu atau seluruh notifikasi sebagai sudah dibaca."""
+    if mark_all:
+        sql = "UPDATE episode_release_notifications SET is_read = 1 WHERE is_read = 0"
+        params = ()
+    elif notification_id is not None:
+        sql = "UPDATE episode_release_notifications SET is_read = 1 WHERE id = ?"
+        params = (notification_id,)
+    else:
+        return 0
+
+    def _exec(c):
+        cur = c.execute(sql, params)
+        return cur.rowcount
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error marking notification read: {e}", "ERROR")
+        return 0
+
+
+def mark_notification_downloaded(anime_name, episode_number, conn=None):
+    """Menandai episode sebagai sudah diunduh (dan otomatis dibaca)."""
+    if not anime_name or not episode_number:
+        return 0
+    ep_str = str(episode_number).strip()
+    sql = """
+        UPDATE episode_release_notifications
+        SET is_downloaded = 1, is_read = 1
+        WHERE (anime_name = ? OR anime_name LIKE ?) AND (episode_number = ? OR episode_number = ?)
+    """
+    clean_ep = str(int(float(ep_str))) if ep_str.replace('.', '', 1).isdigit() else ep_str
+
+    def _exec(c):
+        cur = c.execute(sql, (anime_name, f"%{anime_name}%", ep_str, clean_ep))
+        return cur.rowcount
+
+    try:
+        if conn is not None:
+            return _exec(conn)
+        with db_connection() as c:
+            return _exec(c)
+    except sqlite3.Error as e:
+        app_log(f"Error marking notification downloaded for {anime_name} {episode_number}: {e}", "ERROR")
+        return 0
+
+
+def get_unread_notification_count(conn=None):
+    """Menghitung total notifikasi episode baru yang belum dibaca."""
+    sql = "SELECT COUNT(*) FROM episode_release_notifications WHERE is_read = 0"
+    try:
+        if conn is not None:
+            return conn.execute(sql).fetchone()[0]
+        with db_connection() as c:
+            return c.execute(sql).fetchone()[0]
+    except sqlite3.Error as e:
+        app_log(f"Error getting unread notification count: {e}", "ERROR")
         return 0

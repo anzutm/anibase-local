@@ -73,6 +73,7 @@ import anibase.integrations.jikan as _anibase_jikan
 import anibase.integrations.anilist as _anibase_anilist
 import anibase.scanner as _anibase_scanner
 import anibase.watcher as _anibase_watcher
+import anibase.watchlist_tracker as _anibase_watchlist_tracker
 import anibase.web as _anibase_web
 import anibase.web.helpers as _anibase_web_helpers
 import anibase.web.routes_pages as _anibase_web_pages
@@ -115,6 +116,7 @@ _MUTABLE_CONSTANTS_NAMES = {
     'AUTO_IMPORT_THREAD',
     'AUTO_IMPORT_FILE_STATE',
     'AUTO_IMPORT_LOG_STATE',
+    'WATCHLIST_TRACKER_THREAD',
 }
 
 _MODULES_TO_SYNC = (
@@ -138,6 +140,7 @@ _MODULES_TO_SYNC = (
     _anibase_anilist,
     _anibase_scanner,
     _anibase_watcher,
+    _anibase_watchlist_tracker,
     _anibase_web,
     _anibase_web_helpers,
     _anibase_web_pages,
@@ -199,6 +202,7 @@ if __name__ == "__main__":
         periodic_sync_thread.start()
 
         start_auto_import_worker()
+        _anibase_watchlist_tracker.start_watchlist_tracker_worker()
 
     flask.cli.show_server_banner = lambda *args, **kwargs: None
     std_logging.getLogger("werkzeug").setLevel(std_logging.WARNING)

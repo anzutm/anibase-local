@@ -102,15 +102,44 @@
                 </button>
 
                 <div class="notification-panel" id="scheduleNotificationPanel" hidden>
-                    <div class="notification-panel-head">
-                        <div>
-                            <h2>Schedule Alerts</h2>
-                            <p id="notificationSummary">Loading schedule alerts...</p>
-                        </div>
-                        <a href="{{ url_for('schedule') }}">View Schedule</a>
+                    <div class="notification-panel-tabs">
+                        <button type="button" class="notif-tab-btn active" id="btnTabOngoingAlerts">
+                            Episode Baru <span class="notif-tab-badge" id="epNotifCountBadge" hidden>0</span>
+                        </button>
+                        <button type="button" class="notif-tab-btn" id="btnTabScheduleAlerts">
+                            Jadwal Tayang
+                        </button>
                     </div>
-                    <div class="notification-list" id="notificationList">
-                        <div class="notification-empty">Loading schedule alerts...</div>
+
+                    <!-- TAB 1: Ongoing Episode Releases from Samehadaku -->
+                    <div class="notif-tab-content" id="tabContentOngoingAlerts">
+                        <div class="notification-panel-head">
+                            <div>
+                                <h2>Episode Baru Rilis</h2>
+                                <p id="ongoingNotificationSummary">Memeriksa episode baru...</p>
+                            </div>
+                            <div class="notif-head-actions">
+                                <button type="button" class="notif-action-text-btn" id="btnCheckOngoingNow" title="Periksa rilisan Samehadaku">Periksa</button>
+                                <button type="button" class="notif-action-text-btn" id="btnMarkAllNotifsRead" title="Tandai semua sudah dibaca">Tandai Dibaca</button>
+                            </div>
+                        </div>
+                        <div class="notification-list" id="ongoingNotificationList">
+                            <div class="notification-empty">Tidak ada rilis episode baru yang belum diunduh.</div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: Schedule Alerts from AniList -->
+                    <div class="notif-tab-content" id="tabContentScheduleAlerts" hidden>
+                        <div class="notification-panel-head">
+                            <div>
+                                <h2>Jadwal Tayang</h2>
+                                <p id="notificationSummary">Loading schedule alerts...</p>
+                            </div>
+                            <a href="{{ url_for('schedule') }}">View Schedule</a>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <div class="notification-empty">Loading schedule alerts...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -153,12 +182,31 @@
             const summary = document.getElementById('notificationSummary');
             const list = document.getElementById('notificationList');
 
-            if (!bell || !panel || !badge || !summary || !list) return;
+            // Ongoing tab elements
+            const btnTabOngoing = document.getElementById('btnTabOngoingAlerts');
+            const btnTabSchedule = document.getElementById('btnTabScheduleAlerts');
+            const tabContentOngoing = document.getElementById('tabContentOngoingAlerts');
+            const tabContentSchedule = document.getElementById('tabContentScheduleAlerts');
+            const epBadge = document.getElementById('epNotifCountBadge');
+            const ongoingSummary = document.getElementById('ongoingNotificationSummary');
+            const ongoingList = document.getElementById('ongoingNotificationList');
+            const btnCheckOngoing = document.getElementById('btnCheckOngoingNow');
+            const btnMarkAllRead = document.getElementById('btnMarkAllNotifsRead');
+
+            if (!bell || !panel || !badge) return;
 
             let alertsLoaded = false;
+            let ongoingLoaded = false;
             let alerts = [];
+            let ongoingNotifs = [];
+            let unreadOngoingCount = 0;
+            let scheduleBadgeCount = 0;
             let serverNowMs = Date.now();
             let loadedAtMs = Date.now();
+
+            function getActionToken() {
+                return window.ANIBASE_ACTION_TOKEN || '';
+            }
 
             function getAlertsNowMs() {
                 return serverNowMs + (Date.now() - loadedAtMs);
@@ -174,15 +222,24 @@
                 return `Starts in ${minutes}m`;
             }
 
-            function updateBadge(count) {
-                if (!count || count <= 0) {
+            function updateTotalBadge() {
+                const total = (scheduleBadgeCount || 0) + (unreadOngoingCount || 0);
+                if (total <= 0) {
                     badge.hidden = true;
                     badge.textContent = '';
-                    return;
+                } else {
+                    badge.hidden = false;
+                    badge.textContent = total > 9 ? '9+' : String(total);
                 }
 
-                badge.hidden = false;
-                badge.textContent = count > 9 ? '9+' : String(count);
+                if (epBadge) {
+                    if (unreadOngoingCount > 0) {
+                        epBadge.hidden = false;
+                        epBadge.textContent = String(unreadOngoingCount);
+                    } else {
+                        epBadge.hidden = true;
+                    }
+                }
             }
 
             function getAlertState(item, nowMs) {
@@ -208,17 +265,18 @@
             }
 
             function renderAlerts() {
+                if (!list || !summary) return;
                 const nowMs = getAlertsNowMs();
                 let airingNow = 0;
                 let upcoming = 0;
-                let badgeCount = 0;
+                scheduleBadgeCount = 0;
 
                 list.innerHTML = '';
 
                 if (!alerts.length) {
                     summary.textContent = 'No airing or upcoming titles today';
                     list.innerHTML = '<div class="notification-empty">No schedule alerts for the rest of today.</div>';
-                    updateBadge(0);
+                    updateTotalBadge();
                     return;
                 }
 
@@ -226,7 +284,7 @@
                     const state = getAlertState(item, nowMs);
                     if (state.mode === 'live') airingNow++;
                     if (state.mode === 'upcoming') upcoming++;
-                    if (state.badgeRelevant) badgeCount++;
+                    if (state.badgeRelevant) scheduleBadgeCount++;
 
                     const node = document.createElement(item.detail_url ? 'a' : 'div');
                     node.className = `notification-item is-${state.mode}`;
@@ -262,11 +320,11 @@
                 });
 
                 summary.textContent = `${airingNow} airing now · ${upcoming} upcoming`;
-                updateBadge(badgeCount);
+                updateTotalBadge();
             }
 
             async function loadAlerts() {
-                if (alertsLoaded) return;
+                if (alertsLoaded || !bell.dataset.alertsUrl) return;
 
                 try {
                     const response = await fetch(bell.dataset.alertsUrl, { headers: { 'Accept': 'application/json' } });
@@ -278,24 +336,233 @@
                     loadedAtMs = Date.now();
 
                     if (!response.ok || data.ok === false) {
-                        summary.textContent = data.summary || 'Schedule unavailable';
-                        list.innerHTML = '<div class="notification-empty">Schedule alerts are unavailable right now.</div>';
-                        updateBadge(0);
+                        if (summary) summary.textContent = data.summary || 'Schedule unavailable';
+                        if (list) list.innerHTML = '<div class="notification-empty">Schedule alerts are unavailable right now.</div>';
+                        scheduleBadgeCount = 0;
+                        updateTotalBadge();
                         return;
                     }
 
                     renderAlerts();
                 } catch (error) {
                     alertsLoaded = true;
-                    summary.textContent = 'Schedule unavailable';
-                    list.innerHTML = '<div class="notification-empty">Schedule alerts are unavailable right now.</div>';
-                    updateBadge(0);
+                    if (summary) summary.textContent = 'Schedule unavailable';
+                    if (list) list.innerHTML = '<div class="notification-empty">Schedule alerts are unavailable right now.</div>';
+                    scheduleBadgeCount = 0;
+                    updateTotalBadge();
                 }
+            }
+
+            function renderOngoingNotifications() {
+                if (!ongoingList || !ongoingSummary) return;
+                ongoingList.innerHTML = '';
+
+                if (!ongoingNotifs.length) {
+                    ongoingSummary.textContent = 'Tidak ada episode baru';
+                    ongoingList.innerHTML = '<div class="notification-empty">Tidak ada rilis episode baru yang belum diunduh.</div>';
+                    return;
+                }
+
+                ongoingSummary.textContent = `${unreadOngoingCount} belum dibaca · ${ongoingNotifs.length} rilis terbaru`;
+
+                ongoingNotifs.forEach(notif => {
+                    const item = document.createElement('div');
+                    item.className = `ongoing-notif-item ${notif.is_read ? 'read' : 'unread'}`;
+
+                    const img = document.createElement('img');
+                    img.className = 'ongoing-notif-thumb';
+                    img.src = notif.thumbnail || '/static/images/placeholder.png';
+                    img.alt = '';
+                    img.onerror = () => { img.src = '/static/images/placeholder.png'; };
+
+                    const body = document.createElement('div');
+                    body.className = 'ongoing-notif-body';
+
+                    const title = document.createElement('div');
+                    title.className = 'ongoing-notif-title';
+                    title.textContent = notif.anime_name;
+                    title.title = notif.anime_name;
+
+                    const ep = document.createElement('div');
+                    ep.className = 'ongoing-notif-ep';
+                    ep.textContent = `Episode ${notif.episode_number} baru rilis!`;
+
+                    const timeMeta = document.createElement('div');
+                    timeMeta.className = 'ongoing-notif-time';
+                    timeMeta.textContent = notif.released_on ? `Samehadaku · ${notif.released_on}` : 'Tersedia di Samehadaku';
+
+                    body.append(title, ep, timeMeta);
+
+                    const actions = document.createElement('div');
+                    actions.className = 'ongoing-notif-actions';
+
+                    if (!notif.is_downloaded) {
+                        const dlBtn = document.createElement('button');
+                        dlBtn.type = 'button';
+                        dlBtn.className = 'ongoing-notif-btn-dl';
+                        dlBtn.textContent = '⬇️ Unduh';
+                        dlBtn.title = `Unduh ${notif.anime_name} Episode ${notif.episode_number}`;
+                        dlBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            if (window.__startOngoingQuickDownload) {
+                                window.__startOngoingQuickDownload(notif.anime_name, notif.episode_url, notif.episode_number);
+                            } else if (window.openSamehadakuModal) {
+                                window.openSamehadakuModal(notif.anime_name);
+                            }
+                        };
+                        actions.appendChild(dlBtn);
+                    } else {
+                        const dlTag = document.createElement('span');
+                        dlTag.className = 'samehadaku-ep-badge-local';
+                        dlTag.textContent = '✓ Terunduh';
+                        actions.appendChild(dlTag);
+                    }
+
+                    const dismissBtn = document.createElement('button');
+                    dismissBtn.type = 'button';
+                    dismissBtn.className = 'ongoing-notif-btn-dismiss';
+                    dismissBtn.innerHTML = '&times;';
+                    dismissBtn.title = 'Tandai sudah dibaca';
+                    dismissBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        await markNotifRead(notif.id);
+                        item.classList.remove('unread');
+                        item.classList.add('read');
+                        dismissBtn.remove();
+                    };
+                    if (!notif.is_read) {
+                        actions.appendChild(dismissBtn);
+                    }
+
+                    item.append(img, body, actions);
+                    ongoingList.appendChild(item);
+                });
+            }
+
+            async function loadOngoingNotifications() {
+                try {
+                    const res = await fetch('/api/ongoing-tracker/notifications?limit=25');
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        ongoingNotifs = data.notifications || [];
+                        unreadOngoingCount = data.unread_count || 0;
+                        ongoingLoaded = true;
+                        renderOngoingNotifications();
+                        updateTotalBadge();
+                    }
+                } catch (e) {
+                    console.debug('Failed to load ongoing notifications:', e);
+                }
+            }
+
+            async function markNotifRead(id) {
+                try {
+                    const token = getActionToken();
+                    const res = await fetch('/api/ongoing-tracker/notifications/read', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-AniBase-Action-Token': token
+                        },
+                        body: JSON.stringify({ id: id, action_token: token })
+                    });
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        unreadOngoingCount = data.unread_count || 0;
+                        updateTotalBadge();
+                    }
+                } catch (e) {
+                    console.debug('Failed to mark notification read:', e);
+                }
+            }
+
+            async function markAllNotifsRead() {
+                try {
+                    const token = getActionToken();
+                    const res = await fetch('/api/ongoing-tracker/notifications/read', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-AniBase-Action-Token': token
+                        },
+                        body: JSON.stringify({ all: true, action_token: token })
+                    });
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        unreadOngoingCount = 0;
+                        ongoingNotifs.forEach(n => { n.is_read = true; });
+                        renderOngoingNotifications();
+                        updateTotalBadge();
+                    }
+                } catch (e) {
+                    console.debug('Failed to mark all notifications read:', e);
+                }
+            }
+
+            async function checkOngoingNow() {
+                if (!btnCheckOngoing) return;
+                const origText = btnCheckOngoing.textContent;
+                btnCheckOngoing.disabled = true;
+                btnCheckOngoing.textContent = 'Memeriksa...';
+                try {
+                    const token = getActionToken();
+                    const res = await fetch('/api/ongoing-tracker/check', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-AniBase-Action-Token': token
+                        },
+                        body: JSON.stringify({ deep: false, action_token: token })
+                    });
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        await loadOngoingNotifications();
+                    }
+                } catch (e) {
+                    console.debug('Failed check ongoing releases:', e);
+                } finally {
+                    btnCheckOngoing.disabled = false;
+                    btnCheckOngoing.textContent = origText;
+                }
+            }
+
+            // Tab Switching inside Notification Panel
+            if (btnTabOngoing && btnTabSchedule) {
+                btnTabOngoing.addEventListener('click', () => {
+                    btnTabOngoing.classList.add('active');
+                    btnTabSchedule.classList.remove('active');
+                    if (tabContentOngoing) tabContentOngoing.hidden = false;
+                    if (tabContentSchedule) tabContentSchedule.hidden = true;
+                    if (!ongoingLoaded) loadOngoingNotifications();
+                });
+
+                btnTabSchedule.addEventListener('click', () => {
+                    btnTabSchedule.classList.add('active');
+                    btnTabOngoing.classList.remove('active');
+                    if (tabContentSchedule) tabContentSchedule.hidden = false;
+                    if (tabContentOngoing) tabContentOngoing.hidden = true;
+                    if (!alertsLoaded) loadAlerts();
+                });
+            }
+
+            if (btnCheckOngoing) {
+                btnCheckOngoing.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    checkOngoingNow();
+                });
+            }
+
+            if (btnMarkAllRead) {
+                btnMarkAllRead.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    markAllNotifsRead();
+                });
             }
 
             function openPanel() {
                 panel.hidden = false;
                 bell.setAttribute('aria-expanded', 'true');
+                loadOngoingNotifications();
                 loadAlerts();
             }
 
@@ -321,6 +588,17 @@
             document.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape') closePanel();
             });
+
+            // Cek awal unread count saat startup
+            fetch('/api/ongoing-tracker/notifications?unread_only=true&limit=1')
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.ok) {
+                        unreadOngoingCount = d.unread_count || 0;
+                        updateTotalBadge();
+                    }
+                })
+                .catch(() => {});
 
             window.setInterval(function() {
                 if (alertsLoaded) renderAlerts();

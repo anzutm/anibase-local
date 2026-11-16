@@ -52,7 +52,10 @@ def get_default_settings():
         "shortcuts": constants.DEFAULT_PLAYER_SHORTCUTS.copy(),
         "desktop_minimize_to_tray": True,
         "desktop_start_minimized": False,
-        "desktop_window": {}
+        "desktop_window": {},
+        "ongoing_tracker_enabled": True,
+        "ongoing_tracker_interval_minutes": 30,
+        "ongoing_tracker_notify_toast": True
     }
 
 def get_settings_library_paths(settings):
@@ -181,6 +184,20 @@ def load_settings():
     merged["desktop_start_minimized"] = normalize_bool_setting(
         merged.get("desktop_start_minimized"),
         defaults["desktop_start_minimized"]
+    )
+    merged["ongoing_tracker_enabled"] = normalize_bool_setting(
+        merged.get("ongoing_tracker_enabled"),
+        defaults["ongoing_tracker_enabled"]
+    )
+    merged["ongoing_tracker_interval_minutes"] = normalize_int_setting(
+        merged.get("ongoing_tracker_interval_minutes"),
+        defaults["ongoing_tracker_interval_minutes"],
+        5,
+        1440
+    )
+    merged["ongoing_tracker_notify_toast"] = normalize_bool_setting(
+        merged.get("ongoing_tracker_notify_toast"),
+        defaults["ongoing_tracker_notify_toast"]
     )
     if not isinstance(merged.get("desktop_window"), dict):
         merged["desktop_window"] = {}

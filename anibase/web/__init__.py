@@ -121,6 +121,12 @@ from anibase.web.routes_api import (
     api_samehadaku_download_status,
     api_samehadaku_cancel_download,
     api_samehadaku_clear_downloads,
+    api_ongoing_tracker_list,
+    api_ongoing_tracker_check,
+    api_ongoing_tracker_toggle,
+    api_ongoing_tracker_notifications,
+    api_ongoing_tracker_mark_read,
+    api_ongoing_tracker_quick_download,
     clear_rpc_route,
     register_api_routes,
 )

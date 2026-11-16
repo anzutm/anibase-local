@@ -376,6 +376,13 @@ from anibase.watcher import (
     join_background_workers,
     should_start_background_workers,
 )
+from anibase.watchlist_tracker import (
+    scan_ongoing_anime,
+    check_ongoing_releases,
+    on_download_completed,
+    quick_download_episode_alert,
+    start_watchlist_tracker_worker,
+)
 from anibase.web import (
     setup_web_app,
     create_app,

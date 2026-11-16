@@ -75,6 +75,16 @@
                     </button>
                 </div>
 
+                <div class="samehadaku-modal-tabs">
+                    <button type="button" class="samehadaku-modal-tab-btn active" id="modalTabLatest">
+                        <span>🔥 Rilisan Terbaru</span>
+                    </button>
+                    <button type="button" class="samehadaku-modal-tab-btn" id="modalTabTracker">
+                        <span>📡 Pantau Ongoing</span>
+                        <span class="samehadaku-modal-tab-badge" id="modalTrackerBadge" hidden>0</span>
+                    </button>
+                </div>
+
                 <div class="samehadaku-body" id="samehadakuModalBody">
                     <div class="samehadaku-status-box" id="samehadakuStatusBox">
                         <div class="samehadaku-spinner"></div>
@@ -122,6 +132,21 @@
         const clearBtn = modal.querySelector('#samehadakuClearTrayBtn');
         if (clearBtn) {
             clearBtn.addEventListener('click', clearCompletedTasks);
+        }
+
+        const tabLatest = modal.querySelector('#modalTabLatest');
+        const tabTracker = modal.querySelector('#modalTabTracker');
+        if (tabLatest && tabTracker) {
+            tabLatest.addEventListener('click', () => {
+                tabLatest.classList.add('active');
+                tabTracker.classList.remove('active');
+                loadLatestReleases();
+            });
+            tabTracker.addEventListener('click', () => {
+                tabTracker.classList.add('active');
+                tabLatest.classList.remove('active');
+                loadOngoingTrackerView();
+            });
         }
 
         return modal;
@@ -221,6 +246,11 @@
     // Render grid rilisan terbaru dengan thumbnail & badge episode
     function renderLatestReleases(episodes, page = 1) {
         lastActiveView = 'latest';
+        const tabLatest = document.getElementById('modalTabLatest');
+        const tabTracker = document.getElementById('modalTabTracker');
+        if (tabLatest) tabLatest.classList.add('active');
+        if (tabTracker) tabTracker.classList.remove('active');
+
         const body = document.getElementById('samehadakuModalBody');
         if (!body) return;
 
@@ -270,6 +300,152 @@
                                 </button>
                             ` : ''}
                         </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        body.innerHTML = html;
+    }
+
+    // Muat tampilan Ongoing Watchlist Tracker
+    async function loadOngoingTrackerView() {
+        lastActiveView = 'tracker';
+        const tabLatest = document.getElementById('modalTabLatest');
+        const tabTracker = document.getElementById('modalTabTracker');
+        if (tabTracker) tabTracker.classList.add('active');
+        if (tabLatest) tabLatest.classList.remove('active');
+
+        showLoading('Memuat daftar anime ongoing yang dipantau...');
+
+        try {
+            const res = await fetch('/api/ongoing-tracker/list');
+            const data = await res.json();
+
+            if (!data.ok || !data.tracked_anime) {
+                showMessage('Gagal memuat daftar anime ongoing yang dipantau.', true);
+                return;
+            }
+
+            renderOngoingTrackerView(data.tracked_anime);
+        } catch (err) {
+            showMessage(`Gagal memuat data ongoing tracker: ${err.message}`, true);
+        }
+    }
+
+    // Render daftar kartu Ongoing Watchlist
+    function renderOngoingTrackerView(trackedList) {
+        lastActiveView = 'tracker';
+        const body = document.getElementById('samehadakuModalBody');
+        if (!body) return;
+
+        const tabLatest = document.getElementById('modalTabLatest');
+        const tabTracker = document.getElementById('modalTabTracker');
+        if (tabTracker) tabTracker.classList.add('active');
+        if (tabLatest) tabLatest.classList.remove('active');
+
+        const withNew = (trackedList || []).filter(item => item.has_new_episode);
+        const modalBadge = document.getElementById('modalTrackerBadge');
+        if (modalBadge) {
+            if (withNew.length > 0) {
+                modalBadge.hidden = false;
+                modalBadge.textContent = String(withNew.length);
+                modalBadge.classList.add('has-new');
+            } else {
+                modalBadge.hidden = true;
+                modalBadge.classList.remove('has-new');
+            }
+        }
+
+        if (!trackedList || trackedList.length === 0) {
+            body.innerHTML = `
+                <div class="samehadaku-status-box">
+                    <p style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">Belum ada anime ongoing yang dipantau</p>
+                    <p style="color: var(--text-secondary, #94a3b8); font-size: 13px; max-width: 440px; margin: 0 auto 16px;">
+                        Folder anime di direktori Ongoing atau anime dengan status Airing akan otomatis terdeteksi. Anda juga bisa menandai anime dari halaman detail.
+                    </p>
+                    <button type="button" class="samehadaku-batch-btn-primary" onclick="window.__checkOngoingReleases()" style="padding: 8px 18px;">
+                        🔄 Pindai & Periksa Sekarang
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // Urutkan anime: yang ada episode baru di paling atas
+        trackedList.sort((a, b) => {
+            if (a.has_new_episode && !b.has_new_episode) return -1;
+            if (!a.has_new_episode && b.has_new_episode) return 1;
+            return a.anime_name.localeCompare(b.anime_name);
+        });
+
+        let html = `
+            <div class="samehadaku-section-header">
+                <div class="samehadaku-section-title-wrap">
+                    <span class="samehadaku-section-title">
+                        <span>📡</span> Ongoing Watchlist Tracker
+                    </span>
+                    <span class="samehadaku-section-subtitle">
+                        Memantau rilis episode terbaru Samehadaku untuk anime yang sedang Anda ikuti.
+                    </span>
+                </div>
+                <div class="samehadaku-section-badge">
+                    ${trackedList.length} Anime Dipantau
+                </div>
+            </div>
+
+            <div class="samehadaku-tracker-toolbar">
+                <div class="samehadaku-tracker-toolbar-info">
+                    ${withNew.length > 0 ? `<strong>✨ ${withNew.length} Anime</strong> memiliki episode baru yang belum diunduh!` : `Semua koleksi lokal up-to-date.`}
+                </div>
+                <div class="samehadaku-tracker-toolbar-actions">
+                    <button type="button" class="samehadaku-tracker-check-btn" id="btnModalTrackerCheck" onclick="window.__checkOngoingReleases()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Periksa Rilis Sekarang</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="samehadaku-tracker-grid">
+        `;
+
+        trackedList.forEach((item) => {
+            const hasNew = item.has_new_episode;
+            const localMax = item.highest_local_ep || 0;
+            const sameMax = item.latest_samehadaku_ep || 0;
+            const missing = item.missing_episodes || [];
+            const nextEpToDownload = missing.length > 0 ? missing[0] : (sameMax > localMax ? sameMax : null);
+
+            html += `
+                <div class="samehadaku-tracker-card ${hasNew ? 'has-new' : ''}">
+                    <div class="samehadaku-tracker-card-head">
+                        <h4 class="samehadaku-tracker-card-title">${item.anime_name}</h4>
+                        <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
+                            ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
+                        </span>
+                    </div>
+
+                    <div class="samehadaku-tracker-card-meta">
+                        <div class="samehadaku-tracker-card-row">
+                            <span>Koleksi Lokal:</span>
+                            <strong>${localMax > 0 ? `Ep 1 - ${localMax}` : 'Belum Ada'}</strong>
+                        </div>
+                        <div class="samehadaku-tracker-card-row">
+                            <span>Rilis Samehadaku:</span>
+                            <strong>${sameMax > 0 ? `Ep ${sameMax}` : 'Belum Terdeteksi'}</strong>
+                        </div>
+                    </div>
+
+                    <div class="samehadaku-tracker-card-actions">
+                        ${hasNew && nextEpToDownload ? `
+                            <button type="button" class="samehadaku-tracker-btn-dl" onclick="window.__startOngoingQuickDownload('${encodeURIComponent(item.anime_name)}', '${encodeURIComponent(item.samehadaku_url || '')}', '${nextEpToDownload}')">
+                                ⬇️ Unduh Ep ${nextEpToDownload}
+                            </button>
+                        ` : ''}
+                        <button type="button" class="samehadaku-tracker-btn-view" onclick="window.__searchFromTracker('${encodeURIComponent(item.anime_name)}')">
+                            Buka Serial
+                        </button>
                     </div>
                 </div>
             `;
@@ -351,7 +527,9 @@
 
     // Navigasi kembali
     window.__backToPreviousView = function () {
-        if (lastActiveView === 'search' && currentSeriesResults.length > 0) {
+        if (lastActiveView === 'tracker') {
+            loadOngoingTrackerView();
+        } else if (lastActiveView === 'search' && currentSeriesResults.length > 0) {
             renderSearchResults(currentSeriesResults);
         } else if (latestEpisodesList.length > 0) {
             renderLatestReleases(latestEpisodesList);
@@ -438,6 +616,152 @@
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span class="samehadaku-series-badge">${typeLabel}</span>
                         ${item.score ? `<span style="font-size:11px; color:var(--cyan, #fbbf24);">★ ${item.score}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        body.innerHTML = html;
+    }
+
+    // Muat tampilan Ongoing Watchlist Tracker
+    async function loadOngoingTrackerView() {
+        lastActiveView = 'tracker';
+        const tabLatest = document.getElementById('modalTabLatest');
+        const tabTracker = document.getElementById('modalTabTracker');
+        if (tabTracker) tabTracker.classList.add('active');
+        if (tabLatest) tabLatest.classList.remove('active');
+
+        showLoading('Memuat daftar anime ongoing yang dipantau...');
+
+        try {
+            const res = await fetch('/api/ongoing-tracker/list');
+            const data = await res.json();
+
+            if (!data.ok || !data.tracked_anime) {
+                showMessage('Gagal memuat daftar anime ongoing yang dipantau.', true);
+                return;
+            }
+
+            renderOngoingTrackerView(data.tracked_anime);
+        } catch (err) {
+            showMessage(`Gagal memuat data ongoing tracker: ${err.message}`, true);
+        }
+    }
+
+    // Render daftar kartu Ongoing Watchlist
+    function renderOngoingTrackerView(trackedList) {
+        lastActiveView = 'tracker';
+        const body = document.getElementById('samehadakuModalBody');
+        if (!body) return;
+
+        const tabLatest = document.getElementById('modalTabLatest');
+        const tabTracker = document.getElementById('modalTabTracker');
+        if (tabTracker) tabTracker.classList.add('active');
+        if (tabLatest) tabLatest.classList.remove('active');
+
+        const withNew = (trackedList || []).filter(item => item.has_new_episode);
+        const modalBadge = document.getElementById('modalTrackerBadge');
+        if (modalBadge) {
+            if (withNew.length > 0) {
+                modalBadge.hidden = false;
+                modalBadge.textContent = String(withNew.length);
+                modalBadge.classList.add('has-new');
+            } else {
+                modalBadge.hidden = true;
+                modalBadge.classList.remove('has-new');
+            }
+        }
+
+        if (!trackedList || trackedList.length === 0) {
+            body.innerHTML = `
+                <div class="samehadaku-status-box">
+                    <p style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">Belum ada anime ongoing yang dipantau</p>
+                    <p style="color: var(--text-secondary, #94a3b8); font-size: 13px; max-width: 440px; margin: 0 auto 16px;">
+                        Folder anime di direktori Ongoing atau anime dengan status Airing akan otomatis terdeteksi. Anda juga bisa menandai anime dari halaman detail.
+                    </p>
+                    <button type="button" class="samehadaku-batch-btn-primary" onclick="window.__checkOngoingReleases()" style="padding: 8px 18px;">
+                        🔄 Pindai & Periksa Sekarang
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // Urutkan anime: yang ada episode baru di paling atas
+        trackedList.sort((a, b) => {
+            if (a.has_new_episode && !b.has_new_episode) return -1;
+            if (!a.has_new_episode && b.has_new_episode) return 1;
+            return a.anime_name.localeCompare(b.anime_name);
+        });
+
+        let html = `
+            <div class="samehadaku-section-header">
+                <div class="samehadaku-section-title-wrap">
+                    <span class="samehadaku-section-title">
+                        <span>📡</span> Ongoing Watchlist Tracker
+                    </span>
+                    <span class="samehadaku-section-subtitle">
+                        Memantau rilis episode terbaru Samehadaku untuk anime yang sedang Anda ikuti.
+                    </span>
+                </div>
+                <div class="samehadaku-section-badge">
+                    ${trackedList.length} Anime Dipantau
+                </div>
+            </div>
+
+            <div class="samehadaku-tracker-toolbar">
+                <div class="samehadaku-tracker-toolbar-info">
+                    ${withNew.length > 0 ? `<strong>✨ ${withNew.length} Anime</strong> memiliki episode baru yang belum diunduh!` : `Semua koleksi lokal up-to-date.`}
+                </div>
+                <div class="samehadaku-tracker-toolbar-actions">
+                    <button type="button" class="samehadaku-tracker-check-btn" id="btnModalTrackerCheck" onclick="window.__checkOngoingReleases()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Periksa Rilis Sekarang</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="samehadaku-tracker-grid">
+        `;
+
+        trackedList.forEach((item) => {
+            const hasNew = item.has_new_episode;
+            const localMax = item.highest_local_ep || 0;
+            const sameMax = item.latest_samehadaku_ep || 0;
+            const missing = item.missing_episodes || [];
+            const nextEpToDownload = missing.length > 0 ? missing[0] : (sameMax > localMax ? sameMax : null);
+
+            html += `
+                <div class="samehadaku-tracker-card ${hasNew ? 'has-new' : ''}">
+                    <div class="samehadaku-tracker-card-head">
+                        <h4 class="samehadaku-tracker-card-title">${item.anime_name}</h4>
+                        <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
+                            ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
+                        </span>
+                    </div>
+
+                    <div class="samehadaku-tracker-card-meta">
+                        <div class="samehadaku-tracker-card-row">
+                            <span>Koleksi Lokal:</span>
+                            <strong>${localMax > 0 ? `Ep 1 - ${localMax}` : 'Belum Ada'}</strong>
+                        </div>
+                        <div class="samehadaku-tracker-card-row">
+                            <span>Rilis Samehadaku:</span>
+                            <strong>${sameMax > 0 ? `Ep ${sameMax}` : 'Belum Terdeteksi'}</strong>
+                        </div>
+                    </div>
+
+                    <div class="samehadaku-tracker-card-actions">
+                        ${hasNew && nextEpToDownload ? `
+                            <button type="button" class="samehadaku-tracker-btn-dl" onclick="window.__startOngoingQuickDownload('${encodeURIComponent(item.anime_name)}', '${encodeURIComponent(item.samehadaku_url || '')}', '${nextEpToDownload}')">
+                                ⬇️ Unduh Ep ${nextEpToDownload}
+                            </button>
+                        ` : ''}
+                        <button type="button" class="samehadaku-tracker-btn-view" onclick="window.__searchFromTracker('${encodeURIComponent(item.anime_name)}')">
+                            Buka Serial
+                        </button>
                     </div>
                 </div>
             `;
@@ -1329,9 +1653,258 @@
         }
     }
 
+    // Pencarian serial dari kartu Ongoing Tracker
+    window.__searchFromTracker = function (encodedTitle) {
+        const title = decodeURIComponent(encodedTitle);
+        const searchInput = document.getElementById('samehadakuSearchInput');
+        if (searchInput) searchInput.value = title;
+        triggerSearch(title);
+    };
+
+    // Tracking notification ID yang sudah dimunculkan dalam sesi ini
+    const shownToastNotificationIds = new Set();
+
+    // Tampilkan Floating Glassmorphism Toast saat ada episode baru rilis
+    function showOngoingEpisodeToast(notif) {
+        if (!notif || !notif.id) return;
+        if (shownToastNotificationIds.has(notif.id)) return;
+        shownToastNotificationIds.add(notif.id);
+
+        let toast = document.getElementById('samehadakuOngoingToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'samehadakuOngoingToast';
+            toast.className = 'samehadaku-ongoing-toast';
+            document.body.appendChild(toast);
+        }
+
+        const thumb = notif.thumbnail || '/static/images/placeholder.png';
+        const title = notif.anime_name || 'Anime Ongoing';
+        const ep = `Episode ${notif.episode_number} Baru Rilis!`;
+        const meta = notif.released_on ? `Samehadaku · ${notif.released_on}` : 'Tersedia di Samehadaku';
+
+        toast.innerHTML = `
+            <div class="samehadaku-toast-header">
+                <span class="samehadaku-toast-badge">✨ Episode Baru Rilis</span>
+                <button type="button" class="samehadaku-toast-close" id="btnCloseOngoingToast" aria-label="Tutup">&times;</button>
+            </div>
+            <div class="samehadaku-toast-body">
+                <img src="${thumb}" class="samehadaku-toast-thumb" alt="" onerror="this.src='/static/images/placeholder.png'">
+                <div class="samehadaku-toast-info">
+                    <div class="samehadaku-toast-title" title="${title}">${title}</div>
+                    <div class="samehadaku-toast-ep">${ep}</div>
+                    <div class="samehadaku-toast-meta">${meta}</div>
+                </div>
+            </div>
+            <div class="samehadaku-toast-footer">
+                <button type="button" class="samehadaku-toast-btn-dl" id="btnDlOngoingToast">
+                    ⬇️ Unduh Sekarang
+                </button>
+                <button type="button" class="samehadaku-toast-btn-view" id="btnViewOngoingToast">
+                    Buka Serial
+                </button>
+            </div>
+        `;
+
+        // Tampilkan toast
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        let hideTimer = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 12000);
+
+        const closeBtn = toast.querySelector('#btnCloseOngoingToast');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                clearTimeout(hideTimer);
+                toast.classList.remove('show');
+                const token = getActionToken();
+                fetch('/api/ongoing-tracker/notifications/read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-AniBase-Action-Token': token },
+                    body: JSON.stringify({ id: notif.id, action_token: token })
+                }).catch(() => {});
+            };
+        }
+
+        const dlBtn = toast.querySelector('#btnDlOngoingToast');
+        if (dlBtn) {
+            dlBtn.onclick = () => {
+                clearTimeout(hideTimer);
+                toast.classList.remove('show');
+                window.__startOngoingQuickDownload(notif.anime_name, notif.episode_url, notif.episode_number);
+            };
+        }
+
+        const viewBtn = toast.querySelector('#btnViewOngoingToast');
+        if (viewBtn) {
+            viewBtn.onclick = () => {
+                clearTimeout(hideTimer);
+                toast.classList.remove('show');
+                openSamehadakuModal(notif.anime_name);
+            };
+        }
+    }
+
+    // 1-Klik Unduh Langsung Episode Baru
+    window.__startOngoingQuickDownload = async function (encodedAnimeName, encodedEpUrl, epNum) {
+        const animeName = decodeURIComponent(encodedAnimeName);
+        const epUrl = decodeURIComponent(encodedEpUrl || '');
+        const token = getActionToken();
+
+        // Pastikan tray terlihat
+        const tray = document.getElementById('samehadakuTray');
+        if (tray) tray.hidden = false;
+
+        try {
+            const res = await fetch('/api/ongoing-tracker/quick-download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    anime_name: animeName,
+                    episode_url: epUrl,
+                    quality: '1080p',
+                    format: 'MKV',
+                    action_token: token,
+                })
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                startStatusPolling();
+                pollDownloadStatus();
+                if (lastActiveView === 'tracker') {
+                    loadOngoingTrackerView();
+                }
+            } else {
+                openSamehadakuModal(animeName);
+            }
+        } catch (err) {
+            console.error('Failed quick download:', err);
+            openSamehadakuModal(animeName);
+        }
+    };
+
+    // Pemeriksaan manual rilisan episode baru untuk modal tracker
+    window.__checkOngoingReleases = async function () {
+        const btn = document.getElementById('btnModalTrackerCheck');
+        if (btn) btn.classList.add('loading');
+        const token = getActionToken();
+
+        try {
+            const res = await fetch('/api/ongoing-tracker/check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({ deep: false, action_token: token })
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                if (data.new_alerts && data.new_alerts.length > 0) {
+                    showOngoingEpisodeToast(data.new_alerts[0]);
+                }
+                loadOngoingTrackerView();
+            }
+        } catch (err) {
+            console.error('Check ongoing error:', err);
+        } finally {
+            if (btn) btn.classList.remove('loading');
+        }
+    };
+
+    // Pengecekan notifikasi episode baru yang belum dibaca (untuk popup toast)
+    async function checkUnreadEpisodeToasts() {
+        try {
+            const res = await fetch('/api/ongoing-tracker/notifications?unread_only=true&limit=1');
+            const data = await res.json();
+            if (data && data.ok && data.notifications && data.notifications.length > 0) {
+                const notif = data.notifications[0];
+                if (!notif.is_downloaded && !shownToastNotificationIds.has(notif.id)) {
+                    showOngoingEpisodeToast(notif);
+                }
+            }
+        } catch (e) {
+            // silent
+        }
+    }
+
+    // Inisialisasi tombol toggle pantau ongoing pada halaman detail anime
+    function initDetailTrackButtons() {
+        document.querySelectorAll('[data-ongoing-tracker-toggle]').forEach(btn => {
+            const animeName = btn.getAttribute('data-anime-name') || '';
+            if (!animeName) return;
+
+            // Periksa status pemantauan saat ini
+            fetch('/api/ongoing-tracker/list')
+                .then(r => r.json())
+                .then(d => {
+                    if (d && d.ok && Array.isArray(d.tracked_anime)) {
+                        const isTracked = d.tracked_anime.some(item =>
+                            item.anime_name.toLowerCase() === animeName.toLowerCase() && item.is_tracked
+                        );
+                        if (isTracked) {
+                            btn.classList.add('is-tracked');
+                            const label = btn.querySelector('.track-label');
+                            if (label) label.textContent = '✓ Sedang Dipantau';
+                            btn.title = 'Anime ini sedang aktif dipantau. Klik untuk berhenti memantau.';
+                        }
+                    }
+                })
+                .catch(() => {});
+
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const currentlyTracked = btn.classList.contains('is-tracked');
+                const nextState = !currentlyTracked;
+                const token = getActionToken();
+
+                try {
+                    const res = await fetch('/api/ongoing-tracker/toggle', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-AniBase-Action-Token': token,
+                            'X-Action-Token': token,
+                        },
+                        body: JSON.stringify({
+                            anime_name: animeName,
+                            is_tracked: nextState,
+                            action_token: token,
+                        })
+                    });
+                    const data = await res.json();
+                    if (data && data.ok) {
+                        if (nextState) {
+                            btn.classList.add('is-tracked');
+                            const label = btn.querySelector('.track-label');
+                            if (label) label.textContent = '✓ Sedang Dipantau';
+                            btn.title = 'Anime ini sedang aktif dipantau. Klik untuk berhenti memantau.';
+                        } else {
+                            btn.classList.remove('is-tracked');
+                            const label = btn.querySelector('.track-label');
+                            if (label) label.textContent = 'Pantau Ongoing';
+                            btn.title = 'Pantau rilis episode baru anime ini di Samehadaku.';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to toggle tracking:', err);
+                }
+            });
+        });
+    }
+
     // Expose ke global window
     window.openSamehadakuModal = openSamehadakuModal;
     window.closeSamehadakuModal = closeSamehadakuModal;
+    window.showOngoingEpisodeToast = showOngoingEpisodeToast;
 
     // Pasang handler shortcut keyboard (Esc untuk menutup)
     document.addEventListener('keydown', (e) => {
@@ -1353,5 +1926,11 @@
                 openSamehadakuModal(animeName, query);
             });
         });
+
+        initDetailTrackButtons();
+
+        // Jalankan pengecekan toast setelah delay singkat
+        setTimeout(checkUnreadEpisodeToasts, 2500);
+        setInterval(checkUnreadEpisodeToasts, 60000);
     });
 })();

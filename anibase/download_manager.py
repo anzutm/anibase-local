@@ -664,6 +664,12 @@ def _download_worker(
             except Exception as sync_err:
                 app_log(f"Failed to sync anime library after download: {sync_err}", "DEBUG")
 
+            try:
+                from anibase.watchlist_tracker import on_download_completed
+                on_download_completed(target_anime, save_path)
+            except Exception as track_err:
+                app_log(f"Failed to notify watchlist tracker on download: {track_err}", "DEBUG")
+
     except Exception as error:
         app_log(f"Download task {task_id} failed: {error}", "ERROR")
         if os.path.exists(temp_path):

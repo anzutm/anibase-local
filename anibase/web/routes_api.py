@@ -74,7 +74,15 @@ from anibase.settings import (
     save_settings,
     get_effective_mal_client_id,
 )
-from anibase.db import db_connection, count_library_rows, sync_anime_fts, delete_anime_fts
+from anibase.db import (
+    db_connection,
+    count_library_rows,
+    sync_anime_fts,
+    delete_anime_fts,
+    get_episode_notifications,
+    mark_notification_read,
+    get_unread_notification_count,
+)
 from anibase.watch import (
     mark_episode_watched,
     mark_episode_unwatched,
@@ -2390,6 +2398,105 @@ def api_samehadaku_clear_downloads():
     return jsonify({"ok": True, "cleared_count": cleared})
 
 
+def api_ongoing_tracker_list():
+    """Mengambil daftar seluruh anime ongoing yang sedang dipantau beserta status episode terbarunya."""
+    from anibase.watchlist_tracker import scan_ongoing_anime
+    tracked = scan_ongoing_anime()
+    unread_count = get_unread_notification_count()
+    return jsonify({
+        "ok": True,
+        "tracked_anime": tracked,
+        "total_tracked": len(tracked),
+        "unread_notifications_count": unread_count,
+    })
+
+
+@host_only
+@require_action_token
+def api_ongoing_tracker_check():
+    """Memicu pemeriksaan rilis episode terbaru dari Samehadaku secara manual."""
+    from anibase.watchlist_tracker import check_ongoing_releases
+    body = request.get_json(silent=True) or {}
+    deep = bool(body.get("deep") or request.args.get("deep") == "true")
+    result = check_ongoing_releases(deep=deep)
+    return jsonify({"ok": True, **result})
+
+
+@host_only
+@require_action_token
+def api_ongoing_tracker_toggle():
+    """Mengaktifkan atau menonaktifkan pemantauan untuk suatu judul anime."""
+    from anibase.db import upsert_ongoing_watchlist, set_ongoing_watchlist_tracked
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+    anime_name = body.get("anime_name", "").strip()
+    if not anime_name:
+        return json_error("missing_anime_name", "Nama anime wajib disertakan", 400)
+    is_tracked = bool(body.get("is_tracked", True))
+    samehadaku_url = body.get("samehadaku_url", "").strip() or None
+
+    upsert_ongoing_watchlist(
+        anime_name=anime_name,
+        samehadaku_url=samehadaku_url,
+        is_tracked=1 if is_tracked else 0,
+        source="manual"
+    )
+    set_ongoing_watchlist_tracked(anime_name, is_tracked)
+    return jsonify({"ok": True, "anime_name": anime_name, "is_tracked": is_tracked})
+
+
+def api_ongoing_tracker_notifications():
+    """Mengambil riwayat notifikasi episode baru."""
+    unread_only = request.args.get("unread_only", "").lower() in ("true", "1")
+    limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
+    notifications = get_episode_notifications(unread_only=unread_only, limit=limit)
+    unread_count = get_unread_notification_count()
+    return jsonify({
+        "ok": True,
+        "notifications": notifications,
+        "unread_count": unread_count
+    })
+
+
+@host_only
+@require_action_token
+def api_ongoing_tracker_mark_read():
+    """Menandai satu atau seluruh notifikasi sebagai sudah dibaca."""
+    body = request.get_json(silent=True) or {}
+    mark_all = bool(body.get("all"))
+    notif_id = body.get("id")
+    affected = mark_notification_read(notification_id=notif_id, mark_all=mark_all)
+    unread_count = get_unread_notification_count()
+    return jsonify({"ok": True, "affected": affected, "unread_count": unread_count})
+
+
+@host_only
+@require_action_token
+def api_ongoing_tracker_quick_download():
+    """1-Klik mengunduh episode baru dari notifikasi."""
+    from anibase.watchlist_tracker import quick_download_episode_alert
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+    anime_name = body.get("anime_name", "").strip()
+    episode_url = body.get("episode_url", "").strip()
+    quality = body.get("quality", "1080p").strip()
+    format_pref = body.get("format", "MKV").strip()
+    if not anime_name or not episode_url:
+        return json_error("missing_parameters", "Parameter anime_name dan episode_url wajib disertakan", 400)
+
+    result = quick_download_episode_alert(
+        anime_name=anime_name,
+        episode_url=episode_url,
+        preferred_quality=quality,
+        preferred_format=format_pref
+    )
+    if not result.get("ok"):
+        return json_error("download_start_failed", result.get("error", "Gagal memulai unduhan"), 400)
+    return jsonify(result)
+
+
 def register_api_routes(app):
     """Register all API, streaming, and RPC endpoints on the Flask application."""
     app.add_url_rule("/setup/sync", endpoint="setup_sync", view_func=setup_sync, methods=["GET", "POST"])
@@ -2418,6 +2525,12 @@ def register_api_routes(app):
     app.add_url_rule("/api/samehadaku/download/status", endpoint="api_samehadaku_download_status", view_func=api_samehadaku_download_status)
     app.add_url_rule("/api/samehadaku/download/cancel", endpoint="api_samehadaku_cancel_download", view_func=api_samehadaku_cancel_download, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])
+    app.add_url_rule("/api/ongoing-tracker/list", endpoint="api_ongoing_tracker_list", view_func=api_ongoing_tracker_list)
+    app.add_url_rule("/api/ongoing-tracker/check", endpoint="api_ongoing_tracker_check", view_func=api_ongoing_tracker_check, methods=["POST"])
+    app.add_url_rule("/api/ongoing-tracker/toggle", endpoint="api_ongoing_tracker_toggle", view_func=api_ongoing_tracker_toggle, methods=["POST"])
+    app.add_url_rule("/api/ongoing-tracker/notifications", endpoint="api_ongoing_tracker_notifications", view_func=api_ongoing_tracker_notifications)
+    app.add_url_rule("/api/ongoing-tracker/notifications/read", endpoint="api_ongoing_tracker_mark_read", view_func=api_ongoing_tracker_mark_read, methods=["POST"])
+    app.add_url_rule("/api/ongoing-tracker/quick-download", endpoint="api_ongoing_tracker_quick_download", view_func=api_ongoing_tracker_quick_download, methods=["POST"])
     app.add_url_rule("/api/anime/metadata-match", endpoint="api_update_anime_metadata_match", view_func=api_update_anime_metadata_match, methods=["POST"])
     app.add_url_rule("/api/episode/display-name", endpoint="api_update_episode_display_name", view_func=api_update_episode_display_name, methods=["POST"])
     app.add_url_rule("/api/library/refresh", endpoint="refresh_library", view_func=refresh_library, methods=["POST"])
