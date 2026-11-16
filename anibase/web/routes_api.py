@@ -154,6 +154,11 @@ from anibase.download_manager import (
     get_download_task,
     get_all_download_tasks,
     clear_completed_download_tasks,
+    get_anime_local_episodes,
+    start_batch_download,
+    get_batch_task,
+    get_all_batch_tasks,
+    cancel_batch_download,
 )
 from anibase.integrations.mal import (
     cleanup_mal_oauth_sessions,
@@ -2217,11 +2222,37 @@ def api_samehadaku_search():
 
 @host_only
 def api_samehadaku_episodes():
-    """Mengambil daftar episode dan info anime Samehadaku."""
+    """Mengambil daftar episode dan info anime Samehadaku, diperkaya status library lokal."""
     page_url = request.args.get("url", "").strip()
     if not page_url:
         return json_error("invalid_url", "URL anime atau episode tidak boleh kosong", 400)
     details = get_samehadaku_anime_details(page_url)
+
+    if details.get("ok"):
+        anime_title = details.get("title") or request.args.get("anime_name", "").strip()
+        local_info = get_anime_local_episodes(anime_title)
+        details["local_library"] = local_info
+
+        existing_eps = set(local_info.get("existing_episodes", []))
+        missing_eps = []
+        for ep in details.get("episodes", []):
+            ep_num = ep.get("episode")
+            num_val = None
+            try:
+                if ep_num is not None:
+                    num_val = float(ep_num)
+                    if num_val.is_integer():
+                        num_val = int(num_val)
+            except (ValueError, TypeError):
+                pass
+
+            is_local = (num_val in existing_eps) if num_val is not None else False
+            ep["is_local"] = is_local
+            if not is_local:
+                missing_eps.append(ep)
+
+        details["missing_episodes"] = missing_eps
+
     return jsonify(details)
 
 
@@ -2262,6 +2293,65 @@ def api_samehadaku_start_download():
     if not result.get("ok"):
         return json_error("download_start_failed", result.get("error", "Gagal memulai unduhan"), 400)
     return jsonify(result)
+
+
+@host_only
+@require_action_token
+def api_samehadaku_start_batch_download():
+    """Memulai proses antrean unduhan batch beberapa episode secara berurutan."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    anime_name = body.get("anime_name", "").strip()
+    episodes = body.get("episodes", [])
+    preferred_quality = body.get("preferred_quality", "1080p").strip()
+    preferred_format = body.get("preferred_format", "MKV").strip()
+    custom_dest_dir = body.get("destination_dir", "").strip()
+
+    if not anime_name:
+        return json_error("missing_anime_name", "Nama anime tidak boleh kosong", 400)
+    if not episodes or not isinstance(episodes, list):
+        return json_error("missing_episodes", "Daftar episode tidak boleh kosong", 400)
+
+    result = start_batch_download(
+        anime_name=anime_name,
+        episodes=episodes,
+        preferred_quality=preferred_quality,
+        preferred_format=preferred_format,
+        custom_dest_dir=custom_dest_dir,
+    )
+    if not result.get("ok"):
+        return json_error("batch_start_failed", result.get("error", "Gagal memulai unduhan batch"), 400)
+    return jsonify(result)
+
+
+@host_only
+def api_samehadaku_batch_status():
+    """Memeriksa status progres antrean batch unduhan."""
+    batch_id = request.args.get("batch_id", "").strip()
+    if batch_id:
+        batch = get_batch_task(batch_id)
+        if not batch:
+            return json_error("batch_not_found", "Tugas batch unduhan tidak ditemukan", 404)
+        return jsonify({"ok": True, "batch": batch})
+    batches = get_all_batch_tasks()
+    return jsonify({"ok": True, "batches": batches})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_cancel_batch():
+    """Membatalkan antrean batch unduhan."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    batch_id = body.get("batch_id", "").strip()
+    if not batch_id:
+        return json_error("missing_batch_id", "ID batch unduhan wajib disertakan", 400)
+    success = cancel_batch_download(batch_id)
+    return jsonify({"ok": True, "cancelled": success})
 
 
 @host_only
@@ -2322,6 +2412,9 @@ def register_api_routes(app):
     app.add_url_rule("/api/samehadaku/episodes", endpoint="api_samehadaku_episodes", view_func=api_samehadaku_episodes)
     app.add_url_rule("/api/samehadaku/downloads", endpoint="api_samehadaku_downloads", view_func=api_samehadaku_downloads)
     app.add_url_rule("/api/samehadaku/download", endpoint="api_samehadaku_start_download", view_func=api_samehadaku_start_download, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/batch", endpoint="api_samehadaku_start_batch_download", view_func=api_samehadaku_start_batch_download, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/batch/status", endpoint="api_samehadaku_batch_status", view_func=api_samehadaku_batch_status)
+    app.add_url_rule("/api/samehadaku/download/batch/cancel", endpoint="api_samehadaku_cancel_batch", view_func=api_samehadaku_cancel_batch, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/status", endpoint="api_samehadaku_download_status", view_func=api_samehadaku_download_status)
     app.add_url_rule("/api/samehadaku/download/cancel", endpoint="api_samehadaku_cancel_download", view_func=api_samehadaku_cancel_download, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])

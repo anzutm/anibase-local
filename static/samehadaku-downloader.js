@@ -461,7 +461,7 @@
         currentAnimeHubUrl = pageUrl;
 
         try {
-            const res = await fetch(`/api/samehadaku/episodes?url=${encodeURIComponent(pageUrl)}`);
+            const res = await fetch(`/api/samehadaku/episodes?url=${encodeURIComponent(pageUrl)}&anime_name=${encodeURIComponent(title || currentAnimeName || '')}`);
             const data = await res.json();
 
             if (!data.ok) {
@@ -489,6 +489,24 @@
         currentAnimeName = cleanTitle;
         const posterFallback = details.poster || '/static/arcana.jpg';
 
+        // Perbarui nomor episode lokal dari data pustaka
+        const localLib = details.local_library || {};
+        if (localLib.matched && Array.isArray(localLib.existing_episodes)) {
+            localLib.existing_episodes.forEach(n => localEpisodeNumbers.add(String(n)));
+        }
+
+        // Klasifikasikan episode yang belum ada di library
+        const missingEpisodes = [];
+        episodes.forEach((ep, epIdx) => {
+            const epNum = ep.episode || String(epIdx + 1);
+            const isLocal = ep.is_local !== undefined ? ep.is_local : localEpisodeNumbers.has(String(epNum));
+            ep._isLocal = isLocal;
+            ep._epNum = epNum;
+            if (!isLocal) {
+                missingEpisodes.push({ ...ep, _origIdx: epIdx });
+            }
+        });
+
         let html = `
             <div class="samehadaku-episodes-header">
                 <div class="samehadaku-episodes-nav-bar">
@@ -507,6 +525,52 @@
                 </div>
             </div>
         `;
+
+        // Banner Batch Download untuk episode yang belum ada
+        if (missingEpisodes.length > 0) {
+            html += `
+                <div class="samehadaku-batch-banner" id="samehadakuBatchBanner">
+                    <div class="samehadaku-batch-content">
+                        <div class="samehadaku-batch-header-row">
+                            <div class="samehadaku-batch-badge-wrap">
+                                <span class="samehadaku-batch-badge">BATCH SYNC</span>
+                                <span class="samehadaku-batch-title">Unduh Episode yang Belum Ada</span>
+                            </div>
+                            <div class="samehadaku-batch-count-info">
+                                <strong>${missingEpisodes.length}</strong> dari <strong>${episodes.length}</strong> episode belum diunduh
+                            </div>
+                        </div>
+                        <p class="samehadaku-batch-desc">
+                            Menyinkronkan semua episode yang belum ada langsung ke folder library anime Anda secara berurutan.
+                        </p>
+                        <div class="samehadaku-batch-actions-row">
+                            <div class="samehadaku-batch-controls-wrap">
+                                <label for="samehadakuBatchQuality" class="samehadaku-batch-label">Kualitas:</label>
+                                <select id="samehadakuBatchQuality" class="samehadaku-batch-select">
+                                    <option value="1080p">1080p (MKV)</option>
+                                    <option value="720p">720p (MKV)</option>
+                                    <option value="480p">480p (MKV)</option>
+                                </select>
+                                <button type="button" class="samehadaku-batch-toggle-link" id="btnToggleAllBatchEps">Batal Pilih Semua</button>
+                            </div>
+                            <div class="samehadaku-batch-btn-group">
+                                <button type="button" class="samehadaku-batch-btn-primary" id="btnStartBatchDownload">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                    <span id="btnStartBatchText">Unduh Semua (${missingEpisodes.length} Episode)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (episodes.length > 0 && localLib.matched) {
+            html += `
+                <div class="samehadaku-all-synced-banner">
+                    <span style="font-size:16px;">✓</span>
+                    <span>Seluruh <strong>${episodes.length}</strong> episode sudah lengkap tersimpan di folder library Anda (<em>${localLib.anime_name || cleanTitle}</em>).</span>
+                </div>
+            `;
+        }
 
         // Tampilkan batch links jika ada
         if (batchLinks.length > 0) {
@@ -553,12 +617,12 @@
 
         // Render setiap episode dengan thumbnail 16:9, nomor badge, dan aksi download
         episodes.forEach((ep, epIdx) => {
-            const epNum = ep.episode || String(epIdx + 1);
-            const isLocal = localEpisodeNumbers.has(String(epNum));
+            const epNum = ep._epNum || ep.episode || String(epIdx + 1);
+            const isLocal = ep._isLocal;
             const epThumb = ep.thumbnail || posterFallback;
 
             html += `
-                <div class="samehadaku-ep-item" id="item-ep-${epIdx}">
+                <div class="samehadaku-ep-item ${!isLocal ? 'is-missing' : ''}" id="item-ep-${epIdx}">
                     <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${encodeURIComponent(ep.url)}', '${epNum}')">
                         <div class="samehadaku-ep-thumb-wrap">
                             <img class="samehadaku-ep-thumb" src="${epThumb}" alt="${ep.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${posterFallback}'">
@@ -570,15 +634,21 @@
                         <div class="samehadaku-ep-info">
                             <div class="samehadaku-ep-title-row">
                                 <span class="samehadaku-ep-title">${ep.title}</span>
-                                ${isLocal ? `<span class="samehadaku-ep-badge-local" title="Episode ini sudah ada di folder library Anda">✓ Di Library</span>` : ''}
+                                ${isLocal ? `<span class="samehadaku-ep-badge-local" title="Episode ini sudah ada di folder library Anda">✓ Di Library</span>` : `<span class="samehadaku-ep-badge-missing" title="Episode ini belum diunduh ke library">★ Belum Ada</span>`}
                             </div>
                             <div class="samehadaku-ep-meta-row">
                                 ${ep.date ? `<span class="samehadaku-ep-date">📅 ${ep.date}</span>` : ''}
                                 <span class="samehadaku-ep-status-hint">Klik untuk melihat pilihan resolusi unduhan</span>
                             </div>
                         </div>
-                        <div class="samehadaku-ep-action">
-                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}">
+                        <div class="samehadaku-ep-action" onclick="event.stopPropagation()">
+                            ${!isLocal ? `
+                                <label class="samehadaku-batch-checkbox-wrap" title="Pilih episode ini untuk unduh batch">
+                                    <input type="checkbox" class="samehadaku-batch-checkbox" data-ep-idx="${epIdx}" checked>
+                                    <span class="samehadaku-batch-checkbox-custom"></span>
+                                </label>
+                            ` : ''}
+                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${encodeURIComponent(ep.url)}', '${epNum}')">
                                 <span>⚡</span> Pilih Resolusi
                             </button>
                         </div>
@@ -594,6 +664,68 @@
         });
 
         body.innerHTML = html;
+
+        // Pasang interaktivitas Batch Download jika ada episode yang belum diunduh
+        if (missingEpisodes.length > 0) {
+            const startBtn = body.querySelector('#btnStartBatchDownload');
+            const startText = body.querySelector('#btnStartBatchText');
+            const toggleLink = body.querySelector('#btnToggleAllBatchEps');
+            const qualitySelect = body.querySelector('#samehadakuBatchQuality');
+            const checkboxes = body.querySelectorAll('.samehadaku-batch-checkbox');
+
+            function getSelectedEpisodes() {
+                const selected = [];
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        const idx = parseInt(cb.getAttribute('data-ep-idx'), 10);
+                        if (!isNaN(idx) && episodes[idx]) {
+                            selected.push(episodes[idx]);
+                        }
+                    }
+                });
+                return selected;
+            }
+
+            function updateBatchButtonState() {
+                const selected = getSelectedEpisodes();
+                if (startBtn && startText) {
+                    if (selected.length === 0) {
+                        startBtn.disabled = true;
+                        startText.textContent = 'Pilih Minimal 1 Episode';
+                    } else if (selected.length === missingEpisodes.length) {
+                        startBtn.disabled = false;
+                        startText.textContent = `Unduh Semua (${selected.length} Episode)`;
+                    } else {
+                        startBtn.disabled = false;
+                        startText.textContent = `Unduh Terpilih (${selected.length} Episode)`;
+                    }
+                }
+                if (toggleLink) {
+                    toggleLink.textContent = selected.length === 0 ? 'Pilih Semua' : 'Batal Pilih Semua';
+                }
+            }
+
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateBatchButtonState);
+            });
+
+            if (toggleLink) {
+                toggleLink.addEventListener('click', () => {
+                    const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+                    checkboxes.forEach(cb => cb.checked = !anyChecked);
+                    updateBatchButtonState();
+                });
+            }
+
+            if (startBtn) {
+                startBtn.addEventListener('click', () => {
+                    const selected = getSelectedEpisodes();
+                    if (selected.length === 0) return;
+                    const qual = qualitySelect ? qualitySelect.value : '1080p';
+                    window.__startBatchDownload(cleanTitle, selected, qual, 'MKV');
+                });
+            }
+        }
     }
 
     // Toggle expand/collapse episode download links
@@ -903,6 +1035,74 @@
         }
     };
 
+    // Memulai antrean unduhan batch episode yang belum ada
+    window.__startBatchDownload = async function (animeTitle, epsList, quality = '1080p', format = 'MKV') {
+        const token = getActionToken();
+        const tray = document.getElementById('samehadakuTray');
+        if (tray) tray.hidden = false;
+
+        const payloadEps = epsList.map(e => ({
+            episode: String(e.episode || e._epNum || ''),
+            url: e.url,
+            title: e.title || '',
+        }));
+
+        try {
+            const res = await fetch('/api/samehadaku/download/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    anime_name: animeTitle,
+                    episodes: payloadEps,
+                    preferred_quality: quality,
+                    preferred_format: format,
+                    action_token: token,
+                })
+            });
+
+            const data = await res.json();
+            if (!data.ok) {
+                alert(`Gagal memulai unduhan batch: ${data.message || data.error || 'Terjadi kesalahan'}`);
+                return;
+            }
+
+            startStatusPolling();
+            pollDownloadStatus();
+        } catch (err) {
+            alert(`Error memulai antrean batch: ${err.message}`);
+        }
+    };
+
+    // Membatalkan seluruh antrean unduhan batch
+    window.__cancelBatchDownload = async function (batchId) {
+        if (!confirm('Apakah Anda yakin ingin membatalkan seluruh antrean batch episode ini?')) return;
+        const token = getActionToken();
+        try {
+            const res = await fetch('/api/samehadaku/download/batch/cancel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    batch_id: batchId,
+                    action_token: token,
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                pollDownloadStatus();
+            }
+        } catch (err) {
+            console.error('Failed to cancel batch:', err);
+        }
+    };
+
     // Fungsi helper untuk memperbarui badge episode di DOM jika episode selesai diunduh
     function updateEpisodeBadgeInDom(epNum) {
         if (!epNum) return;
@@ -912,28 +1112,42 @@
             const badgeNum = item.querySelector('.samehadaku-ep-badge-num');
             if (badgeNum && badgeNum.textContent.replace(/\D/g, '') === targetNum) {
                 const titleRow = item.querySelector('.samehadaku-ep-title-row');
-                if (titleRow && !titleRow.querySelector('.samehadaku-ep-badge-local')) {
-                    const badge = document.createElement('span');
-                    badge.className = 'samehadaku-ep-badge-local';
-                    badge.title = 'Episode ini sudah ada di folder library Anda';
-                    badge.textContent = '✓ Di Library';
-                    titleRow.appendChild(badge);
+                if (titleRow) {
+                    const missingBadge = titleRow.querySelector('.samehadaku-ep-badge-missing');
+                    if (missingBadge) missingBadge.remove();
+
+                    if (!titleRow.querySelector('.samehadaku-ep-badge-local')) {
+                        const badge = document.createElement('span');
+                        badge.className = 'samehadaku-ep-badge-local';
+                        badge.title = 'Episode ini sudah ada di folder library Anda';
+                        badge.textContent = '✓ Di Library';
+                        titleRow.appendChild(badge);
+                    }
                 }
+                const cbWrap = item.querySelector('.samehadaku-batch-checkbox-wrap');
+                if (cbWrap) cbWrap.remove();
+                item.classList.remove('is-missing');
             }
         });
     }
 
-    // Polling status unduhan
+    // Polling status unduhan individu dan batch
     async function pollDownloadStatus() {
         try {
-            const res = await fetch('/api/samehadaku/download/status');
-            const data = await res.json();
-            if (!data.ok || !data.tasks) return;
+            const [tasksRes, batchRes] = await Promise.all([
+                fetch('/api/samehadaku/download/status'),
+                fetch('/api/samehadaku/download/batch/status')
+            ]);
+            const tasksData = await tasksRes.json();
+            const batchData = await batchRes.json();
 
-            renderDownloadTasks(data.tasks);
+            const tasks = tasksData.ok ? (tasksData.tasks || []) : [];
+            const batches = batchData.ok ? (batchData.batches || (batchData.batch ? [batchData.batch] : [])) : [];
+
+            renderDownloadTasks(tasks, batches);
 
             // Jika ada unduhan yang selesai, tandai episode sebagai ada di library
-            data.tasks.forEach(t => {
+            tasks.forEach(t => {
                 if (t.status === 'completed' && t.episode) {
                     const epStr = String(t.episode).trim();
                     if (!localEpisodeNumbers.has(epStr)) {
@@ -943,10 +1157,11 @@
                 }
             });
 
-            // Jika tidak ada unduhan yang sedang berjalan, hentikan polling cepat
-            const anyActive = data.tasks.some(t => t.status === 'downloading' || t.status === 'pending');
-            if (!anyActive && pollTimer) {
-                // Biarkan tray terbuka tapi hentikan polling aktif
+            // Periksa apakah masih ada unduhan atau batch yang sedang aktif
+            const anyActiveTask = tasks.some(t => t.status === 'downloading' || t.status === 'pending');
+            const anyActiveBatch = batches.some(b => b.status === 'in_progress');
+            if (!anyActiveTask && !anyActiveBatch && pollTimer) {
+                // Semua selesai atau dibatalkan
             }
         } catch (err) {
             // Abaikan error polling transien
@@ -966,13 +1181,13 @@
         }
     }
 
-    // Render daftar tugas unduhan di drawer bawah
-    function renderDownloadTasks(tasks) {
+    // Render daftar tugas unduhan dan antrean batch di drawer bawah
+    function renderDownloadTasks(tasks, batches = []) {
         const tray = document.getElementById('samehadakuTray');
         const container = document.getElementById('samehadakuTasksList');
         if (!tray || !container) return;
 
-        if (tasks.length === 0) {
+        if (tasks.length === 0 && batches.length === 0) {
             tray.hidden = true;
             return;
         }
@@ -980,6 +1195,48 @@
         tray.hidden = false;
         let html = '';
 
+        // 1. Tampilkan kartu progress Batch jika ada
+        const activeOrRecentBatches = batches.slice(0, 3);
+        activeOrRecentBatches.forEach(b => {
+            const batchPercent = b.total_episodes > 0 ? Math.min(100, Math.round((b.completed_count / b.total_episodes) * 100)) : 0;
+            const isCompleted = b.status === 'completed';
+            const isCancelled = b.status === 'cancelled';
+            const isInProgress = b.status === 'in_progress';
+
+            let batchStatusText = '';
+            if (isInProgress) {
+                batchStatusText = `Sedang memproses <strong>Episode ${b.current_episode || '?'}</strong>...`;
+            } else if (isCompleted) {
+                batchStatusText = `<span style="color:var(--primary, #10b981); font-weight:700;">✓ Batch Selesai (${b.completed_count}/${b.total_episodes} Episode)</span>`;
+            } else if (isCancelled) {
+                batchStatusText = `<span style="color:var(--muted, #94a3b8);">Antrean Batch Dibatalkan</span>`;
+            }
+
+            html += `
+                <div class="samehadaku-batch-tray-card ${b.status}" id="batch-${b.batch_id}">
+                    <div class="samehadaku-batch-tray-top">
+                        <div class="samehadaku-batch-tray-title-wrap">
+                            <span class="samehadaku-batch-tray-icon">⚡</span>
+                            <span class="samehadaku-batch-tray-title">Batch: ${b.anime_name} [${b.preferred_quality}]</span>
+                        </div>
+                        <span class="samehadaku-batch-tray-counts">
+                            ${b.completed_count} dari ${b.total_episodes} Selesai ${b.failed_count > 0 ? `<span style="color:#ef4444; font-size:11px;">(${b.failed_count} gagal)</span>` : ''}
+                        </span>
+                    </div>
+                    <div class="samehadaku-progress-bar-bg">
+                        <div class="samehadaku-progress-bar-fill ${isCompleted ? 'completed' : (isCancelled ? 'error' : '')}" style="width: ${batchPercent}%;"></div>
+                    </div>
+                    <div class="samehadaku-batch-tray-bottom">
+                        <span class="samehadaku-batch-tray-status">${batchStatusText}</span>
+                        ${isInProgress ? `
+                            <button type="button" class="samehadaku-batch-tray-cancel-btn" onclick="window.__cancelBatchDownload('${b.batch_id}')">Batalkan Batch</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        // 2. Tampilkan tugas unduhan individu
         tasks.forEach(t => {
             const percent = t.total_bytes > 0 ? Math.min(100, (t.downloaded_bytes / t.total_bytes * 100)).toFixed(1) : (t.percent || 0);
             const statusClass = t.status === 'completed' ? 'completed' : (t.status === 'error' || t.status === 'cancelled' ? 'error' : '');

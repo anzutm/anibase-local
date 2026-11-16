@@ -20,7 +20,11 @@ from anibase.logging import app_log, debug_log
 from anibase.settings import load_settings, get_settings_library_paths
 from anibase.scanner import find_media_path, clear_media_path_cache
 from anibase.watcher import clean_auto_import_folder_name, unique_destination_path
-from anibase.integrations.samehadaku import get_pixeldrain_file_info
+from anibase.integrations.samehadaku import (
+    get_pixeldrain_file_info,
+    get_samehadaku_download_links,
+    resolve_mediafire_direct_url,
+)
 from anibase.media import parse_episode_identity
 
 DEFAULT_CHUNK_SIZE = 128 * 1024  # 128 KB
@@ -29,6 +33,10 @@ MAX_STORED_TASKS = 100
 _TASKS_LOCK = threading.Lock()
 _DOWNLOAD_TASKS: Dict[str, Dict[str, Any]] = {}
 _CANCEL_EVENTS: Dict[str, threading.Event] = {}
+
+_BATCH_LOCK = threading.Lock()
+_BATCH_TASKS: Dict[str, Dict[str, Any]] = {}
+_BATCH_CANCEL_EVENTS: Dict[str, threading.Event] = {}
 
 
 def sanitize_filename(filename: str) -> str:
@@ -731,3 +739,347 @@ def _prune_tasks_locked():
         if t.get("status") in ("completed", "cancelled", "error"):
             _DOWNLOAD_TASKS.pop(tid, None)
             _CANCEL_EVENTS.pop(tid, None)
+
+
+def get_anime_local_episodes(anime_name: str) -> Dict[str, Any]:
+    """Mencari folder library yang cocok untuk anime dan mengembalikan daftar nomor episode yang sudah ada."""
+    matched = find_matching_library_anime(anime_name)
+    if not matched or not matched.get("path") or not os.path.isdir(matched["path"]):
+        return {
+            "matched": False,
+            "folder": "",
+            "anime_name": anime_name,
+            "existing_episodes": [],
+            "count": 0,
+        }
+
+    folder = matched["path"]
+    try:
+        entries = os.listdir(folder)
+    except OSError:
+        return {
+            "matched": False,
+            "folder": folder,
+            "anime_name": matched.get("name") or anime_name,
+            "existing_episodes": [],
+            "count": 0,
+        }
+
+    eps = set()
+    for f in entries:
+        if (
+            os.path.isfile(os.path.join(folder, f))
+            and os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS
+            and not f.endswith(".part")
+        ):
+            ident = parse_episode_identity(f)
+            if ident.get("kind") == "episode" and ident.get("number") is not None:
+                num = ident["number"]
+                eps.add(int(num) if isinstance(num, (int, float)) and float(num).is_integer() else num)
+
+    return {
+        "matched": True,
+        "folder": folder,
+        "anime_name": matched.get("name") or anime_name,
+        "existing_episodes": sorted(list(eps)),
+        "count": len(eps),
+    }
+
+
+def resolve_best_direct_link(
+    page_url: str,
+    preferred_quality: str = "1080p",
+    preferred_format: str = "MKV"
+) -> Optional[Dict[str, Any]]:
+    """Mencari tautan unduhan langsung terbaik (Pixeldrain/Mediafire) dari halaman episode Samehadaku."""
+    downloads = get_samehadaku_download_links(page_url)
+    if not downloads:
+        return None
+
+    qualities_order = [preferred_quality]
+    for q in ["1080p", "720p", "480p", "360p"]:
+        if q not in qualities_order:
+            qualities_order.append(q)
+
+    for q in qualities_order:
+        matching_tiers = [
+            t for t in downloads
+            if q.lower() in t.get("quality", "").lower()
+            and (preferred_format.lower() in t.get("format", "").lower() or not t.get("format"))
+        ]
+        if not matching_tiers:
+            matching_tiers = [
+                t for t in downloads
+                if q.lower() in t.get("quality", "").lower()
+            ]
+
+        for tier in matching_tiers:
+            for l in tier.get("links", []):
+                if l.get("is_direct") and l.get("direct_download_url"):
+                    return {
+                        "direct_url": l["direct_download_url"],
+                        "format": tier.get("format") or preferred_format,
+                        "quality": tier.get("quality") or q,
+                        "host": l.get("host") or "Pixeldrain",
+                    }
+                if l.get("is_pixeldrain") and l.get("pixeldrain_id"):
+                    return {
+                        "direct_url": f"https://pixeldrain.com/api/file/{l['pixeldrain_id']}?download",
+                        "format": tier.get("format") or preferred_format,
+                        "quality": tier.get("quality") or q,
+                        "host": "Pixeldrain",
+                    }
+
+            for l in tier.get("links", []):
+                if "mediafire.com" in l.get("url", "").lower():
+                    mf_direct = resolve_mediafire_direct_url(l["url"])
+                    if mf_direct:
+                        return {
+                            "direct_url": mf_direct,
+                            "format": tier.get("format") or preferred_format,
+                            "quality": tier.get("quality") or q,
+                            "host": "Mediafire",
+                        }
+
+    return None
+
+
+def start_batch_download(
+    anime_name: str,
+    episodes: List[Dict[str, Any]],
+    preferred_quality: str = "1080p",
+    preferred_format: str = "MKV",
+    custom_dest_dir: str = ""
+) -> Dict[str, Any]:
+    """Memulai proses antrean unduhan batch beberapa episode secara berurutan."""
+    clean_anime = str(anime_name or "").strip()
+    if not clean_anime:
+        return {"ok": False, "error": "Nama anime tidak boleh kosong"}
+    if not episodes:
+        return {"ok": False, "error": "Daftar episode batch tidak boleh kosong"}
+
+    batch_id = "batch_" + secrets.token_hex(6)
+    cancel_event = threading.Event()
+
+    episodes_status = []
+    for ep in episodes:
+        episodes_status.append({
+            "episode": str(ep.get("episode") or "").strip(),
+            "url": str(ep.get("url") or "").strip(),
+            "title": str(ep.get("title") or "").strip(),
+            "status": "pending",
+            "task_id": None,
+            "filename": None,
+            "error": None,
+            "progress_percent": 0.0,
+            "downloaded_bytes": 0,
+            "total_bytes": 0,
+        })
+
+    batch_data = {
+        "batch_id": batch_id,
+        "anime_name": clean_anime,
+        "preferred_quality": preferred_quality or "1080p",
+        "preferred_format": preferred_format or "MKV",
+        "custom_dest_dir": custom_dest_dir,
+        "total_episodes": len(episodes_status),
+        "completed_count": 0,
+        "failed_count": 0,
+        "current_index": 0,
+        "current_episode": episodes_status[0]["episode"] if episodes_status else "",
+        "current_task_id": None,
+        "status": "in_progress",
+        "episodes": episodes_status,
+        "created_at": time.time(),
+        "updated_at": time.time(),
+    }
+
+    with _BATCH_LOCK:
+        _BATCH_TASKS[batch_id] = batch_data
+        _BATCH_CANCEL_EVENTS[batch_id] = cancel_event
+
+    worker = threading.Thread(
+        target=_batch_worker,
+        args=(batch_id, cancel_event),
+        daemon=True,
+        name=f"BatchDownloadWorker-{batch_id}"
+    )
+    worker.start()
+
+    app_log(f"Started batch download {batch_id} for '{clean_anime}' ({len(episodes_status)} episodes)", "INFO")
+    return {"ok": True, "batch": batch_data}
+
+
+def _batch_worker(batch_id: str, cancel_event: threading.Event):
+    """Worker fungsi pengunduhan batch episode secara berurutan."""
+    with _BATCH_LOCK:
+        batch = _BATCH_TASKS.get(batch_id)
+    if not batch:
+        return
+
+    anime_name = batch["anime_name"]
+    pref_quality = batch.get("preferred_quality", "1080p")
+    pref_format = batch.get("preferred_format", "MKV")
+    custom_dest = batch.get("custom_dest_dir", "")
+
+    for idx, ep_item in enumerate(batch["episodes"]):
+        if cancel_event.is_set():
+            with _BATCH_LOCK:
+                ep_item["status"] = "cancelled"
+            continue
+
+        with _BATCH_LOCK:
+            batch["current_index"] = idx
+            batch["current_episode"] = ep_item["episode"]
+            ep_item["status"] = "resolving"
+            batch["updated_at"] = time.time()
+
+        ep_url = ep_item["url"]
+        link_info = resolve_best_direct_link(ep_url, preferred_quality=pref_quality, preferred_format=pref_format)
+
+        if not link_info or not link_info.get("direct_url"):
+            with _BATCH_LOCK:
+                ep_item["status"] = "error"
+                ep_item["error"] = "Tautan unduhan langsung (Pixeldrain/Mediafire) tidak tersedia"
+                batch["failed_count"] += 1
+                batch["updated_at"] = time.time()
+            time.sleep(1.0)
+            continue
+
+        if cancel_event.is_set():
+            with _BATCH_LOCK:
+                ep_item["status"] = "cancelled"
+            break
+
+        direct_url = link_info["direct_url"]
+        quality_found = link_info.get("quality") or pref_quality
+        format_found = (link_info.get("format") or pref_format).lower()
+
+        clean_anime = clean_auto_import_folder_name(anime_name) or "Anime"
+        default_filename = f"{clean_anime} - Ep {ep_item['episode']} [{quality_found}].{format_found}"
+
+        dl_result = start_download(
+            url=direct_url,
+            anime_name=anime_name,
+            episode=ep_item["episode"],
+            filename=default_filename,
+            custom_dest_dir=custom_dest
+        )
+
+        if not dl_result.get("ok"):
+            with _BATCH_LOCK:
+                ep_item["status"] = "error"
+                ep_item["error"] = dl_result.get("error", "Gagal memulai unduhan")
+                batch["failed_count"] += 1
+                batch["updated_at"] = time.time()
+            time.sleep(1.0)
+            continue
+
+        task_id = dl_result["task"]["task_id"]
+        with _BATCH_LOCK:
+            ep_item["task_id"] = task_id
+            ep_item["filename"] = dl_result["task"]["filename"]
+            ep_item["status"] = "downloading"
+            batch["current_task_id"] = task_id
+            batch["updated_at"] = time.time()
+
+        while not cancel_event.is_set():
+            t = get_download_task(task_id)
+            if not t:
+                break
+            with _BATCH_LOCK:
+                ep_item["progress_percent"] = t.get("progress_percent", 0.0)
+                ep_item["downloaded_bytes"] = t.get("downloaded_bytes", 0)
+                ep_item["total_bytes"] = t.get("total_bytes", 0)
+                batch["updated_at"] = time.time()
+
+            if t["status"] in ("completed", "error", "cancelled"):
+                with _BATCH_LOCK:
+                    if t["status"] == "completed":
+                        ep_item["status"] = "completed"
+                        ep_item["progress_percent"] = 100.0
+                        batch["completed_count"] += 1
+                    elif t["status"] == "cancelled":
+                        ep_item["status"] = "cancelled"
+                    else:
+                        ep_item["status"] = "error"
+                        ep_item["error"] = t.get("error", "Unduhan gagal")
+                        batch["failed_count"] += 1
+                    batch["updated_at"] = time.time()
+                break
+            time.sleep(0.5)
+
+        if cancel_event.is_set():
+            cancel_download(task_id)
+            with _BATCH_LOCK:
+                ep_item["status"] = "cancelled"
+                batch["updated_at"] = time.time()
+            break
+
+        time.sleep(1.0)
+
+    with _BATCH_LOCK:
+        if cancel_event.is_set():
+            batch["status"] = "cancelled"
+            for rem in batch["episodes"]:
+                if rem["status"] in ("pending", "resolving"):
+                    rem["status"] = "cancelled"
+        else:
+            batch["status"] = "completed"
+        batch["current_task_id"] = None
+        batch["updated_at"] = time.time()
+
+    app_log(
+        f"Batch download {batch_id} finished: {batch['completed_count']} completed, {batch['failed_count']} failed",
+        "INFO"
+    )
+
+
+def get_batch_task(batch_id: str) -> Optional[Dict[str, Any]]:
+    """Mengambil status antrean batch tertentu."""
+    with _BATCH_LOCK:
+        batch = _BATCH_TASKS.get(batch_id)
+        return dict(batch) if batch else None
+
+
+def get_all_batch_tasks(limit: int = 20) -> List[Dict[str, Any]]:
+    """Mengambil daftar seluruh antrean batch unduhan terurut terbaru."""
+    with _BATCH_LOCK:
+        tasks = [dict(b) for b in _BATCH_TASKS.values()]
+    tasks.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+    return tasks[:limit]
+
+
+def cancel_batch_download(batch_id: str) -> bool:
+    """Membatalkan seluruh antrean batch unduhan."""
+    with _BATCH_LOCK:
+        batch = _BATCH_TASKS.get(batch_id)
+        event = _BATCH_CANCEL_EVENTS.get(batch_id)
+        if not batch:
+            return False
+        if event:
+            event.set()
+        batch["status"] = "cancelled"
+        curr_task = batch.get("current_task_id")
+        if curr_task:
+            cancel_download(curr_task)
+        for ep in batch.get("episodes", []):
+            if ep.get("status") in ("pending", "resolving", "downloading"):
+                ep["status"] = "cancelled"
+        batch["updated_at"] = time.time()
+        return True
+
+
+def clear_completed_batch_tasks() -> int:
+    """Membersihkan batch yang sudah selesai, dibatalkan, atau gagal."""
+    removed = 0
+    with _BATCH_LOCK:
+        to_del = [
+            bid for bid, b in _BATCH_TASKS.items()
+            if b.get("status") in ("completed", "cancelled", "error")
+        ]
+        for bid in to_del:
+            _BATCH_TASKS.pop(bid, None)
+            _BATCH_CANCEL_EVENTS.pop(bid, None)
+            removed += 1
+    return removed

@@ -1269,3 +1269,300 @@
 .nav-btn-samehadaku::after {
     display: none !important;
 }
+
+/* ==========================================================================
+   Batch / Unduh Episode yang Belum Ada (Sync Feature)
+   ========================================================================== */
+
+.samehadaku-batch-banner {
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, #0f172a), color-mix(in srgb, var(--cyan, #38bdf8) 8%, #0f172a));
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+.samehadaku-batch-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary), var(--cyan, #38bdf8));
+}
+
+.samehadaku-batch-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.samehadaku-batch-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.samehadaku-batch-badge-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.samehadaku-batch-badge {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #ffffff;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.samehadaku-batch-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #ffffff);
+}
+
+.samehadaku-batch-count-info {
+    font-size: 12.5px;
+    color: var(--text-secondary, #A5B4D6);
+}
+
+.samehadaku-batch-count-info strong {
+    color: var(--cyan, #38bdf8);
+}
+
+.samehadaku-batch-desc {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--text-secondary, #94a3b8);
+    line-height: 1.45;
+}
+
+.samehadaku-batch-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.samehadaku-batch-controls-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.samehadaku-batch-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #A5B4D6);
+}
+
+.samehadaku-batch-select {
+    background: color-mix(in srgb, var(--surface, #1e293b) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, rgba(255, 255, 255, 0.15));
+    color: var(--text, #ffffff);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.samehadaku-batch-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.samehadaku-batch-toggle-link {
+    background: none;
+    border: none;
+    color: var(--cyan, #38bdf8);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 4px 6px;
+    transition: opacity 0.15s ease;
+}
+
+.samehadaku-batch-toggle-link:hover {
+    opacity: 0.8;
+}
+
+.samehadaku-batch-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary-gradient, linear-gradient(135deg, var(--primary), var(--primary-hover)));
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.samehadaku-batch-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+.samehadaku-batch-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.samehadaku-batch-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.samehadaku-all-synced-banner {
+    margin-bottom: 20px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.samehadaku-all-synced-banner em {
+    color: #ffffff;
+    font-style: normal;
+}
+
+.samehadaku-ep-badge-missing {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+    flex-shrink: 0;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.samehadaku-ep-item.is-missing {
+    border-left: 3px solid color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+/* Checkbox styling */
+.samehadaku-batch-checkbox-wrap {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 6px;
+    user-select: none;
+}
+
+.samehadaku-batch-checkbox {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: var(--primary);
+    border-radius: 4px;
+}
+
+/* Batch Tray Card */
+.samehadaku-batch-tray-card {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--primary) 10%, #0f172a);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.samehadaku-batch-tray-card.completed {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.samehadaku-batch-tray-card.cancelled {
+    opacity: 0.7;
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+.samehadaku-batch-tray-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.samehadaku-batch-tray-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text, #ffffff);
+}
+
+.samehadaku-batch-tray-icon {
+    font-size: 14px;
+    color: var(--cyan, var(--primary));
+}
+
+.samehadaku-batch-tray-counts {
+    font-size: 12px;
+    color: var(--text-secondary, #A5B4D6);
+}
+
+.samehadaku-batch-tray-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted, #94a3b8);
+}
+
+.samehadaku-batch-tray-cancel-btn {
+    background: none;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.samehadaku-batch-tray-cancel-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+}

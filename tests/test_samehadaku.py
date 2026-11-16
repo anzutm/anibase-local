@@ -24,6 +24,12 @@ from anibase.download_manager import (
     clear_completed_download_tasks,
     sanitize_filename,
     adapt_filename_to_library_pattern,
+    get_anime_local_episodes,
+    resolve_best_direct_link,
+    start_batch_download,
+    get_batch_task,
+    get_all_batch_tasks,
+    cancel_batch_download,
 )
 from anibase.web import create_app
 
@@ -441,6 +447,101 @@ class DownloadManagerTests(unittest.TestCase):
                 break
             time.sleep(0.05)
 
+    def test_get_anime_local_episodes(self):
+        for i in [1, 2, 3]:
+            open(os.path.join(self.dest_folder, f"Mock_Anime_-_0{i}.mkv"), "wb").close()
+
+        with patch("anibase.download_manager.find_matching_library_anime") as mock_find:
+            mock_find.return_value = {
+                "name": "Mock Anime",
+                "path": self.dest_folder,
+                "score": 1.0,
+                "method": "exact",
+            }
+            res = get_anime_local_episodes("Mock Anime")
+            self.assertTrue(res["matched"])
+            self.assertEqual(res["existing_episodes"], [1, 2, 3])
+            self.assertEqual(res["count"], 3)
+
+    @patch("anibase.download_manager.get_samehadaku_download_links")
+    def test_resolve_best_direct_link(self, mock_links):
+        mock_links.return_value = [
+            {
+                "format": "MKV",
+                "quality": "1080p",
+                "links": [
+                    {"host": "Mega", "url": "https://mega.nz/file/123", "is_direct": False, "is_pixeldrain": False},
+                    {
+                        "host": "Pixeldrain",
+                        "url": "https://pixeldrain.com/u/abc12345",
+                        "is_direct": True,
+                        "is_pixeldrain": True,
+                        "pixeldrain_id": "abc12345",
+                        "direct_download_url": "https://pixeldrain.com/api/file/abc12345?download",
+                    },
+                ],
+            }
+        ]
+        link = resolve_best_direct_link("https://example.com/ep1", preferred_quality="1080p")
+        self.assertIsNotNone(link)
+        self.assertEqual(link["direct_url"], "https://pixeldrain.com/api/file/abc12345?download")
+        self.assertEqual(link["quality"], "1080p")
+
+    @patch("anibase.download_manager.resolve_best_direct_link")
+    @patch("anibase.download_manager.requests.get")
+    def test_start_batch_download_and_worker(self, mock_get, mock_resolve):
+        mock_resolve.return_value = {
+            "direct_url": "https://example.com/video.mkv",
+            "format": "MKV",
+            "quality": "1080p",
+            "host": "Pixeldrain",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Length": "10"}
+        mock_resp.iter_content.return_value = [b"1234567890"]
+        mock_get.return_value.__enter__.return_value = mock_resp
+
+        episodes = [
+            {"episode": "1", "url": "https://example.com/ep1", "title": "Ep 1"},
+            {"episode": "2", "url": "https://example.com/ep2", "title": "Ep 2"},
+        ]
+        result = start_batch_download(
+            anime_name="Batch Anime",
+            episodes=episodes,
+            preferred_quality="1080p",
+            custom_dest_dir=self.dest_folder
+        )
+        self.assertTrue(result["ok"])
+        batch_id = result["batch"]["batch_id"]
+
+        import time
+        for _ in range(60):
+            b = get_batch_task(batch_id)
+            if b and b["status"] in ("completed", "cancelled", "error"):
+                break
+            time.sleep(0.05)
+
+        final_batch = get_batch_task(batch_id)
+        self.assertEqual(final_batch["status"], "completed")
+        self.assertEqual(final_batch["completed_count"], 2)
+
+    def test_cancel_batch_download(self):
+        episodes = [
+            {"episode": "1", "url": "https://example.com/ep1"},
+            {"episode": "2", "url": "https://example.com/ep2"},
+        ]
+        result = start_batch_download(
+            anime_name="Cancel Batch Anime",
+            episodes=episodes,
+            custom_dest_dir=self.dest_folder
+        )
+        batch_id = result["batch"]["batch_id"]
+        cancelled = cancel_batch_download(batch_id)
+        self.assertTrue(cancelled)
+        batch = get_batch_task(batch_id)
+        self.assertEqual(batch["status"], "cancelled")
+
 
 class SamehadakuApiRoutesTests(unittest.TestCase):
     def setUp(self):
@@ -503,6 +604,60 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data["ok"])
         self.assertEqual(data["task"]["task_id"], "dl_test123")
+
+    @patch("anibase.web.routes_api.get_anime_local_episodes")
+    @patch("anibase.web.routes_api.get_samehadaku_anime_details")
+    def test_api_samehadaku_episodes_enriches_local_library(self, mock_details, mock_local):
+        mock_details.return_value = {
+            "ok": True,
+            "title": "Sousou no Frieren",
+            "episodes": [
+                {"episode": "1", "title": "Ep 1", "url": "https://example.com/1"},
+                {"episode": "2", "title": "Ep 2", "url": "https://example.com/2"},
+            ]
+        }
+        mock_local.return_value = {
+            "matched": True,
+            "folder": "/mock/frieren",
+            "anime_name": "Sousou no Frieren",
+            "existing_episodes": [1],
+            "count": 1,
+        }
+        res = self.client.get("/api/samehadaku/episodes?url=https://example.com/frieren")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["local_library"]["matched"])
+        self.assertTrue(data["episodes"][0]["is_local"])
+        self.assertFalse(data["episodes"][1]["is_local"])
+        self.assertEqual(len(data["missing_episodes"]), 1)
+        self.assertEqual(data["missing_episodes"][0]["episode"], "2")
+
+    @patch("anibase.web.routes_api.start_batch_download")
+    def test_api_samehadaku_start_batch_download(self, mock_start):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        mock_start.return_value = {"ok": True, "batch": {"batch_id": "batch_123"}}
+        res = self.client.post(
+            "/api/samehadaku/download/batch",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={
+                "anime_name": "Test Anime",
+                "episodes": [{"episode": "1", "url": "https://example.com/1"}],
+                "preferred_quality": "1080p",
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["batch"]["batch_id"], "batch_123")
+
+    def test_api_samehadaku_batch_status(self):
+        res = self.client.get("/api/samehadaku/download/batch/status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertIsInstance(data["batches"], list)
 
 
 if __name__ == "__main__":
