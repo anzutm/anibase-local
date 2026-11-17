@@ -155,10 +155,12 @@ def clean_lendrive_title(raw_title: str) -> str:
     title = html.unescape(raw_title or "").strip()
     # Hapus tag kurung siku di awal/akhir
     title = re.sub(r'\[(?:LENDRIVE|Dual\s*Subs?|HEVC|x265|1080p|720p|480p|10bit|Batch|BD|BluRay)[^\]]*\]', '', title, flags=re.I)
+    # Hapus pola episode spesifik di belakang judul, misal " - Ep 07 (Dual subs)..."
+    title = re.sub(r'\s*(?:[-–—]\s*)?(?:Ep|Eps|Episode)\s*[-_.]?\s*\d+(?:\.\d+)?.*$', '', title, flags=re.I)
     # Hapus suffix umum Lendrive/Samehadaku
     title = re.sub(r'\s*(?:[-–—]\s*)?(?:Dual\s*Subs?|Subtitle\s*Indonesia|Sub\s*Indo|Lendrive|HEVC|x265).*$', '', title, flags=re.I)
-    # Hapus sisa strip / simbol di akhir
-    title = re.sub(r'[\s\-–—]+$', '', title).strip()
+    # Hapus sisa kurung buka/strip/simbol di akhir
+    title = re.sub(r'[\s\-–—\(\[\{]+$', '', title).strip()
     return title
 
 
@@ -183,82 +185,128 @@ def _parse_lendrive_post_cards(html_text: str) -> List[Dict[str, Any]]:
     results = []
     seen_urls = set()
 
-    # 1. Cari pola <article> atau <div class="post-item|bs|box-item">
-    cards = re.findall(
-        r'<(?:article|div)[^>]*class=["\'][^"\']*(?:post|item|bs|article|box)[^"\']*["\'][^>]*>([\s\S]*?)</(?:article|div)>',
+    # 1. Target section utama: jika ada "releases latesthome" (Update x265/HEVC), prioritaskan itu
+    m_latest = re.search(
+        r'(<div[^>]*class=["\'][^"\']*releases\s+latesthome[^"\']*["\'][\s\S]*?)(?:<div[^>]*class=["\'][^"\']*bixbox[^"\']*["\']|<footer|$)',
         html_text,
     )
-    if not cards:
-        # Fallback pencarian tautan dengan gambar thumbnail
-        cards = re.findall(r'<a\s+[^>]*href=["\'][^"\']+["\'][^>]*>[\s\S]*?<img[^>]+>[\s\S]*?</a>', html_text)
-
-    for card in cards:
-        # Link & Title
-        link_m = re.search(r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*title=["\']([^"\']*)["\']', card)
-        if link_m:
-            href = link_m.group(1).strip()
-            raw_title = link_m.group(2).strip()
+    if m_latest:
+        section_html = m_latest.group(1)
+    else:
+        # Fallback ke listupd (misal di halaman search atau filter arsip)
+        m_list = re.search(
+            r'(<div[^>]*class=["\'][^"\']*listupd[^"\']*["\'][\s\S]*?)(?:<div[^>]*class=["\'][^"\']*bixbox[^"\']*["\']|<footer|$)',
+            html_text,
+        )
+        if m_list:
+            section_html = m_list.group(1)
         else:
-            link_m = re.search(r'<a\s+[^>]*href=["\']([^"\']+)["\']', card)
-            if not link_m:
-                continue
-            href = link_m.group(1).strip()
-            raw_title = ""
+            section_html = html_text
 
-        if not raw_title:
-            title_m = re.search(
-                r'<(?:h2|h3|div|span)[^>]*class=["\'][^"\']*(?:title|entry-title|tt)[^"\']*["\'][^>]*>([\s\S]*?)</(?:h2|h3|div|span)>',
-                card,
-            )
-            if title_m:
-                raw_title = re.sub(r'<[^>]+>', '', title_m.group(1)).strip()
+    # 2. Temukan semua <article>...</article>
+    articles = re.findall(r'<article[^>]*>([\s\S]*?)</article>', section_html)
+    if not articles:
+        # Fallback pencarian kontainer post-item / box-item jika format tema berbeda
+        articles = re.findall(
+            r'<(?:article|div)[^>]*class=["\'][^"\']*(?:post-item|bsx|box-item)[^"\']*["\'][^>]*>([\s\S]*?)</(?:article|div)>',
+            section_html,
+        )
 
-        if not raw_title:
-            # Fallback ambil teks dari anchor
-            text_m = re.search(r'<a[^>]*>([\s\S]*?)</a>', card)
-            if text_m:
-                raw_title = re.sub(r'<[^>]+>', '', text_m.group(1)).strip()
+    for card in articles:
+        # Link & URL
+        a_m = re.search(r'<a\s+[^>]*href=["\']([^"\']+)["\']', card)
+        if not a_m:
+            continue
+        href = a_m.group(1).strip()
 
+        # Validasi URL agar bukan navigasi / filter / kategori / tombol "View All"
         if not href or href in seen_urls:
             continue
-        # Abaikan tautan navigasi, tag, kategori umum, atau halaman statis
-        if any(ign in href for ign in ("/tag/", "/category/", "/author/", "/page/", "/feed/", "wp-json", "comments")):
+        if any(ign in href for ign in ("/tag/", "/category/", "/author/", "/feed/", "wp-json", "comments", "?status=", "?order=")):
+            continue
+        if href.rstrip("/").endswith("/anime") and "?" in href:
             continue
 
         seen_urls.add(href)
-        clean_title = clean_lendrive_title(raw_title)
 
-        # Thumbnail
+        # Title extraction:
+        # 1. Cek <div class="tt">
+        clean_title = ""
+        tt_m = re.search(r'<div[^>]*class=["\'][^"\']*\btt\b[^"\']*["\'][^>]*>([\s\S]*?)</div>', card)
+        if tt_m:
+            tt_inner = tt_m.group(1)
+            tt_clean = re.sub(r'<h[1-6][^>]*>[\s\S]*?</h[1-6]>', '', tt_inner)
+            tt_clean = html.unescape(re.sub(r'<[^>]+>', '', tt_clean)).strip()
+            if tt_clean:
+                clean_title = tt_clean
+
+        # 2. Cek <h2 itemprop="headline"> atau <h2/h3>
+        raw_headline = ""
+        h_m = re.search(r'<h[1-6][^>]*itemprop=["\']headline["\'][^>]*>([\s\S]*?)</h[1-6]>', card)
+        if not h_m:
+            h_m = re.search(r'<h[1-6][^>]*class=["\'][^"\']*(?:entry-title|title)[^"\']*["\'][^>]*>([\s\S]*?)</h[1-6]>', card)
+        if not h_m:
+            h_m = re.search(r'<h[1-6][^>]*>([\s\S]*?)</h[1-6]>', card)
+        if h_m:
+            raw_headline = html.unescape(re.sub(r'<[^>]+>', '', h_m.group(1))).strip()
+
+        # 3. Cek title attribute di <a>
+        title_attr_m = re.search(r'<a\s+[^>]*title=["\']([^"\']+)["\']', card)
+        title_attr = html.unescape(title_attr_m.group(1)).strip() if title_attr_m else ""
+
+        full_raw_title = raw_headline or title_attr or clean_title
+        if not clean_title:
+            clean_title = clean_lendrive_title(full_raw_title)
+        else:
+            clean_title = clean_lendrive_title(clean_title)
+
+        if not clean_title:
+            continue
+
+        # Thumbnail extraction
+        img_src = ""
         img_m = re.search(r'<img\s+[^>]*?\bsrc=["\']([^"\']+)["\']', card)
-        img_src = img_m.group(1).strip() if img_m else ""
-        if "data:image" in img_src:
-            # Cek lazy load data-src
-            data_src = re.search(r'data-src=["\']([^"\']+)["\']', card)
-            if data_src:
-                img_src = data_src.group(1).strip()
+        if img_m:
+            img_src = img_m.group(1).strip()
+        if not img_src or "data:image" in img_src:
+            data_src_m = re.search(r'data-(?:lazy-)?src=["\']([^"\']+)["\']', card)
+            if data_src_m:
+                img_src = data_src_m.group(1).strip()
+        if not img_src or "data:image" in img_src:
+            srcset_m = re.search(r'srcset=["\']([^"\']+)["\']', card)
+            if srcset_m:
+                first_src = srcset_m.group(1).split(",")[0].strip().split(" ")[0].strip()
+                if first_src and "data:image" not in first_src:
+                    img_src = first_src
 
-        # Episode number jika rilis episode
-        ep_num = extract_lendrive_episode_number(raw_title) or extract_lendrive_episode_number(href)
-        is_batch = bool(re.search(r'\bbatch\b', raw_title, re.I) or "/batch/" in href)
+        # Episode number & batch detection
+        ep_m = re.search(r'<span[^>]*class=["\'][^"\']*\bepx\b[^"\']*["\'][^>]*>([\s\S]*?)</span>', card)
+        ep_badge_text = html.unescape(re.sub(r'<[^>]+>', '', ep_m.group(1))).strip() if ep_m else ""
+
+        ep_num = extract_lendrive_episode_number(ep_badge_text) or extract_lendrive_episode_number(full_raw_title) or extract_lendrive_episode_number(href)
+        is_batch = bool(re.search(r'\bbatch\b', full_raw_title, re.I) or "/batch/" in href or "batch" in ep_badge_text.lower())
         is_episode = bool(ep_num and not is_batch)
         is_anime = not is_episode and not is_batch
 
-        # Cek tag HEVC / Dual Subs
-        has_hevc = bool(re.search(r'hevc|x265', raw_title, re.I))
-        has_dualsubs = bool(re.search(r'dual\s*subs?', raw_title, re.I))
+        # Release date / time label (e.g. "22 hours ago")
+        date_m = re.search(r'<span[^>]*class=["\'][^"\']*\bdatex\b[^"\']*["\'][^>]*>([\s\S]*?)</span>', card)
+        released_on = html.unescape(re.sub(r'<[^>]+>', '', date_m.group(1))).strip() if date_m else ""
 
-        # Format label
+        # Format label (x265 HEVC / DualSubs)
+        has_hevc = bool(re.search(r'hevc|x265', full_raw_title, re.I))
+        has_dualsubs = bool(re.search(r'dual\s*subs?', full_raw_title, re.I))
         badge_label = "x265 HEVC" if has_hevc else "Anime"
         if has_dualsubs:
             badge_label += " (DualSubs)"
 
         results.append({
-            "title": clean_title or raw_title,
-            "raw_title": raw_title,
+            "title": clean_title,
+            "raw_title": full_raw_title,
             "url": href,
             "thumbnail": img_src,
-            "episode": f"Episode {ep_num}" if ep_num else ("Batch" if is_batch else ""),
+            "episode": f"Episode {ep_num}" if ep_num else (ep_badge_text or ("Batch" if is_batch else "")),
             "episode_number": ep_num,
+            "released_on": released_on,
             "is_batch": is_batch,
             "is_episode": is_episode,
             "is_anime": is_anime,
@@ -488,6 +536,21 @@ def get_lendrive_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) ->
     except Exception as error:
         return {"ok": False, "error": str(error)}
 
+    # Jika URL yang dibuka adalah halaman episode (bukan hub serial /anime/), cari link ke hub serial
+    if "/anime/" not in clean_url:
+        hub_link_m = re.search(r'<div[^>]*class=["\'][^"\']*nvsc[^"\']*["\'][^>]*>\s*<a\s+[^>]*href=["\']([^"\']+)["\']', html_text)
+        if not hub_link_m:
+            hub_link_m = re.search(r'More episodes\s*<a\s+[^>]*href=["\']([^"\']+)["\']', html_text, re.I)
+        if hub_link_m and "/anime/" in hub_link_m.group(1):
+            hub_url = hub_link_m.group(1).strip()
+            try:
+                hub_resp = requests.get(hub_url, headers=_get_headers(), timeout=timeout)
+                if hub_resp.status_code == 200:
+                    html_text = hub_resp.text
+                    clean_url = hub_url
+            except Exception:
+                pass
+
     # 1. Judul Anime
     title = ""
     h1_m = re.search(r'<h1[^>]*class=["\'][^"\']*(?:entry-title|title)[^"\']*["\'][^>]*>([\s\S]*?)</h1>', html_text)
@@ -503,13 +566,17 @@ def get_lendrive_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) ->
 
     # 2. Poster / Thumbnail
     poster = ""
-    og_img = re.search(r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']*)["\']', html_text)
-    if og_img:
-        poster = og_img.group(1).strip()
+    thumb_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|poster|thumbook)[^"\']*["\'][^>]*>[\s\S]*?<img\s+[^>]*?\bsrc=["\']([^"\']+)["\']', html_text)
+    if thumb_m:
+        poster = thumb_m.group(1).strip()
+    if not poster or "data:image" in poster:
+        data_src_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|poster|thumbook)[^"\']*["\'][^>]*>[\s\S]*?data-(?:lazy-)?src=["\']([^"\']+)["\']', html_text)
+        if data_src_m:
+            poster = data_src_m.group(1).strip()
     if not poster:
-        thumb_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:thumb|poster)[^"\']*["\'][^>]*>\s*<img[^>]*?\bsrc=["\']([^"\']+)["\']', html_text)
-        if thumb_m:
-            poster = thumb_m.group(1).strip()
+        og_img = re.search(r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']*)["\']', html_text)
+        if og_img:
+            poster = og_img.group(1).strip()
 
     # 3. Sinopsis
     synopsis = ""
@@ -519,29 +586,67 @@ def get_lendrive_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) ->
         synopsis = html.unescape(raw_syn)
 
     # 4. Daftar Episode
-    # Pada Lendrive, pos serial biasanya menyediakan daftar episode di tabel atau link list
     episodes: List[Dict[str, Any]] = []
     seen_eps = set()
 
-    # Cari daftar episode e.g. <ul class="episodelist"> atau link ke episode lain
-    ep_links = re.findall(
-        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>([\s\S]*?)</a>',
-        html_text,
-    )
-    for href, text in ep_links:
-        raw_t = re.sub(r'<[^>]+>', '', text).strip()
-        ep_val = extract_lendrive_episode_number(raw_t) or extract_lendrive_episode_number(href)
-        if ep_val and ep_val not in seen_eps:
-            # Pastikan bukan link menu / kategori
-            if any(k in href for k in ("/category/", "/tag/", "/genre/", "/page/")):
+    # Cek kontainer daftar episode: .eplister, .episodelist, atau .listeps
+    ep_container_m = re.search(r'<div[^>]*class=["\'][^"\']*(?:eplister|episodelist|listeps)[^"\']*["\'][\s\S]*?<ul>([\s\S]*?)</ul>', html_text)
+    if not ep_container_m:
+        ep_container_m = re.search(r'<ul[^>]*class=["\'][^"\']*(?:episodelist|eplister)[^"\']*["\']([\s\S]*?)</ul>', html_text)
+
+    if ep_container_m:
+        ul_content = ep_container_m.group(1)
+        li_matches = re.findall(r'<li[^>]*>([\s\S]*?)</li>', ul_content)
+        for li in li_matches:
+            a_m = re.search(r'<a\s+[^>]*href=["\']([^"\']+)["\']', li)
+            if not a_m:
                 continue
-            seen_eps.add(ep_val)
-            episodes.append({
-                "episode": ep_val,
-                "title": f"Episode {ep_val}",
-                "url": href,
-                "provider": "lendrive",
-            })
+            ep_url = a_m.group(1).strip()
+            
+            # ep num
+            num_m = re.search(r'<div[^>]*class=["\'][^"\']*epl-num[^"\']*["\'][^>]*>([^<]+)</div>', li)
+            raw_li_text = re.sub(r'<[^>]+>', ' ', li).strip()
+            ep_num = num_m.group(1).strip() if num_m else (extract_lendrive_episode_number(raw_li_text) or extract_lendrive_episode_number(ep_url) or "")
+            
+            # ep title
+            t_m = re.search(r'<div[^>]*class=["\'][^"\']*epl-title[^"\']*["\'][^>]*>([^<]+)</div>', li)
+            ep_title = html.unescape(t_m.group(1)).strip() if t_m else (f"Episode {ep_num}" if ep_num else raw_li_text)
+            
+            # date
+            d_m = re.search(r'<div[^>]*class=["\'][^"\']*epl-date[^"\']*["\'][^>]*>([^<]+)</div>', li)
+            ep_date = d_m.group(1).strip() if d_m else ""
+            
+            if ep_num and ep_num not in seen_eps:
+                seen_eps.add(ep_num)
+                ep_obj = {
+                    "episode": ep_num,
+                    "title": ep_title,
+                    "url": ep_url,
+                    "provider": "lendrive",
+                }
+                if ep_date:
+                    ep_obj["released_on"] = ep_date
+                episodes.append(ep_obj)
+
+    # Fallback jika eplister tidak ada: cari daftar link episode lokal
+    if not episodes:
+        ep_links = re.findall(
+            r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>([\s\S]*?)</a>',
+            html_text,
+        )
+        for href, text in ep_links:
+            raw_t = re.sub(r'<[^>]+>', '', text).strip()
+            ep_val = extract_lendrive_episode_number(raw_t) or extract_lendrive_episode_number(href)
+            if ep_val and ep_val not in seen_eps:
+                if any(k in href for k in ("/category/", "/tag/", "/genre/", "/page/")):
+                    continue
+                seen_eps.add(ep_val)
+                episodes.append({
+                    "episode": ep_val,
+                    "title": f"Episode {ep_val}",
+                    "url": href,
+                    "provider": "lendrive",
+                })
 
     # Jika postingan ini sendiri adalah halaman episode tunggal dan daftar di atas kosong
     if not episodes:

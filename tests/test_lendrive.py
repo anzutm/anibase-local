@@ -155,6 +155,69 @@ class LendriveIntegrationTests(unittest.TestCase):
         self.assertEqual(results[0]["provider"], "lendrive")
 
     @patch("anibase.integrations.lendrive.requests.get")
+    def test_get_lendrive_latest_episodes_homepage_section_and_thumbnails(self, mock_get):
+        homepage_html = """
+        <div class="releases hothome"><h3>Popular Today</h3></div>
+        <div class="listupd">
+            <article class="bs"><div class="bsx"><a href="https://lendrive.web.id/popular-ep-01/"><div class="tt">Popular</div><div class="limit"><img src="https://lendrive.web.id/pop.jpg" /></div></a></div></article>
+        </div>
+        <div class="bixbox bbnofrm">
+            <div class="releases latesthome"><h3>Update x265/HEVC</h3><a class="vl" href="https://lendrive.web.id/anime/?status=&type=&order=update">View All</a></div>
+            <div class="listupd normal">
+                <article class="bs styletere">
+                    <div class="bsx">
+                        <a href="https://lendrive.web.id/psyren-ep-06-dual-subs-x265-hevc-subtitle-indonesia-english/" title="Psyren – Ep 06 (Dual subs) x265/HEVC Subtitle Indonesia &#038; English">
+                            <div class="tt">Psyren</div>
+                            <div class="limit">
+                                <img src="https://lendrive.web.id/wp-content/uploads/2026/11/psyren-768x432.jpg" />
+                            </div>
+                            <div class="epdate">
+                                <span class="epx">Ep 6</span>
+                                <span class="datex">22 hours ago</span>
+                            </div>
+                        </a>
+                    </div>
+                </article>
+                <article class="bs styletere">
+                    <div class="bsx">
+                        <a href="https://lendrive.web.id/tensei-goblin-dakedo-shitsumon-aru-ep-07-dual-subs-x265-hevc-subtitle-indonesia-english/" title="Tensei Goblin dakedo Shitsumon Aru? – Ep 07 (Dual subs) x265/HEVC Subtitle Indonesia &#038; English">
+                            <div class="tt">Tensei Goblin dakedo Shitsumon Aru?</div>
+                            <div class="limit">
+                                <img src="https://lendrive.web.id/wp-content/uploads/2026/11/goblin-768x432.jpg" />
+                            </div>
+                            <div class="epdate">
+                                <span class="epx">Ep 7</span>
+                                <span class="datex">23 hours ago</span>
+                            </div>
+                        </a>
+                    </div>
+                </article>
+            </div>
+        </div>
+        """
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = homepage_html
+        mock_get.return_value = mock_resp
+
+        # Clear any cached latest releases
+        from anibase.integrations.lendrive import clear_lendrive_cache
+        clear_lendrive_cache()
+
+        results = get_lendrive_latest_episodes(page=1)
+        self.assertEqual(len(results), 2)
+        # Urutan harus sesuai Update x265/HEVC (Psyren pertama, Tensei Goblin kedua)
+        self.assertEqual(results[0]["title"], "Psyren")
+        self.assertEqual(results[0]["thumbnail"], "https://lendrive.web.id/wp-content/uploads/2026/11/psyren-768x432.jpg")
+        self.assertEqual(results[0]["episode_number"], "6")
+        self.assertEqual(results[0]["released_on"], "22 hours ago")
+
+        self.assertEqual(results[1]["title"], "Tensei Goblin dakedo Shitsumon Aru?")
+        self.assertEqual(results[1]["thumbnail"], "https://lendrive.web.id/wp-content/uploads/2026/11/goblin-768x432.jpg")
+        self.assertEqual(results[1]["episode_number"], "7")
+        self.assertEqual(results[1]["released_on"], "23 hours ago")
+
+    @patch("anibase.integrations.lendrive.requests.get")
     def test_get_lendrive_anime_details(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
