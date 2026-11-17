@@ -159,9 +159,15 @@ from anibase.integrations.samehadaku import (
 from anibase.download_manager import (
     start_download,
     cancel_download,
+    pause_download,
+    resume_download,
+    retry_download,
     get_download_task,
     get_all_download_tasks,
     clear_completed_download_tasks,
+    get_queue_overview,
+    get_max_concurrent_downloads,
+    set_max_concurrent_downloads,
     get_anime_local_episodes,
     start_batch_download,
     get_batch_task,
@@ -2364,15 +2370,72 @@ def api_samehadaku_cancel_batch():
 
 @host_only
 def api_samehadaku_download_status():
-    """Memeriksa status progres pengunduhan berkas."""
+    """Memeriksa status progres pengunduhan berkas dan gambaran antrean."""
     task_id = request.args.get("task_id", "").strip()
+    queue_info = get_queue_overview()
     if task_id:
         task = get_download_task(task_id)
         if not task:
             return json_error("task_not_found", "Tugas unduhan tidak ditemukan", 404)
-        return jsonify({"ok": True, "task": task})
+        return jsonify({"ok": True, "task": task, "queue_info": queue_info})
     tasks = get_all_download_tasks()
-    return jsonify({"ok": True, "tasks": tasks})
+    return jsonify({"ok": True, "tasks": tasks, "queue_info": queue_info})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_pause_download():
+    """Menjeda tugas pengunduhan yang sedang berjalan atau mengantre."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    task_id = body.get("task_id", "").strip()
+    if not task_id:
+        return json_error("missing_task_id", "ID tugas unduhan wajib disertakan", 400)
+    success = pause_download(task_id)
+    return jsonify({"ok": True, "paused": success, "queue_info": get_queue_overview()})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_resume_download():
+    """Melanjutkan tugas unduhan yang dijeda atau mencoba ulang unduhan yang gagal."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    task_id = body.get("task_id", "").strip()
+    if not task_id:
+        return json_error("missing_task_id", "ID tugas unduhan wajib disertakan", 400)
+    success = resume_download(task_id)
+    return jsonify({"ok": True, "resumed": success, "queue_info": get_queue_overview()})
+
+
+@host_only
+@require_action_token
+def api_samehadaku_set_queue_settings():
+    """Mengubah batas antrean download paralel (download_max_concurrent)."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    max_concurrent = body.get("max_concurrent")
+    if max_concurrent is None:
+        return json_error("missing_max_concurrent", "Batas paralel unduhan wajib disertakan", 400)
+    try:
+        val = int(max_concurrent)
+        if val < 1 or val > 10:
+            return json_error("invalid_range", "Batas unduhan paralel harus bernilai 1-10", 400)
+    except (ValueError, TypeError):
+        return json_error("invalid_value", "Nilai batas paralel harus berupa angka bilangan bulat", 400)
+
+    updated_val = set_max_concurrent_downloads(val, save=True)
+    return jsonify({
+        "ok": True,
+        "max_concurrent": updated_val,
+        "queue_info": get_queue_overview()
+    })
 
 
 @host_only
@@ -2523,8 +2586,11 @@ def register_api_routes(app):
     app.add_url_rule("/api/samehadaku/download/batch/status", endpoint="api_samehadaku_batch_status", view_func=api_samehadaku_batch_status)
     app.add_url_rule("/api/samehadaku/download/batch/cancel", endpoint="api_samehadaku_cancel_batch", view_func=api_samehadaku_cancel_batch, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/status", endpoint="api_samehadaku_download_status", view_func=api_samehadaku_download_status)
+    app.add_url_rule("/api/samehadaku/download/pause", endpoint="api_samehadaku_pause_download", view_func=api_samehadaku_pause_download, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/resume", endpoint="api_samehadaku_resume_download", view_func=api_samehadaku_resume_download, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/cancel", endpoint="api_samehadaku_cancel_download", view_func=api_samehadaku_cancel_download, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])
+    app.add_url_rule("/api/samehadaku/download/queue/settings", endpoint="api_samehadaku_set_queue_settings", view_func=api_samehadaku_set_queue_settings, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/list", endpoint="api_ongoing_tracker_list", view_func=api_ongoing_tracker_list)
     app.add_url_rule("/api/ongoing-tracker/check", endpoint="api_ongoing_tracker_check", view_func=api_ongoing_tracker_check, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/toggle", endpoint="api_ongoing_tracker_toggle", view_func=api_ongoing_tracker_toggle, methods=["POST"])

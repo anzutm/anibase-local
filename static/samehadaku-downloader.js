@@ -94,8 +94,20 @@
 
                 <div class="samehadaku-downloads-tray" id="samehadakuTray" hidden>
                     <div class="samehadaku-downloads-tray-header">
-                        <h4>Unduhan Aktif / Riwayat</h4>
-                        <button type="button" class="samehadaku-tray-clear-btn" id="samehadakuClearTrayBtn">Bersihkan yang selesai</button>
+                        <div class="samehadaku-tray-header-left">
+                            <h4>Unduhan Aktif / Riwayat</h4>
+                            <span class="samehadaku-tray-queue-indicator" id="samehadakuQueueIndicator"></span>
+                        </div>
+                        <div class="samehadaku-tray-header-actions">
+                            <label class="samehadaku-tray-limit-label" for="samehadakuQueueLimitSelect">Batas Paralel:</label>
+                            <select id="samehadakuQueueLimitSelect" class="samehadaku-tray-limit-select" title="Batas kuota unduhan bersamaan">
+                                <option value="1">1 Unduhan</option>
+                                <option value="2">2 Unduhan</option>
+                                <option value="3">3 Unduhan</option>
+                                <option value="5">5 Unduhan</option>
+                            </select>
+                            <button type="button" class="samehadaku-tray-clear-btn" id="samehadakuClearTrayBtn">Bersihkan yang selesai</button>
+                        </div>
                     </div>
                     <div id="samehadakuTasksList"></div>
                 </div>
@@ -132,6 +144,13 @@
         const clearBtn = modal.querySelector('#samehadakuClearTrayBtn');
         if (clearBtn) {
             clearBtn.addEventListener('click', clearCompletedTasks);
+        }
+
+        const limitSelect = modal.querySelector('#samehadakuQueueLimitSelect');
+        if (limitSelect) {
+            limitSelect.addEventListener('change', (e) => {
+                window.__setDownloadQueueLimit(e.target.value);
+            });
         }
 
         const tabLatest = modal.querySelector('#modalTabLatest');
@@ -1467,8 +1486,9 @@
 
             const tasks = tasksData.ok ? (tasksData.tasks || []) : [];
             const batches = batchData.ok ? (batchData.batches || (batchData.batch ? [batchData.batch] : [])) : [];
+            const queueInfo = tasksData.ok ? tasksData.queue_info : null;
 
-            renderDownloadTasks(tasks, batches);
+            renderDownloadTasks(tasks, batches, queueInfo);
 
             // Jika ada unduhan yang selesai, tandai episode sebagai ada di library
             tasks.forEach(t => {
@@ -1482,10 +1502,10 @@
             });
 
             // Periksa apakah masih ada unduhan atau batch yang sedang aktif
-            const anyActiveTask = tasks.some(t => t.status === 'downloading' || t.status === 'pending');
+            const anyActiveTask = tasks.some(t => t.status === 'downloading' || t.status === 'queued' || t.status === 'pending');
             const anyActiveBatch = batches.some(b => b.status === 'in_progress');
             if (!anyActiveTask && !anyActiveBatch && pollTimer) {
-                // Semua selesai atau dibatalkan
+                // Semua selesai atau menganggur
             }
         } catch (err) {
             // Abaikan error polling transien
@@ -1506,7 +1526,7 @@
     }
 
     // Render daftar tugas unduhan dan antrean batch di drawer bawah
-    function renderDownloadTasks(tasks, batches = []) {
+    function renderDownloadTasks(tasks, batches = [], queueInfo = null) {
         const tray = document.getElementById('samehadakuTray');
         const container = document.getElementById('samehadakuTasksList');
         if (!tray || !container) return;
@@ -1517,6 +1537,25 @@
         }
 
         tray.hidden = false;
+
+        // Perbarui kontrol kuota paralel dan indikator antrean
+        if (queueInfo) {
+            const limitSelect = document.getElementById('samehadakuQueueLimitSelect');
+            if (limitSelect && document.activeElement !== limitSelect && queueInfo.max_concurrent) {
+                limitSelect.value = String(queueInfo.max_concurrent);
+            }
+            const indicator = document.getElementById('samehadakuQueueIndicator');
+            if (indicator) {
+                if (queueInfo.queued_count > 0 || queueInfo.paused_count > 0) {
+                    indicator.textContent = `(${queueInfo.active_count}/${queueInfo.max_concurrent} aktif • ${queueInfo.queued_count} antre${queueInfo.paused_count > 0 ? ` • ${queueInfo.paused_count} jeda` : ''})`;
+                } else if (queueInfo.active_count > 0) {
+                    indicator.textContent = `(${queueInfo.active_count}/${queueInfo.max_concurrent} aktif)`;
+                } else {
+                    indicator.textContent = '';
+                }
+            }
+        }
+
         let html = '';
 
         // 1. Tampilkan kartu progress Batch jika ada
@@ -1563,27 +1602,52 @@
         // 2. Tampilkan tugas unduhan individu
         tasks.forEach(t => {
             const percent = t.total_bytes > 0 ? Math.min(100, (t.downloaded_bytes / t.total_bytes * 100)).toFixed(1) : (t.percent || 0);
-            const statusClass = t.status === 'completed' ? 'completed' : (t.status === 'error' || t.status === 'cancelled' ? 'error' : '');
+            const statusClass = t.status === 'completed' ? 'completed' : (t.status === 'error' || t.status === 'cancelled' ? 'error' : (t.status === 'paused' ? 'paused' : ''));
             const speedText = t.status === 'downloading' ? formatSpeed(t.speed_bps) : '';
             const downloadedText = formatBytes(t.downloaded_bytes);
             const totalText = t.total_bytes > 0 ? formatBytes(t.total_bytes) : '?';
 
             let statusLabel = t.status;
             let destInfo = '';
+            let actionButtons = '';
+
             if (t.status === 'completed') {
-                statusLabel = '<span style="color:var(--primary, #10b981); font-weight:700;">Selesai</span>';
+                statusLabel = '<span style="color:var(--primary, #10b981); font-weight:700;">✓ Selesai</span>';
                 const folderName = t.dest_anime_folder || t.matched_anime;
                 if (folderName) {
                     destInfo = ` &bull; Tersimpan di: <strong style="color:var(--cyan, #38bdf8);">${folderName}</strong>`;
                 }
             } else if (t.status === 'downloading') {
-                statusLabel = '<span style="color:var(--cyan, #38bdf8);">Mengunduh</span>';
+                statusLabel = '<span style="color:var(--cyan, #38bdf8); font-weight:600;">⬇️ Mengunduh</span>';
+                if (t.is_resumed) {
+                    statusLabel += ' <span class="samehadaku-task-badge-resumed" title="Unduhan dilanjutkan dari byte sebelumnya">⚡ Dilanjutkan</span>';
+                }
                 const folderName = t.dest_anime_folder || t.matched_anime;
                 if (folderName) {
                     destInfo = ` &bull; Tujuan: <em>${folderName}</em>`;
                 }
+                actionButtons = `
+                    <button type="button" class="samehadaku-task-pause-btn" onclick="window.__pauseSamehadakuDownload('${t.task_id}')" title="Jeda unduhan ini">⏸️ Jeda</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Batalkan unduhan ini">Batalkan</button>
+                `;
+            } else if (t.status === 'queued') {
+                const pos = t.queue_position ? `#${t.queue_position}` : '';
+                statusLabel = `<span style="color:#f59e0b; font-weight:600;">⏳ Mengantre ${pos}</span>`;
+                actionButtons = `
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Keluarkan dari antrean">Batalkan</button>
+                `;
+            } else if (t.status === 'paused') {
+                statusLabel = '<span style="color:#f97316; font-weight:600;">⏸️ Dijeda</span>';
+                actionButtons = `
+                    <button type="button" class="samehadaku-task-resume-btn" onclick="window.__resumeSamehadakuDownload('${t.task_id}')" title="Lanjutkan unduhan">▶️ Lanjut</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Batalkan unduhan">Batalkan</button>
+                `;
             } else if (t.status === 'error') {
-                statusLabel = '<span style="color:#ef4444; font-weight:700;">Gagal</span>';
+                statusLabel = '<span style="color:#ef4444; font-weight:700;">❌ Gagal</span>';
+                actionButtons = `
+                    <button type="button" class="samehadaku-task-retry-btn" onclick="window.__resumeSamehadakuDownload('${t.task_id}')" title="Coba lagi unduhan dari byte terakhir">🔄 Coba Lagi</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Hapus dari daftar">Hapus</button>
+                `;
             } else if (t.status === 'cancelled') {
                 statusLabel = '<span style="color:var(--muted, #94a3b8);">Dibatalkan</span>';
             }
@@ -1599,9 +1663,9 @@
                     </div>
                     <div class="samehadaku-task-bottom">
                         <span>Status: ${statusLabel}${destInfo} ${t.error ? ` - <span style="color:#ef4444;">${t.error}</span>` : ''}</span>
-                        ${(t.status === 'downloading' || t.status === 'pending') ? `
-                            <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')">Batalkan</button>
-                        ` : ''}
+                        <div class="samehadaku-task-actions">
+                            ${actionButtons}
+                        </div>
                     </div>
                 </div>
             `;
@@ -1609,6 +1673,72 @@
 
         container.innerHTML = html;
     }
+
+    // Jeda unduhan (Pause)
+    window.__pauseSamehadakuDownload = async function (taskId) {
+        const token = getActionToken();
+        try {
+            await fetch('/api/samehadaku/download/pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    task_id: taskId,
+                    action_token: token,
+                })
+            });
+            pollDownloadStatus();
+        } catch (err) {
+            console.error('Failed to pause download:', err);
+        }
+    };
+
+    // Lanjutkan / Coba Lagi unduhan (Resume / Retry)
+    window.__resumeSamehadakuDownload = async function (taskId) {
+        const token = getActionToken();
+        try {
+            await fetch('/api/samehadaku/download/resume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    task_id: taskId,
+                    action_token: token,
+                })
+            });
+            pollDownloadStatus();
+        } catch (err) {
+            console.error('Failed to resume download:', err);
+        }
+    };
+
+    // Ubah kuota download paralel
+    window.__setDownloadQueueLimit = async function (limit) {
+        const token = getActionToken();
+        try {
+            await fetch('/api/samehadaku/download/queue/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({
+                    max_concurrent: parseInt(limit, 10),
+                    action_token: token,
+                })
+            });
+            pollDownloadStatus();
+        } catch (err) {
+            console.error('Failed to set download queue limit:', err);
+        }
+    };
 
     // Batalkan unduhan
     window.__cancelSamehadakuDownload = async function (taskId) {

@@ -55,7 +55,8 @@ def get_default_settings():
         "desktop_window": {},
         "ongoing_tracker_enabled": True,
         "ongoing_tracker_interval_minutes": 30,
-        "ongoing_tracker_notify_toast": True
+        "ongoing_tracker_notify_toast": True,
+        "download_max_concurrent": 2
     }
 
 def get_settings_library_paths(settings):
@@ -198,6 +199,12 @@ def load_settings():
     merged["ongoing_tracker_notify_toast"] = normalize_bool_setting(
         merged.get("ongoing_tracker_notify_toast"),
         defaults["ongoing_tracker_notify_toast"]
+    )
+    merged["download_max_concurrent"] = normalize_int_setting(
+        merged.get("download_max_concurrent"),
+        defaults["download_max_concurrent"],
+        1,
+        10
     )
     if not isinstance(merged.get("desktop_window"), dict):
         merged["desktop_window"] = {}

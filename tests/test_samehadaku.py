@@ -19,9 +19,15 @@ from anibase.download_manager import (
     find_matching_library_anime,
     start_download,
     cancel_download,
+    pause_download,
+    resume_download,
+    retry_download,
     get_download_task,
     get_all_download_tasks,
     clear_completed_download_tasks,
+    get_queue_overview,
+    get_max_concurrent_downloads,
+    set_max_concurrent_downloads,
     sanitize_filename,
     adapt_filename_to_library_pattern,
     get_anime_local_episodes,
@@ -542,6 +548,154 @@ class DownloadManagerTests(unittest.TestCase):
         batch = get_batch_task(batch_id)
         self.assertEqual(batch["status"], "cancelled")
 
+    @patch("anibase.download_manager.requests.get")
+    def test_http_range_resume_206(self, mock_get):
+        """Uji kemampuan resume dengan HTTP 206 Partial Content saat berkas .part sudah ada."""
+        filename = "resume_test_206.mkv"
+        temp_part = os.path.join(self.dest_folder, f"{filename}.part")
+        final_dest = os.path.join(self.dest_folder, filename)
+
+        # Siapkan berkas .part dengan 5 byte awal
+        with open(temp_part, "wb") as f:
+            f.write(b"12345")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 206
+        mock_resp.headers = {
+            "Content-Range": "bytes 5-9/10",
+            "Content-Length": "5",
+        }
+        mock_resp.iter_content.return_value = [b"67890"]
+        mock_get.return_value.__enter__.return_value = mock_resp
+
+        result = start_download(
+            url="https://example.com/video.mkv",
+            anime_name="Resume Anime",
+            episode="1",
+            filename=filename,
+            custom_dest_dir=self.dest_folder
+        )
+        self.assertTrue(result["ok"])
+        task_id = result["task"]["task_id"]
+
+        import time
+        for _ in range(40):
+            t = get_download_task(task_id)
+            if t and t["status"] in ("completed", "error", "cancelled"):
+                break
+            time.sleep(0.05)
+
+        task = get_download_task(task_id)
+        self.assertEqual(task["status"], "completed")
+        self.assertTrue(task.get("is_resumed"))
+        self.assertEqual(task["total_bytes"], 10)
+        self.assertEqual(task["downloaded_bytes"], 10)
+
+        # Pastikan berkas akhir tersambung sempurna (10 byte)
+        with open(final_dest, "rb") as f:
+            content = f.read()
+        self.assertEqual(content, b"1234567890")
+
+    @patch("anibase.download_manager.requests.get")
+    def test_http_range_fallback_200(self, mock_get):
+        """Uji fallback jika server menolak Range dan mengembalikan 200 OK (tulis ulang dari 0)."""
+        filename = "fallback_test_200.mkv"
+        temp_part = os.path.join(self.dest_folder, f"{filename}.part")
+        final_dest = os.path.join(self.dest_folder, filename)
+
+        with open(temp_part, "wb") as f:
+            f.write(b"junk_data")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Length": "10"}
+        mock_resp.iter_content.return_value = [b"abcdefghij"]
+        mock_get.return_value.__enter__.return_value = mock_resp
+
+        result = start_download(
+            url="https://example.com/video2.mkv",
+            anime_name="Fallback Anime",
+            episode="2",
+            filename=filename,
+            custom_dest_dir=self.dest_folder
+        )
+        self.assertTrue(result["ok"])
+        task_id = result["task"]["task_id"]
+
+        import time
+        for _ in range(40):
+            t = get_download_task(task_id)
+            if t and t["status"] in ("completed", "error", "cancelled"):
+                break
+            time.sleep(0.05)
+
+        task = get_download_task(task_id)
+        self.assertEqual(task["status"], "completed")
+        with open(final_dest, "rb") as f:
+            content = f.read()
+        self.assertEqual(content, b"abcdefghij")
+
+    def test_pause_and_resume_download_lifecycle(self):
+        """Uji siklus jeda dan lanjut unduhan."""
+        import threading
+        ready_evt = threading.Event()
+        proceed_evt = threading.Event()
+
+        def slow_iter():
+            ready_evt.set()
+            # Tunggu jeda dipicu
+            proceed_evt.wait(timeout=2.0)
+            yield b"12345"
+
+        with patch("anibase.download_manager.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.headers = {"Content-Length": "5"}
+            mock_resp.iter_content.return_value = slow_iter()
+            mock_get.return_value.__enter__.return_value = mock_resp
+
+            result = start_download(
+                url="https://example.com/slow.mkv",
+                anime_name="Slow Anime",
+                episode="3",
+                filename="slow.mkv",
+                custom_dest_dir=self.dest_folder
+            )
+            task_id = result["task"]["task_id"]
+            ready_evt.wait(timeout=1.0)
+
+            # Jeda unduhan
+            paused = pause_download(task_id)
+            self.assertTrue(paused)
+            proceed_evt.set()
+
+            import time
+            time.sleep(0.1)
+            task = get_download_task(task_id)
+            self.assertEqual(task["status"], "paused")
+
+            # Lanjutkan kembali
+            resumed = resume_download(task_id)
+            self.assertTrue(resumed)
+            task_after = get_download_task(task_id)
+            self.assertIn(task_after["status"], ("queued", "downloading", "completed"))
+
+            # Batalkan agar tidak menggantung dan beri jeda penutupan file handle
+            cancel_download(task_id)
+            import time
+            time.sleep(0.2)
+
+    def test_queue_concurrency_settings(self):
+        """Uji getter/setter batas antrean paralel."""
+        orig = get_max_concurrent_downloads()
+        try:
+            set_max_concurrent_downloads(4, save=False)
+            self.assertEqual(get_max_concurrent_downloads(), 4)
+            overview = get_queue_overview()
+            self.assertEqual(overview["max_concurrent"], 4)
+        finally:
+            set_max_concurrent_downloads(orig, save=False)
+
 
 class SamehadakuApiRoutesTests(unittest.TestCase):
     def setUp(self):
@@ -658,6 +812,60 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data["ok"])
         self.assertIsInstance(data["batches"], list)
+
+    def test_api_download_status_includes_queue_info(self):
+        res = self.client.get("/api/samehadaku/download/status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertIn("queue_info", data)
+        self.assertIn("max_concurrent", data["queue_info"])
+        self.assertIn("active_count", data["queue_info"])
+
+    @patch("anibase.web.routes_api.pause_download")
+    @patch("anibase.web.routes_api.resume_download")
+    def test_api_pause_and_resume_download(self, mock_resume, mock_pause):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        mock_pause.return_value = True
+        mock_resume.return_value = True
+
+        # Pause
+        res_pause = self.client.post(
+            "/api/samehadaku/download/pause",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={"task_id": "dl_test_pause"}
+        )
+        self.assertEqual(res_pause.status_code, 200)
+        data_pause = res_pause.get_json()
+        self.assertTrue(data_pause["ok"])
+        self.assertTrue(data_pause["paused"])
+
+        # Resume
+        res_resume = self.client.post(
+            "/api/samehadaku/download/resume",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={"task_id": "dl_test_pause"}
+        )
+        self.assertEqual(res_resume.status_code, 200)
+        data_resume = res_resume.get_json()
+        self.assertTrue(data_resume["ok"])
+        self.assertTrue(data_resume["resumed"])
+
+    def test_api_queue_settings(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        res = self.client.post(
+            "/api/samehadaku/download/queue/settings",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={"max_concurrent": 3}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["max_concurrent"], 3)
+        self.assertEqual(data["queue_info"]["max_concurrent"], 3)
 
 
 if __name__ == "__main__":

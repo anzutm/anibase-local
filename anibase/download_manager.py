@@ -33,6 +33,108 @@ MAX_STORED_TASKS = 100
 _TASKS_LOCK = threading.Lock()
 _DOWNLOAD_TASKS: Dict[str, Dict[str, Any]] = {}
 _CANCEL_EVENTS: Dict[str, threading.Event] = {}
+_PAUSE_EVENTS: Dict[str, threading.Event] = {}
+_MAX_CONCURRENT_OVERRIDE: Optional[int] = None
+
+
+def get_max_concurrent_downloads(settings: Optional[Dict[str, Any]] = None) -> int:
+    """Mengambil batas kuota unduhan paralel bersamaan dari pengaturan (default: 2)."""
+    global _MAX_CONCURRENT_OVERRIDE
+    if _MAX_CONCURRENT_OVERRIDE is not None:
+        return _MAX_CONCURRENT_OVERRIDE
+    settings = settings or load_settings()
+    try:
+        val = int(settings.get("download_max_concurrent", 2))
+        return max(1, min(10, val))
+    except (ValueError, TypeError):
+        return 2
+
+
+def set_max_concurrent_downloads(count: int, save: bool = True) -> int:
+    """Mengatur kuota unduhan paralel bersamaan dan langsung memproses antrean unduhan."""
+    global _MAX_CONCURRENT_OVERRIDE
+    val = max(1, min(10, int(count or 2)))
+    _MAX_CONCURRENT_OVERRIDE = val
+    if save:
+        try:
+            from anibase.settings import save_settings
+            st = load_settings()
+            st["download_max_concurrent"] = val
+            save_settings(st)
+        except Exception as e:
+            app_log(f"Failed to persist download_max_concurrent: {e}", "DEBUG")
+    _process_download_queue()
+    return val
+
+
+def get_queue_overview() -> Dict[str, Any]:
+    """Mengambil status ringkasan antrean unduhan."""
+    with _TASKS_LOCK:
+        max_concurrent = get_max_concurrent_downloads()
+        active_count = sum(1 for t in _DOWNLOAD_TASKS.values() if t.get("status") == "downloading")
+        queued_count = sum(1 for t in _DOWNLOAD_TASKS.values() if t.get("status") == "queued")
+        paused_count = sum(1 for t in _DOWNLOAD_TASKS.values() if t.get("status") == "paused")
+
+    return {
+        "max_concurrent": max_concurrent,
+        "active_count": active_count,
+        "queued_count": queued_count,
+        "paused_count": paused_count,
+    }
+
+
+def _process_download_queue():
+    """Memeriksa antrean dan memulai tugas 'queued' sesuai kuota unduhan paralel."""
+    with _TASKS_LOCK:
+        active_count = sum(1 for t in _DOWNLOAD_TASKS.values() if t.get("status") == "downloading")
+        max_allowed = get_max_concurrent_downloads()
+        slots_available = max_allowed - active_count
+
+        if slots_available <= 0:
+            return
+
+        queued_tasks = [
+            t for t in _DOWNLOAD_TASKS.values()
+            if t.get("status") == "queued"
+        ]
+        queued_tasks.sort(key=lambda x: x.get("created_at", 0))
+
+        for task in queued_tasks[:slots_available]:
+            task_id = task["task_id"]
+            task["status"] = "downloading"
+            task["updated_at"] = time.time()
+
+            cancel_event = _CANCEL_EVENTS.get(task_id)
+            if not cancel_event:
+                cancel_event = threading.Event()
+                _CANCEL_EVENTS[task_id] = cancel_event
+
+            pause_event = _PAUSE_EVENTS.get(task_id)
+            if not pause_event:
+                pause_event = threading.Event()
+                _PAUSE_EVENTS[task_id] = pause_event
+
+            worker = threading.Thread(
+                target=_download_worker,
+                args=(
+                    task_id,
+                    task["url"],
+                    task["save_path"],
+                    task["temp_path"],
+                    cancel_event,
+                    pause_event,
+                    task.get("anime_name", ""),
+                    task.get("matched_anime")
+                ),
+                daemon=True,
+                name=f"DownloadWorker-{task_id}"
+            )
+            worker.start()
+            app_log(
+                f"Dispatched queued download task {task_id}: {task['filename']} ({active_count + 1}/{max_allowed} active)",
+                "INFO"
+            )
+            active_count += 1
 
 _BATCH_LOCK = threading.Lock()
 _BATCH_TASKS: Dict[str, Dict[str, Any]] = {}
@@ -499,6 +601,7 @@ def start_download(
 
     task_id = "dl_" + secrets.token_hex(6)
     cancel_event = threading.Event()
+    pause_event = threading.Event()
 
     task_data = {
         "task_id": task_id,
@@ -512,11 +615,12 @@ def start_download(
         "filename": os.path.basename(save_path),
         "save_path": save_path,
         "temp_path": temp_path,
-        "status": "downloading",
+        "status": "queued",
         "downloaded_bytes": 0,
         "total_bytes": total_expected_bytes,
         "progress_percent": 0.0,
         "speed_bps": 0,
+        "resumed": False,
         "error": None,
         "created_at": time.time(),
         "updated_at": time.time(),
@@ -525,18 +629,17 @@ def start_download(
     with _TASKS_LOCK:
         _DOWNLOAD_TASKS[task_id] = task_data
         _CANCEL_EVENTS[task_id] = cancel_event
+        _PAUSE_EVENTS[task_id] = pause_event
         _prune_tasks_locked()
 
-    worker = threading.Thread(
-        target=_download_worker,
-        args=(task_id, clean_url, save_path, temp_path, cancel_event, anime_name, matched_anime_name),
-        daemon=True,
-        name=f"DownloadWorker-{task_id}"
-    )
-    worker.start()
+    # Jalankan antrean unduhan (akan langsung mulai jika kuota paralel tersedia)
+    _process_download_queue()
 
-    app_log(f"Started download task {task_id}: {save_path} from {clean_url}", "INFO")
-    return {"ok": True, "task": task_data}
+    with _TASKS_LOCK:
+        current_task = dict(_DOWNLOAD_TASKS.get(task_id, task_data))
+
+    app_log(f"Registered download task {task_id} (status: {current_task.get('status')}): {save_path}", "INFO")
+    return {"ok": True, "task": current_task}
 
 
 def _download_worker(
@@ -545,10 +648,14 @@ def _download_worker(
     save_path: str,
     temp_path: str,
     cancel_event: threading.Event,
-    anime_name: str,
+    pause_event: Optional[threading.Event] = None,
+    anime_name: str = "",
     matched_anime: Optional[str] = None
 ):
-    """Worker fungsi pengunduhan chunk streaming."""
+    """Worker fungsi pengunduhan chunk streaming dengan dukungan HTTP Range Request (Resume)."""
+    if pause_event is None:
+        pause_event = threading.Event()
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -557,34 +664,85 @@ def _download_worker(
         "Accept": "*/*",
     }
 
-    downloaded = 0
+    # Cek apakah berkas .part sudah ada untuk melanjutkan unduhan (HTTP Range)
+    existing_bytes = 0
+    if os.path.exists(temp_path):
+        try:
+            existing_bytes = os.path.getsize(temp_path)
+        except OSError:
+            existing_bytes = 0
+
+    if existing_bytes > 0:
+        headers["Range"] = f"bytes={existing_bytes}-"
+        app_log(f"Attempting to resume download {task_id} from byte {existing_bytes} via HTTP Range", "INFO")
+
+    downloaded = existing_bytes
     total = 0
     start_time = time.time()
     last_speed_check_time = start_time
     bytes_since_last_check = 0
     current_speed = 0
+    is_partial = False
 
     try:
         with requests.get(url, headers=headers, stream=True, timeout=20) as resp:
+            # Penanganan HTTP 416 (Range Not Satisfiable)
+            if resp.status_code == 416:
+                app_log(f"Task {task_id}: HTTP 416 Range Not Satisfiable. Re-verifying or restarting from 0", "WARN")
+                headers.pop("Range", None)
+                existing_bytes = 0
+                downloaded = 0
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
+                with requests.get(url, headers=headers, stream=True, timeout=20) as r_fresh:
+                    resp = r_fresh
+
             if resp.status_code not in (200, 206):
                 raise RuntimeError(f"HTTP response error: {resp.status_code}")
 
+            is_partial = (resp.status_code == 206)
+            content_range = resp.headers.get("Content-Range", "")
             content_length = resp.headers.get("Content-Length")
-            if content_length and content_length.isdigit():
-                total = int(content_length)
+
+            if is_partial and content_range:
+                # Format: bytes 1000-4999/5000
+                m = re.search(r'/(\d+)$', content_range)
+                if m:
+                    total = int(m.group(1))
+                elif content_length and content_length.isdigit():
+                    total = existing_bytes + int(content_length)
+            elif content_length and content_length.isdigit():
+                if is_partial:
+                    total = existing_bytes + int(content_length)
+                else:
+                    total = int(content_length)
+                    # Server tidak mendukung range / mengirim berkas dari 0
+                    existing_bytes = 0
+                    downloaded = 0
 
             with _TASKS_LOCK:
                 if task_id in _DOWNLOAD_TASKS:
+                    t = _DOWNLOAD_TASKS[task_id]
                     if total > 0:
-                        _DOWNLOAD_TASKS[task_id]["total_bytes"] = total
-                    _DOWNLOAD_TASKS[task_id]["status"] = "downloading"
-                    _DOWNLOAD_TASKS[task_id]["updated_at"] = time.time()
+                        t["total_bytes"] = total
+                    t["status"] = "downloading"
+                    t["resumed"] = bool(existing_bytes > 0 and is_partial)
+                    t["is_resumed"] = bool(existing_bytes > 0 and is_partial)
+                    t["updated_at"] = time.time()
 
-            # Buka berkas .part untuk penulisan
-            with open(temp_path, "wb") as f:
+            # Mode "ab" jika berhasil resume parsial, mode "wb" jika dari 0
+            file_mode = "ab" if (existing_bytes > 0 and is_partial) else "wb"
+            with open(temp_path, file_mode) as f:
                 for chunk in resp.iter_content(chunk_size=DEFAULT_CHUNK_SIZE):
                     if cancel_event.is_set():
                         app_log(f"Download task {task_id} cancelled by user", "INFO")
+                        break
+
+                    if pause_event.is_set():
+                        app_log(f"Download task {task_id} paused by user", "INFO")
                         break
 
                     if not chunk:
@@ -612,7 +770,21 @@ def _download_worker(
                                 t["speed_bps"] = current_speed
                                 t["updated_at"] = now
 
-        # Periksa apakah dibatalkan
+        # 1. Cek jika dijeda (PAUSED)
+        if pause_event.is_set():
+            with _TASKS_LOCK:
+                if task_id in _DOWNLOAD_TASKS:
+                    t = _DOWNLOAD_TASKS[task_id]
+                    t["status"] = "paused"
+                    t["speed_bps"] = 0
+                    t["downloaded_bytes"] = downloaded
+                    if total > 0:
+                        t["progress_percent"] = round((downloaded / total) * 100, 1)
+                    t["updated_at"] = time.time()
+            _process_download_queue()
+            return
+
+        # 2. Cek jika dibatalkan (CANCELLED)
         if cancel_event.is_set():
             if os.path.exists(temp_path):
                 try:
@@ -624,13 +796,14 @@ def _download_worker(
                     _DOWNLOAD_TASKS[task_id]["status"] = "cancelled"
                     _DOWNLOAD_TASKS[task_id]["speed_bps"] = 0
                     _DOWNLOAD_TASKS[task_id]["updated_at"] = time.time()
+            _process_download_queue()
             return
 
-        # Periksa integritas: jangan tandai selesai jika koneksi terputus prematur
+        # 3. Periksa integritas: jangan tandai selesai jika koneksi terputus prematur
         if total > 0 and downloaded < total:
             raise RuntimeError(f"Unduhan terputus sebelum selesai ({downloaded}/{total} byte)")
 
-        # Selesai unduh: ganti nama berkas dari .part ke save_path
+        # 4. Selesai unduh: ganti nama berkas dari .part ke save_path
         if os.path.exists(temp_path):
             os.replace(temp_path, save_path)
 
@@ -670,34 +843,104 @@ def _download_worker(
             except Exception as track_err:
                 app_log(f"Failed to notify watchlist tracker on download: {track_err}", "DEBUG")
 
+        # Proses antrean unduhan berikutnya
+        _process_download_queue()
+
     except Exception as error:
         app_log(f"Download task {task_id} failed: {error}", "ERROR")
-        if os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+        # Simpan berkas .part utuh agar pengguna bisa melanjutkan (resume) unduhan
         with _TASKS_LOCK:
             if task_id in _DOWNLOAD_TASKS:
                 t = _DOWNLOAD_TASKS[task_id]
                 t["status"] = "error"
                 t["error"] = str(error)
                 t["speed_bps"] = 0
+                t["downloaded_bytes"] = downloaded
+                if total > 0:
+                    t["progress_percent"] = round((downloaded / total) * 100, 1)
                 t["updated_at"] = time.time()
+        _process_download_queue()
 
 
-def cancel_download(task_id: str) -> bool:
-    """Batalkan tugas unduhan yang sedang berjalan."""
+def pause_download(task_id: str) -> bool:
+    """Menjeda tugas unduhan yang sedang berjalan atau mengantre."""
     with _TASKS_LOCK:
-        event = _CANCEL_EVENTS.get(task_id)
         task = _DOWNLOAD_TASKS.get(task_id)
         if not task:
             return False
-        if event:
-            event.set()
-        task["status"] = "cancelled"
-        task["updated_at"] = time.time()
-        return True
+
+        if task.get("status") == "downloading":
+            event = _PAUSE_EVENTS.get(task_id)
+            if event:
+                event.set()
+                return True
+            task["status"] = "paused"
+            task["speed_bps"] = 0
+            task["updated_at"] = time.time()
+            _process_download_queue()
+            return True
+
+        if task.get("status") == "queued":
+            task["status"] = "paused"
+            task["speed_bps"] = 0
+            task["updated_at"] = time.time()
+            return True
+
+        return False
+
+
+def resume_download(task_id: str) -> bool:
+    """Melanjutkan tugas unduhan yang dijeda atau gagal dari posisi byte terakhir (HTTP Range)."""
+    with _TASKS_LOCK:
+        task = _DOWNLOAD_TASKS.get(task_id)
+        if not task:
+            return False
+
+        if task.get("status") in ("paused", "error", "cancelled"):
+            task["status"] = "queued"
+            task["error"] = None
+            task["speed_bps"] = 0
+            task["updated_at"] = time.time()
+
+            _CANCEL_EVENTS[task_id] = threading.Event()
+            _PAUSE_EVENTS[task_id] = threading.Event()
+
+    _process_download_queue()
+    return True
+
+
+def retry_download(task_id: str) -> bool:
+    """Mencoba kembali tugas unduhan yang gagal."""
+    return resume_download(task_id)
+
+
+def cancel_download(task_id: str) -> bool:
+    """Batalkan tugas unduhan yang sedang berjalan, mengantre, atau dijeda."""
+    with _TASKS_LOCK:
+        task = _DOWNLOAD_TASKS.get(task_id)
+        if not task:
+            return False
+
+        if task.get("status") == "downloading":
+            event = _CANCEL_EVENTS.get(task_id)
+            if event:
+                event.set()
+            task["status"] = "cancelled"
+            task["speed_bps"] = 0
+            task["updated_at"] = time.time()
+        else:
+            temp_path = task.get("temp_path")
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            task["status"] = "cancelled"
+            task["speed_bps"] = 0
+            task["updated_at"] = time.time()
+
+    _process_download_queue()
+    return True
 
 
 def get_download_task(task_id: str) -> Optional[Dict[str, Any]]:
@@ -708,10 +951,28 @@ def get_download_task(task_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_all_download_tasks(limit: int = 50) -> List[Dict[str, Any]]:
-    """Ambil daftar semua tugas unduhan terurut terbaru."""
+    """Ambil daftar semua tugas unduhan terurut prioritas antrean dan waktu."""
     with _TASKS_LOCK:
         tasks = [dict(t) for t in _DOWNLOAD_TASKS.values()]
-    tasks.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+
+    status_priority = {
+        "downloading": 0,
+        "queued": 1,
+        "paused": 2,
+        "error": 3,
+        "completed": 4,
+        "cancelled": 5,
+    }
+
+    queued_tasks = [t for t in tasks if t.get("status") == "queued"]
+    queued_tasks.sort(key=lambda x: x.get("created_at", 0))
+    for idx, qt in enumerate(queued_tasks, start=1):
+        qt["queue_position"] = idx
+
+    tasks.sort(key=lambda x: (
+        status_priority.get(x.get("status", ""), 99),
+        -x.get("updated_at", 0)
+    ))
     return tasks[:limit]
 
 
@@ -726,6 +987,7 @@ def clear_completed_download_tasks() -> int:
         for tid in to_del:
             _DOWNLOAD_TASKS.pop(tid, None)
             _CANCEL_EVENTS.pop(tid, None)
+            _PAUSE_EVENTS.pop(tid, None)
             removed += 1
     return removed
 
