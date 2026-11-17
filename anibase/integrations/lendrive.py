@@ -19,6 +19,7 @@ from typing import Optional, List, Dict, Any
 import requests
 from anibase.constants import CACHE_DIR
 from anibase.logging import app_log
+from anibase.settings import load_settings
 from anibase.integrations.samehadaku import (
     resolve_mediafire_direct_url,
     get_pixeldrain_file_info,
@@ -36,7 +37,6 @@ CACHE_TTL_SECONDS = 3600  # 1 jam
 def get_lendrive_base_url() -> str:
     """Mengambil base URL Lendrive dari settings jika ada, atau menggunakan default."""
     try:
-        from anibase.settings import load_settings
         st = load_settings()
         custom = st.get("lendrive_base_url", "").strip()
         if custom and (custom.startswith("http://") or custom.startswith("https://")):
