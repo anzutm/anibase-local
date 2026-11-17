@@ -2610,6 +2610,24 @@ def api_ongoing_tracker_toggle():
     return jsonify({"ok": True, "anime_name": anime_name, "is_tracked": is_tracked})
 
 
+@host_only
+@require_action_token
+def api_ongoing_tracker_delete():
+    """Menghapus anime dari daftar pantau ongoing tracker."""
+    from anibase.db import delete_ongoing_watchlist, set_ongoing_watchlist_tracked
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+    anime_name = body.get("anime_name", "").strip()
+    if not anime_name:
+        return json_error("missing_anime_name", "Nama anime wajib disertakan", 400)
+
+    # Nonaktifkan tracking dan hapus dari tabel ongoing_watchlist
+    set_ongoing_watchlist_tracked(anime_name, False)
+    delete_ongoing_watchlist(anime_name)
+    return jsonify({"ok": True, "anime_name": anime_name, "deleted": True})
+
+
 def api_ongoing_tracker_notifications():
     """Mengambil riwayat notifikasi episode baru."""
     unread_only = request.args.get("unread_only", "").lower() in ("true", "1")
@@ -2709,6 +2727,7 @@ def register_api_routes(app):
     app.add_url_rule("/api/ongoing-tracker/list", endpoint="api_ongoing_tracker_list", view_func=api_ongoing_tracker_list)
     app.add_url_rule("/api/ongoing-tracker/check", endpoint="api_ongoing_tracker_check", view_func=api_ongoing_tracker_check, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/toggle", endpoint="api_ongoing_tracker_toggle", view_func=api_ongoing_tracker_toggle, methods=["POST"])
+    app.add_url_rule("/api/ongoing-tracker/delete", endpoint="api_ongoing_tracker_delete", view_func=api_ongoing_tracker_delete, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/notifications", endpoint="api_ongoing_tracker_notifications", view_func=api_ongoing_tracker_notifications)
     app.add_url_rule("/api/ongoing-tracker/notifications/read", endpoint="api_ongoing_tracker_mark_read", view_func=api_ongoing_tracker_mark_read, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/quick-download", endpoint="api_ongoing_tracker_quick_download", view_func=api_ongoing_tracker_quick_download, methods=["POST"])

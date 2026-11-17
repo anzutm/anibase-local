@@ -566,19 +566,43 @@
             const missing = item.missing_episodes || [];
             const nextEpToDownload = missing.length > 0 ? missing[0] : (sameMax > localMax ? sameMax : null);
 
+            let localText = 'Belum Ada';
+            if (item.local_episodes && item.local_episodes.length > 0) {
+                const minEp = Math.min(...item.local_episodes);
+                const maxEp = Math.max(...item.local_episodes);
+                if (minEp === maxEp) {
+                    localText = `Ep ${minEp}`;
+                } else {
+                    localText = `Ep ${minEp} - ${maxEp}`;
+                }
+                if (item.local_episodes.length > 1) {
+                    localText += ` (${item.local_episodes.length} ep)`;
+                }
+            } else if (localMax > 0) {
+                localText = `Ep 1 - ${localMax}`;
+            }
+
             html += `
                 <div class="samehadaku-tracker-card ${hasNew ? 'has-new' : ''}">
                     <div class="samehadaku-tracker-card-head">
-                        <h4 class="samehadaku-tracker-card-title">${item.anime_name}</h4>
-                        <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
-                            ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
-                        </span>
+                        <h4 class="samehadaku-tracker-card-title" title="${item.anime_name}">${item.anime_name}</h4>
+                        <div class="samehadaku-tracker-card-badges">
+                            <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
+                                ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
+                            </span>
+                            <button type="button" class="samehadaku-tracker-card-remove" title="Hapus dari Pantauan Ongoing" onclick="window.__removeOngoingTracker('${encodeURIComponent(item.anime_name)}')">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="samehadaku-tracker-card-meta">
                         <div class="samehadaku-tracker-card-row">
                             <span>Koleksi Lokal:</span>
-                            <strong>${localMax > 0 ? `Ep 1 - ${localMax}` : 'Belum Ada'}</strong>
+                            <strong>${localText}</strong>
                         </div>
                         <div class="samehadaku-tracker-card-row">
                             <span>Rilis Samehadaku:</span>
@@ -1928,6 +1952,35 @@
         } catch (err) {
             console.error('Failed quick download:', err);
             openSamehadakuModal(animeName);
+        }
+    };
+
+    // Hapus anime dari Ongoing Tracker
+    window.__removeOngoingTracker = async function (encodedAnimeName) {
+        const animeName = decodeURIComponent(encodedAnimeName);
+        if (!confirm(`Hapus "${animeName}" dari daftar pantau Ongoing?`)) {
+            return;
+        }
+        const token = getActionToken();
+        try {
+            const res = await fetch('/api/ongoing-tracker/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({ anime_name: animeName, action_token: token })
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                loadOngoingTrackerView();
+            } else {
+                alert(data.error || 'Gagal menghapus anime dari pantauan');
+            }
+        } catch (err) {
+            console.error('Failed to remove ongoing tracker item:', err);
+            alert('Terjadi kesalahan saat menghapus anime');
         }
     };
 

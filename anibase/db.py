@@ -360,7 +360,10 @@ def upsert_ongoing_watchlist(anime_name, samehadaku_url=None, is_tracked=1, sour
             samehadaku_url = COALESCE(excluded.samehadaku_url, ongoing_watchlist.samehadaku_url),
             last_known_episode = CASE WHEN excluded.last_known_episode > 0 THEN excluded.last_known_episode ELSE ongoing_watchlist.last_known_episode END,
             latest_samehadaku_ep = CASE WHEN excluded.latest_samehadaku_ep > 0 THEN excluded.latest_samehadaku_ep ELSE ongoing_watchlist.latest_samehadaku_ep END,
-            is_tracked = excluded.is_tracked
+            is_tracked = CASE
+                WHEN excluded.source = 'manual' THEN excluded.is_tracked
+                ELSE ongoing_watchlist.is_tracked
+            END
     """
     def _exec(c):
         c.execute(sql, (

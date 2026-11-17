@@ -129,6 +129,17 @@ class TestWatchlistTrackerDB(unittest.TestCase):
 
 
 class TestWatchlistTrackerLogic(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.tmp_dir.name, "test_logic.db")
+        init_db(self.db_path)
+        self.db_patcher = patch("anibase.constants.DB_PATH", self.db_path)
+        self.db_patcher.start()
+
+    def tearDown(self):
+        self.db_patcher.stop()
+        self.tmp_dir.cleanup()
+
     def test_extract_episode_number(self):
         self.assertEqual(extract_episode_number("Episode 7"), 7.0)
         self.assertEqual(extract_episode_number("08"), 8.0)
@@ -140,10 +151,13 @@ class TestWatchlistTrackerLogic(unittest.TestCase):
 
     @patch("anibase.watchlist_tracker.get_anime_local_episodes")
     def test_scan_ongoing_anime(self, mock_local_eps):
-        mock_local_eps.return_value = {"episodes": [1, 2, 3], "folder_name": "Test Anime"}
+        mock_local_eps.return_value = {"episodes": [1, 2, 3], "folder_name": "Test Anime", "matched": True}
         with tempfile.TemporaryDirectory() as tmp_dir:
             ongoing_folder = os.path.join(tmp_dir, "Onggoing")
-            os.makedirs(os.path.join(ongoing_folder, "Sousou no Frieren"))
+            frieren_dir = os.path.join(ongoing_folder, "Sousou no Frieren")
+            os.makedirs(frieren_dir)
+            with open(os.path.join(frieren_dir, "Frieren_01.mkv"), "w") as f:
+                f.write("dummy")
 
             settings = {
                 "ongoing_path": ongoing_folder,
@@ -156,7 +170,7 @@ class TestWatchlistTrackerLogic(unittest.TestCase):
     @patch("anibase.watchlist_tracker.get_samehadaku_latest_episodes")
     @patch("anibase.watchlist_tracker.get_anime_local_episodes")
     def test_check_ongoing_releases_detects_new_episode(self, mock_local_eps, mock_latest):
-        mock_local_eps.return_value = {"episodes": [1, 2, 3, 4, 5, 6], "folder_name": "Doumo Suki"}
+        mock_local_eps.return_value = {"episodes": [1, 2, 3, 4, 5, 6], "folder_name": "Doumo Suki", "matched": True}
         mock_latest.return_value = [
             {
                 "title": "Doumo Suki na Hito ni Horegusuri wo Irai sareta Majo desu.",
@@ -184,10 +198,20 @@ class TestWatchlistTrackerLogic(unittest.TestCase):
 
 class TestWatchlistTrackerAPI(unittest.TestCase):
     def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.tmp_dir.name, "test_api.db")
+        init_db(self.db_path)
+        self.db_patcher = patch("anibase.constants.DB_PATH", self.db_path)
+        self.db_patcher.start()
+
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
         self.token = get_action_token()
+
+    def tearDown(self):
+        self.db_patcher.stop()
+        self.tmp_dir.cleanup()
 
     def test_api_ongoing_tracker_list(self):
         res = self.client.get("/api/ongoing-tracker/list")
@@ -216,7 +240,7 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["new_alerts_count"], 1)
 
-    def test_api_ongoing_tracker_toggle(self):
+    def test_api_ongoing_tracker_toggle_and_delete(self):
         res = self.client.post(
             "/api/ongoing-tracker/toggle",
             headers={"X-Action-Token": self.token, "Content-Type": "application/json"},
@@ -227,6 +251,17 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["anime_name"], "Dandadan")
         self.assertTrue(data["is_tracked"])
+
+        # Test delete endpoint
+        del_res = self.client.post(
+            "/api/ongoing-tracker/delete",
+            headers={"X-Action-Token": self.token, "Content-Type": "application/json"},
+            json={"anime_name": "Dandadan"}
+        )
+        self.assertEqual(del_res.status_code, 200)
+        del_data = del_res.get_json()
+        self.assertTrue(del_data["ok"])
+        self.assertTrue(del_data["deleted"])
 
     def test_api_ongoing_tracker_notifications_and_read(self):
         # Insert test notification directly

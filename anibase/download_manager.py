@@ -1020,6 +1020,7 @@ def get_anime_local_episodes(anime_name: str) -> Dict[str, Any]:
             "folder": "",
             "anime_name": anime_name,
             "existing_episodes": [],
+            "episodes": [],
             "count": 0,
         }
 
@@ -1032,6 +1033,7 @@ def get_anime_local_episodes(anime_name: str) -> Dict[str, Any]:
             "folder": folder,
             "anime_name": matched.get("name") or anime_name,
             "existing_episodes": [],
+            "episodes": [],
             "count": 0,
         }
 
@@ -1047,12 +1049,14 @@ def get_anime_local_episodes(anime_name: str) -> Dict[str, Any]:
                 num = ident["number"]
                 eps.add(int(num) if isinstance(num, (int, float)) and float(num).is_integer() else num)
 
+    sorted_eps = sorted(list(eps))
     return {
         "matched": True,
         "folder": folder,
         "anime_name": matched.get("name") or anime_name,
-        "existing_episodes": sorted(list(eps)),
-        "count": len(eps),
+        "existing_episodes": sorted_eps,
+        "episodes": sorted_eps,
+        "count": len(sorted_eps),
     }
 
 

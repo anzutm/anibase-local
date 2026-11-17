@@ -2018,6 +2018,13 @@
     word-break: break-word;
 }
 
+.samehadaku-tracker-card-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
 .samehadaku-tracker-card-badge {
     font-size: 10px;
     font-weight: 700;
@@ -2025,6 +2032,26 @@
     border-radius: 9999px;
     flex-shrink: 0;
     letter-spacing: 0.02em;
+}
+
+.samehadaku-tracker-card-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.samehadaku-tracker-card-remove:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
 }
 
 .samehadaku-tracker-card-badge.up-to-date {

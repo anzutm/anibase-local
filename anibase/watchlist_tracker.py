@@ -63,67 +63,160 @@ def extract_episode_number(raw_value: Any) -> Optional[float]:
     return None
 
 
-def scan_ongoing_anime(settings: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def _has_video_files(dir_path: str) -> bool:
+    """Memeriksa apakah sebuah direktori berisi setidaknya satu berkas video."""
+    try:
+        with os.scandir(dir_path) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    ext = os.path.splitext(entry.name)[1].lower()
+                    if ext in constants.VIDEO_EXTENSIONS and not entry.name.endswith(".part"):
+                        return True
+                elif entry.is_dir() and not entry.name.startswith(('.', '$')):
+                    try:
+                        with os.scandir(entry.path) as sub_entries:
+                            for sub in sub_entries:
+                                if sub.is_file():
+                                    sub_ext = os.path.splitext(sub.name)[1].lower()
+                                    if sub_ext in constants.VIDEO_EXTENSIONS and not sub.name.endswith(".part"):
+                                        return True
+                    except OSError:
+                        pass
+    except OSError:
+        pass
+    return False
+
+
+def scan_ongoing_anime(
+    settings: Optional[Dict[str, Any]] = None,
+    active_only: bool = True
+) -> List[Dict[str, Any]]:
     """Memindai sumber anime ongoing dan menyinkronkannya dengan tabel ongoing_watchlist.
     
     Sumber pemindaian:
-    1. Seluruh subfolder yang ada di `ongoing_path` (misal: D:\\Anime\\Onggoing\\*).
-    2. Anime dalam database `anime_library` yang memiliki metadata status 'RELEASING'.
-    3. Anime yang sudah ditandai secara manual di `ongoing_watchlist`.
+    1. Subfolder di `ongoing_path` yang memiliki berkas video aktif.
+    2. Anime dalam database `anime_library` yang berstatus 'RELEASING'.
+    3. Anime yang ditandai secara manual di `ongoing_watchlist`.
+
+    Fitur pembersihan & deduplikasi:
+    - Menghapus entri ongoing_folder yang foldernya sudah tidak ada di disk.
+    - Menghapus entri library_releasing yang statusnya sudah bukan RELEASING di library.
+    - Mengabaikan anime yang sudah berstatus FINISHED di library dan koleksi lokal sudah lengkap.
+    - Deduplikasi otomatis untuk alias judul yang merujuk pada folder fisik lokal yang sama.
     """
     settings = settings or load_settings()
 
     # 1. Pindai folder ongoing_path
     ongoing_dir = str(settings.get("ongoing_path", "")).strip()
+    valid_ongoing_folders = set()
     if ongoing_dir and os.path.isdir(ongoing_dir):
         try:
             with os.scandir(ongoing_dir) as entries:
                 for entry in entries:
                     if entry.is_dir() and not entry.name.startswith(('.', '$')):
-                        upsert_ongoing_watchlist(
-                            anime_name=entry.name,
-                            is_tracked=1,
-                            source="ongoing_folder"
-                        )
+                        if _has_video_files(entry.path):
+                            valid_ongoing_folders.add(entry.name)
+                            upsert_ongoing_watchlist(
+                                anime_name=entry.name,
+                                is_tracked=1,
+                                source="ongoing_folder"
+                            )
         except Exception as e:
             app_log(f"Error scanning ongoing_path '{ongoing_dir}': {e}", "WARN")
 
+        # Bersihkan record usang dengan source ongoing_folder jika foldernya sudah tidak ada di disk
+        try:
+            with db_connection() as conn:
+                cursor = conn.execute("SELECT anime_name FROM ongoing_watchlist WHERE source = 'ongoing_folder'")
+                stale_folders = [r[0] for r in cursor.fetchall() if r and r[0] not in valid_ongoing_folders]
+                for sf in stale_folders:
+                    conn.execute("DELETE FROM ongoing_watchlist WHERE anime_name = ? AND source = 'ongoing_folder'", (sf,))
+        except Exception as e:
+            app_log(f"Error cleaning stale ongoing_folder records: {e}", "DEBUG")
+
     # 2. Pindai anime dalam library dengan status RELEASING
+    releasing_names = set()
+    finished_anime = {}
     try:
         with db_connection() as conn:
             cursor = conn.execute("SELECT name FROM anime_library WHERE UPPER(status) = 'RELEASING'")
-            rows = cursor.fetchall()
-            for r in rows:
-                if r and r[0]:
-                    upsert_ongoing_watchlist(
-                        anime_name=r[0],
-                        is_tracked=1,
-                        source="library_releasing",
-                        conn=conn
-                    )
+            releasing_names = {r[0] for r in cursor.fetchall() if r and r[0]}
+            for r_name in releasing_names:
+                upsert_ongoing_watchlist(
+                    anime_name=r_name,
+                    is_tracked=1,
+                    source="library_releasing",
+                    conn=conn
+                )
+
+            # Bersihkan record usang source library_releasing yang sudah bukan RELEASING
+            cursor = conn.execute("SELECT anime_name FROM ongoing_watchlist WHERE source = 'library_releasing'")
+            stale_lib = [r[0] for r in cursor.fetchall() if r and r[0] not in releasing_names]
+            for sl in stale_lib:
+                conn.execute("DELETE FROM ongoing_watchlist WHERE anime_name = ? AND source = 'library_releasing'", (sl,))
+
+            # Ambil anime berstatus FINISHED di library
+            cursor = conn.execute("SELECT name, episodes FROM anime_library WHERE UPPER(status) = 'FINISHED'")
+            finished_anime = {r[0]: (r[1] or 0) for r in cursor.fetchall() if r and r[0]}
     except Exception as e:
         app_log(f"Error querying releasing anime from library: {e}", "DEBUG")
 
-    # 3. Ambil seluruh anime dari tabel ongoing_watchlist
-    tracked_items = get_ongoing_watchlist(active_only=False)
-    results = []
+    # 3. Bersihkan anime FINISHED dan ghost manual entries dari watchlist
+    try:
+        with db_connection() as conn:
+            # Jika anime sudah FINISHED di library dan tidak berada di folder ongoing aktif
+            for fin_name in finished_anime:
+                if fin_name not in valid_ongoing_folders:
+                    conn.execute("DELETE FROM ongoing_watchlist WHERE anime_name = ? AND source != 'manual'", (fin_name,))
+
+            # Bersihkan entri ghost manual yang tidak memiliki URL, tidak ada episode, dan bukan di library
+            cursor = conn.execute("SELECT anime_name, samehadaku_url, last_known_episode, latest_samehadaku_ep FROM ongoing_watchlist WHERE source = 'manual'")
+            for m_row in cursor.fetchall():
+                m_name, m_url, m_last, m_lat = m_row
+                if not m_url and (m_last or 0) == 0 and (m_lat or 0) == 0 and m_name not in valid_ongoing_folders and m_name not in releasing_names:
+                    chk = get_anime_local_episodes(m_name)
+                    if not chk.get("matched") or chk.get("count", 0) == 0:
+                        conn.execute("DELETE FROM ongoing_watchlist WHERE anime_name = ? AND source = 'manual'", (m_name,))
+    except Exception as e:
+        app_log(f"Error pruning completed/ghost watchlist items: {e}", "DEBUG")
+
+    # 4. Ambil anime dari tabel ongoing_watchlist
+    tracked_items = get_ongoing_watchlist(active_only=active_only)
+
+    deduped_map: Dict[str, Dict[str, Any]] = {}
+    duplicates_to_delete: List[str] = []
 
     for item in tracked_items:
         anime_name = item["anime_name"]
         local_info = get_anime_local_episodes(anime_name)
-        local_eps = local_info.get("episodes", [])
+        local_eps = local_info.get("existing_episodes") or local_info.get("episodes") or []
         highest_local = max(local_eps) if local_eps else 0.0
+        folder_path = local_info.get("folder") or ""
+
+        # Tentukan kunci deduplikasi berdasarkan folder fisik lokal yang cocok
+        if local_info.get("matched") and folder_path:
+            canonical_key = os.path.normcase(os.path.abspath(folder_path))
+            canonical_name = local_info.get("anime_name") or os.path.basename(folder_path) or anime_name
+        else:
+            canonical_key = "title:" + re.sub(r'[^a-zA-Z0-9]', '', anime_name.lower())
+            canonical_name = anime_name
 
         latest_same = float(item.get("latest_samehadaku_ep") or 0.0)
-        has_new = bool(latest_same > highest_local and latest_same > 0)
+        same_url = item.get("samehadaku_url") or ""
 
-        # Hitung episode yang belum ada
-        missing = []
-        if latest_same > highest_local:
-            start_check = int(highest_local) + 1 if highest_local >= 1 else 1
-            for n in range(start_check, int(latest_same) + 1):
-                if float(n) not in local_eps and n not in local_eps:
-                    missing.append(n)
+        if canonical_key in deduped_map:
+            # Ditemukan duplikat (misal 'Doumo Suki' vs nama panjang Jepang untuk folder yang sama)
+            existing = deduped_map[canonical_key]
+            if not existing.get("samehadaku_url") and same_url:
+                existing["samehadaku_url"] = same_url
+            if latest_same > existing.get("latest_samehadaku_ep", 0.0):
+                existing["latest_samehadaku_ep"] = latest_same
+            if highest_local > existing.get("highest_local_ep", 0.0):
+                existing["highest_local_ep"] = highest_local
+                existing["local_episodes"] = local_eps
+            if anime_name != existing.get("anime_name"):
+                duplicates_to_delete.append(anime_name)
+            continue
 
         # Sinkronkan last_known_episode di database
         if highest_local != item.get("last_known_episode"):
@@ -132,20 +225,45 @@ def scan_ongoing_anime(settings: Optional[Dict[str, Any]] = None) -> List[Dict[s
                 last_known_episode=highest_local
             )
 
-        enriched = {
-            "anime_name": anime_name,
-            "samehadaku_url": item.get("samehadaku_url") or "",
+        deduped_map[canonical_key] = {
+            "anime_name": canonical_name,
+            "original_name": anime_name,
+            "samehadaku_url": same_url,
             "local_episodes": local_eps,
             "highest_local_ep": highest_local,
             "latest_samehadaku_ep": latest_same,
-            "has_new_episode": has_new,
-            "missing_episodes": missing,
-            "is_tracked": item.get("is_tracked", True),
+            "is_tracked": bool(item.get("is_tracked", True)),
             "source": item.get("source", "auto"),
             "last_checked_at": item.get("last_checked_at", 0),
             "created_at": item.get("created_at", 0),
         }
-        results.append(enriched)
+
+    # Hapus row duplikat dari basis data agar tidak muncul lagi
+    if duplicates_to_delete:
+        try:
+            with db_connection() as conn:
+                for d_name in duplicates_to_delete:
+                    conn.execute("DELETE FROM ongoing_watchlist WHERE anime_name = ?", (d_name,))
+        except Exception as e:
+            app_log(f"Error deleting duplicate ongoing watchlist entries: {e}", "DEBUG")
+
+    results = []
+    for entry in deduped_map.values():
+        highest_local = entry["highest_local_ep"]
+        latest_same = entry["latest_samehadaku_ep"]
+        local_eps = entry["local_episodes"]
+        has_new = bool(latest_same > highest_local and latest_same > 0)
+
+        missing = []
+        if latest_same > highest_local:
+            start_check = int(highest_local) + 1 if highest_local >= 1 else 1
+            for n in range(start_check, int(latest_same) + 1):
+                if float(n) not in local_eps and n not in local_eps:
+                    missing.append(n)
+
+        entry["has_new_episode"] = has_new
+        entry["missing_episodes"] = missing
+        results.append(entry)
 
     return results
 
@@ -217,7 +335,7 @@ def check_ongoing_releases(
 
         # Bandingkan episode rilis dengan koleksi lokal
         local_info = get_anime_local_episodes(matched_target_name)
-        local_eps = local_info.get("episodes", [])
+        local_eps = local_info.get("existing_episodes") or local_info.get("episodes") or []
         highest_local = max(local_eps) if local_eps else 0.0
 
         # Jika episode rilis lebih baru dari koleksi lokal
@@ -284,7 +402,7 @@ def check_ongoing_releases(
                     continue
 
                 local_info = get_anime_local_episodes(anime_name)
-                local_eps = local_info.get("episodes", [])
+                local_eps = local_info.get("existing_episodes") or local_info.get("episodes") or []
                 highest_local = max(local_eps) if local_eps else 0.0
 
                 for ep_entry in ep_list:
