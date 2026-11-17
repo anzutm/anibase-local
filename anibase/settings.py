@@ -56,7 +56,8 @@ def get_default_settings():
         "ongoing_tracker_enabled": True,
         "ongoing_tracker_interval_minutes": 30,
         "ongoing_tracker_notify_toast": True,
-        "download_max_concurrent": 2
+        "download_max_concurrent": 2,
+        "lendrive_base_url": "https://lendrive.web.id"
     }
 
 def get_settings_library_paths(settings):
@@ -206,6 +207,11 @@ def load_settings():
         1,
         10
     )
+    custom_lendrive = str(merged.get("lendrive_base_url") or "").strip()
+    if custom_lendrive and (custom_lendrive.startswith("http://") or custom_lendrive.startswith("https://")):
+        merged["lendrive_base_url"] = custom_lendrive.rstrip("/")
+    else:
+        merged["lendrive_base_url"] = defaults["lendrive_base_url"]
     if not isinstance(merged.get("desktop_window"), dict):
         merged["desktop_window"] = {}
     return merged
