@@ -1397,8 +1397,10 @@
             title: e.title || '',
         }));
 
+        const provider = (epsList.length > 0 && epsList[0].url && epsList[0].url.includes('lendrive.web.id')) ? 'lendrive' : currentProvider;
+
         try {
-            const res = await fetch('/api/samehadaku/download/batch', {
+            const res = await fetch(`/api/${provider}/download/batch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

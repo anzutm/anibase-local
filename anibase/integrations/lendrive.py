@@ -180,6 +180,8 @@ def _parse_lendrive_post_cards(html_text: str) -> List[Dict[str, Any]]:
         # Episode number jika rilis episode
         ep_num = extract_lendrive_episode_number(raw_title) or extract_lendrive_episode_number(href)
         is_batch = bool(re.search(r'\bbatch\b', raw_title, re.I) or "/batch/" in href)
+        is_episode = bool(ep_num and not is_batch)
+        is_anime = not is_episode and not is_batch
 
         # Cek tag HEVC / Dual Subs
         has_hevc = bool(re.search(r'hevc|x265', raw_title, re.I))
@@ -198,6 +200,8 @@ def _parse_lendrive_post_cards(html_text: str) -> List[Dict[str, Any]]:
             "episode": f"Episode {ep_num}" if ep_num else ("Batch" if is_batch else ""),
             "episode_number": ep_num,
             "is_batch": is_batch,
+            "is_episode": is_episode,
+            "is_anime": is_anime,
             "format_badge": badge_label,
             "provider": "lendrive",
         })
@@ -274,12 +278,13 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
         is_mediafire = "mediafire.com" in link_url.lower()
         is_gofile = "gofile.io" in link_url.lower()
         is_gdrive = "drive.google.com" in link_url.lower()
+        is_kraken = "krakenfiles.com" in link_url.lower()
 
         pixeldrain_id = None
         direct_download_url = None
 
         if is_pixeldrain:
-            pd_match = re.search(r'pixeldrain\.com/u/([a-zA-Z0-9]+)', link_url)
+            pd_match = re.search(r'pixeldrain\.com/(?:u|api/file)/([a-zA-Z0-9]+)', link_url)
             if pd_match:
                 pixeldrain_id = pd_match.group(1)
                 direct_download_url = f"https://pixeldrain.com/api/file/{pixeldrain_id}?download"
@@ -292,6 +297,7 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
             "is_mediafire": is_mediafire,
             "is_gofile": is_gofile,
             "is_gdrive": is_gdrive,
+            "is_kraken": is_kraken,
             "pixeldrain_id": pixeldrain_id,
             "direct_download_url": direct_download_url,
         })
@@ -546,6 +552,7 @@ def resolve_lendrive_best_direct_link(page_url: str, preferred_quality: str = "1
                 "is_direct": True,
                 "is_hevc": True,
                 "is_dualsubs": target_tier.get("is_dualsubs", True),
+                "provider": "lendrive",
             }
 
     for l in links:
@@ -560,6 +567,7 @@ def resolve_lendrive_best_direct_link(page_url: str, preferred_quality: str = "1
                     "is_direct": True,
                     "is_hevc": True,
                     "is_dualsubs": target_tier.get("is_dualsubs", True),
+                    "provider": "lendrive",
                 }
 
     for l in links:
@@ -572,6 +580,7 @@ def resolve_lendrive_best_direct_link(page_url: str, preferred_quality: str = "1
                 "is_direct": True,
                 "is_hevc": True,
                 "is_dualsubs": target_tier.get("is_dualsubs", True),
+                "provider": "lendrive",
             }
 
     return None

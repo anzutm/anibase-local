@@ -736,6 +736,23 @@
 
 /* Responsive adjustments */
 @media (max-width: 640px) {
+    .samehadaku-provider-tabs {
+        gap: 6px;
+        padding: 3px;
+    }
+    .samehadaku-provider-btn {
+        padding: 6px 10px;
+        gap: 8px;
+    }
+    .samehadaku-provider-btn .provider-pill-icon {
+        font-size: 16px;
+    }
+    .samehadaku-provider-btn .provider-pill-text strong {
+        font-size: 12px;
+    }
+    .samehadaku-provider-btn .provider-pill-text small {
+        font-size: 10px;
+    }
     .samehadaku-ep-thumb-wrap {
         width: 82px;
         height: 48px;

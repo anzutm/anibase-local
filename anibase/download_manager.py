@@ -1061,8 +1061,23 @@ def resolve_best_direct_link(
     preferred_quality: str = "1080p",
     preferred_format: str = "MKV"
 ) -> Optional[Dict[str, Any]]:
-    """Mencari tautan unduhan langsung terbaik (Pixeldrain/Mediafire) dari halaman episode Samehadaku."""
-    downloads = get_samehadaku_download_links(page_url)
+    """Mencari tautan unduhan langsung terbaik (Pixeldrain/Mediafire) dari halaman episode."""
+    clean_url = str(page_url or "").strip()
+    if not clean_url:
+        return None
+
+    if "lendrive.web.id" in clean_url:
+        try:
+            from anibase.integrations.lendrive import resolve_lendrive_best_direct_link
+            res = resolve_lendrive_best_direct_link(clean_url, preferred_quality=preferred_quality)
+            if res:
+                res["provider"] = "lendrive"
+            return res
+        except Exception as err:
+            app_log(f"Failed to resolve Lendrive direct link for {clean_url}: {err}", "WARN")
+            return None
+
+    downloads = get_samehadaku_download_links(clean_url)
     if not downloads:
         return None
 
@@ -1225,15 +1240,24 @@ def _batch_worker(batch_id: str, cancel_event: threading.Event):
         quality_found = link_info.get("quality") or pref_quality
         format_found = (link_info.get("format") or pref_format).lower()
 
+        is_lendrive = "lendrive.web.id" in ep_url or link_info.get("provider") == "lendrive" or link_info.get("is_hevc")
+        provider = "lendrive" if is_lendrive else "samehadaku"
+
         clean_anime = clean_auto_import_folder_name(anime_name) or "Anime"
-        default_filename = f"{clean_anime} - Ep {ep_item['episode']} [{quality_found}].{format_found}"
+        if is_lendrive:
+            ep_str = str(ep_item['episode']).strip()
+            ep_padded = ep_str.zfill(2) if ep_str.isdigit() else ep_str
+            default_filename = f"[LENDRIVE] {clean_anime} - {ep_padded} [{quality_found} HEVC][DualSubs].{format_found}"
+        else:
+            default_filename = f"{clean_anime} - Ep {ep_item['episode']} [{quality_found}].{format_found}"
 
         dl_result = start_download(
             url=direct_url,
             anime_name=anime_name,
             episode=ep_item["episode"],
             filename=default_filename,
-            custom_dest_dir=custom_dest
+            custom_dest_dir=custom_dest,
+            provider=provider
         )
 
         if not dl_result.get("ok"):

@@ -9,6 +9,7 @@ from anibase.download_manager import (
     adapt_filename_to_library_pattern,
     start_download,
     cancel_download,
+    resolve_best_direct_link,
 )
 from anibase.integrations.lendrive import (
     clean_lendrive_title,
@@ -332,8 +333,41 @@ class LendriveApiRoutesTests(unittest.TestCase):
             provider="lendrive"
         )
 
+    @patch("anibase.web.routes_api.start_batch_download")
+    def test_api_lendrive_batch_download(self, mock_batch):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        mock_batch.return_value = {"ok": True, "batch": {"batch_id": "batch_lendrive_123"}}
+        res = self.client.post(
+            "/api/lendrive/download/batch",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={
+                "anime_name": "Doumo Suki",
+                "episodes": [{"episode": "1", "url": "https://lendrive.web.id/ep1"}],
+                "preferred_quality": "1080p"
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["batch"]["batch_id"], "batch_lendrive_123")
+
 
 class LendriveFilenameAndDownloadManagerTests(unittest.TestCase):
+    def test_resolve_best_direct_link_routing_lendrive(self):
+        with patch("anibase.integrations.lendrive.resolve_lendrive_best_direct_link") as mock_res:
+            mock_res.return_value = {
+                "direct_url": "https://pixeldrain.com/api/file/xyz123?download",
+                "host": "Pixeldrain",
+                "quality": "1080p",
+                "format": "MKV",
+                "is_direct": True,
+            }
+            res = resolve_best_direct_link("https://lendrive.web.id/doumo-suki-ep-01/", preferred_quality="1080p")
+            self.assertIsNotNone(res)
+            self.assertEqual(res["provider"], "lendrive")
+            self.assertEqual(res["direct_url"], "https://pixeldrain.com/api/file/xyz123?download")
+            mock_res.assert_called_once_with("https://lendrive.web.id/doumo-suki-ep-01/", preferred_quality="1080p")
     def test_adapt_filename_to_existing_lendrive_pattern(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create existing Lendrive episode file
