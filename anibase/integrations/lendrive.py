@@ -137,8 +137,13 @@ def _get_headers() -> Dict[str, str]:
     }
     try:
         settings = load_settings()
+        ua = str(settings.get("lendrive_user_agent") or "").strip()
+        if ua:
+            headers["User-Agent"] = ua
         cookie = str(settings.get("lendrive_cookie") or "").strip()
         if cookie:
+            if "=" not in cookie:
+                cookie = f"wssplashchk={cookie}"
             headers["Cookie"] = cookie
     except Exception:
         pass
