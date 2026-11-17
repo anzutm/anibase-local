@@ -13,10 +13,21 @@
     let currentSeriesResults = [];
     let latestEpisodesList = [];
     let lastActiveView = 'latest'; // 'latest' | 'search' | 'details' | 'quick_ep'
+    let currentProvider = 'samehadaku'; // 'samehadaku' | 'lendrive'
     let currentAnimeDetailsData = null;
     let pollTimer = null;
     let localEpisodeNumbers = new Set();
     const downloadTiersRegistry = {};
+
+    // Helper pendeteksi provider berdasarkan URL
+    function getProviderForUrl(url) {
+        if (!url) return currentProvider;
+        if (typeof url === 'string') {
+            if (url.includes('lendrive.web.id')) return 'lendrive';
+            if (url.includes('samehadaku')) return 'samehadaku';
+        }
+        return currentProvider;
+    }
 
     // Dapatkan action token untuk otorisasi POST request
     function getActionToken() {
@@ -57,7 +68,7 @@
             <div class="samehadaku-dialog" role="dialog" aria-modal="true" aria-labelledby="samehadakuModalTitle">
                 <header class="samehadaku-header">
                     <div>
-                        <span class="samehadaku-eyebrow">
+                        <span class="samehadaku-eyebrow" id="samehadakuEyebrow">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10h2v4h-2zm0 6h2v2h-2z"/></svg>
                             Samehadaku Integration
                         </span>
@@ -66,6 +77,23 @@
                     </div>
                     <button type="button" class="samehadaku-close-btn" data-samehadaku-close aria-label="Tutup">&times;</button>
                 </header>
+
+                <div class="samehadaku-provider-tabs" id="samehadakuProviderTabs">
+                    <button type="button" class="samehadaku-provider-btn active" data-provider-val="samehadaku" title="Pilih sumber Samehadaku (Sub Indo)">
+                        <span class="provider-pill-icon">🐟</span>
+                        <div class="provider-pill-text">
+                            <strong>Samehadaku</strong>
+                            <small>Sub Indo</small>
+                        </div>
+                    </button>
+                    <button type="button" class="samehadaku-provider-btn" data-provider-val="lendrive" title="Pilih sumber Lendrive (x265 HEVC DualSubs)">
+                        <span class="provider-pill-icon">⚡</span>
+                        <div class="provider-pill-text">
+                            <strong>Lendrive</strong>
+                            <small>x265 HEVC · DualSubs</small>
+                        </div>
+                    </button>
+                </div>
 
                 <div class="samehadaku-search-row">
                     <input type="search" id="samehadakuSearchInput" placeholder="Cari judul anime di Samehadaku..." autocomplete="off">
@@ -119,6 +147,16 @@
         // Pasang event listener modal
         modal.querySelectorAll('[data-samehadaku-close]').forEach(el => {
             el.addEventListener('click', closeSamehadakuModal);
+        });
+
+        // Event listener pemilihan sumber (Samehadaku vs Lendrive)
+        modal.querySelectorAll('[data-provider-val]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetProvider = btn.getAttribute('data-provider-val');
+                if (targetProvider && targetProvider !== currentProvider) {
+                    switchProvider(targetProvider, true);
+                }
+            });
         });
 
         const searchBtn = modal.querySelector('#samehadakuSearchBtn');
@@ -181,8 +219,61 @@
         });
     }
 
+    // Ganti provider sumber unduhan (Samehadaku vs Lendrive)
+    function switchProvider(newProvider, preserveQuery = true) {
+        if (newProvider !== 'samehadaku' && newProvider !== 'lendrive') newProvider = 'samehadaku';
+        currentProvider = newProvider;
+
+        const modal = document.getElementById('samehadakuModal');
+        if (!modal) return;
+
+        // Perbarui highlight tombol tab provider
+        modal.querySelectorAll('[data-provider-val]').forEach(btn => {
+            if (btn.getAttribute('data-provider-val') === currentProvider) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        const isLendrive = currentProvider === 'lendrive';
+        const eyebrow = modal.querySelector('#samehadakuEyebrow');
+        const subtitle = modal.querySelector('#samehadakuModalSubtitle');
+        const searchInput = modal.querySelector('#samehadakuSearchInput');
+
+        if (eyebrow) {
+            eyebrow.innerHTML = isLendrive
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Lendrive Integration (x265 HEVC)`
+                : `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10h2v4h-2zm0 6h2v2h-2z"/></svg> Samehadaku Integration`;
+        }
+
+        if (subtitle) {
+            subtitle.textContent = isLendrive
+                ? 'Unduh rilisan anime x265 / HEVC berkualitas tinggi dengan Dual Subtitle dari Lendrive'
+                : 'Unduh episode langsung dari Samehadaku ke library AniBase';
+        }
+
+        if (searchInput) {
+            searchInput.placeholder = isLendrive
+                ? 'Cari judul anime di Lendrive (x265 / HEVC DualSubs)...'
+                : 'Cari judul anime di Samehadaku...';
+        }
+
+        // Cek query pencarian atau reload view
+        const q = searchInput ? searchInput.value.trim() : '';
+        if (q && preserveQuery) {
+            triggerSearch(q);
+        } else {
+            const tabLatest = modal.querySelector('#modalTabLatest');
+            const tabTracker = modal.querySelector('#modalTabTracker');
+            if (tabLatest) tabLatest.classList.add('active');
+            if (tabTracker) tabTracker.classList.remove('active');
+            loadLatestReleases();
+        }
+    }
+
     // Buka modal
-    function openSamehadakuModal(animeTitle, initialQuery) {
+    function openSamehadakuModal(animeTitle, initialQuery, preferredProvider = 'samehadaku') {
         const modal = ensureModalDOM();
         modal.hidden = false;
         document.body.classList.add('samehadaku-modal-open');
@@ -192,6 +283,36 @@
         currentAnimeName = animeTitle || '';
         const searchInput = modal.querySelector('#samehadakuSearchInput');
         const query = initialQuery || animeTitle || '';
+
+        // Terapkan provider yang diminta tombol
+        if (preferredProvider && (preferredProvider === 'samehadaku' || preferredProvider === 'lendrive')) {
+            currentProvider = preferredProvider;
+            modal.querySelectorAll('[data-provider-val]').forEach(btn => {
+                if (btn.getAttribute('data-provider-val') === currentProvider) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            const isLendrive = currentProvider === 'lendrive';
+            const eyebrow = modal.querySelector('#samehadakuEyebrow');
+            const subtitle = modal.querySelector('#samehadakuModalSubtitle');
+            if (eyebrow) {
+                eyebrow.innerHTML = isLendrive
+                    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Lendrive Integration (x265 HEVC)`
+                    : `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10h2v4h-2zm0 6h2v2h-2z"/></svg> Samehadaku Integration`;
+            }
+            if (subtitle) {
+                subtitle.textContent = isLendrive
+                    ? 'Unduh rilisan anime x265 / HEVC berkualitas tinggi dengan Dual Subtitle dari Lendrive'
+                    : 'Unduh episode langsung dari Samehadaku ke library AniBase';
+            }
+            if (searchInput) {
+                searchInput.placeholder = isLendrive
+                    ? 'Cari judul anime di Lendrive (x265 / HEVC DualSubs)...'
+                    : 'Cari judul anime di Samehadaku...';
+            }
+        }
 
         if (searchInput) {
             searchInput.value = query;
@@ -241,17 +362,18 @@
         `;
     }
 
-    // Muat rilisan anime terbaru dari beranda Samehadaku
+    // Muat rilisan anime terbaru dari sumber aktif (Samehadaku vs Lendrive)
     async function loadLatestReleases(page = 1) {
         lastActiveView = 'latest';
-        showLoading('Memuat rilisan episode anime terbaru dari Samehadaku...');
+        const providerName = currentProvider === 'lendrive' ? 'Lendrive (x265 HEVC)' : 'Samehadaku';
+        showLoading(`Memuat rilisan episode anime terbaru dari ${providerName}...`);
 
         try {
-            const res = await fetch(`/api/samehadaku/latest?page=${page}`);
+            const res = await fetch(`/api/${currentProvider}/latest?page=${page}`);
             const data = await res.json();
 
             if (!data.ok || !data.results || data.results.length === 0) {
-                showMessage('Belum ada episode terbaru yang dapat dimuat dari Samehadaku saat ini. Silakan coba cari judul anime secara manual.');
+                showMessage(`Belum ada episode terbaru yang dapat dimuat dari ${providerName} saat ini. Silakan coba cari judul anime secara manual.`);
                 return;
             }
 
@@ -273,14 +395,19 @@
         const body = document.getElementById('samehadakuModalBody');
         if (!body) return;
 
+        const isLendrive = currentProvider === 'lendrive';
+        const subtitleText = isLendrive
+            ? 'Episode anime baru rilis dari Lendrive (x265 / HEVC DualSubs). Klik untuk memilih resolusi download atau melihat serial.'
+            : 'Episode anime baru rilis dari Samehadaku. Klik untuk memilih resolusi download atau melihat serial.';
+
         let html = `
             <div class="samehadaku-section-header">
                 <div class="samehadaku-section-title-wrap">
                     <span class="samehadaku-section-title">
-                        <span>🔥</span> Rilisan Episode Terbaru
+                        <span>🔥</span> Rilisan Episode Terbaru (${isLendrive ? 'Lendrive HEVC' : 'Samehadaku'})
                     </span>
                     <span class="samehadaku-section-subtitle">
-                        Episode anime baru rilis dari Samehadaku. Klik untuk memilih resolusi download atau melihat serial.
+                        ${subtitleText}
                     </span>
                 </div>
                 <div class="samehadaku-section-badge">
@@ -296,25 +423,28 @@
             const timeLabel = ep.released_on || '';
             const epNum = ep.episode_number || '';
             const isLocal = epNum && localEpisodeNumbers.has(String(epNum));
+            const targetUrl = ep.episode_url || ep.url || '';
+            const formatBadge = ep.format_badge ? `<span class="samehadaku-badge-hevc">${ep.format_badge}</span>` : '';
 
             html += `
                 <div class="samehadaku-latest-card" data-idx="${idx}">
-                    <div class="samehadaku-latest-thumb-wrap" onclick="window.__quickDownloadEpisode('${encodeURIComponent(ep.episode_url)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="Klik untuk unduh ${ep.title} ${epLabel}">
+                    <div class="samehadaku-latest-thumb-wrap" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="Klik untuk unduh ${ep.title} ${epLabel}">
                         <img class="samehadaku-latest-thumb" src="${thumbUrl}" alt="${ep.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/static/arcana.jpg'">
                         <div class="samehadaku-latest-overlay"></div>
                         <span class="samehadaku-latest-ep-badge">${epLabel}</span>
                         ${timeLabel ? `<span class="samehadaku-latest-time-badge">${timeLabel}</span>` : ''}
                     </div>
                     <div class="samehadaku-latest-content">
-                        <div class="samehadaku-latest-title" onclick="window.__quickDownloadEpisode('${encodeURIComponent(ep.episode_url)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="${ep.title}">
+                        <div class="samehadaku-latest-title" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="${ep.title}">
                             ${ep.title}
+                            ${formatBadge}
                         </div>
                         <div class="samehadaku-latest-actions">
-                            <button type="button" class="samehadaku-btn-download-ep" onclick="window.__quickDownloadEpisode('${encodeURIComponent(ep.episode_url)}', '${encodeURIComponent(ep.title)}', '${epNum}')">
+                            <button type="button" class="samehadaku-btn-download-ep" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')">
                                 <span>⚡</span> Unduh
                             </button>
-                            ${ep.anime_url ? `
-                                <button type="button" class="samehadaku-btn-view-series" onclick="window.__viewAnimeSeries('${encodeURIComponent(ep.anime_url)}', '${encodeURIComponent(ep.title)}')" title="Lihat semua episode serial ini">
+                            ${(ep.anime_url || ep.url) ? `
+                                <button type="button" class="samehadaku-btn-view-series" onclick="window.__viewAnimeSeries('${encodeURIComponent(ep.anime_url || ep.url)}', '${encodeURIComponent(ep.title)}')" title="Lihat semua episode serial ini">
                                     Serial
                                 </button>
                             ` : ''}
@@ -483,15 +613,17 @@
         currentAnimeName = cleanAnime || title;
         lastActiveView = 'quick_ep';
 
+        const provider = getProviderForUrl(epUrl);
+        const providerName = provider === 'lendrive' ? 'Lendrive' : 'Samehadaku';
         const displayEp = epNumber ? `Episode ${epNumber}` : 'Episode';
-        showLoading(`Mengambil opsi resolusi unduhan untuk "${currentAnimeName}" ${displayEp}...`);
+        showLoading(`Mengambil opsi resolusi unduhan untuk "${currentAnimeName}" ${displayEp} dari ${providerName}...`);
 
         try {
-            const res = await fetch(`/api/samehadaku/downloads?url=${encodeURIComponent(epUrl)}`);
+            const res = await fetch(`/api/${provider}/downloads?url=${encodeURIComponent(epUrl)}`);
             const data = await res.json();
 
             if (!data.ok || !data.downloads || data.downloads.length === 0) {
-                showMessage(`Tidak ditemukan tautan unduhan untuk episode ini pada Samehadaku. Silakan coba cari judul serialnya secara manual.`, true);
+                showMessage(`Tidak ditemukan tautan unduhan untuk episode ini pada ${providerName}. Silakan coba cari judul serialnya secara manual.`, true);
                 return;
             }
 
@@ -565,15 +697,16 @@
         }
 
         lastActiveView = 'search';
-        showLoading(`Mencari "${query}" di Samehadaku...`);
+        const providerName = currentProvider === 'lendrive' ? 'Lendrive' : 'Samehadaku';
+        showLoading(`Mencari "${query}" di ${providerName}...`);
 
         try {
-            const res = await fetch(`/api/samehadaku/search?q=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/${currentProvider}/search?q=${encodeURIComponent(query)}`);
             const data = await res.json();
 
             if (!data.ok || !data.results || data.results.length === 0) {
                 showMessage(`
-                    Tidak ditemukan hasil untuk "<strong>${query}</strong>" di Samehadaku. Coba kata kunci yang lebih singkat.<br><br>
+                    Tidak ditemukan hasil untuk "<strong>${query}</strong>" di ${providerName}. Coba kata kunci yang lebih singkat.<br><br>
                     <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke Rilisan Terbaru">
                         <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -608,6 +741,8 @@
         const body = document.getElementById('samehadakuModalBody');
         if (!body) return;
 
+        const providerLabel = currentProvider === 'lendrive' ? 'Lendrive' : 'Samehadaku';
+
         let html = `
             <div class="samehadaku-section-header">
                 <div>
@@ -618,7 +753,7 @@
                         <span>Kembali ke Rilisan Terbaru</span>
                     </button>
                     <div style="margin-top: 8px; font-size: 13px; color: var(--text-secondary, #A5B4D6);">
-                        Ditemukan ${results.length} serial anime di Samehadaku. Pilih serial anime yang sesuai:
+                        Ditemukan ${results.length} serial anime di ${providerLabel}. Pilih serial anime yang sesuai:
                     </div>
                 </div>
             </div>
@@ -628,159 +763,15 @@
         results.forEach((item, idx) => {
             const typeLabel = item.is_batch ? 'Batch' : (item.type || 'Anime');
             const thumb = item.thumbnail || '';
+            const formatBadge = item.format_badge ? `<span class="samehadaku-badge-hevc">${item.format_badge}</span>` : '';
             html += `
                 <div class="samehadaku-series-card" data-idx="${idx}" onclick="window.__selectSamehadakuSeries(${idx})">
                     ${thumb ? `<img src="${thumb}" class="samehadaku-series-thumb" alt="${item.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
                     <div class="samehadaku-series-title">${item.title}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span class="samehadaku-series-badge">${typeLabel}</span>
+                        ${formatBadge}
                         ${item.score ? `<span style="font-size:11px; color:var(--cyan, #fbbf24);">★ ${item.score}</span>` : ''}
-                    </div>
-                </div>
-            `;
-        });
-
-        html += `</div>`;
-        body.innerHTML = html;
-    }
-
-    // Muat tampilan Ongoing Watchlist Tracker
-    async function loadOngoingTrackerView() {
-        lastActiveView = 'tracker';
-        const tabLatest = document.getElementById('modalTabLatest');
-        const tabTracker = document.getElementById('modalTabTracker');
-        if (tabTracker) tabTracker.classList.add('active');
-        if (tabLatest) tabLatest.classList.remove('active');
-
-        showLoading('Memuat daftar anime ongoing yang dipantau...');
-
-        try {
-            const res = await fetch('/api/ongoing-tracker/list');
-            const data = await res.json();
-
-            if (!data.ok || !data.tracked_anime) {
-                showMessage('Gagal memuat daftar anime ongoing yang dipantau.', true);
-                return;
-            }
-
-            renderOngoingTrackerView(data.tracked_anime);
-        } catch (err) {
-            showMessage(`Gagal memuat data ongoing tracker: ${err.message}`, true);
-        }
-    }
-
-    // Render daftar kartu Ongoing Watchlist
-    function renderOngoingTrackerView(trackedList) {
-        lastActiveView = 'tracker';
-        const body = document.getElementById('samehadakuModalBody');
-        if (!body) return;
-
-        const tabLatest = document.getElementById('modalTabLatest');
-        const tabTracker = document.getElementById('modalTabTracker');
-        if (tabTracker) tabTracker.classList.add('active');
-        if (tabLatest) tabLatest.classList.remove('active');
-
-        const withNew = (trackedList || []).filter(item => item.has_new_episode);
-        const modalBadge = document.getElementById('modalTrackerBadge');
-        if (modalBadge) {
-            if (withNew.length > 0) {
-                modalBadge.hidden = false;
-                modalBadge.textContent = String(withNew.length);
-                modalBadge.classList.add('has-new');
-            } else {
-                modalBadge.hidden = true;
-                modalBadge.classList.remove('has-new');
-            }
-        }
-
-        if (!trackedList || trackedList.length === 0) {
-            body.innerHTML = `
-                <div class="samehadaku-status-box">
-                    <p style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">Belum ada anime ongoing yang dipantau</p>
-                    <p style="color: var(--text-secondary, #94a3b8); font-size: 13px; max-width: 440px; margin: 0 auto 16px;">
-                        Folder anime di direktori Ongoing atau anime dengan status Airing akan otomatis terdeteksi. Anda juga bisa menandai anime dari halaman detail.
-                    </p>
-                    <button type="button" class="samehadaku-batch-btn-primary" onclick="window.__checkOngoingReleases()" style="padding: 8px 18px;">
-                        🔄 Pindai & Periksa Sekarang
-                    </button>
-                </div>
-            `;
-            return;
-        }
-
-        // Urutkan anime: yang ada episode baru di paling atas
-        trackedList.sort((a, b) => {
-            if (a.has_new_episode && !b.has_new_episode) return -1;
-            if (!a.has_new_episode && b.has_new_episode) return 1;
-            return a.anime_name.localeCompare(b.anime_name);
-        });
-
-        let html = `
-            <div class="samehadaku-section-header">
-                <div class="samehadaku-section-title-wrap">
-                    <span class="samehadaku-section-title">
-                        <span>📡</span> Ongoing Watchlist Tracker
-                    </span>
-                    <span class="samehadaku-section-subtitle">
-                        Memantau rilis episode terbaru Samehadaku untuk anime yang sedang Anda ikuti.
-                    </span>
-                </div>
-                <div class="samehadaku-section-badge">
-                    ${trackedList.length} Anime Dipantau
-                </div>
-            </div>
-
-            <div class="samehadaku-tracker-toolbar">
-                <div class="samehadaku-tracker-toolbar-info">
-                    ${withNew.length > 0 ? `<strong>✨ ${withNew.length} Anime</strong> memiliki episode baru yang belum diunduh!` : `Semua koleksi lokal up-to-date.`}
-                </div>
-                <div class="samehadaku-tracker-toolbar-actions">
-                    <button type="button" class="samehadaku-tracker-check-btn" id="btnModalTrackerCheck" onclick="window.__checkOngoingReleases()">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                        <span>Periksa Rilis Sekarang</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="samehadaku-tracker-grid">
-        `;
-
-        trackedList.forEach((item) => {
-            const hasNew = item.has_new_episode;
-            const localMax = item.highest_local_ep || 0;
-            const sameMax = item.latest_samehadaku_ep || 0;
-            const missing = item.missing_episodes || [];
-            const nextEpToDownload = missing.length > 0 ? missing[0] : (sameMax > localMax ? sameMax : null);
-
-            html += `
-                <div class="samehadaku-tracker-card ${hasNew ? 'has-new' : ''}">
-                    <div class="samehadaku-tracker-card-head">
-                        <h4 class="samehadaku-tracker-card-title">${item.anime_name}</h4>
-                        <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
-                            ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
-                        </span>
-                    </div>
-
-                    <div class="samehadaku-tracker-card-meta">
-                        <div class="samehadaku-tracker-card-row">
-                            <span>Koleksi Lokal:</span>
-                            <strong>${localMax > 0 ? `Ep 1 - ${localMax}` : 'Belum Ada'}</strong>
-                        </div>
-                        <div class="samehadaku-tracker-card-row">
-                            <span>Rilis Samehadaku:</span>
-                            <strong>${sameMax > 0 ? `Ep ${sameMax}` : 'Belum Terdeteksi'}</strong>
-                        </div>
-                    </div>
-
-                    <div class="samehadaku-tracker-card-actions">
-                        ${hasNew && nextEpToDownload ? `
-                            <button type="button" class="samehadaku-tracker-btn-dl" onclick="window.__startOngoingQuickDownload('${encodeURIComponent(item.anime_name)}', '${encodeURIComponent(item.samehadaku_url || '')}', '${nextEpToDownload}')">
-                                ⬇️ Unduh Ep ${nextEpToDownload}
-                            </button>
-                        ` : ''}
-                        <button type="button" class="samehadaku-tracker-btn-view" onclick="window.__searchFromTracker('${encodeURIComponent(item.anime_name)}')">
-                            Buka Serial
-                        </button>
                     </div>
                 </div>
             `;
@@ -803,8 +794,10 @@
         showLoading(`Mengambil daftar episode untuk "${title}"...`);
         currentAnimeHubUrl = pageUrl;
 
+        const provider = getProviderForUrl(pageUrl);
+
         try {
-            const res = await fetch(`/api/samehadaku/episodes?url=${encodeURIComponent(pageUrl)}&anime_name=${encodeURIComponent(title || currentAnimeName || '')}`);
+            const res = await fetch(`/api/${provider}/episodes?url=${encodeURIComponent(pageUrl)}&anime_name=${encodeURIComponent(title || currentAnimeName || '')}`);
             const data = await res.json();
 
             if (!data.ok) {
@@ -1092,8 +1085,10 @@
         }
 
         const url = decodeURIComponent(encodedUrl);
+        const provider = getProviderForUrl(url);
+
         try {
-            const res = await fetch(`/api/samehadaku/downloads?url=${encodeURIComponent(url)}`);
+            const res = await fetch(`/api/${provider}/downloads?url=${encodeURIComponent(url)}`);
             const data = await res.json();
 
             if (!data.ok || !data.downloads || data.downloads.length === 0) {
@@ -1144,6 +1139,7 @@
                     quality: quality,
                     links: tier.links || [],
                     animeName: currentAnimeName,
+                    provider: currentProvider,
                 };
 
                 html += `
@@ -1182,6 +1178,7 @@
         const epId = tier.epId;
         const resBtn = document.getElementById(`btn-res-${tierKey}`);
         const fallbackContainer = document.getElementById(`fallback-${epId}`);
+        const provider = tier.provider || currentProvider;
 
         // Tampilkan status loading pada tombol
         if (resBtn) {
@@ -1202,7 +1199,7 @@
         }
 
         if (!directUrl) {
-            // Direct download tidak tersedia di Samehadaku untuk resolusi ini
+            // Direct download tidak tersedia di provider ini untuk resolusi ini
             if (resBtn) {
                 resBtn.classList.remove('loading');
                 resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
@@ -1215,14 +1212,17 @@
         const ext = (tier.format || 'mkv').toLowerCase();
         const rawAnime = tier.animeName || currentAnimeName || 'Anime';
         const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
-        const filename = `${cleanAnime} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
+        const epPadded = tier.epNum ? String(tier.epNum).padStart(2, '0') : '01';
+        const filename = provider === 'lendrive'
+            ? `[LENDRIVE] ${cleanAnime} - ${epPadded} [${tier.quality} HEVC][DualSubs].${ext}`
+            : `${cleanAnime} - Ep ${tier.epNum || '1'} [${tier.quality}].${ext}`;
         const token = getActionToken();
 
         const tray = document.getElementById('samehadakuTray');
         if (tray) tray.hidden = false;
 
         try {
-            const res = await fetch('/api/samehadaku/download', {
+            const res = await fetch(`/api/${provider}/download`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1234,6 +1234,7 @@
                     anime_name: cleanAnime,
                     episode: tier.epNum,
                     filename: filename,
+                    provider: provider,
                     action_token: token,
                 })
             });
@@ -1339,16 +1340,21 @@
     window.__startDirectDownload = async function (encodedUrl, encodedEp, encodedFilename) {
         const url = decodeURIComponent(encodedUrl);
         const ep = decodeURIComponent(encodedEp);
-        const filename = decodeURIComponent(encodedFilename);
+        const filename = decodeURIComponent(encodedFilename || '');
         const token = getActionToken();
         const rawAnime = currentAnimeName || 'Anime';
         const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
+        const provider = getProviderForUrl(url);
+        const epPadded = ep ? String(ep).padStart(2, '0') : '01';
+        const finalFilename = filename || (provider === 'lendrive'
+            ? `[LENDRIVE] ${cleanAnime} - ${epPadded} [HEVC][DualSubs].mkv`
+            : `${cleanAnime} - Ep ${ep || '1'}.mkv`);
 
         const tray = document.getElementById('samehadakuTray');
         if (tray) tray.hidden = false;
 
         try {
-            const res = await fetch('/api/samehadaku/download', {
+            const res = await fetch(`/api/${provider}/download`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1359,7 +1365,8 @@
                     url: url,
                     anime_name: cleanAnime,
                     episode: ep,
-                    filename: filename,
+                    filename: finalFilename,
+                    provider: provider,
                     action_token: token,
                 })
             });
@@ -1606,6 +1613,8 @@
             const speedText = t.status === 'downloading' ? formatSpeed(t.speed_bps) : '';
             const downloadedText = formatBytes(t.downloaded_bytes);
             const totalText = t.total_bytes > 0 ? formatBytes(t.total_bytes) : '?';
+            const taskProvider = t.provider || 'samehadaku';
+            const providerBadgeHtml = `<span class="samehadaku-task-provider-badge ${taskProvider}">${taskProvider === 'lendrive' ? '⚡ Lendrive' : '🐟 Samehadaku'}</span>`;
 
             let statusLabel = t.status;
             let destInfo = '';
@@ -1655,7 +1664,7 @@
             html += `
                 <div class="samehadaku-task-item" id="task-${t.task_id}">
                     <div class="samehadaku-task-top">
-                        <span class="samehadaku-task-filename" title="${t.filename}">${t.filename}</span>
+                        <span class="samehadaku-task-filename" title="${t.filename}">${providerBadgeHtml}${t.filename}</span>
                         <span class="samehadaku-task-stats">${downloadedText} / ${totalText} (${percent}%) ${speedText ? `&bull; ${speedText}` : ''}</span>
                     </div>
                     <div class="samehadaku-progress-bar-bg">
@@ -2051,9 +2060,10 @@
         document.querySelectorAll('[data-samehadaku-trigger]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const animeName = btn.getAttribute('data-anime-name') || '';
-                const query = btn.getAttribute('data-search-query') || animeName;
-                openSamehadakuModal(animeName, query);
+                const animeName = btn.getAttribute('data-anime-title') || btn.getAttribute('data-anime-name') || '';
+                const query = btn.getAttribute('data-search-query') || btn.getAttribute('data-query') || animeName;
+                const provider = btn.getAttribute('data-provider') || 'samehadaku';
+                openSamehadakuModal(animeName, query, provider);
             });
         });
 

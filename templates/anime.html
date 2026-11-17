@@ -259,10 +259,22 @@
                         type="button"
                         class="detail-download-samehadaku-btn"
                         data-samehadaku-trigger
+                        data-provider="samehadaku"
                         data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
-                        title="Download anime episodes"
+                        title="Download anime via Samehadaku"
                     >
-                        <span>Download</span>
+                        <span>Samehadaku</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="detail-download-lendrive-btn"
+                        data-samehadaku-trigger
+                        data-provider="lendrive"
+                        data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
+                        title="Download anime via Lendrive (x265 HEVC / DualSubs)"
+                    >
+                        <span>Lendrive</span>
                     </button>
 
                     <button
@@ -631,12 +643,25 @@
                     type="button"
                     class="episode-filter-btn"
                     data-samehadaku-trigger
+                    data-provider="samehadaku"
                     data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
                     title="Download episodes from Samehadaku"
                     style="display: inline-flex; align-items: center; gap: 5px; color: #00b7e0; border-color: rgba(0, 183, 224, 0.35); background: rgba(0, 183, 224, 0.08);"
                 >
-                    <span aria-hidden="true">📥</span>
-                    <span>Download</span>
+                    <span aria-hidden="true">🐟</span>
+                    <span>Samehadaku</span>
+                </button>
+                <button
+                    type="button"
+                    class="episode-filter-btn"
+                    data-samehadaku-trigger
+                    data-provider="lendrive"
+                    data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}"
+                    title="Download episodes from Lendrive (x265 HEVC DualSubs)"
+                    style="display: inline-flex; align-items: center; gap: 5px; color: #a855f7; border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.08);"
+                >
+                    <span aria-hidden="true">⚡</span>
+                    <span>Lendrive</span>
                 </button>
             </div>
         </div>
@@ -781,8 +806,11 @@
     <p>No episodes found in this folder.</p>
     <div style="display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 10px; flex-wrap: wrap;">
         <a href="{{ url_for('settings_page') }}" class="empty-inline-action">Go to Settings</a>
-        <button type="button" class="empty-inline-action" data-samehadaku-trigger data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}" style="background: linear-gradient(135deg, #00b7e0, #0077b6); color: #fff; border: none;">
-            Download from Samehadaku
+        <button type="button" class="empty-inline-action" data-samehadaku-trigger data-provider="samehadaku" data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}" style="background: linear-gradient(135deg, #00b7e0, #0077b6); color: #fff; border: none;">
+            🐟 Samehadaku
+        </button>
+        <button type="button" class="empty-inline-action" data-samehadaku-trigger data-provider="lendrive" data-anime-title="{{ (anime_info.title or anime_name) if anime_info else anime_name }}" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; border: none;">
+            ⚡ Lendrive (HEVC)
         </button>
     </div>
 </div>

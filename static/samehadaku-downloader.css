@@ -1354,6 +1354,43 @@
     white-space: nowrap;
 }
 
+.detail-download-lendrive-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    min-width: 0;
+    height: 66px;
+    min-height: 66px;
+    border-radius: 13px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(99, 102, 241, 0.14));
+    border: 1px solid rgba(168, 85, 247, 0.42);
+    color: var(--text, #ffffff);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.2);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.detail-download-lendrive-btn:hover {
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    border-color: #c084fc;
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.35);
+    transform: translateY(-1px);
+}
+
+.detail-download-lendrive-btn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Distinctive yet matching Topbar Download pill button */
 .topbar-nav-download-btn,
 .nav-btn-samehadaku {
@@ -1697,6 +1734,122 @@
 /* ==========================================================================
    Ongoing Watchlist Tracker & New Episode Release Notifications
    ========================================================================== */
+
+/* Provider Switcher Tabs (Samehadaku vs Lendrive) */
+.samehadaku-provider-tabs {
+    display: flex;
+    gap: 10px;
+    margin: 0 0 16px 0;
+    padding: 4px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.samehadaku-provider-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary, #94a3b8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.samehadaku-provider-btn .provider-pill-icon {
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.samehadaku-provider-btn .provider-pill-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.samehadaku-provider-btn .provider-pill-text strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text, #ffffff);
+}
+
+.samehadaku-provider-btn .provider-pill-text small {
+    font-size: 11px;
+    color: var(--text-secondary, #94a3b8);
+}
+
+.samehadaku-provider-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text, #ffffff);
+}
+
+.samehadaku-provider-btn.active[data-provider-val="samehadaku"] {
+    background: linear-gradient(135deg, rgba(0, 183, 224, 0.18), rgba(0, 119, 182, 0.12));
+    border-color: rgba(0, 183, 224, 0.45);
+    box-shadow: 0 4px 16px rgba(0, 183, 224, 0.15);
+}
+
+.samehadaku-provider-btn.active[data-provider-val="samehadaku"] .provider-pill-text strong {
+    color: #38bdf8;
+}
+
+.samehadaku-provider-btn.active[data-provider-val="lendrive"] {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(99, 102, 241, 0.12));
+    border-color: rgba(168, 85, 247, 0.45);
+    box-shadow: 0 4px 16px rgba(168, 85, 247, 0.15);
+}
+
+.samehadaku-provider-btn.active[data-provider-val="lendrive"] .provider-pill-text strong {
+    color: #c084fc;
+}
+
+/* HEVC / Format Badge */
+.samehadaku-badge-hevc {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(99, 102, 241, 0.2));
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #e9d5ff;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* Task card provider badge in tray */
+.samehadaku-task-provider-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.samehadaku-task-provider-badge.samehadaku {
+    background: rgba(0, 183, 224, 0.15);
+    border: 1px solid rgba(0, 183, 224, 0.35);
+    color: #38bdf8;
+}
+
+.samehadaku-task-provider-badge.lendrive {
+    background: rgba(168, 85, 247, 0.18);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #c084fc;
+}
 
 /* Modal Navigation Tabs */
 .samehadaku-modal-tabs {
