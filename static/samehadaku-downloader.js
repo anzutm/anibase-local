@@ -75,7 +75,13 @@
                         <h2 id="samehadakuModalTitle">Download Anime Episodes</h2>
                         <p id="samehadakuModalSubtitle">Unduh episode langsung dari Samehadaku ke library AniBase</p>
                     </div>
-                    <button type="button" class="samehadaku-close-btn" data-samehadaku-close aria-label="Tutup">&times;</button>
+                    <div class="samehadaku-header-actions">
+                        <button type="button" class="samehadaku-header-action-btn" id="modalLendriveCookieBtn" onclick="window.__setLendriveCookiePrompt()" title="Pengaturan Cookie Lendrive (Bypass Proteksi / Anti-Bot)" style="display: none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                            <span>⚙️ Cookie Lendrive</span>
+                        </button>
+                        <button type="button" class="samehadaku-close-btn" data-samehadaku-close aria-label="Tutup">&times;</button>
+                    </div>
                 </header>
 
                 <div class="samehadaku-provider-tabs" id="samehadakuProviderTabs">
@@ -110,6 +116,10 @@
                     <button type="button" class="samehadaku-modal-tab-btn" id="modalTabTracker">
                         <span>📡 Pantau Ongoing</span>
                         <span class="samehadaku-modal-tab-badge" id="modalTrackerBadge" hidden>0</span>
+                    </button>
+                    <button type="button" class="samehadaku-modal-tab-btn samehadaku-cookie-tab-btn" id="modalTabCookieBtn" onclick="window.__setLendriveCookiePrompt()" title="Pengaturan Cookie Sesi Lendrive" style="display: none; margin-left: auto;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>⚙️ Cookie Lendrive</span>
                     </button>
                 </div>
 
@@ -240,6 +250,11 @@
         const eyebrow = modal.querySelector('#samehadakuEyebrow');
         const subtitle = modal.querySelector('#samehadakuModalSubtitle');
         const searchInput = modal.querySelector('#samehadakuSearchInput');
+        const cookieBtnHeader = modal.querySelector('#modalLendriveCookieBtn');
+        const cookieBtnTab = modal.querySelector('#modalTabCookieBtn');
+
+        if (cookieBtnHeader) cookieBtnHeader.style.display = isLendrive ? 'inline-flex' : 'none';
+        if (cookieBtnTab) cookieBtnTab.style.display = isLendrive ? 'inline-flex' : 'none';
 
         if (eyebrow) {
             eyebrow.innerHTML = isLendrive
@@ -313,6 +328,12 @@
                     : 'Cari judul anime di Samehadaku...';
             }
         }
+
+        const isLendriveNow = currentProvider === 'lendrive';
+        const cookieBtnHeader = modal.querySelector('#modalLendriveCookieBtn');
+        const cookieBtnTab = modal.querySelector('#modalTabCookieBtn');
+        if (cookieBtnHeader) cookieBtnHeader.style.display = isLendriveNow ? 'inline-flex' : 'none';
+        if (cookieBtnTab) cookieBtnTab.style.display = isLendriveNow ? 'inline-flex' : 'none';
 
         if (searchInput) {
             searchInput.value = query;
@@ -398,7 +419,11 @@
 
     window.__setLendriveCookiePrompt = async function () {
         const val = prompt(
-            'Petunjuk mendapatkan cookie Lendrive:\n1. Buka https://lendrive.web.id di browser Anda.\n2. Buka DevTools (F12) -> Console / Application.\n3. Salin nilai cookie (misal: wsidchk=...)\n\nMasukkan Cookie:',
+            'Petunjuk mendapatkan Cookie Sesi Lendrive:\n\n' +
+            '1. Buka https://lendrive.web.id di browser (selesaikan verifikasi bot jika muncul).\n' +
+            '2. Tekan F12 -> tab Application (atau Storage) -> Cookies -> https://lendrive.web.id\n' +
+            '3. Salin Value dari cookie "wssplashchk" (atau tempel format: wssplashchk=...)\n\n' +
+            'Tempel / Masukkan Cookie di sini (kosongkan lalu klik OK untuk mereset):',
             ''
         );
         if (val === null) return;
@@ -415,6 +440,7 @@
             });
             const data = await res.json();
             if (data && data.ok) {
+                alert(val.trim() ? '✓ Cookie Lendrive berhasil disimpan! Memuat ulang rilisan...' : '✓ Cookie Lendrive telah direset.');
                 loadLatestReleases(1);
             } else {
                 alert(data.error || 'Gagal menyimpan cookie');

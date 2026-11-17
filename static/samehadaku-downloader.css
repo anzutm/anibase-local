@@ -100,6 +100,36 @@
     color: var(--text-secondary, #A5B4D6);
 }
 
+.samehadaku-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.samehadaku-header-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.samehadaku-header-action-btn:hover {
+    background: rgba(168, 85, 247, 0.24);
+    border-color: rgba(168, 85, 247, 0.65);
+    color: #f3e8ff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
 .samehadaku-close-btn {
     width: 36px;
     height: 36px;
@@ -1921,6 +1951,22 @@
 @keyframes pulseBadge {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+.samehadaku-cookie-tab-btn {
+    color: #c084fc !important;
+    border: 1px solid rgba(168, 85, 247, 0.35) !important;
+    border-radius: 6px !important;
+    padding: 6px 12px !important;
+    background: rgba(168, 85, 247, 0.1) !important;
+    margin-left: auto;
+}
+
+.samehadaku-cookie-tab-btn:hover {
+    background: rgba(168, 85, 247, 0.22) !important;
+    border-color: rgba(168, 85, 247, 0.65) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
 }
 
 /* Tracker Toolbar */
