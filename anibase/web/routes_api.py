@@ -156,6 +156,12 @@ from anibase.integrations.samehadaku import (
     get_samehadaku_download_links,
     get_samehadaku_latest_episodes,
 )
+from anibase.integrations.lendrive import (
+    search_lendrive,
+    get_lendrive_latest_episodes,
+    get_lendrive_anime_details,
+    get_lendrive_download_links,
+)
 from anibase.download_manager import (
     start_download,
     cancel_download,
@@ -2461,6 +2467,101 @@ def api_samehadaku_clear_downloads():
     return jsonify({"ok": True, "cleared_count": cleared})
 
 
+@host_only
+def api_lendrive_latest():
+    """Rilisan episode terbaru dari Lendrive (x265 HEVC / Dual Subs)."""
+    page = request.args.get("page", default=1, type=int)
+    page = max(1, min(10, page))
+    results = get_lendrive_latest_episodes(page=page)
+    return jsonify({"ok": True, "page": page, "results": results, "count": len(results)})
+
+
+@host_only
+def api_lendrive_search():
+    """Pencarian anime di Lendrive berdasarkan query."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return json_error("invalid_query", "Query pencarian tidak boleh kosong", 400)
+    results = search_lendrive(query)
+    return jsonify({"ok": True, "results": results, "count": len(results)})
+
+
+@host_only
+def api_lendrive_episodes():
+    """Mengambil daftar episode dan info anime Lendrive, diperkaya status library lokal."""
+    page_url = request.args.get("url", "").strip()
+    if not page_url:
+        return json_error("invalid_url", "URL anime atau episode tidak boleh kosong", 400)
+    details = get_lendrive_anime_details(page_url)
+
+    if details.get("ok"):
+        anime_title = details.get("title") or request.args.get("anime_name", "").strip()
+        local_info = get_anime_local_episodes(anime_title)
+        details["local_library"] = local_info
+
+        existing_eps = set(local_info.get("existing_episodes", []))
+        missing_eps = []
+        for ep in details.get("episodes", []):
+            ep_num = ep.get("episode")
+            num_val = None
+            try:
+                if ep_num is not None:
+                    num_val = float(ep_num)
+                    if num_val.is_integer():
+                        num_val = int(num_val)
+            except (ValueError, TypeError):
+                pass
+
+            is_local = (num_val in existing_eps) if num_val is not None else False
+            ep["is_local"] = is_local
+            if not is_local:
+                missing_eps.append(ep)
+
+        details["missing_episodes"] = missing_eps
+
+    return jsonify(details)
+
+
+@host_only
+def api_lendrive_downloads():
+    """Mengambil daftar link download per resolusi dan host dari halaman Lendrive."""
+    page_url = request.args.get("url", "").strip()
+    if not page_url:
+        return json_error("invalid_url", "URL unduhan tidak boleh kosong", 400)
+    downloads = get_lendrive_download_links(page_url)
+    return jsonify({"ok": True, "downloads": downloads})
+
+
+@host_only
+@require_action_token
+def api_lendrive_start_download():
+    """Memulai pengunduhan video dari Lendrive di latar belakang."""
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+
+    url = body.get("url", "").strip()
+    anime_name = body.get("anime_name", "").strip()
+    episode = body.get("episode", "").strip()
+    filename = body.get("filename", "").strip()
+    custom_dest_dir = body.get("destination_dir", "").strip()
+
+    if not url:
+        return json_error("missing_url", "URL berkas unduhan tidak boleh kosong", 400)
+
+    result = start_download(
+        url=url,
+        anime_name=anime_name,
+        episode=episode,
+        filename=filename,
+        custom_dest_dir=custom_dest_dir,
+        provider="lendrive"
+    )
+    if not result.get("ok"):
+        return json_error("download_start_failed", result.get("error", "Gagal memulai unduhan"), 400)
+    return jsonify(result)
+
+
 def api_ongoing_tracker_list():
     """Mengambil daftar seluruh anime ongoing yang sedang dipantau beserta status episode terbarunya."""
     from anibase.watchlist_tracker import scan_ongoing_anime
@@ -2591,6 +2692,11 @@ def register_api_routes(app):
     app.add_url_rule("/api/samehadaku/download/cancel", endpoint="api_samehadaku_cancel_download", view_func=api_samehadaku_cancel_download, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/queue/settings", endpoint="api_samehadaku_set_queue_settings", view_func=api_samehadaku_set_queue_settings, methods=["POST"])
+    app.add_url_rule("/api/lendrive/latest", endpoint="api_lendrive_latest", view_func=api_lendrive_latest)
+    app.add_url_rule("/api/lendrive/search", endpoint="api_lendrive_search", view_func=api_lendrive_search)
+    app.add_url_rule("/api/lendrive/episodes", endpoint="api_lendrive_episodes", view_func=api_lendrive_episodes)
+    app.add_url_rule("/api/lendrive/downloads", endpoint="api_lendrive_downloads", view_func=api_lendrive_downloads)
+    app.add_url_rule("/api/lendrive/download", endpoint="api_lendrive_start_download", view_func=api_lendrive_start_download, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/list", endpoint="api_ongoing_tracker_list", view_func=api_ongoing_tracker_list)
     app.add_url_rule("/api/ongoing-tracker/check", endpoint="api_ongoing_tracker_check", view_func=api_ongoing_tracker_check, methods=["POST"])
     app.add_url_rule("/api/ongoing-tracker/toggle", endpoint="api_ongoing_tracker_toggle", view_func=api_ongoing_tracker_toggle, methods=["POST"])

@@ -228,5 +228,104 @@ class LendriveIntegrationTests(unittest.TestCase):
         self.assertTrue(best["is_dualsubs"])
 
 
+class LendriveApiRoutesTests(unittest.TestCase):
+    def setUp(self):
+        from anibase.web import create_app
+        self.app = create_app()
+        self.client = self.app.test_client()
+
+    @patch("anibase.web.routes_api.search_lendrive")
+    def test_api_lendrive_search(self, mock_search):
+        mock_search.return_value = [{"title": "Doumo Suki", "url": "https://lendrive.web.id/doumo"}]
+        res = self.client.get("/api/lendrive/search?q=doumo")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["results"]), 1)
+        self.assertEqual(data["results"][0]["title"], "Doumo Suki")
+
+    @patch("anibase.web.routes_api.get_lendrive_latest_episodes")
+    def test_api_lendrive_latest(self, mock_latest):
+        mock_latest.return_value = [{"title": "Doumo Ep 7", "url": "https://lendrive.web.id/ep7"}]
+        res = self.client.get("/api/lendrive/latest?page=1")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["results"]), 1)
+        self.assertEqual(data["page"], 1)
+
+    @patch("anibase.web.routes_api.get_anime_local_episodes")
+    @patch("anibase.web.routes_api.get_lendrive_anime_details")
+    def test_api_lendrive_episodes(self, mock_details, mock_local):
+        mock_details.return_value = {
+            "ok": True,
+            "title": "Doumo Suki",
+            "episodes": [
+                {"episode": "1", "title": "Episode 1", "url": "https://lendrive.web.id/ep1"},
+                {"episode": "2", "title": "Episode 2", "url": "https://lendrive.web.id/ep2"},
+            ]
+        }
+        mock_local.return_value = {
+            "matched": True,
+            "folder": "/mock/doumo",
+            "anime_name": "Doumo Suki",
+            "existing_episodes": [1],
+            "count": 1,
+        }
+        res = self.client.get("/api/lendrive/episodes?url=https://lendrive.web.id/doumo")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["local_library"]["matched"])
+        self.assertTrue(data["episodes"][0]["is_local"])
+        self.assertFalse(data["episodes"][1]["is_local"])
+        self.assertEqual(len(data["missing_episodes"]), 1)
+        self.assertEqual(data["missing_episodes"][0]["episode"], "2")
+
+    @patch("anibase.web.routes_api.get_lendrive_download_links")
+    def test_api_lendrive_downloads(self, mock_links):
+        mock_links.return_value = [
+            {"format": "MKV (x265 HEVC)", "quality": "1080p", "links": []}
+        ]
+        res = self.client.get("/api/lendrive/downloads?url=https://lendrive.web.id/ep1")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["downloads"]), 1)
+
+    @patch("anibase.web.routes_api.start_download")
+    def test_api_lendrive_start_download(self, mock_start):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        mock_start.return_value = {
+            "ok": True,
+            "task": {"task_id": "dl_lendrive123", "provider": "lendrive"}
+        }
+
+        res = self.client.post(
+            "/api/lendrive/download",
+            headers={"X-Action-Token": token, "Content-Type": "application/json"},
+            json={
+                "url": "https://pixeldrain.com/api/file/abc12345?download",
+                "anime_name": "Doumo Suki",
+                "episode": "2",
+                "filename": "[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs].mkv",
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["task"]["provider"], "lendrive")
+        # Pastikan dipanggil dengan provider="lendrive"
+        mock_start.assert_called_once_with(
+            url="https://pixeldrain.com/api/file/abc12345?download",
+            anime_name="Doumo Suki",
+            episode="2",
+            filename="[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs].mkv",
+            custom_dest_dir="",
+            provider="lendrive"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

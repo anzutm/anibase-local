@@ -530,7 +530,8 @@ def start_download(
     anime_name: str = "",
     episode: str = "",
     filename: str = "",
-    custom_dest_dir: str = ""
+    custom_dest_dir: str = "",
+    provider: str = "samehadaku"
 ) -> Dict[str, Any]:
     """Memulai proses pengunduhan berkas di background thread."""
     clean_url = str(url or "").strip()
@@ -621,6 +622,7 @@ def start_download(
         "progress_percent": 0.0,
         "speed_bps": 0,
         "resumed": False,
+        "provider": str(provider or "samehadaku").lower(),
         "error": None,
         "created_at": time.time(),
         "updated_at": time.time(),
