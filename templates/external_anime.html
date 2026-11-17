@@ -181,44 +181,17 @@
                     type="button"
                     class="ext-btn ext-btn-primary"
                     data-samehadaku-trigger
-                    data-provider="samehadaku"
                     data-anime-title="{{ anime.name }}"
                     data-query="{{ anime.name }}"
                     style="background: linear-gradient(135deg, #00b7e0, #0077b6); border-color: #00b7e0;"
-                    title="Cari dan unduh episode via Samehadaku"
+                    title="Cari dan unduh episode"
                 >
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    <span>🐟 Samehadaku</span>
-                </button>
-                <button
-                    type="button"
-                    class="ext-btn ext-btn-primary"
-                    data-samehadaku-trigger
-                    data-provider="lendrive"
-                    data-anime-title="{{ anime.name }}"
-                    data-query="{{ anime.name }}"
-                    style="background: linear-gradient(135deg, #a855f7, #6366f1); border-color: #a855f7;"
-                    title="Cari dan unduh episode via Lendrive (x265 HEVC / DualSubs)"
-                >
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-                    </svg>
-                    <span>⚡ Lendrive</span>
-                </button>
-                <button
-                    type="button"
-                    class="ext-btn detail-track-ongoing-btn"
-                    id="btnTrackOngoing"
-                    data-ongoing-tracker-toggle
-                    data-anime-name="{{ anime.name }}"
-                    title="Pantau rilis episode baru anime ini di Samehadaku"
-                >
-                    <span class="track-icon">📡</span>
-                    <span class="track-label">Pantau Ongoing</span>
+                    <span>Download</span>
                 </button>
                 <button type="button" class="ext-btn ext-btn-secondary" id="extCopyTitleBtn" data-title="{{ anime.name }}">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
