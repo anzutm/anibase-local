@@ -10,6 +10,9 @@ from anibase.download_manager import (
     start_download,
     cancel_download,
     resolve_best_direct_link,
+    _download_worker,
+    _DOWNLOAD_TASKS,
+    _TASKS_LOCK,
 )
 from anibase.integrations.lendrive import (
     clean_lendrive_title,
@@ -20,6 +23,7 @@ from anibase.integrations.lendrive import (
     get_lendrive_download_links,
     resolve_lendrive_best_direct_link,
     get_lendrive_base_url,
+    _parse_lendrive_link_elements,
 )
 
 
@@ -488,6 +492,169 @@ class LendriveFilenameAndDownloadManagerTests(unittest.TestCase):
             self.assertEqual(task["provider"], "lendrive")
             self.assertIn("[LENDRIVE] Doumo Suki - 01", task["filename"])
             cancel_download(task["task_id"])
+
+    def test_parse_lendrive_link_elements_safelink(self):
+        html_snippet = '''
+        <a href="https://sfe.ad/9xGDmrKxW9">Mediafire</a>
+        <a href="https://sfe.ad/mirror123">Acefile</a>
+        <a href="https://pixeldrain.com/u/direct456">Pixeldrain</a>
+        '''
+        links = _parse_lendrive_link_elements(html_snippet)
+        self.assertEqual(len(links), 3)
+
+        # Mediafire wrapped in sfe.ad safelink
+        mf = links[0]
+        self.assertEqual(mf["host"], "Mediafire")
+        self.assertTrue(mf["is_safelink"])
+        self.assertFalse(mf["is_mediafire"])
+        self.assertFalse(mf["is_direct"])
+        self.assertIsNone(mf["direct_download_url"])
+
+        # Acefile wrapped in sfe.ad safelink
+        af = links[1]
+        self.assertEqual(af["host"], "Acefile")
+        self.assertTrue(af["is_safelink"])
+        self.assertFalse(af["is_direct"])
+
+        # Real Pixeldrain
+        pd = links[2]
+        self.assertEqual(pd["host"], "Pixeldrain")
+        self.assertFalse(pd["is_safelink"])
+        self.assertTrue(pd["is_direct"])
+        self.assertEqual(pd["direct_download_url"], "https://pixeldrain.com/api/file/direct456?download")
+
+    def test_start_download_rejects_safelink_url(self):
+        res = start_download(
+            url="https://sfe.ad/9xGDmrKxW9",
+            anime_name="Doumo Suki",
+            episode="7",
+            filename="[LENDRIVE] Doumo Suki - 07 [1080p HEVC][DualSubs].mkv",
+            provider="lendrive"
+        )
+        self.assertFalse(res["ok"])
+        self.assertIn("safelink", res["error"].lower())
+
+    @patch("anibase.download_manager.requests.get")
+    def test_download_worker_aborts_on_html_content_type(self, mock_get):
+        import threading
+        task_id = "dl_test_html_guard"
+        with _TASKS_LOCK:
+            _DOWNLOAD_TASKS[task_id] = {
+                "task_id": task_id,
+                "status": "queued",
+                "downloaded_bytes": 0,
+                "total_bytes": 0,
+            }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Type": "text/html; charset=UTF-8"}
+        mock_resp.__enter__.return_value = mock_resp
+        mock_get.return_value = mock_resp
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            save_path = os.path.join(tmp_dir, "test.mkv")
+            temp_path = f"{save_path}.part"
+            cancel_ev = threading.Event()
+
+            _download_worker(
+                task_id=task_id,
+                url="https://sfe.ad/dummy",
+                save_path=save_path,
+                temp_path=temp_path,
+                cancel_event=cancel_ev
+            )
+
+            # Task status must be error, NOT completed
+            with _TASKS_LOCK:
+                task = _DOWNLOAD_TASKS.get(task_id)
+                self.assertEqual(task["status"], "error")
+                self.assertIn("HTML", task["error"])
+
+            # Corrupt files must not be left behind
+            self.assertFalse(os.path.exists(save_path))
+            self.assertFalse(os.path.exists(temp_path))
+
+    @patch("anibase.download_manager.requests.get")
+    def test_download_worker_aborts_on_html_chunk_bytes(self, mock_get):
+        import threading
+        task_id = "dl_test_chunk_guard"
+        with _TASKS_LOCK:
+            _DOWNLOAD_TASKS[task_id] = {
+                "task_id": task_id,
+                "status": "queued",
+                "downloaded_bytes": 0,
+                "total_bytes": 0,
+            }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        # Headers might disguise content-type as octet-stream
+        mock_resp.headers = {"Content-Type": "application/octet-stream", "Content-Length": "27000"}
+        mock_resp.iter_content.return_value = [b"<!DOCTYPE html><html><head><title>Safelink</title></head><body>"]
+        mock_resp.__enter__.return_value = mock_resp
+        mock_get.return_value = mock_resp
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            save_path = os.path.join(tmp_dir, "test2.mkv")
+            temp_path = f"{save_path}.part"
+            cancel_ev = threading.Event()
+
+            _download_worker(
+                task_id=task_id,
+                url="https://example.com/fakevideo.mkv",
+                save_path=save_path,
+                temp_path=temp_path,
+                cancel_event=cancel_ev
+            )
+
+            with _TASKS_LOCK:
+                task = _DOWNLOAD_TASKS.get(task_id)
+                self.assertEqual(task["status"], "error")
+                self.assertIn("HTML", task["error"])
+
+            self.assertFalse(os.path.exists(save_path))
+            self.assertFalse(os.path.exists(temp_path))
+
+    @patch("anibase.download_manager.requests.get")
+    def test_download_worker_aborts_on_html_body_tag(self, mock_get):
+        import threading
+        task_id = "dl_test_body_guard"
+        with _TASKS_LOCK:
+            _DOWNLOAD_TASKS[task_id] = {
+                "task_id": task_id,
+                "status": "queued",
+                "downloaded_bytes": 0,
+                "total_bytes": 0,
+            }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Type": "application/octet-stream", "Content-Length": "1024"}
+        mock_resp.iter_content.return_value = [b"<html lang='en'><head></head><body>Redirecting to safelink...</body></html>"]
+        mock_resp.__enter__.return_value = mock_resp
+        mock_get.return_value = mock_resp
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            save_path = os.path.join(tmp_dir, "tiny.mkv")
+            temp_path = f"{save_path}.part"
+            cancel_ev = threading.Event()
+
+            _download_worker(
+                task_id=task_id,
+                url="https://example.com/tiny.mkv",
+                save_path=save_path,
+                temp_path=temp_path,
+                cancel_event=cancel_ev
+            )
+
+            with _TASKS_LOCK:
+                task = _DOWNLOAD_TASKS.get(task_id)
+                self.assertEqual(task["status"], "error")
+                self.assertIn("HTML", task["error"])
+
+            self.assertFalse(os.path.exists(save_path))
+            self.assertFalse(os.path.exists(temp_path))
 
 
 if __name__ == "__main__":

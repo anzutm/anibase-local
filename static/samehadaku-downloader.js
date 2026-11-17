@@ -1312,7 +1312,12 @@
         if (directLink) {
             directUrl = directLink.direct_download_url || directLink.direct_url;
         } else {
-            const mfLink = (tier.links || []).find(l => (l.host || '').toLowerCase().includes('mediafire') || (l.url || '').toLowerCase().includes('mediafire.com'));
+            // Hanya gunakan Mediafire jika URL-nya benar-benar domain mediafire.com dan bukan safelink/shortener
+            const mfLink = (tier.links || []).find(l => {
+                const u = (l.url || '').toLowerCase();
+                const isShortener = l.is_safelink || u.includes('sfe.ad') || u.includes('ouo.io') || u.includes('urlwebsite.com') || u.includes('shorturl');
+                return !isShortener && u.includes('mediafire.com');
+            });
             if (mfLink && mfLink.url) {
                 directUrl = mfLink.url;
             }
@@ -1324,7 +1329,11 @@
                 resBtn.classList.remove('loading');
                 resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
             }
-            showAlternativeServers(epId, tier, `Tautan unduh langsung tidak tersedia untuk ${tier.format} ${tier.quality}.`);
+            const hasSafelink = (tier.links || []).some(l => l.is_safelink || (l.url || '').includes('sfe.ad') || (l.url || '').includes('ouo.io') || (l.url || '').includes('urlwebsite.com'));
+            const reasonMsg = hasSafelink
+                ? 'Tautan unduhan Lendrive dilindungi safelink (sfe.ad). Silakan klik server di bawah untuk membuka dan melewati safelink di browser Anda:'
+                : `Tautan unduh langsung tidak tersedia untuk ${tier.format} ${tier.quality}.`;
+            showAlternativeServers(epId, tier, reasonMsg);
             return;
         }
 
@@ -1423,24 +1432,36 @@
             linksHTML = '<span style="font-size:12px; color:var(--text-secondary, #A5B4D6);">Tidak ada mirror download lain yang tersedia untuk resolusi ini.</span>';
         } else {
             listToDisplay.forEach((l) => {
+                const isSafelink = Boolean(l.is_safelink || (l.url || '').includes('sfe.ad') || (l.url || '').includes('ouo.io') || (l.url || '').includes('urlwebsite.com'));
+                const btnTitle = isSafelink
+                    ? `Buka tautan ${l.host} (Safelink) di browser`
+                    : `Unduh lewat server ${l.host}`;
+                const labelHtml = isSafelink
+                    ? `<span>🔗 ${l.host} <small style="opacity:0.85; font-size:10px; font-weight:normal;">(Safelink)</small></span>`
+                    : `<span>${l.host}</span>`;
                 linksHTML += `
                     <a
                         href="${l.url}"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="samehadaku-btn-ext"
-                        title="Unduh lewat server ${l.host}"
+                        class="samehadaku-btn-ext ${isSafelink ? 'samehadaku-btn-safelink' : ''}"
+                        title="${btnTitle}"
                     >
-                        <span>${l.host}</span>
+                        ${labelHtml}
                         <span aria-hidden="true">&nearr;</span>
                     </a>
                 `;
             });
         }
 
+        const isSafelinkNotice = reason && (reason.toLowerCase().includes('safelink') || reason.toLowerCase().includes('sfe.ad'));
+        const subText = isSafelinkNotice
+            ? 'Silakan klik salah satu server di bawah untuk membuka dan mengunduh berkas melalui browser Anda:'
+            : 'Silakan pilih tempat download alternatif di bawah ini untuk membuka tautan:';
+
         container.hidden = false;
         container.innerHTML = `
-            <div class="samehadaku-fallback-box">
+            <div class="samehadaku-fallback-box ${isSafelinkNotice ? 'safelink-warning' : ''}">
                 <div class="samehadaku-fallback-header">
                     <div class="samehadaku-fallback-title-wrap">
                         <span class="samehadaku-fallback-badge">${tier.format} ${tier.quality}</span>
@@ -1448,7 +1469,7 @@
                     </div>
                     <button type="button" class="samehadaku-fallback-close" onclick="document.getElementById('fallback-${epId}').hidden = true;" title="Tutup alternatif">✕</button>
                 </div>
-                <div class="samehadaku-fallback-sub">Silakan pilih tempat download alternatif di bawah ini untuk membuka tautan:</div>
+                <div class="samehadaku-fallback-sub">${subText}</div>
                 <div class="samehadaku-fallback-links">
                     ${linksHTML}
                 </div>

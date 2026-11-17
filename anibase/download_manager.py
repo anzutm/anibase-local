@@ -30,6 +30,19 @@ from anibase.media import parse_episode_identity
 DEFAULT_CHUNK_SIZE = 128 * 1024  # 128 KB
 MAX_STORED_TASKS = 100
 
+# Domain safelink / shortener iklan yang tidak dapat diunduh langsung sebagai stream video
+SAFELINK_SHORTENER_DOMAINS = (
+    "sfe.ad",
+    "ouo.io",
+    "ouo.press",
+    "urlwebsite.com",
+    "shorturl",
+    "linkvertise.com",
+    "adf.ly",
+    "bit.ly",
+    "shrinkme.io",
+)
+
 _TASKS_LOCK = threading.Lock()
 _DOWNLOAD_TASKS: Dict[str, Dict[str, Any]] = {}
 _CANCEL_EVENTS: Dict[str, threading.Event] = {}
@@ -538,6 +551,17 @@ def start_download(
     if not clean_url:
         return {"ok": False, "error": "URL unduhan tidak valid atau kosong"}
 
+    # Cek apakah URL merupakan safelink/shortener yang butuh interaksi browser
+    for safelink_dom in SAFELINK_SHORTENER_DOMAINS:
+        if safelink_dom in clean_url.lower():
+            return {
+                "ok": False,
+                "error": (
+                    f"Tautan unduhan merupakan safelink/shortener ({safelink_dom}) yang memerlukan "
+                    "verifikasi manual di browser. Silakan buka tautan tersebut langsung di browser Anda."
+                )
+            }
+
     # Resolusi nama berkas jika belum ada atau generik
     target_filename = sanitize_filename(filename)
     total_expected_bytes = 0
@@ -705,6 +729,10 @@ def _download_worker(
             if resp.status_code not in (200, 206):
                 raise RuntimeError(f"HTTP response error: {resp.status_code}")
 
+            content_type = (resp.headers.get("Content-Type") or "").lower()
+            if "text/html" in content_type or "application/xhtml" in content_type:
+                raise RuntimeError("Tautan unduhan mengembalikan halaman HTML/safelink, bukan berkas video.")
+
             is_partial = (resp.status_code == 206)
             content_range = resp.headers.get("Content-Range", "")
             content_length = resp.headers.get("Content-Length")
@@ -737,6 +765,7 @@ def _download_worker(
 
             # Mode "ab" jika berhasil resume parsial, mode "wb" jika dari 0
             file_mode = "ab" if (existing_bytes > 0 and is_partial) else "wb"
+            first_chunk = True
             with open(temp_path, file_mode) as f:
                 for chunk in resp.iter_content(chunk_size=DEFAULT_CHUNK_SIZE):
                     if cancel_event.is_set():
@@ -749,6 +778,12 @@ def _download_worker(
 
                     if not chunk:
                         continue
+
+                    if first_chunk and existing_bytes == 0:
+                        first_chunk = False
+                        sample = chunk[:512].lower()
+                        if b"<!doctype html" in sample or b"<html" in sample or b"<head" in sample or b"<body" in sample:
+                            raise RuntimeError("Tautan unduhan mengembalikan halaman web/safelink HTML, bukan berkas video.")
 
                     f.write(chunk)
                     chunk_len = len(chunk)
@@ -850,7 +885,21 @@ def _download_worker(
 
     except Exception as error:
         app_log(f"Download task {task_id} failed: {error}", "ERROR")
-        # Simpan berkas .part utuh agar pengguna bisa melanjutkan (resume) unduhan
+        # Bersihkan berkas .part dan save_path jika gagal karena safelink / halaman HTML / berkas korup
+        err_str = str(error).lower()
+        if "html" in err_str or "safelink" in err_str or "terlalu kecil" in err_str:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            if os.path.exists(save_path):
+                try:
+                    os.remove(save_path)
+                except OSError:
+                    pass
+
+        # Simpan berkas .part utuh agar pengguna bisa melanjutkan (resume) unduhan jika terputus biasa
         with _TASKS_LOCK:
             if task_id in _DOWNLOAD_TASKS:
                 t = _DOWNLOAD_TASKS[task_id]

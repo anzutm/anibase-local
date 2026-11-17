@@ -923,6 +923,12 @@
     backdrop-filter: blur(8px);
 }
 
+.samehadaku-fallback-box.safelink-warning {
+    background: color-mix(in srgb, #8b5cf6 12%, rgba(15, 23, 42, 0.92));
+    border: 1px solid color-mix(in srgb, #a78bfa 40%, transparent);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.15);
+}
+
 .samehadaku-fallback-header {
     display: flex;
     align-items: center;
@@ -1068,6 +1074,19 @@
     color: #000000;
     transform: translateY(-1px);
     box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
+
+.samehadaku-btn-ext.samehadaku-btn-safelink {
+    background: color-mix(in srgb, #8b5cf6 16%, rgba(255, 255, 255, 0.05));
+    border-color: color-mix(in srgb, #a78bfa 45%, rgba(255, 255, 255, 0.12));
+    color: #e9d5ff;
+}
+
+.samehadaku-btn-ext.samehadaku-btn-safelink:hover {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(139, 92, 246, 0.45);
 }
 
 /* Active Downloads Bottom Drawer */

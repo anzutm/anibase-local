@@ -396,11 +396,16 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
         if "lendrive.web.id" in link_url and not any(k in link_url for k in ("download", "file", "drive")):
             continue
 
-        is_pixeldrain = "pixeldrain.com" in link_url.lower()
-        is_mediafire = "mediafire.com" in link_url.lower()
-        is_gofile = "gofile.io" in link_url.lower()
-        is_gdrive = "drive.google.com" in link_url.lower()
-        is_kraken = "krakenfiles.com" in link_url.lower()
+        # Deteksi apakah URL dibungkus safelink / shortener iklan
+        is_safelink = any(dom in link_url.lower() for dom in (
+            "sfe.ad", "ouo.io", "ouo.press", "urlwebsite.com", "shorturl", "linkvertise", "adf.ly"
+        ))
+
+        is_pixeldrain = not is_safelink and "pixeldrain.com" in link_url.lower()
+        is_mediafire = not is_safelink and "mediafire.com" in link_url.lower()
+        is_gofile = not is_safelink and "gofile.io" in link_url.lower()
+        is_gdrive = not is_safelink and "drive.google.com" in link_url.lower()
+        is_kraken = not is_safelink and "krakenfiles.com" in link_url.lower()
 
         pixeldrain_id = None
         direct_download_url = None
@@ -415,6 +420,7 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
             "host": host_name,
             "url": link_url,
             "is_direct": bool(direct_download_url),
+            "is_safelink": is_safelink,
             "is_pixeldrain": is_pixeldrain,
             "is_mediafire": is_mediafire,
             "is_gofile": is_gofile,
