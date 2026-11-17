@@ -1,9 +1,15 @@
 """Unit tests for Lendrive scraper and direct link resolver."""
 
 import os
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
+from anibase.download_manager import (
+    adapt_filename_to_library_pattern,
+    start_download,
+    cancel_download,
+)
 from anibase.integrations.lendrive import (
     clean_lendrive_title,
     extract_lendrive_episode_number,
@@ -325,6 +331,66 @@ class LendriveApiRoutesTests(unittest.TestCase):
             custom_dest_dir="",
             provider="lendrive"
         )
+
+
+class LendriveFilenameAndDownloadManagerTests(unittest.TestCase):
+    def test_adapt_filename_to_existing_lendrive_pattern(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create existing Lendrive episode file
+            ep1_file = os.path.join(tmp_dir, "[LENDRIVE] Doumo Suki - 01 [1080p HEVC][Dualsubs].mkv")
+            with open(ep1_file, "w") as f:
+                f.write("mock")
+
+            # Downloading episode 2
+            adapted = adapt_filename_to_library_pattern(
+                folder_path=tmp_dir,
+                episode="2",
+                default_filename="[LENDRIVE] Doumo Suki - 02 [1080p HEVC][DualSubs].mkv"
+            )
+            self.assertEqual(adapted, "[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs].mkv")
+
+    def test_adapt_filename_from_lendrive_to_standard_library_pattern(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # User library uses standard pattern: Doumo Suki - Ep 01 [1080p].mkv
+            ep1_file = os.path.join(tmp_dir, "Doumo Suki - Ep 01 [1080p].mkv")
+            with open(ep1_file, "w") as f:
+                f.write("mock")
+
+            # Downloading from Lendrive
+            adapted = adapt_filename_to_library_pattern(
+                folder_path=tmp_dir,
+                episode="2",
+                default_filename="[LENDRIVE] Doumo Suki - 02 [1080p HEVC][DualSubs].mkv"
+            )
+            # Should adapt prefix and suffix to match existing user files
+            self.assertEqual(adapted, "Doumo Suki - Ep 02 [1080p].mkv")
+
+    def test_adapt_filename_new_folder_keeps_lendrive_name(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Empty folder: should preserve default Lendrive filename
+            adapted = adapt_filename_to_library_pattern(
+                folder_path=tmp_dir,
+                episode="1",
+                default_filename="[LENDRIVE] Doumo Suki - 01 [1080p HEVC][DualSubs].mkv"
+            )
+            self.assertEqual(adapted, "[LENDRIVE] Doumo Suki - 01 [1080p HEVC][DualSubs].mkv")
+
+    @patch("anibase.download_manager._download_worker")
+    def test_start_download_with_lendrive_provider(self, mock_worker):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            res = start_download(
+                url="https://pixeldrain.com/api/file/abc12345?download",
+                anime_name="Doumo Suki",
+                episode="1",
+                filename="[LENDRIVE] Doumo Suki - 01 [1080p HEVC][Dualsubs].mkv",
+                custom_dest_dir=tmp_dir,
+                provider="lendrive"
+            )
+            self.assertTrue(res["ok"])
+            task = res["task"]
+            self.assertEqual(task["provider"], "lendrive")
+            self.assertIn("[LENDRIVE] Doumo Suki - 01", task["filename"])
+            cancel_download(task["task_id"])
 
 
 if __name__ == "__main__":
