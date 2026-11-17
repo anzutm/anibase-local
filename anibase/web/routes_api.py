@@ -2470,20 +2470,59 @@ def api_samehadaku_clear_downloads():
 @host_only
 def api_lendrive_latest():
     """Rilisan episode terbaru dari Lendrive (x265 HEVC / Dual Subs)."""
+    from anibase.integrations.lendrive import get_lendrive_challenge_status
     page = request.args.get("page", default=1, type=int)
     page = max(1, min(10, page))
     results = get_lendrive_latest_episodes(page=page)
-    return jsonify({"ok": True, "page": page, "results": results, "count": len(results)})
+    is_protected = get_lendrive_challenge_status()
+    cookie_configured = bool(str(load_settings().get("lendrive_cookie") or "").strip())
+    return jsonify({
+        "ok": True,
+        "page": page,
+        "results": results,
+        "count": len(results),
+        "is_protected": is_protected,
+        "cookie_configured": cookie_configured,
+        "message": "Proteksi verifikasi anti-bot aktif pada Lendrive" if is_protected else ""
+    })
+
+
+@host_only
+@require_action_token
+def api_lendrive_set_cookie():
+    """Menyimpan cookie sesi browser untuk Lendrive agar dapat melewati proteksi WAF."""
+    from anibase.integrations.lendrive import clear_lendrive_cache, set_lendrive_challenge_status
+    body, error_response = get_json_body()
+    if error_response:
+        return error_response
+    cookie = str(body.get("cookie") or "").strip()
+    settings = load_settings()
+    settings["lendrive_cookie"] = cookie
+    save_settings(settings)
+    clear_lendrive_cache()
+    set_lendrive_challenge_status(False)
+    return jsonify({
+        "ok": True,
+        "cookie_configured": bool(cookie),
+        "message": "Cookie sesi Lendrive berhasil diperbarui"
+    })
 
 
 @host_only
 def api_lendrive_search():
     """Pencarian anime di Lendrive berdasarkan query."""
+    from anibase.integrations.lendrive import get_lendrive_challenge_status
     query = request.args.get("q", "").strip()
     if not query:
         return json_error("invalid_query", "Query pencarian tidak boleh kosong", 400)
     results = search_lendrive(query)
-    return jsonify({"ok": True, "results": results, "count": len(results)})
+    is_protected = get_lendrive_challenge_status()
+    return jsonify({
+        "ok": True,
+        "results": results,
+        "count": len(results),
+        "is_protected": is_protected
+    })
 
 
 @host_only
@@ -2711,6 +2750,7 @@ def register_api_routes(app):
     app.add_url_rule("/api/samehadaku/download/clear", endpoint="api_samehadaku_clear_downloads", view_func=api_samehadaku_clear_downloads, methods=["POST"])
     app.add_url_rule("/api/samehadaku/download/queue/settings", endpoint="api_samehadaku_set_queue_settings", view_func=api_samehadaku_set_queue_settings, methods=["POST"])
     app.add_url_rule("/api/lendrive/latest", endpoint="api_lendrive_latest", view_func=api_lendrive_latest)
+    app.add_url_rule("/api/lendrive/cookie", endpoint="api_lendrive_set_cookie", view_func=api_lendrive_set_cookie, methods=["POST"])
     app.add_url_rule("/api/lendrive/search", endpoint="api_lendrive_search", view_func=api_lendrive_search)
     app.add_url_rule("/api/lendrive/episodes", endpoint="api_lendrive_episodes", view_func=api_lendrive_episodes)
     app.add_url_rule("/api/lendrive/downloads", endpoint="api_lendrive_downloads", view_func=api_lendrive_downloads)

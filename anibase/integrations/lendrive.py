@@ -70,7 +70,54 @@ def _get_cached_data(cache_key: str) -> Optional[Any]:
         return None
 
 
+_LAST_LENDRIVE_CHALLENGE = False
+
+
+def is_lendrive_challenge_page(html_text: str) -> bool:
+    """Mengecek apakah respon HTML adalah gerbang verifikasi bot/WAF challenge."""
+    if not html_text:
+        return False
+    low = html_text.lower()
+    return (
+        "please wait while your request is being verified" in low
+        or "<title>one moment, please...</title>" in low
+        or "wsidchk" in low
+    )
+
+
+def get_lendrive_challenge_status() -> bool:
+    """Mengembalikan status apakah request terakhir terhambat WAF challenge."""
+    global _LAST_LENDRIVE_CHALLENGE
+    return bool(_LAST_LENDRIVE_CHALLENGE)
+
+
+def set_lendrive_challenge_status(status: bool) -> None:
+    """Menyetel status challenge Lendrive."""
+    global _LAST_LENDRIVE_CHALLENGE
+    _LAST_LENDRIVE_CHALLENGE = bool(status)
+
+
+def clear_lendrive_cache() -> int:
+    """Membersihkan seluruh berkas cache Lendrive di disk."""
+    cache_dir = _get_cache_dir()
+    count = 0
+    try:
+        for f in os.listdir(cache_dir):
+            fp = os.path.join(cache_dir, f)
+            if os.path.isfile(fp) and f.endswith(".json"):
+                try:
+                    os.remove(fp)
+                    count += 1
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return count
+
+
 def _set_cached_data(cache_key: str, data: Any) -> None:
+    if not data:
+        return
     cache_file = os.path.join(_get_cache_dir(), f"{cache_key}.json")
     try:
         tmp_file = f"{cache_file}.tmp"
@@ -82,12 +129,20 @@ def _set_cached_data(cache_key: str, data: Any) -> None:
 
 
 def _get_headers() -> Dict[str, str]:
-    return {
+    headers = {
         "User-Agent": DEFAULT_USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "id,en-US;q=0.9,en;q=0.8",
         "Referer": get_lendrive_base_url(),
     }
+    try:
+        settings = load_settings()
+        cookie = str(settings.get("lendrive_cookie") or "").strip()
+        if cookie:
+            headers["Cookie"] = cookie
+    except Exception:
+        pass
+    return headers
 
 
 def clean_lendrive_title(raw_title: str) -> str:
@@ -211,6 +266,7 @@ def _parse_lendrive_post_cards(html_text: str) -> List[Dict[str, Any]]:
 
 def search_lendrive(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
     """Cari anime di Lendrive berdasarkan judul."""
+    global _LAST_LENDRIVE_CHALLENGE
     clean_query = str(query or "").strip()
     if not clean_query:
         return []
@@ -227,18 +283,25 @@ def search_lendrive(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str
     try:
         response = requests.get(search_url, headers=_get_headers(), timeout=timeout)
         if response.status_code == 200:
+            if is_lendrive_challenge_page(response.text):
+                _LAST_LENDRIVE_CHALLENGE = True
+                app_log("Lendrive search received WAF anti-bot verification challenge", "WARN")
+                return []
+            _LAST_LENDRIVE_CHALLENGE = False
             results = _parse_lendrive_post_cards(response.text)
         else:
             app_log(f"Lendrive search returned HTTP {response.status_code} for query: {clean_query}", "WARN")
     except Exception as error:
         app_log(f"Lendrive search network error: {error}", "ERROR")
 
-    _set_cached_data(cache_key, results)
+    if results:
+        _set_cached_data(cache_key, results)
     return results
 
 
 def get_lendrive_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
     """Mengambil rilisan anime/episode terbaru dari Lendrive."""
+    global _LAST_LENDRIVE_CHALLENGE
     cache_key = f"latest_page_{page}"
     cached = _get_cached_data(cache_key)
     if cached is not None:
@@ -251,13 +314,19 @@ def get_lendrive_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) 
     try:
         response = requests.get(url, headers=_get_headers(), timeout=timeout)
         if response.status_code == 200:
+            if is_lendrive_challenge_page(response.text):
+                _LAST_LENDRIVE_CHALLENGE = True
+                app_log("Lendrive latest releases received WAF anti-bot verification challenge", "WARN")
+                return []
+            _LAST_LENDRIVE_CHALLENGE = False
             results = _parse_lendrive_post_cards(response.text)
         else:
             app_log(f"Lendrive latest releases returned HTTP {response.status_code}", "WARN")
     except Exception as error:
         app_log(f"Lendrive latest releases network error: {error}", "ERROR")
 
-    _set_cached_data(cache_key, results)
+    if results:
+        _set_cached_data(cache_key, results)
     return results
 
 

@@ -362,6 +362,68 @@
         `;
     }
 
+    // Render pesan khusus proteksi Anti-Bot WAF Lendrive
+    function renderLendriveProtectedMessage(cookieConfigured) {
+        const body = document.getElementById('samehadakuModalBody');
+        if (!body) return;
+        body.innerHTML = `
+            <div class="samehadaku-status-box" style="padding: 24px 18px; max-width: 560px; margin: 0 auto; text-align: center;">
+                <div style="font-size: 36px; margin-bottom: 10px;">🛡️</div>
+                <h3 style="font-size: 16px; font-weight: 700; color: #fbbf24; margin: 0 0 10px;">
+                    Verifikasi Anti-Bot (WAF Protection) Aktif di Lendrive
+                </h3>
+                <p style="color: var(--text-secondary, #94a3b8); font-size: 13px; line-height: 1.6; margin: 0 0 18px;">
+                    Situs <strong>lendrive.web.id</strong> saat ini sedang memproteksi akses halamannya dengan gerbang verifikasi browser otomatis (<em>One moment, please... Please wait while your request is being verified</em>).<br><br>
+                    Karena AniBase backend tidak menjalankan eksekusi browser/JavaScript untuk membobol proteksi ini, Anda dapat membuka Lendrive langsung di browser atau menempelkan Cookie sesi browser di bawah.
+                </p>
+                <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+                    <a href="https://lendrive.web.id" target="_blank" rel="noopener noreferrer" class="samehadaku-batch-btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; text-decoration: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                        <span>Buka Lendrive di Browser</span>
+                    </a>
+                    <button type="button" class="samehadaku-batch-btn-secondary" onclick="window.__setLendriveCookiePrompt()" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px;">
+                        <span>⚙️ ${cookieConfigured ? 'Perbarui Cookie Sesi' : 'Masukkan Cookie Browser'}</span>
+                    </button>
+                    <button type="button" class="samehadaku-batch-btn-secondary" onclick="window.__retryLendrive()" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px;">
+                        <span>🔄 Coba Lagi</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.__retryLendrive = function() {
+        loadLatestReleases(1);
+    };
+
+    window.__setLendriveCookiePrompt = async function () {
+        const val = prompt(
+            'Petunjuk mendapatkan cookie Lendrive:\n1. Buka https://lendrive.web.id di browser Anda.\n2. Buka DevTools (F12) -> Console / Application.\n3. Salin nilai cookie (misal: wsidchk=...)\n\nMasukkan Cookie:',
+            ''
+        );
+        if (val === null) return;
+        const token = getActionToken();
+        try {
+            const res = await fetch('/api/lendrive/cookie', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': token,
+                    'X-Action-Token': token,
+                },
+                body: JSON.stringify({ cookie: val.trim(), action_token: token })
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                loadLatestReleases(1);
+            } else {
+                alert(data.error || 'Gagal menyimpan cookie');
+            }
+        } catch (err) {
+            alert('Terjadi kesalahan: ' + err.message);
+        }
+    };
+
     // Muat rilisan anime terbaru dari sumber aktif (Samehadaku vs Lendrive)
     async function loadLatestReleases(page = 1) {
         lastActiveView = 'latest';
@@ -373,6 +435,10 @@
             const data = await res.json();
 
             if (!data.ok || !data.results || data.results.length === 0) {
+                if (currentProvider === 'lendrive' && data.is_protected) {
+                    renderLendriveProtectedMessage(data.cookie_configured);
+                    return;
+                }
                 showMessage(`Belum ada episode terbaru yang dapat dimuat dari ${providerName} saat ini. Silakan coba cari judul anime secara manual.`);
                 return;
             }
@@ -729,6 +795,10 @@
             const data = await res.json();
 
             if (!data.ok || !data.results || data.results.length === 0) {
+                if (currentProvider === 'lendrive' && data.is_protected) {
+                    renderLendriveProtectedMessage(false);
+                    return;
+                }
                 showMessage(`
                     Tidak ditemukan hasil untuk "<strong>${query}</strong>" di ${providerName}. Coba kata kunci yang lebih singkat.<br><br>
                     <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke Rilisan Terbaru">
