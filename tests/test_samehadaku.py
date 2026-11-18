@@ -254,19 +254,34 @@ class SamehadakuIntegrationTests(unittest.TestCase):
 
     @patch("anibase.integrations.samehadaku.requests.get")
     def test_get_samehadaku_latest_episodes(self, mock_get):
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.text = SAMPLE_LATEST_HTML
-        mock_get.return_value = mock_resp
+        self.patch_cache.stop()
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.text = SAMPLE_LATEST_HTML
+            mock_get.return_value = mock_resp
 
-        results = get_samehadaku_latest_episodes(page=1)
-        self.assertEqual(len(results), 1)
-        item = results[0]
-        self.assertEqual(item["title"], "Mock Anime")
-        self.assertEqual(item["episode"], "Episode 5")
-        self.assertEqual(item["episode_number"], "5")
-        self.assertEqual(item["thumbnail"], "https://v2.samehadaku.how/wp-content/uploads/mock-thumb.jpg")
-        self.assertEqual(item["released_on"], "2 Jam yang lalu")
+            results = get_samehadaku_latest_episodes(page=1)
+            self.assertEqual(len(results), 1)
+            item = results[0]
+            self.assertEqual(item["title"], "Mock Anime")
+            self.assertEqual(item["episode"], "Episode 5")
+            self.assertEqual(item["episode_number"], "5")
+            self.assertEqual(item["thumbnail"], "https://v2.samehadaku.how/wp-content/uploads/mock-thumb.jpg")
+            self.assertEqual(item["released_on"], "2 Jam yang lalu")
+
+            # Second call without force_refresh uses cache (mock_get should not be called again)
+            call_count_before = mock_get.call_count
+            cached_results = get_samehadaku_latest_episodes(page=1, force_refresh=False)
+            self.assertEqual(mock_get.call_count, call_count_before)
+            self.assertEqual(len(cached_results), 1)
+
+            # Call with force_refresh=True must make a new network request
+            refreshed_results = get_samehadaku_latest_episodes(page=1, force_refresh=True)
+            self.assertEqual(mock_get.call_count, call_count_before + 1)
+            self.assertEqual(len(refreshed_results), 1)
+        finally:
+            self.patch_cache.start()
 
 
 class DownloadManagerTests(unittest.TestCase):

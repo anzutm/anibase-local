@@ -359,13 +359,14 @@ def search_lendrive(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str
     return results
 
 
-def get_lendrive_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
+def get_lendrive_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT, force_refresh: bool = False) -> List[Dict[str, Any]]:
     """Mengambil rilisan anime/episode terbaru dari Lendrive."""
     global _LAST_LENDRIVE_CHALLENGE
     cache_key = f"latest_page_{page}"
-    cached = _get_cached_data(cache_key)
-    if cached is not None:
-        return cached
+    if not force_refresh:
+        cached = _get_cached_data(cache_key)
+        if cached is not None:
+            return cached
 
     base_url = get_lendrive_base_url()
     url = f"{base_url}/page/{page}/" if page > 1 else f"{base_url}/"

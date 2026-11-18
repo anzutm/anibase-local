@@ -166,6 +166,17 @@ class LendriveIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(len(results), 2)
         self.assertEqual(results[0]["provider"], "lendrive")
 
+        # Second call without force_refresh uses cache
+        call_count_before = mock_get.call_count
+        cached_results = get_lendrive_latest_episodes(page=1, force_refresh=False)
+        self.assertEqual(mock_get.call_count, call_count_before)
+        self.assertEqual(len(cached_results), len(results))
+
+        # Call with force_refresh=True makes a fresh request
+        refreshed_results = get_lendrive_latest_episodes(page=1, force_refresh=True)
+        self.assertEqual(mock_get.call_count, call_count_before + 1)
+        self.assertEqual(len(refreshed_results), len(results))
+
     @patch("anibase.integrations.lendrive.requests.get")
     def test_get_lendrive_latest_episodes_homepage_section_and_thumbnails(self, mock_get):
         homepage_html = """

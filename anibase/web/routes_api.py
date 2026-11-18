@@ -2226,7 +2226,8 @@ def api_samehadaku_latest():
     """Mengambil daftar episode anime terbaru dari Samehadaku."""
     page = request.args.get("page", default=1, type=int)
     page = max(1, min(10, page))
-    results = get_samehadaku_latest_episodes(page=page)
+    force_refresh = request.args.get("refresh") in ("1", "true", "True")
+    results = get_samehadaku_latest_episodes(page=page, force_refresh=force_refresh)
     return jsonify({"ok": True, "page": page, "results": results})
 
 
@@ -2473,7 +2474,8 @@ def api_lendrive_latest():
     from anibase.integrations.lendrive import get_lendrive_challenge_status
     page = request.args.get("page", default=1, type=int)
     page = max(1, min(10, page))
-    results = get_lendrive_latest_episodes(page=page)
+    force_refresh = request.args.get("refresh") in ("1", "true", "True")
+    results = get_lendrive_latest_episodes(page=page, force_refresh=force_refresh)
     is_protected = get_lendrive_challenge_status()
     cookie_configured = bool(str(load_settings().get("lendrive_cookie") or "").strip())
     return jsonify({

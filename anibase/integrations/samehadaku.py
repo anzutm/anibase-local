@@ -539,13 +539,14 @@ def resolve_mediafire_direct_url(page_url: str, timeout: int = 10) -> Optional[s
     return None
 
 
-def get_samehadaku_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
+def get_samehadaku_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT, force_refresh: bool = False) -> List[Dict[str, Any]]:
     """Mengambil daftar episode anime terbaru dari halaman beranda Samehadaku."""
     safe_page = max(1, min(10, int(page or 1)))
     cache_key = f"latest_episodes_p{safe_page}"
-    cached = _get_cached_data(cache_key)
-    if cached is not None:
-        return cached
+    if not force_refresh:
+        cached = _get_cached_data(cache_key)
+        if cached is not None:
+            return cached
 
     url = SAMEHADAKU_BASE_URL if safe_page == 1 else f"{SAMEHADAKU_BASE_URL}/page/{safe_page}/"
     try:

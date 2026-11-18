@@ -138,7 +138,10 @@ class TestWatchlistTrackerLogic(unittest.TestCase):
 
     def tearDown(self):
         self.db_patcher.stop()
-        self.tmp_dir.cleanup()
+        try:
+            self.tmp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_extract_episode_number(self):
         self.assertEqual(extract_episode_number("Episode 7"), 7.0)
@@ -211,7 +214,10 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
 
     def tearDown(self):
         self.db_patcher.stop()
-        self.tmp_dir.cleanup()
+        try:
+            self.tmp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_api_ongoing_tracker_list(self):
         res = self.client.get("/api/ongoing-tracker/list")

@@ -113,7 +113,11 @@
                         <span>📡 Pantau Ongoing</span>
                         <span class="samehadaku-modal-tab-badge" id="modalTrackerBadge" hidden>0</span>
                     </button>
-                    <button type="button" class="samehadaku-modal-tab-btn samehadaku-cookie-tab-btn" id="modalTabCookieBtn" onclick="window.__setLendriveCookiePrompt()" title="Pengaturan Cookie Sesi Lendrive" style="display: none; margin-left: auto;">
+                    <button type="button" class="samehadaku-modal-tab-btn samehadaku-refresh-tab-btn" id="modalTabRefreshBtn" onclick="window.__refreshCurrentView()" title="Segarkan rilis terbaru (bypass cache)">
+                        <svg class="samehadaku-refresh-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>Segarkan</span>
+                    </button>
+                    <button type="button" class="samehadaku-modal-tab-btn samehadaku-cookie-tab-btn" id="modalTabCookieBtn" onclick="window.__setLendriveCookiePrompt()" title="Pengaturan Cookie Sesi Lendrive" style="display: none;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                         <span>⚙️ Cookie Lendrive</span>
                     </button>
@@ -405,8 +409,31 @@
         `;
     }
 
+    function setRefreshButtonsSpinning(isSpinning) {
+        document.querySelectorAll('.samehadaku-refresh-icon').forEach(icon => {
+            if (isSpinning) {
+                icon.classList.add('is-spinning');
+            } else {
+                icon.classList.remove('is-spinning');
+            }
+        });
+        document.querySelectorAll('.samehadaku-refresh-tab-btn, .samehadaku-btn-refresh').forEach(btn => {
+            btn.disabled = isSpinning;
+        });
+    }
+
+    window.__refreshCurrentView = function () {
+        if (lastActiveView === 'tracker') {
+            if (typeof loadOngoingTrackerView === 'function') {
+                loadOngoingTrackerView();
+                return;
+            }
+        }
+        loadLatestReleases(1, true);
+    };
+
     window.__retryLendrive = function() {
-        loadLatestReleases(1);
+        loadLatestReleases(1, true);
     };
 
     window.__setLendriveCookiePrompt = async function () {
@@ -433,7 +460,7 @@
             const data = await res.json();
             if (data && data.ok) {
                 alert(val.trim() ? '✓ Cookie Lendrive berhasil disimpan! Memuat ulang rilisan...' : '✓ Cookie Lendrive telah direset.');
-                loadLatestReleases(1);
+                loadLatestReleases(1, true);
             } else {
                 alert(data.error || 'Gagal menyimpan cookie');
             }
@@ -443,13 +470,15 @@
     };
 
     // Muat rilisan anime terbaru dari sumber aktif (Samehadaku vs Lendrive)
-    async function loadLatestReleases(page = 1) {
+    async function loadLatestReleases(page = 1, forceRefresh = false) {
         lastActiveView = 'latest';
         const providerName = currentProvider === 'lendrive' ? 'Lendrive (x265 HEVC)' : 'Samehadaku';
-        showLoading(`Memuat rilisan episode anime terbaru dari ${providerName}...`);
+        setRefreshButtonsSpinning(true);
+        showLoading(`Memuat rilisan episode anime terbaru dari ${providerName}${forceRefresh ? ' (memperbarui data live)...' : ''}...`);
 
         try {
-            const res = await fetch(`/api/${currentProvider}/latest?page=${page}`);
+            const refreshParam = forceRefresh ? '&refresh=1' : '';
+            const res = await fetch(`/api/${currentProvider}/latest?page=${page}${refreshParam}`);
             const data = await res.json();
 
             if (!data.ok || !data.results || data.results.length === 0) {
@@ -465,6 +494,8 @@
             renderLatestReleases(data.results, page);
         } catch (err) {
             showMessage(`Gagal memuat episode terbaru: ${err.message}`, true);
+        } finally {
+            setRefreshButtonsSpinning(false);
         }
     }
 
@@ -494,8 +525,14 @@
                         ${subtitleText}
                     </span>
                 </div>
-                <div class="samehadaku-section-badge">
-                    ${episodes.length} Episode Baru
+                <div class="samehadaku-section-header-actions">
+                    <button type="button" class="samehadaku-btn-refresh" onclick="window.__refreshCurrentView()" title="Segarkan rilis terbaru dari situs (bypass cache)">
+                        <svg class="samehadaku-refresh-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>Segarkan</span>
+                    </button>
+                    <div class="samehadaku-section-badge">
+                        ${episodes.length} Episode Baru
+                    </div>
                 </div>
             </div>
             <div class="samehadaku-latest-grid">
