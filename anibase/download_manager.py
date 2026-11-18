@@ -708,8 +708,8 @@ def _download_worker(
         headers["Range"] = f"bytes={existing_bytes}-"
         app_log(f"Attempting to resume download {task_id} from byte {existing_bytes} via HTTP Range", "INFO")
 
-    downloaded = existing_bytes
-    total = 0
+    downloaded: int = existing_bytes
+    total: int = 0
     start_time = time.time()
     last_speed_check_time = start_time
     bytes_since_last_check = 0
@@ -809,7 +809,7 @@ def _download_worker(
                                 t = _DOWNLOAD_TASKS[task_id]
                                 t["downloaded_bytes"] = downloaded
                                 if total > 0:
-                                    t["progress_percent"] = round((downloaded / total) * 100, 1)
+                                    t["progress_percent"] = round((downloaded / max(1, total)) * 100, 1)
                                 t["speed_bps"] = current_speed
                                 t["updated_at"] = now
 
@@ -822,7 +822,7 @@ def _download_worker(
                     t["speed_bps"] = 0
                     t["downloaded_bytes"] = downloaded
                     if total > 0:
-                        t["progress_percent"] = round((downloaded / total) * 100, 1)
+                        t["progress_percent"] = round((downloaded / max(1, total)) * 100, 1)
                     t["updated_at"] = time.time()
             _process_download_queue()
             return
@@ -914,7 +914,7 @@ def _download_worker(
                 t["speed_bps"] = 0
                 t["downloaded_bytes"] = downloaded
                 if total > 0:
-                    t["progress_percent"] = round((downloaded / total) * 100, 1)
+                    t["progress_percent"] = round((downloaded / max(1, total)) * 100, 1)
                 t["updated_at"] = time.time()
         _process_download_queue()
 
