@@ -539,14 +539,20 @@ def adapt_filename_to_library_pattern(
 
 
 def start_download(
-    url: str,
+    url: str = "",
     anime_name: str = "",
     episode: str = "",
     filename: str = "",
     custom_dest_dir: str = "",
-    provider: str = "samehadaku"
+    provider: str = "samehadaku",
+    **kwargs: Any
 ) -> Dict[str, Any]:
     """Memulai proses pengunduhan berkas di background thread."""
+    if not url and "download_url" in kwargs:
+        url = kwargs.pop("download_url")
+    if not episode and "episode_label" in kwargs:
+        episode = kwargs.pop("episode_label")
+
     clean_url = str(url or "").strip()
     if not clean_url:
         return {"ok": False, "error": "URL unduhan tidak valid atau kosong"}

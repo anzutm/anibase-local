@@ -46,7 +46,7 @@ from anibase.download_manager import (
 def extract_episode_number(raw_value: Any) -> Optional[float]:
     """Mengekstrak nomor episode sebagai float dari string atau nilai numerik.
     
-    Contoh: 'Episode 7' -> 7.0, '08' -> 8.0, '12.5' -> 12.5
+    Contoh: 'Episode 7' -> 7.0, '08' -> 8.0, '12.5' -> 12.5, 'E9' -> 9.0, '...episode-7/' -> 7.0
     """
     if raw_value is None:
         return None
@@ -54,10 +54,33 @@ def extract_episode_number(raw_value: Any) -> Optional[float]:
         return float(raw_value)
     
     s = str(raw_value).strip()
-    m = re.search(r'(?:episode|episodes|eps?|e)?\s*(\d+(?:\.\d+)?)', s, re.IGNORECASE)
+    if not s:
+        return None
+
+    # Jika berupa URL atau path, prioritaskan pencarian episode eksplisit atau segmen slug terakhir
+    if "://" in s or "/" in s or "\\" in s:
+        m_url = re.search(r'(?:episode|episodes|eps?)[-_/\s]*(\d+(?:\.\d+)?)', s, re.IGNORECASE)
+        if m_url:
+            try:
+                return float(m_url.group(1))
+            except (ValueError, TypeError):
+                pass
+        # Ambil komponen path terakhir
+        s = s.rstrip('/\\').split('/')[-1].split('\\')[-1]
+
+    # 1. Coba cari dengan kata kunci episode eksplisit (misal: 'Episode 7', 'ep. 03', 'E9')
+    m = re.search(r'\b(?:episode|episodes|eps?|e)[-_/\s]*(\d+(?:\.\d+)?)', s, re.IGNORECASE)
     if m:
         try:
             return float(m.group(1))
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Coba cari angka mandiri (misal '08', '12.5', dsb)
+    m2 = re.search(r'\b(\d+(?:\.\d+)?)\b', s)
+    if m2:
+        try:
+            return float(m2.group(1))
         except (ValueError, TypeError):
             pass
     return None
@@ -487,11 +510,24 @@ def quick_download_episode_alert(
             "error": "Tidak dapat menemukan tautan unduhan langsung (Pixeldrain/Mediafire) untuk episode ini."
         }
 
+    direct_url = link_info.get("direct_url") or link_info.get("url") or ""
+    if not direct_url:
+        return {
+            "ok": False,
+            "error": "Tautan unduhan langsung kosong atau tidak ditemukan."
+        }
+
+    ep_num = extract_episode_number(episode_url) or ""
+    ep_str = str(ep_num) if ep_num else (link_info.get("quality") or preferred_quality)
+    filename = link_info.get("filename") or f"{anime_name} - {preferred_quality}.mkv"
+    provider = link_info.get("provider") or ("lendrive" if "lendrive.web.id" in episode_url else "samehadaku")
+
     return start_download(
-        download_url=link_info["url"],
-        filename=link_info.get("filename") or f"{anime_name} - {preferred_quality}.mkv",
+        url=direct_url,
         anime_name=anime_name,
-        episode_label=link_info.get("quality") or preferred_quality
+        episode=ep_str,
+        filename=filename,
+        provider=provider
     )
 
 

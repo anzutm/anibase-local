@@ -312,5 +312,44 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         self.assertEqual(data["task"]["task_id"], "dl_quick123")
 
 
+    @patch("anibase.watchlist_tracker.start_download")
+    @patch("anibase.watchlist_tracker.resolve_best_direct_link")
+    def test_quick_download_episode_alert(self, mock_resolve, mock_start):
+        mock_resolve.return_value = {
+            "direct_url": "https://pixeldrain.com/api/file/abc?download",
+            "quality": "1080p",
+            "format": "MKV",
+            "host": "Pixeldrain",
+            "provider": "samehadaku"
+        }
+        mock_start.return_value = {"ok": True, "task": {"task_id": "dl_test_123"}}
+
+        res = quick_download_episode_alert(
+            anime_name="Doumo Suki",
+            episode_url="https://v2.samehadaku.how/doumo-suki-episode-7/",
+            preferred_quality="1080p",
+            preferred_format="MKV"
+        )
+        self.assertTrue(res["ok"])
+        mock_start.assert_called_once_with(
+            url="https://pixeldrain.com/api/file/abc?download",
+            anime_name="Doumo Suki",
+            episode="7.0",
+            filename="Doumo Suki - 1080p.mkv",
+            provider="samehadaku"
+        )
+
+    def test_start_download_keyword_argument_compatibility(self):
+        from anibase.download_manager import start_download
+        # Calling start_download with legacy/alternate kwargs should not throw TypeError
+        res = start_download(
+            download_url="https://example.com/safelink-test",
+            episode_label="Ep 01",
+            anime_name="Test Anime"
+        )
+        self.assertIsInstance(res, dict)
+        self.assertIn("ok", res)
+
+
 if __name__ == "__main__":
     unittest.main()
