@@ -22,6 +22,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.settings-card[id]').forEach(panel => observer.observe(panel));
     links.forEach(link => link.addEventListener('click', () => highlight(link.hash.slice(1))));
 
+    // Interactive Status Grid: smooth scroll & card pulse highlight
+    document.querySelectorAll('.settings-status-card[data-scroll-target]').forEach(card => {
+        card.addEventListener('click', (e) => {
+            const targetId = card.dataset.scrollTarget;
+            if (!targetId) return;
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                e.preventDefault();
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (targetEl.tagName === 'INPUT' || targetEl.tagName === 'SELECT') {
+                    setTimeout(() => targetEl.focus(), 350);
+                }
+                const highlightCard = targetEl.closest('.settings-card') || targetEl;
+                highlightCard.classList.remove('settings-card-highlight');
+                void highlightCard.offsetWidth; // trigger reflow
+                highlightCard.classList.add('settings-card-highlight');
+                setTimeout(() => {
+                    highlightCard.classList.remove('settings-card-highlight');
+                }, 2200);
+
+                const navTargetId = highlightCard.id || targetId;
+                if (navTargetId) highlight(navTargetId);
+            }
+        });
+    });
+
     const status = document.getElementById('settingsSaveStatus');
     const discard = document.getElementById('settingsDiscard');
     const initialTheme = document.documentElement.dataset.theme;

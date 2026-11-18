@@ -97,14 +97,17 @@
 
         <div class="settings-status-grid" aria-label="Settings status">
             {% for item in settings_status_cards %}
-            <div class="settings-status-card is-{{ item.state }}">
+            <a href="#{{ item.target_id or 'settings-library' }}" class="settings-status-card is-{{ item.state }}" data-scroll-target="{{ item.target_id }}" title="Klik untuk membuka pengaturan {{ item.label }}">
                 <span class="settings-status-dot" aria-hidden="true"></span>
-                <div>
-                    <span class="settings-status-label">{{ item.label }}</span>
+                <div class="settings-status-content">
+                    <div class="settings-status-top">
+                        <span class="settings-status-label">{{ item.label }}</span>
+                        <span class="settings-status-action-pill" aria-hidden="true">{{ item.action_hint or 'Lihat' }} &rarr;</span>
+                    </div>
                     <strong>{{ item.text }}</strong>
                     <small>{{ item.detail }}</small>
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
 

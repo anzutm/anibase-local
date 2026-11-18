@@ -425,43 +425,57 @@ def build_settings_status_cards(settings, media_diagnostics=None):
             "label": "Anime Library",
             "state": anime_state,
             "text": anime_text,
-            "detail": anime_detail
+            "detail": anime_detail,
+            "target_id": "settings-library",
+            "action_hint": "Manage Paths"
         },
         {
             "label": "Movie Path",
             "state": movie_state,
             "text": movie_text,
-            "detail": movie_detail
+            "detail": movie_detail,
+            "target_id": "movie_path",
+            "action_hint": "Configure Movies"
         },
         {
             "label": "Player",
             "state": dependency_card_state(vlc_status),
             "text": dependency_card_text(vlc_status, "Available"),
-            "detail": vlc_status["message"]
+            "detail": vlc_status["message"],
+            "target_id": "settings-playback",
+            "action_hint": "Configure Player"
         },
         {
             "label": "Discord",
             "state": discord_state,
             "text": discord_text,
-            "detail": discord_detail
+            "detail": discord_detail,
+            "target_id": "settings-integrations",
+            "action_hint": "Configure RPC"
         },
         {
             "label": "MyAnimeList",
             "state": mal_state,
             "text": mal_text,
-            "detail": mal_detail
+            "detail": mal_detail,
+            "target_id": "settings-myanimelist",
+            "action_hint": "Connect Account" if mal_state != "valid" else "View Sync"
         },
         {
             "label": "Auto Import",
             "state": "valid" if auto_import_enabled else "off",
             "text": "Active" if auto_import_enabled else "Off",
-            "detail": "Download folder scan is active" if auto_import_enabled else "Manual scan still available"
+            "detail": "Download folder scan is active" if auto_import_enabled else "Manual scan still available",
+            "target_id": "settings-automation",
+            "action_hint": "Open Auto Import"
         },
         {
             "label": "LAN Access",
             "state": "valid" if lan_access_enabled else "off",
             "text": "On" if lan_access_enabled else "Off",
-            "detail": "Same-network devices can open the app" if lan_access_enabled else "Only this device can open the app"
+            "detail": "Same-network devices can open the app" if lan_access_enabled else "Only this device can open the app",
+            "target_id": "settings-integrations",
+            "action_hint": "Network Settings"
         }
     ]
 

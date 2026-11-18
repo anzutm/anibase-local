@@ -241,18 +241,116 @@
     padding: 13px 14px;
     border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
     background: color-mix(in srgb, var(--settings-surface) 91%, transparent);
-    transition: border-color .2s ease, background-color .2s ease;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform .22s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color .2s ease,
+                background-color .2s ease,
+                box-shadow .22s ease;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 11px;
+    align-items: start;
+    border-radius: 12px;
+}
+
+.settings-page .settings-status-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--settings-accent) 45%, var(--border));
+    background: color-mix(in srgb, var(--settings-surface) 98%, transparent);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.settings-page .settings-status-card:focus-visible {
+    outline: 2px solid var(--settings-accent);
+    outline-offset: 2px;
 }
 
 .settings-page .settings-status-card.is-valid {
-    border-color: color-mix(in srgb, var(--settings-accent) 20%, var(--border));
+    border-color: color-mix(in srgb, var(--settings-accent) 22%, var(--border));
     background: color-mix(in srgb, var(--settings-accent) 4%, var(--settings-surface));
+}
+
+.settings-page .settings-status-card.is-valid:hover {
+    border-color: var(--settings-accent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--settings-accent) 18%, transparent);
+}
+
+.settings-page .settings-status-card.is-invalid {
+    border-color: rgba(248, 113, 113, 0.28);
+    background: color-mix(in srgb, #ef4444 4%, var(--settings-surface));
+}
+
+.settings-page .settings-status-card.is-invalid:hover {
+    border-color: rgba(248, 113, 113, 0.7);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.18);
+}
+
+.settings-page .settings-status-card.is-invalid .settings-status-dot {
+    background: #f87171;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18);
+}
+
+.settings-page .settings-status-card.is-off {
+    border-color: color-mix(in srgb, var(--border) 60%, transparent);
+    opacity: 0.85;
+}
+
+.settings-page .settings-status-card.is-off:hover {
+    opacity: 1;
+    border-color: var(--text-secondary);
 }
 
 .settings-page .settings-status-card.is-valid .settings-status-dot,
 .settings-page .settings-status-card.is-active .settings-status-dot {
     background: var(--settings-accent);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--settings-accent) 12%, transparent);
+}
+
+.settings-status-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 3px;
+}
+
+.settings-status-action-pill {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--settings-accent);
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity .18s ease, transform .18s ease;
+    white-space: nowrap;
+}
+
+.settings-page .settings-status-card:hover .settings-status-action-pill {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Card highlight pulse when navigated from status card */
+@keyframes settingsPulseHighlight {
+    0% {
+        border-color: var(--settings-accent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--settings-accent) 35%, transparent),
+                    0 20px 48px rgba(0, 0, 0, 0.35);
+    }
+    50% {
+        border-color: var(--settings-accent);
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--settings-accent) 22%, transparent),
+                    0 20px 48px rgba(0, 0, 0, 0.35);
+    }
+    100% {
+        border-color: color-mix(in srgb, var(--border) 78%, transparent);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025), 0 18px 44px rgba(0, 0, 0, .14);
+    }
+}
+
+.settings-card.settings-card-highlight {
+    animation: settingsPulseHighlight 2s ease-out;
 }
 
 .settings-page .settings-status-label {
