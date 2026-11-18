@@ -725,7 +725,11 @@
         const epUrl = decodeURIComponent(encodedEpUrl);
         const title = decodeURIComponent(encodedTitle);
         // Bersihkan kata 'Episode X' atau akhiran tanda hubung dari judul anime agar nama serial bersih
-        const cleanAnime = title.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim();
+        const cleanAnime = title
+            .replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '')
+            .replace(/\s*[-–—]\s*\d{1,4}(?:\.\d+)?\s*$/i, '')
+            .replace(/[\s\-–—]+$/, '')
+            .trim();
         currentAnimeName = cleanAnime || title;
         lastActiveView = 'quick_ep';
 
@@ -998,6 +1002,11 @@
                         </div>
                         <p class="samehadaku-batch-desc">
                             Menyinkronkan semua episode yang belum ada langsung ke folder library anime Anda secara berurutan.
+                            ${currentProvider === 'lendrive' ? `
+                                <span style="display: block; margin-top: 6px; font-size: 11.5px; color: #c084fc; line-height: 1.4;">
+                                    ℹ️ <strong>Catatan Lendrive:</strong> Tautan episode Lendrive umumnya dilindungi safelink iklan (sfe.ad). Unduhan otomatis latar belakang hanya berjalan untuk link direct (Pixeldrain). Untuk episode bersafelink, klik tombol unduh per episode untuk membuka mirror di browser.
+                                </span>
+                            ` : ''}
                         </p>
                         <div class="samehadaku-batch-actions-row">
                             <div class="samehadaku-batch-controls-wrap">
@@ -1340,7 +1349,11 @@
         // Mulai unduhan langsung ke backend AniBase
         const ext = (tier.format || 'mkv').toLowerCase();
         const rawAnime = tier.animeName || currentAnimeName || 'Anime';
-        const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
+        const cleanAnime = rawAnime
+            .replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '')
+            .replace(/\s*[-–—]\s*\d{1,4}(?:\.\d+)?\s*$/i, '')
+            .replace(/[\s\-–—]+$/, '')
+            .trim() || 'Anime';
         const epPadded = tier.epNum ? String(tier.epNum).padStart(2, '0') : '01';
         const filename = provider === 'lendrive'
             ? `[LENDRIVE] ${cleanAnime} - ${epPadded} [${tier.quality} HEVC][DualSubs].${ext}`
@@ -1484,7 +1497,11 @@
         const filename = decodeURIComponent(encodedFilename || '');
         const token = getActionToken();
         const rawAnime = currentAnimeName || 'Anime';
-        const cleanAnime = rawAnime.replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '').replace(/[\s\-–—]+$/, '').trim() || 'Anime';
+        const cleanAnime = rawAnime
+            .replace(/(?:\s*-\s*)?(?:episode|episodes|eps?|e)\s*\d+.*$/i, '')
+            .replace(/\s*[-–—]\s*\d{1,4}(?:\.\d+)?\s*$/i, '')
+            .replace(/[\s\-–—]+$/, '')
+            .trim() || 'Anime';
         const provider = getProviderForUrl(url);
         const epPadded = ep ? String(ep).padStart(2, '0') : '01';
         const finalFilename = filename || (provider === 'lendrive'

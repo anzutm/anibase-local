@@ -102,7 +102,15 @@ class LendriveIntegrationTests(unittest.TestCase):
     def test_clean_lendrive_title(self):
         self.assertEqual(
             clean_lendrive_title("[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs]"),
-            "Doumo Suki - 02"
+            "Doumo Suki"
+        )
+        self.assertEqual(
+            clean_lendrive_title("Psyren – Ep 06 (Dual subs) x265/HEVC"),
+            "Psyren"
+        )
+        self.assertEqual(
+            clean_lendrive_title("Kanojo no Tomodachi (uncen) - Ep 07 (x265 HEVC (DualSubs))"),
+            "Kanojo no Tomodachi (uncen)"
         )
         self.assertEqual(
             clean_lendrive_title("[LENDRIVE] Sousou no Frieren [Batch][x265 HEVC]"),

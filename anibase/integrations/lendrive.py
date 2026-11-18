@@ -73,15 +73,20 @@ def _get_cached_data(cache_key: str) -> Optional[Any]:
 _LAST_LENDRIVE_CHALLENGE = False
 
 
-def is_lendrive_challenge_page(html_text: str) -> bool:
+def is_lendrive_challenge_page(html_text: str, status_code: int = 200) -> bool:
     """Mengecek apakah respon HTML adalah gerbang verifikasi bot/WAF challenge."""
+    if status_code in (403, 503):
+        return True
     if not html_text:
         return False
     low = html_text.lower()
     return (
         "please wait while your request is being verified" in low
         or "<title>one moment, please...</title>" in low
+        or "just a moment..." in low
         or "wsidchk" in low
+        or "wssplashchk" in low
+        or "cf-browser-verification" in low
     )
 
 
@@ -157,6 +162,8 @@ def clean_lendrive_title(raw_title: str) -> str:
     title = re.sub(r'\[(?:LENDRIVE|Dual\s*Subs?|HEVC|x265|1080p|720p|480p|10bit|Batch|BD|BluRay)[^\]]*\]', '', title, flags=re.I)
     # Hapus pola episode spesifik di belakang judul, misal " - Ep 07 (Dual subs)..."
     title = re.sub(r'\s*(?:[-–—]\s*)?(?:Ep|Eps|Episode)\s*[-_.]?\s*\d+(?:\.\d+)?.*$', '', title, flags=re.I)
+    # Hapus pola dash diikuti nomor episode di akhir judul, misal " - 07" atau " – 2"
+    title = re.sub(r'\s*[-–—]\s*\d{1,4}(?:\.\d+)?\s*$', '', title)
     # Hapus suffix umum Lendrive/Samehadaku
     title = re.sub(r'\s*(?:[-–—]\s*)?(?:Dual\s*Subs?|Subtitle\s*Indonesia|Sub\s*Indo|Lendrive|HEVC|x265).*$', '', title, flags=re.I)
     # Hapus sisa kurung buka/strip/simbol di akhir
@@ -335,11 +342,11 @@ def search_lendrive(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str
 
     try:
         response = requests.get(search_url, headers=_get_headers(), timeout=timeout)
+        if is_lendrive_challenge_page(response.text, response.status_code):
+            _LAST_LENDRIVE_CHALLENGE = True
+            app_log(f"Lendrive search received WAF anti-bot verification challenge (HTTP {response.status_code})", "WARN")
+            return []
         if response.status_code == 200:
-            if is_lendrive_challenge_page(response.text):
-                _LAST_LENDRIVE_CHALLENGE = True
-                app_log("Lendrive search received WAF anti-bot verification challenge", "WARN")
-                return []
             _LAST_LENDRIVE_CHALLENGE = False
             results = _parse_lendrive_post_cards(response.text)
         else:
@@ -366,11 +373,11 @@ def get_lendrive_latest_episodes(page: int = 1, timeout: int = DEFAULT_TIMEOUT) 
     results = []
     try:
         response = requests.get(url, headers=_get_headers(), timeout=timeout)
+        if is_lendrive_challenge_page(response.text, response.status_code):
+            _LAST_LENDRIVE_CHALLENGE = True
+            app_log(f"Lendrive latest releases received WAF anti-bot verification challenge (HTTP {response.status_code})", "WARN")
+            return []
         if response.status_code == 200:
-            if is_lendrive_challenge_page(response.text):
-                _LAST_LENDRIVE_CHALLENGE = True
-                app_log("Lendrive latest releases received WAF anti-bot verification challenge", "WARN")
-                return []
             _LAST_LENDRIVE_CHALLENGE = False
             results = _parse_lendrive_post_cards(response.text)
         else:
