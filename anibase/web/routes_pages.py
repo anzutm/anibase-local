@@ -1047,7 +1047,8 @@ def player(anime_name, episode):
         )
 
     episodes = []
-    episode_name_settings = load_settings()
+    settings = load_settings()
+    episode_name_settings = settings
 
     for index, file in enumerate(
         video_files,
