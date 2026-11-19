@@ -578,6 +578,115 @@ class MalScrobbleTests(unittest.TestCase):
             self.assertEqual(res["mal_id"], 32281)
             self.assertEqual(res["total_episodes"], 1)
 
+    def test_token_health_and_info(self):
+        from anibase.integrations.mal import get_mal_token_info
+
+        # 1. Disconnected
+        disconnected_info = get_mal_token_info({})
+        self.assertFalse(disconnected_info["authenticated"])
+        self.assertEqual(disconnected_info["status"], "disconnected")
+        self.assertEqual(disconnected_info["badge_class"], "badge-neutral")
+
+        # 2. Expired token
+        expired_auth = {
+            "access_token": "expired_tok",
+            "expires_at": time.time() - 300,
+            "username": "ExpiredUser"
+        }
+        expired_info = get_mal_token_info(expired_auth)
+        self.assertTrue(expired_info["authenticated"])
+        self.assertTrue(expired_info["is_expired"])
+        self.assertEqual(expired_info["status"], "expired")
+        self.assertEqual(expired_info["badge_class"], "badge-danger")
+
+        # 3. Expiring soon token (< 3 days)
+        soon_auth = {
+            "access_token": "soon_tok",
+            "expires_at": time.time() + 7200,  # 2 hours
+            "username": "SoonUser"
+        }
+        soon_info = get_mal_token_info(soon_auth)
+        self.assertTrue(soon_info["authenticated"])
+        self.assertFalse(soon_info["is_expired"])
+        self.assertEqual(soon_info["status"], "expiring_soon")
+        self.assertEqual(soon_info["badge_class"], "badge-warning")
+
+        # 4. Valid token (> 3 days)
+        valid_auth = {
+            "access_token": "valid_tok",
+            "expires_at": time.time() + 86400 * 20,  # 20 days
+            "username": "ValidUser"
+        }
+        valid_info = get_mal_token_info(valid_auth)
+        self.assertTrue(valid_info["authenticated"])
+        self.assertFalse(valid_info["is_expired"])
+        self.assertEqual(valid_info["status"], "valid")
+        self.assertEqual(valid_info["badge_class"], "badge-success")
+        self.assertGreaterEqual(valid_info["expires_in_days"], 19)
+
+    def test_recent_scrobbles_log(self):
+        from anibase.integrations.mal import record_mal_scrobble, get_recent_mal_scrobbles
+
+        # Pastikan awalnya kosong
+        self.assertEqual(get_recent_mal_scrobbles(), [])
+
+        # Catat 2 scrobble
+        record_mal_scrobble(52991, 1, status="watching", title="Sousou no Frieren")
+        time.sleep(0.01)
+        record_mal_scrobble(52991, 2, status="completed", title="Sousou no Frieren")
+
+        recent = get_recent_mal_scrobbles(limit=10)
+        self.assertEqual(len(recent), 2)
+        # Urutan descending: item kedua yang direkam harus berada di index 0
+        self.assertEqual(recent[0]["ep_num"], 2)
+        self.assertEqual(recent[0]["status"], "completed")
+        self.assertEqual(recent[0]["title"], "Sousou no Frieren")
+        self.assertEqual(recent[1]["ep_num"], 1)
+        self.assertEqual(recent[1]["status"], "watching")
+
+    def test_api_mal_test_connection_and_recent_endpoints(self):
+        from anibase.settings import get_action_token
+        action_token = get_action_token()
+        client = main.app.test_client()
+
+        # 1. Unauthenticated test-connection -> 401
+        res = client.post("/api/mal/test-connection", headers={"X-Action-Token": action_token})
+        self.assertEqual(res.status_code, 401)
+
+        # 2. Authenticated test-connection
+        auth_data = {
+            "access_token": "valid_token_abc",
+            "refresh_token": "valid_refresh_def",
+            "expires_at": time.time() + 86400 * 10,
+            "username": "AnimeLover"
+        }
+        main.save_mal_auth(auth_data)
+
+        mock_profile = {
+            "id": 12345,
+            "name": "AnimeLover",
+            "picture": {"large": "https://cdn.myanimelist.net/images/user.jpg"}
+        }
+
+        with patch("anibase.web.routes_api.fetch_mal_user_profile", return_value=mock_profile), \
+             patch("anibase.web.routes_api.get_valid_mal_token", return_value="valid_token_abc"):
+            res = client.post("/api/mal/test-connection", headers={"X-Action-Token": action_token})
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data["ok"])
+            self.assertTrue(data["valid"])
+            self.assertEqual(data["username"], "AnimeLover")
+            self.assertIn("token_info", data)
+            self.assertEqual(data["token_info"]["status"], "valid")
+
+        # 3. GET recent-scrobbles endpoint
+        res = client.get("/api/mal/recent-scrobbles?limit=5")
+        self.assertEqual(res.status_code, 200)
+        recent_data = res.get_json()
+        self.assertTrue(recent_data["ok"])
+        self.assertIn("scrobbles", recent_data)
+        self.assertIn("pending", recent_data)
+
 
 if __name__ == "__main__":
     unittest.main()

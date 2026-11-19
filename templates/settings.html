@@ -1180,19 +1180,30 @@
                                 {% else %}
                                 <div class="mal-connected-avatar-fallback">MAL</div>
                                 {% endif %}
-                                <div>
-                                    <div class="mal-connected-name">{{ mal_auth.username }}</div>
+                                <div class="mal-connected-details">
+                                    <div class="mal-connected-name-row">
+                                        <span class="mal-connected-name">{{ mal_auth.username }}</span>
+                                        <span class="mal-token-pill {{ mal_token_info.badge_class }}" id="malTokenBadge" title="Token expires at: {{ mal_token_info.expires_at_str }}">
+                                            <span class="mal-token-dot"></span>
+                                            <span id="malTokenStatusText">{{ mal_token_info.status_label }}</span>
+                                        </span>
+                                    </div>
                                     <div class="mal-connected-status">
                                         Connected &bull; Auto-sync active
                                         {% if mal_pending_count and mal_pending_count > 0 %}
-                                        <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; margin-left: 6px;">{{ mal_pending_count }} offline queue pending</span>
+                                        <span class="badge badge-warning" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; margin-left: 6px;">{{ mal_pending_count }} offline queued</span>
                                         {% endif %}
                                     </div>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
+                            <div class="mal-connected-actions">
+                                <button type="button" class="settings-secondary-btn" id="btnTestMalConnection" onclick="testMalConnection()" title="Verify MyAnimeList API token & connection" style="font-size: 0.82rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="mal-spin-icon" style="display:none; animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mal-check-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                    <span class="mal-btn-text">Test Connection</span>
+                                </button>
                                 {% if mal_pending_count and mal_pending_count > 0 %}
-                                <button type="button" class="settings-cleanup-btn" id="malResyncQueueBtn" onclick="resyncMalQueue()" style="font-size: 0.85rem; padding: 6px 12px;">
+                                <button type="button" class="settings-cleanup-btn" id="malResyncQueueBtn" onclick="resyncMalQueue()" style="font-size: 0.82rem; padding: 6px 12px;">
                                     Resync Queue
                                 </button>
                                 {% endif %}
@@ -1201,7 +1212,163 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div id="malTestFeedback" style="display: none; margin-top: 10px; font-size: 0.84rem; padding: 8px 12px; border-radius: 8px;"></div>
+
+                        <div class="mal-activity-box">
+                            <div class="mal-activity-header">
+                                <div>
+                                    <strong style="font-size: 0.88rem; color: var(--settings-text, #f1f5f9); display: inline-flex; align-items: center; gap: 6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                        Recent Scrobbles Log
+                                    </strong>
+                                    <p class="settings-helper" style="margin: 2px 0 0;">Latest watched episodes synchronized to your MyAnimeList account.</p>
+                                </div>
+                                <button type="button" class="settings-text-btn" id="btnRefreshMalScrobbles" onclick="refreshMalRecentScrobbles()" title="Refresh recent scrobbles log" style="font-size: 0.8rem; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--settings-accent, #38bdf8); background: none; border: none; padding: 4px 6px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                    <span>Refresh</span>
+                                </button>
+                            </div>
+
+                            <div id="malRecentScrobblesList" class="mal-scrobbles-list">
+                                {% if mal_recent_scrobbles %}
+                                    {% for item in mal_recent_scrobbles %}
+                                    <div class="mal-scrobble-item">
+                                        <div class="mal-scrobble-info">
+                                            <span class="mal-scrobble-title" title="{{ item.title }}">{{ item.title }}</span>
+                                            <span class="mal-scrobble-meta">Episode {{ item.ep_num if item.ep_num is not none else '?' }} &bull; {{ item.timestamp_str }}</span>
+                                        </div>
+                                        <span class="mal-status-pill mal-status-{{ item.status }}">
+                                            {{ item.status|capitalize }}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="mal-scrobbles-empty">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                        <span>No scrobbles recorded yet. Watched episodes will appear here automatically.</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
                         <script>
+                        function testMalConnection() {
+                            const btn = document.getElementById('btnTestMalConnection');
+                            const feedback = document.getElementById('malTestFeedback');
+                            const spinIcon = btn ? btn.querySelector('.mal-spin-icon') : null;
+                            const checkIcon = btn ? btn.querySelector('.mal-check-icon') : null;
+                            const btnText = btn ? btn.querySelector('.mal-btn-text') : null;
+                            const tokenBadge = document.getElementById('malTokenBadge');
+                            const tokenText = document.getElementById('malTokenStatusText');
+
+                            if (btn) btn.disabled = true;
+                            if (spinIcon) spinIcon.style.display = 'inline-block';
+                            if (checkIcon) checkIcon.style.display = 'none';
+                            if (btnText) btnText.innerText = 'Testing...';
+                            if (feedback) { feedback.style.display = 'none'; }
+
+                            fetch('/api/mal/test-connection', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-Action-Token': document.querySelector('input[name="action_token"]')?.value || ''
+                                }
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ok) {
+                                    if (feedback) {
+                                        feedback.style.display = 'block';
+                                        feedback.style.background = 'rgba(34, 197, 94, 0.12)';
+                                        feedback.style.border = '1px solid rgba(34, 197, 94, 0.35)';
+                                        feedback.style.color = '#4ade80';
+                                        feedback.innerHTML = `<strong>Koneksi Terverifikasi:</strong> ${data.message || 'Token MyAnimeList aktif.'}`;
+                                    }
+                                    if (data.token_info && tokenBadge && tokenText) {
+                                        tokenBadge.className = 'mal-token-pill ' + (data.token_info.badge_class || 'badge-success');
+                                        tokenBadge.title = 'Token expires at: ' + (data.token_info.expires_at_str || '-');
+                                        tokenText.innerText = data.token_info.status_label || 'Aktif';
+                                    }
+                                } else {
+                                    if (feedback) {
+                                        feedback.style.display = 'block';
+                                        feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+                                        feedback.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+                                        feedback.style.color = '#f87171';
+                                        feedback.innerHTML = `<strong>Uji Koneksi Gagal:</strong> ${data.error || 'Gagal memverifikasi token MyAnimeList.'}`;
+                                    }
+                                    if (tokenBadge && tokenText) {
+                                        tokenBadge.className = 'mal-token-pill badge-danger';
+                                        tokenText.innerText = 'Koneksi Bermasalah';
+                                    }
+                                }
+                            })
+                            .catch(err => {
+                                if (feedback) {
+                                    feedback.style.display = 'block';
+                                    feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+                                    feedback.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+                                    feedback.style.color = '#f87171';
+                                    feedback.innerHTML = `<strong>Kesalahan Jaringan:</strong> ${err.message || err}`;
+                                }
+                            })
+                            .finally(() => {
+                                if (btn) btn.disabled = false;
+                                if (spinIcon) spinIcon.style.display = 'none';
+                                if (checkIcon) checkIcon.style.display = 'inline-block';
+                                if (btnText) btnText.innerText = 'Test Connection';
+                            });
+                        }
+
+                        function refreshMalRecentScrobbles() {
+                            const btn = document.getElementById('btnRefreshMalScrobbles');
+                            const container = document.getElementById('malRecentScrobblesList');
+                            if (!container) return;
+
+                            if (btn) btn.disabled = true;
+
+                            fetch('/api/mal/recent-scrobbles?limit=5')
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ok && Array.isArray(data.scrobbles)) {
+                                    if (data.scrobbles.length === 0) {
+                                        container.innerHTML = `
+                                            <div class="mal-scrobbles-empty">
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                <span>No scrobbles recorded yet. Watched episodes will appear here automatically.</span>
+                                            </div>
+                                        `;
+                                    } else {
+                                        container.innerHTML = data.scrobbles.map(item => {
+                                            const safeTitle = (item.title || 'Anime').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+                                            const status = item.status || 'watching';
+                                            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+                                            const epDisplay = (item.ep_num !== null && item.ep_num !== undefined) ? item.ep_num : '?';
+                                            const timeStr = item.timestamp_str || '-';
+                                            return `
+                                                <div class="mal-scrobble-item">
+                                                    <div class="mal-scrobble-info">
+                                                        <span class="mal-scrobble-title" title="${safeTitle}">${safeTitle}</span>
+                                                        <span class="mal-scrobble-meta">Episode ${epDisplay} &bull; ${timeStr}</span>
+                                                    </div>
+                                                    <span class="mal-status-pill mal-status-${status}">
+                                                        ${statusLabel}
+                                                    </span>
+                                                </div>
+                                            `;
+                                        }).join('');
+                                    }
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Failed to refresh MAL scrobbles:', err);
+                            })
+                            .finally(() => {
+                                if (btn) btn.disabled = false;
+                            });
+                        }
+
                         function resyncMalQueue() {
                             const btn = document.getElementById('malResyncQueueBtn');
                             if (btn) { btn.disabled = true; btn.innerText = 'Syncing...'; }

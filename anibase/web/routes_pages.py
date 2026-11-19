@@ -84,6 +84,8 @@ from anibase.integrations.mal import (
     get_mal_user_animelist,
     enrich_mal_list_with_local_library,
     get_pending_scrobbles,
+    get_mal_token_info,
+    get_recent_mal_scrobbles,
 )
 from anibase.scanner import (
     find_anime_path,
@@ -222,6 +224,8 @@ def settings_page():
         sync_busy=request.args.get("sync_busy") == "1",
         diagnostics_refreshed=request.args.get("diagnostics_refreshed") == "1",
         mal_auth=load_mal_auth(),
+        mal_token_info=get_mal_token_info(),
+        mal_recent_scrobbles=get_recent_mal_scrobbles(limit=5),
         mal_connected=request.args.get("mal_connected") == "1",
         mal_disconnected=request.args.get("mal_disconnected") == "1",
         mal_error=request.args.get("mal_error"),

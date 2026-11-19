@@ -79,14 +79,148 @@ def load_mal_scrobble_history():
             return {}
 
 
-def record_mal_scrobble(mal_id, ep_num, status="watching"):
+def record_mal_scrobble(mal_id, ep_num, status="watching", title=None):
     with _constants.MAL_SCROBBLE_LOCK:
         history = load_mal_scrobble_history()
         history[f"{mal_id}_{int(ep_num)}"] = {
             "timestamp": time.time(),
-            "status": status
+            "status": status,
+            "mal_id": int(mal_id) if str(mal_id).isdigit() else mal_id,
+            "ep_num": int(ep_num),
+            "title": title
         }
         atomic_write_json_file(_constants.MAL_SCROBBLE_CACHE, history, "MAL Scrobble History")
+
+
+def get_mal_token_info(auth=None):
+    """Mengembalikan status kesehatan dan masa berlaku token OAuth MyAnimeList."""
+    if auth is None:
+        auth = load_mal_auth()
+
+    if not auth or not auth.get("access_token"):
+        return {
+            "authenticated": False,
+            "status": "disconnected",
+            "status_label": "Tidak Terhubung",
+            "badge_class": "badge-neutral",
+            "expires_at": None,
+            "expires_at_str": "-",
+            "expires_in_days": None,
+            "is_expired": False,
+        }
+
+    raw_expires = auth.get("expires_at", 0)
+    try:
+        expires_at = float(raw_expires)
+    except (ValueError, TypeError):
+        expires_at = 0.0
+
+    if expires_at <= 0:
+        return {
+            "authenticated": True,
+            "status": "unknown",
+            "status_label": "Aktif (Masa berlaku tidak diketahui)",
+            "badge_class": "badge-neutral",
+            "expires_at": None,
+            "expires_at_str": "-",
+            "expires_in_days": None,
+            "is_expired": False,
+        }
+
+    from datetime import datetime
+    try:
+        expires_str = datetime.fromtimestamp(expires_at).strftime("%d %b %Y, %H:%M")
+    except Exception:
+        expires_str = "-"
+
+    remaining = expires_at - time.time()
+    if remaining <= 0:
+        return {
+            "authenticated": True,
+            "status": "expired",
+            "status_label": "Token Kadaluarsa",
+            "badge_class": "badge-danger",
+            "expires_at": expires_at,
+            "expires_at_str": expires_str,
+            "expires_in_days": 0,
+            "is_expired": True,
+        }
+    elif remaining < 86400 * 3:
+        hours = max(1, int(remaining // 3600))
+        return {
+            "authenticated": True,
+            "status": "expiring_soon",
+            "status_label": f"Kadaluarsa dlm {hours} jam",
+            "badge_class": "badge-warning",
+            "expires_at": expires_at,
+            "expires_at_str": expires_str,
+            "expires_in_days": int(remaining // 86400),
+            "is_expired": False,
+        }
+    else:
+        days = int(remaining // 86400)
+        return {
+            "authenticated": True,
+            "status": "valid",
+            "status_label": f"Aktif ({days} hari tersisa)",
+            "badge_class": "badge-success",
+            "expires_at": expires_at,
+            "expires_at_str": expires_str,
+            "expires_in_days": days,
+            "is_expired": False,
+        }
+
+
+def get_recent_mal_scrobbles(limit=10):
+    """Mengambil daftar riwayat scrobble MyAnimeList terbaru, diurutkan descending."""
+    history = load_mal_scrobble_history()
+    if not history or not isinstance(history, dict):
+        return []
+
+    from datetime import datetime
+    records = []
+    for key, val in history.items():
+        if not isinstance(val, dict):
+            continue
+        raw_ts = val.get("timestamp", 0)
+        try:
+            ts = float(raw_ts)
+            dt_str = datetime.fromtimestamp(ts).strftime("%d %b %Y, %H:%M") if ts > 0 else "-"
+        except Exception:
+            ts = 0.0
+            dt_str = "-"
+
+        mal_id = val.get("mal_id")
+        ep_num = val.get("ep_num")
+        if mal_id is None or ep_num is None:
+            parts = str(key).split("_")
+            if len(parts) >= 2:
+                if mal_id is None and parts[0].isdigit():
+                    mal_id = int(parts[0])
+                if ep_num is None:
+                    try:
+                        ep_num = int(parts[1])
+                    except ValueError:
+                        ep_num = parts[1]
+
+        title = val.get("title")
+        if not title:
+            title = f"MAL Anime #{mal_id}" if mal_id else "Anime"
+
+        status = str(val.get("status") or "watching").strip().lower()
+
+        records.append({
+            "key": key,
+            "mal_id": mal_id,
+            "ep_num": ep_num,
+            "title": title,
+            "status": status,
+            "timestamp": ts,
+            "timestamp_str": dt_str,
+        })
+
+    records.sort(key=lambda r: r["timestamp"], reverse=True)
+    return records[:max(1, int(limit))]
 
 
 def clear_mal_scrobble_record(anime_name, episode):
@@ -818,7 +952,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
 
     if was_completed_before:
         if rewatch_mode == "ignore":
-            record_mal_scrobble(mal_id, ep_num, "completed")
+            record_mal_scrobble(mal_id, ep_num, "completed", title=metadata_name or anime_name)
             app_log(f"Scrobble skipped for {metadata_name} Ep {ep_num}: anime is already completed on MAL (rewatch_mode=ignore).", "INFO")
             return {"ok": True, "already_completed": True, "mal_id": mal_id, "ep_num": int(ep_num), "status": "completed"}
         elif rewatch_mode == "rewatch":
@@ -851,7 +985,7 @@ def scrobble_episode_to_mal(anime_name, episode, ep_num=None, force=False, allow
                         "cached_at": time.time(),
                         "data": resp.json()
                     }
-                record_mal_scrobble(mal_id, ep_num, mal_status)
+                record_mal_scrobble(mal_id, ep_num, mal_status, title=metadata_name or anime_name)
                 rewatch_label = " (Rewatching)" if (was_completed_before and mal_status == "completed" and not is_final_episode) else ""
                 app_log(f"Scrobbled {metadata_name} Ep {ep_num} ({mal_status}{rewatch_label}) to MyAnimeList successfully.", "INFO")
                 return {

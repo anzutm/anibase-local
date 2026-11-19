@@ -195,6 +195,9 @@ from anibase.integrations.mal import (
     flush_pending_scrobbles,
     get_user_anime_review,
     save_user_anime_review,
+    get_valid_mal_token,
+    get_mal_token_info,
+    get_recent_mal_scrobbles,
 )
 from anibase.integrations.discord import (
     start_external_discord_presence,
@@ -1965,6 +1968,7 @@ def mal_status():
     settings = load_settings()
     is_authed = bool(auth.get("access_token"))
     pending_list = get_pending_scrobbles(limit=100) if is_authed else []
+    token_info = get_mal_token_info(auth)
     return jsonify({
         "status": "success",
         "connected": is_authed,
@@ -1975,6 +1979,59 @@ def mal_status():
         "rewatch_mode": settings.get("mal_rewatch_mode", "ignore"),
         "client_id_configured": bool(get_effective_mal_client_id(settings)),
         "pending_scrobbles": len(pending_list),
+        "token_info": token_info,
+    })
+
+
+@host_only
+@require_action_token
+def mal_test_connection():
+    if not is_mal_authenticated():
+        return jsonify({"ok": False, "error": "Not authenticated with MyAnimeList"}), 401
+
+    token = get_valid_mal_token()
+    if not token:
+        return jsonify({
+            "ok": False,
+            "error": "Gagal memperoleh atau memperbarui token akses MyAnimeList. Coba hubungkan ulang akun."
+        }), 400
+
+    profile = fetch_mal_user_profile(token)
+    auth = load_mal_auth()
+    if profile and isinstance(profile, dict):
+        name = profile.get("name")
+        pic_obj = profile.get("picture")
+        pic_url = pic_obj.get("large") if isinstance(pic_obj, dict) else (pic_obj if isinstance(pic_obj, str) else None)
+        if name:
+            auth["username"] = name
+        if pic_url:
+            auth["picture"] = pic_url
+        save_mal_auth(auth)
+
+    token_info = get_mal_token_info(auth)
+    return jsonify({
+        "ok": True,
+        "valid": True,
+        "username": auth.get("username", "User"),
+        "token_info": token_info,
+        "message": "Koneksi ke MyAnimeList aktif & token berhasil diverifikasi!"
+    })
+
+
+@host_only
+def mal_recent_scrobbles():
+    limit_str = request.args.get("limit", "10")
+    try:
+        limit = min(50, max(1, int(limit_str)))
+    except (ValueError, TypeError):
+        limit = 10
+
+    scrobbles = get_recent_mal_scrobbles(limit=limit)
+    pending = get_pending_scrobbles(limit=10)
+    return jsonify({
+        "ok": True,
+        "scrobbles": scrobbles,
+        "pending": pending
     })
 
 
@@ -3254,6 +3311,8 @@ def register_api_routes(app):
     app.add_url_rule("/api/mal/update-progress", endpoint="mal_update_progress", view_func=mal_update_progress, methods=["POST"])
     app.add_url_rule("/api/mal/rate-review", endpoint="api_mal_rate_review", view_func=api_mal_rate_review, methods=["POST"])
     app.add_url_rule("/api/mal/resync-pending", endpoint="mal_resync_pending", view_func=mal_resync_pending, methods=["POST"])
+    app.add_url_rule("/api/mal/test-connection", endpoint="mal_test_connection", view_func=mal_test_connection, methods=["POST"])
+    app.add_url_rule("/api/mal/recent-scrobbles", endpoint="mal_recent_scrobbles", view_func=mal_recent_scrobbles, methods=["GET"])
     app.add_url_rule("/play/<anime_name>/<path:episode>", endpoint="play_episode", view_func=play_episode, methods=["POST"])
     app.add_url_rule("/screenshot", endpoint="save_screenshot", view_func=save_screenshot, methods=["POST"])
     app.add_url_rule("/update_progress", endpoint="update_progress", view_func=update_progress, methods=["POST"])

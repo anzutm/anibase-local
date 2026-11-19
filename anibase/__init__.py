@@ -201,6 +201,8 @@ from anibase.integrations import (
     flush_pending_scrobbles,
     scrobble_episode_to_mal,
     trigger_mal_scrobble_if_enabled,
+    get_mal_token_info,
+    get_recent_mal_scrobbles,
     reset_discord_rpc,
     get_discord_rpc_client,
     update_discord_rpc,
