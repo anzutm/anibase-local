@@ -128,43 +128,56 @@
                                 <label class="settings-label">Anime Library Paths</label>
                                 <p class="settings-helper">Add every root folder that contains anime folders.</p>
                             </div>
-                            <button
-                                class="settings-add-path-btn"
-                                type="button"
-                                id="addLibraryPath"
-                            >
-                                Add Path
-                            </button>
+                            <div class="settings-path-head-actions">
+                                <button
+                                    class="settings-add-path-btn settings-check-paths-btn"
+                                    type="button"
+                                    id="validateLibraryPathsBtn"
+                                    title="Periksa status validasi dan kapasitas drive folder"
+                                >
+                                    Check Paths
+                                </button>
+                                <button
+                                    class="settings-add-path-btn"
+                                    type="button"
+                                    id="addLibraryPath"
+                                >
+                                    Add Path
+                                </button>
+                            </div>
                         </div>
 
                         <div class="settings-path-list" id="libraryPathList">
                             {% set library_paths = settings.library_paths if settings.library_paths else [''] %}
                             {% for path in library_paths %}
-                            <div class="settings-path-row">
-                                <input
-                                    class="settings-input settings-path-input"
-                                    id="library_path_{{ loop.index0 }}"
-                                    type="text"
-                                    name="library_paths"
-                                    value="{{ path }}"
-                                    autocomplete="off"
-                                    placeholder="D:/Anime/Library"
-                                >
-                                <button
-                                    class="settings-browse-btn"
-                                    type="button"
-                                    data-picker="folder"
-                                    data-target="library_path_{{ loop.index0 }}"
-                                >
-                                    Browse Folder
-                                </button>
-                                <button
-                                    class="settings-remove-path-btn"
-                                    type="button"
-                                    aria-label="Remove library path"
-                                >
-                                    Remove
-                                </button>
+                            <div class="settings-path-item" data-path-item>
+                                <div class="settings-path-row">
+                                    <input
+                                        class="settings-input settings-path-input"
+                                        id="library_path_{{ loop.index0 }}"
+                                        type="text"
+                                        name="library_paths"
+                                        value="{{ path }}"
+                                        autocomplete="off"
+                                        placeholder="D:/Anime/Library"
+                                    >
+                                    <button
+                                        class="settings-browse-btn"
+                                        type="button"
+                                        data-picker="folder"
+                                        data-target="library_path_{{ loop.index0 }}"
+                                    >
+                                        Browse Folder
+                                    </button>
+                                    <button
+                                        class="settings-remove-path-btn"
+                                        type="button"
+                                        aria-label="Remove library path"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                                <div class="settings-path-feedback" id="library_path_{{ loop.index0 }}_feedback" aria-live="polite"></div>
                             </div>
                             {% endfor %}
                         </div>
@@ -173,23 +186,27 @@
                     <div class="settings-field">
                         <label class="settings-label" for="movie_path">Movie Path</label>
                         <p class="settings-helper">Movie collection folder used by the Movies page.</p>
-                        <div class="settings-input-row">
-                            <input
-                                class="settings-input settings-path-input"
-                                id="movie_path"
-                                type="text"
-                                name="movie_path"
-                                value="{{ settings.movie_path }}"
-                                autocomplete="off"
-                            >
-                            <button
-                                class="settings-browse-btn"
-                                type="button"
-                                data-picker="folder"
-                                data-target="movie_path"
-                            >
-                                Browse Folder
-                            </button>
+                        <div class="settings-path-item" data-path-item>
+                            <div class="settings-input-row">
+                                <input
+                                    class="settings-input settings-path-input"
+                                    id="movie_path"
+                                    type="text"
+                                    name="movie_path"
+                                    value="{{ settings.movie_path }}"
+                                    autocomplete="off"
+                                    placeholder="D:/Movies"
+                                >
+                                <button
+                                    class="settings-browse-btn"
+                                    type="button"
+                                    data-picker="folder"
+                                    data-target="movie_path"
+                                >
+                                    Browse Folder
+                                </button>
+                            </div>
+                            <div class="settings-path-feedback" id="movie_path_feedback" aria-live="polite"></div>
                         </div>
                     </div>
                 </section>
@@ -1047,7 +1064,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const autoImportResolveTarget = document.getElementById('autoImportResolveTarget');
     const autoImportResolveMapping = document.getElementById('autoImportResolveMapping');
     const autoImportClearAllBtn = document.getElementById('autoImportClearAllBtn');
+    const validateLibraryPathsBtn = document.getElementById('validateLibraryPathsBtn');
+    const moviePathInput = document.getElementById('movie_path');
     let libraryPathIndex = libraryPathList ? libraryPathList.querySelectorAll('.settings-path-row').length : 0;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
     function showPickerMessage(text, isError) {
         if (!message) {
@@ -1065,38 +1094,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const index = libraryPathIndex;
         libraryPathIndex += 1;
-        const row = document.createElement('div');
-        row.className = 'settings-path-row';
-        row.innerHTML = `
-            <input
-                class="settings-input settings-path-input"
-                id="library_path_${index}"
-                type="text"
-                name="library_paths"
-                value=""
-                autocomplete="off"
-                placeholder="D:/Anime/Library"
-            >
-            <button
-                class="settings-browse-btn"
-                type="button"
-                data-picker="folder"
-                data-target="library_path_${index}"
-            >
-                Browse Folder
-            </button>
-            <button
-                class="settings-remove-path-btn"
-                type="button"
-                aria-label="Remove library path"
-            >
-                Remove
-            </button>
+        const item = document.createElement('div');
+        item.className = 'settings-path-item';
+        item.setAttribute('data-path-item', '');
+        item.innerHTML = `
+            <div class="settings-path-row">
+                <input
+                    class="settings-input settings-path-input"
+                    id="library_path_${index}"
+                    type="text"
+                    name="library_paths"
+                    value=""
+                    autocomplete="off"
+                    placeholder="D:/Anime/Library"
+                >
+                <button
+                    class="settings-browse-btn"
+                    type="button"
+                    data-picker="folder"
+                    data-target="library_path_${index}"
+                >
+                    Browse Folder
+                </button>
+                <button
+                    class="settings-remove-path-btn"
+                    type="button"
+                    aria-label="Remove library path"
+                >
+                    Remove
+                </button>
+            </div>
+            <div class="settings-path-feedback" id="library_path_${index}_feedback" aria-live="polite"></div>
         `;
-        row.querySelector('input').value = value;
-        libraryPathList.appendChild(row);
+        item.querySelector('input').value = value;
+        libraryPathList.appendChild(item);
         updateLibraryPathRemoveButtons();
         refreshAutoImportDestinationOptions();
+        schedulePathValidation(50);
     }
 
     function updateLibraryPathRemoveButtons() {
@@ -1151,6 +1185,164 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    let validatePathsTimeout = null;
+    function schedulePathValidation(delay = 400) {
+        if (validatePathsTimeout) clearTimeout(validatePathsTimeout);
+        validatePathsTimeout = setTimeout(() => {
+            validateAllConfiguredPaths();
+        }, delay);
+    }
+
+    function renderPathFeedback(container, info, isMovie = false) {
+        if (!container) return;
+        container.dataset.validated = '1';
+
+        if (!info || info.status === 'empty' || !info.path) {
+            container.innerHTML = '';
+            delete container.dataset.validated;
+            return;
+        }
+
+        let iconSvg = '';
+        let statusClass = 'is-valid';
+        let mainBadge = 'Terverifikasi';
+        let bodyText = info.message || '';
+        let warningHtml = '';
+
+        if (info.status === 'not_found') {
+            statusClass = 'is-invalid';
+            mainBadge = 'Tidak Ditemukan';
+            iconSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+            bodyText = 'Folder tidak ditemukan di disk atau drive belum terhubung.';
+        } else if (info.status === 'not_dir') {
+            statusClass = 'is-invalid';
+            mainBadge = 'Bukan Direktori';
+            iconSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+            bodyText = 'Path ini mengarah ke file, bukan folder direktori.';
+        } else if (info.status === 'unreadable') {
+            statusClass = 'is-invalid';
+            mainBadge = 'Akses Ditolak';
+            iconSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+        } else {
+            // Valid directory
+            iconSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+            mainBadge = 'Terverifikasi';
+        }
+
+        if (info.is_duplicate) {
+            statusClass = 'is-warning';
+            warningHtml = `<div class="path-warning-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${escapeHtml(info.warning || 'Peringatan: Path ini terdaftar lebih dari satu kali')}</div>`;
+        } else if (info.is_nested) {
+            statusClass = 'is-warning';
+            warningHtml = `<div class="path-warning-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ${escapeHtml(info.warning || 'Peringatan Folder Bersarang')}</div>`;
+        }
+
+        container.innerHTML = `
+            <div class="path-feedback-card ${statusClass}">
+                <div class="path-feedback-main">
+                    <span class="path-badge ${statusClass}">${iconSvg} ${mainBadge}</span>
+                    <span class="path-feedback-detail">${escapeHtml(bodyText)}</span>
+                </div>
+                ${warningHtml}
+            </div>
+        `;
+    }
+
+    async function validateAllConfiguredPaths() {
+        const libraryInputs = Array.from(document.querySelectorAll('#libraryPathList input[name="library_paths"]'));
+        const movieInput = document.getElementById('movie_path');
+
+        const libraryPaths = libraryInputs.map(input => input.value.trim());
+        const moviePath = movieInput ? movieInput.value.trim() : '';
+
+        // Tampilkan state checking jika ada path terisi
+        libraryInputs.forEach((input) => {
+            const feedbackEl = input.closest('.settings-path-item')?.querySelector('.settings-path-feedback') ||
+                               document.getElementById(`${input.id}_feedback`);
+            if (!feedbackEl) return;
+            if (input.value.trim()) {
+                if (!feedbackEl.dataset.validated) {
+                    feedbackEl.innerHTML = `<span class="path-status is-checking"><span class="path-spinner"></span> Memeriksa folder...</span>`;
+                }
+            } else {
+                feedbackEl.innerHTML = '';
+                delete feedbackEl.dataset.validated;
+            }
+        });
+
+        if (movieInput) {
+            const movieFeedback = document.getElementById('movie_path_feedback');
+            if (movieFeedback) {
+                if (moviePath) {
+                    if (!movieFeedback.dataset.validated) {
+                        movieFeedback.innerHTML = `<span class="path-status is-checking"><span class="path-spinner"></span> Memeriksa folder...</span>`;
+                    }
+                } else {
+                    movieFeedback.innerHTML = '';
+                    delete movieFeedback.dataset.validated;
+                }
+            }
+        }
+
+        if (validateLibraryPathsBtn) {
+            validateLibraryPathsBtn.disabled = true;
+            validateLibraryPathsBtn.innerHTML = `<span class="path-spinner"></span> Checking...`;
+        }
+
+        try {
+            const actionToken = window.ANIBASE_ACTION_TOKEN || document.querySelector('input[name="action_token"]')?.value || '';
+            const response = await fetch('/api/settings/validate-paths', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AniBase-Action-Token': actionToken,
+                    'X-Action-Token': actionToken
+                },
+                body: JSON.stringify({
+                    library_paths: libraryPaths,
+                    movie_path: moviePath
+                })
+            });
+
+            if (!response.ok) return;
+            const data = await response.json();
+            if (!data.ok) return;
+
+            // Render hasil validasi library paths
+            if (Array.isArray(data.library_results)) {
+                data.library_results.forEach((res, i) => {
+                    const input = libraryInputs[i];
+                    if (!input) return;
+                    const feedbackEl = input.closest('.settings-path-item')?.querySelector('.settings-path-feedback') ||
+                                       document.getElementById(`${input.id}_feedback`);
+                    if (!feedbackEl) return;
+                    renderPathFeedback(feedbackEl, res, false);
+                });
+            }
+
+            // Render hasil validasi movie path
+            if (movieInput && data.movie_result) {
+                const movieFeedback = document.getElementById('movie_path_feedback');
+                if (movieFeedback) {
+                    renderPathFeedback(movieFeedback, data.movie_result, true);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to validate library paths:', err);
+        } finally {
+            if (validateLibraryPathsBtn) {
+                validateLibraryPathsBtn.disabled = false;
+                validateLibraryPathsBtn.textContent = 'Check Paths';
+            }
+        }
+    }
+
+    if (validateLibraryPathsBtn) {
+        validateLibraryPathsBtn.addEventListener('click', function() {
+            validateAllConfiguredPaths();
+        });
+    }
+
     if (addLibraryPath) {
         addLibraryPath.addEventListener('click', function() {
             createLibraryPathRow();
@@ -1162,26 +1354,43 @@ document.addEventListener('DOMContentLoaded', function() {
             const removeButton = event.target.closest('.settings-remove-path-btn');
             if (!removeButton) return;
 
-            const rows = libraryPathList.querySelectorAll('.settings-path-row');
-            if (rows.length <= 1) {
-                const input = rows[0]?.querySelector('input');
+            const items = libraryPathList.querySelectorAll('.settings-path-item, .settings-path-row');
+            if (items.length <= 1) {
+                const input = items[0]?.querySelector('input');
                 if (input) input.value = '';
+                const feedbackEl = items[0]?.querySelector('.settings-path-feedback');
+                if (feedbackEl) feedbackEl.innerHTML = '';
                 refreshAutoImportDestinationOptions();
+                schedulePathValidation(50);
                 return;
             }
 
-            removeButton.closest('.settings-path-row')?.remove();
+            const itemToRemove = removeButton.closest('.settings-path-item') || removeButton.closest('.settings-path-row');
+            itemToRemove?.remove();
             updateLibraryPathRemoveButtons();
             refreshAutoImportDestinationOptions();
+            schedulePathValidation(50);
         });
+
         libraryPathList.addEventListener('input', function(event) {
             if (event.target.matches('input[name="library_paths"]')) {
                 refreshAutoImportDestinationOptions();
+                schedulePathValidation(400);
             }
         });
+
         updateLibraryPathRemoveButtons();
         refreshAutoImportDestinationOptions();
     }
+
+    if (moviePathInput) {
+        moviePathInput.addEventListener('input', function() {
+            schedulePathValidation(400);
+        });
+    }
+
+    // Jalankan validasi awal saat halaman Settings dimuat
+    schedulePathValidation(150);
 
     function updateAutoImportMappingRemoveButtons() {
         if (!autoImportMappingList) return;

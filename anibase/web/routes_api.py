@@ -384,7 +384,8 @@ def update_settings():
     else:
         effective_shortcuts = normalize_shortcuts(existing_settings.get("shortcuts"))
 
-    settings = {
+    settings = dict(existing_settings)
+    settings.update({
         "setup_completed": True,
         "library_paths": library_paths,
         "watchlist_path": library_paths[0] if library_paths else "",
@@ -440,7 +441,7 @@ def update_settings():
         "desktop_minimize_to_tray": "desktop_minimize_to_tray" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_minimize_to_tray", True),
         "desktop_start_minimized": "desktop_start_minimized" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_start_minimized", False),
         "desktop_window": existing_settings.get("desktop_window", {})
-    }
+    })
 
     if settings["theme_preset"] not in THEME_PRESETS:
         settings["theme_preset"] = "dark-blue"
@@ -599,6 +600,212 @@ def pick_settings_folder():
 @require_action_token
 def pick_settings_file():
     return pick_windows_path("file")
+
+
+def inspect_folder_path(path_str: str, is_movie: bool = False) -> dict:
+    """Memeriksa keberadaan folder, jumlah subfolder anime/video, dan sisa kapasitas disk."""
+    raw = str(path_str or "").strip()
+    if not raw:
+        return {
+            "path": raw,
+            "status": "empty",
+            "exists": False,
+            "is_dir": False,
+            "message": "Path belum diatur"
+        }
+
+    clean_p = os.path.expanduser(raw)
+    if not os.path.exists(clean_p):
+        return {
+            "path": raw,
+            "status": "not_found",
+            "exists": False,
+            "is_dir": False,
+            "message": "Folder tidak ditemukan di disk atau drive belum terhubung"
+        }
+
+    if not os.path.isdir(clean_p):
+        return {
+            "path": raw,
+            "status": "not_dir",
+            "exists": True,
+            "is_dir": False,
+            "message": "Path mengarah ke berkas, bukan folder direktori"
+        }
+
+    subfolders = 0
+    videos = 0
+    try:
+        with os.scandir(clean_p) as it:
+            for entry in it:
+                if entry.name.startswith(('.', '$')):
+                    continue
+                if entry.is_dir():
+                    subfolders += 1
+                elif entry.is_file():
+                    ext = os.path.splitext(entry.name)[1].lower()
+                    if ext in VIDEO_EXTENSIONS:
+                        videos += 1
+    except Exception as e:
+        return {
+            "path": raw,
+            "status": "unreadable",
+            "exists": True,
+            "is_dir": True,
+            "message": f"Tidak dapat membaca isi folder: {e}"
+        }
+
+    free_label = ""
+    free_gb = 0.0
+    total_gb = 0.0
+    try:
+        usage = shutil.disk_usage(clean_p)
+        free_gb = round(usage.free / (1024 ** 3), 1)
+        total_gb = round(usage.total / (1024 ** 3), 1)
+        free_label = f"{free_gb} GB free / {total_gb} GB"
+    except Exception:
+        pass
+
+    if is_movie:
+        if videos > 0:
+            count_label = f"{videos} berkas film"
+        elif subfolders > 0:
+            count_label = f"{subfolders} folder film"
+        else:
+            count_label = "Folder kosong (0 film)"
+    else:
+        if subfolders > 0:
+            count_label = f"{subfolders} folder anime"
+        elif videos > 0:
+            count_label = f"{videos} berkas video langsung"
+        else:
+            count_label = "Folder kosong (0 anime)"
+
+    full_message = f"{count_label}" + (f" • {free_label}" if free_label else "")
+
+    return {
+        "path": raw,
+        "status": "valid",
+        "exists": True,
+        "is_dir": True,
+        "subfolders": subfolders,
+        "videos": videos,
+        "free_gb": free_gb,
+        "total_gb": total_gb,
+        "free_label": free_label,
+        "count_label": count_label,
+        "message": full_message
+    }
+
+
+def analyze_path_hierarchy(paths: list) -> dict:
+    """Mendeteksi duplikasi dan hubungan nested (induk-anak) antar path."""
+    results = {}
+    normalized_list = []
+    seen = {}
+
+    for idx, p in enumerate(paths):
+        s = str(p or "").strip()
+        if not s:
+            continue
+        try:
+            norm = os.path.abspath(os.path.normcase(os.path.normpath(os.path.expanduser(s))))
+        except Exception:
+            norm = s.lower()
+
+        if norm in seen:
+            results[idx] = {
+                "is_duplicate": True,
+                "warning": "Peringatan: Path ini terdaftar lebih dari satu kali (duplikat)."
+            }
+        else:
+            seen[norm] = idx
+            normalized_list.append((idx, s, norm))
+
+    for idx_a, raw_a, norm_a in normalized_list:
+        for idx_b, raw_b, norm_b in normalized_list:
+            if idx_a != idx_b:
+                try:
+                    rel = os.path.relpath(norm_a, norm_b)
+                    if not rel.startswith("..") and rel != ".":
+                        results[idx_a] = {
+                            "is_nested": True,
+                            "parent_path": raw_b,
+                            "warning": f"Peringatan Folder Bersarang: Folder ini berada di dalam '{raw_b}'. Dapat menyebabkan pemindaian ganda."
+                        }
+                        break
+                except ValueError:
+                    pass
+    return results
+
+
+@host_only
+def api_settings_validate_paths():
+    """Memvalidasi keberadaan, kapasitas penyimpanan, dan relasi folder library / movie."""
+    data = {}
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.values.to_dict()
+
+    raw_library_paths = data.get("library_paths", [])
+    if isinstance(raw_library_paths, str):
+        try:
+            raw_library_paths = json.loads(raw_library_paths)
+        except Exception:
+            raw_library_paths = [p.strip() for p in raw_library_paths.split(",") if p.strip()]
+
+    raw_movie_path = str(data.get("movie_path", "")).strip()
+
+    library_results = []
+    for p in raw_library_paths:
+        res = inspect_folder_path(p, is_movie=False)
+        library_results.append(res)
+
+    hierarchy_info = analyze_path_hierarchy(raw_library_paths)
+    for idx, extra in hierarchy_info.items():
+        if idx < len(library_results):
+            if extra.get("is_duplicate"):
+                library_results[idx]["is_duplicate"] = True
+                library_results[idx]["warning"] = extra.get("warning")
+            if extra.get("is_nested"):
+                library_results[idx]["is_nested"] = True
+                library_results[idx]["parent_path"] = extra.get("parent_path")
+                library_results[idx]["warning"] = extra.get("warning")
+
+    movie_result = inspect_folder_path(raw_movie_path, is_movie=True)
+    if raw_movie_path and movie_result.get("exists"):
+        try:
+            movie_norm = os.path.abspath(os.path.normcase(os.path.normpath(os.path.expanduser(raw_movie_path))))
+            for p in raw_library_paths:
+                s = str(p or "").strip()
+                if s and os.path.exists(s):
+                    lib_norm = os.path.abspath(os.path.normcase(os.path.normpath(os.path.expanduser(s))))
+                    rel = os.path.relpath(movie_norm, lib_norm)
+                    if not rel.startswith("..") and rel != ".":
+                        movie_result["is_nested"] = True
+                        movie_result["parent_path"] = s
+                        movie_result["warning"] = f"Peringatan: Movie Path berada di dalam Anime Library ('{s}'). Sebaiknya gunakan folder terpisah."
+                        break
+        except Exception:
+            pass
+
+    return jsonify({
+        "ok": True,
+        "library_results": library_results,
+        "movie_result": movie_result
+    })
+
+
+@host_only
+def api_settings_validate_path():
+    """Validasi cepat satu path (berguna saat user mengetik)."""
+    data = request.get_json(silent=True) or {}
+    path_val = request.args.get("path") or data.get("path", "")
+    is_movie = request.args.get("is_movie") in {"1", "true", "True"} or bool(data.get("is_movie"))
+    res = inspect_folder_path(path_val, is_movie=is_movie)
+    res["ok"] = True
+    return jsonify(res)
 
 
 def schedule_alerts():
@@ -2734,6 +2941,8 @@ def register_api_routes(app):
     app.add_url_rule("/settings/cleanup-cache", endpoint="cleanup_cache_settings", view_func=cleanup_cache_settings, methods=["POST"])
     app.add_url_rule("/settings/pick-folder", endpoint="pick_settings_folder", view_func=pick_settings_folder, methods=["POST"])
     app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file, methods=["POST"])
+    app.add_url_rule("/api/settings/validate-paths", endpoint="api_settings_validate_paths", view_func=api_settings_validate_paths, methods=["GET", "POST"])
+    app.add_url_rule("/api/settings/validate-path", endpoint="api_settings_validate_path", view_func=api_settings_validate_path, methods=["GET", "POST"])
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)
