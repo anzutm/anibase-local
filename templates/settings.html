@@ -52,8 +52,12 @@
         {% endif %}
 
         {% if cache_cleaned %}
-        <div class="settings-success">
-            Orphan cache cleaned. Removed {{ cache_removed_files }} files, {{ cache_removed_dirs }} folders, and {{ cache_removed_watch_entries }} watch entries. Skipped {{ cache_skipped }} item{% if cache_skipped != '1' %}s{% endif %}.
+        <div class="settings-success" id="maintenanceAlertBanner">
+            {% if request.args.get('cache_msg') %}
+                {{ request.args.get('cache_msg') }}
+            {% else %}
+                Orphan cache cleaned. Removed {{ cache_removed_files }} files, {{ cache_removed_dirs }} folders, and {{ cache_removed_watch_entries }} watch entries. Skipped {{ cache_skipped }} item{% if cache_skipped != '1' %}s{% endif %}.
+            {% endif %}
         </div>
         {% endif %}
 
@@ -1462,25 +1466,128 @@
                         </details>
                     </section>
 
-                    <section class="settings-card settings-card-compact settings-card--danger settings-maintenance-card" id="settings-maintenance">
+                    <section class="settings-card settings-card--danger settings-maintenance-card" id="settings-maintenance">
                         <div class="settings-card-head">
-                            <span class="settings-kicker">Maintenance</span>
-                            <h3>Cache Maintenance</h3>
+                            <span class="settings-kicker">09. Maintenance</span>
+                            <h3>Cache &amp; Storage Maintenance</h3>
                             <p>
-                                Removes generated orphan cache only. Your anime files are not deleted.
+                                Monitor storage consumption, clean orphan data down to subtitles, and optimize database. Your anime videos are never deleted.
                             </p>
                         </div>
 
-                        <div class="settings-maintenance-footer">
-                            <p class="settings-note">
-                                Cleans posters, banners, metadata, thumbnails, subtitles, watch data, and stale episode cache.
-                            </p>
+                        <!-- Live Cache Storage Breakdown Widget -->
+                        <div class="maintenance-storage-panel">
+                            <div class="maintenance-storage-header">
+                                <div class="maintenance-storage-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    <span>Disk Usage Breakdown</span>
+                                </div>
+                                <button type="button" class="maintenance-refresh-btn" id="btnRefreshCacheSize" title="Recalculate cache sizes">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="maintenance-refresh-icon"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                    <span>Refresh Size</span>
+                                </button>
+                            </div>
 
-                            <div class="settings-maintenance-actions">
-                                <button type="submit" class="settings-cleanup-btn" form="settingsCleanupForm">
+                            <div class="maintenance-storage-grid">
+                                <div class="maintenance-storage-item">
+                                    <span class="maintenance-storage-label">Posters &amp; Banners</span>
+                                    <span class="maintenance-storage-value" id="cacheSizePosters">{{ cache_sizes.posters.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                                <div class="maintenance-storage-item">
+                                    <span class="maintenance-storage-label">Thumbnails &amp; Previews</span>
+                                    <span class="maintenance-storage-value" id="cacheSizeThumbnails">{{ cache_sizes.thumbnails.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                                <div class="maintenance-storage-item">
+                                    <span class="maintenance-storage-label">Extracted Subtitles</span>
+                                    <span class="maintenance-storage-value" id="cacheSizeSubtitles">{{ cache_sizes.subtitles.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                                <div class="maintenance-storage-item">
+                                    <span class="maintenance-storage-label">Metadata &amp; Scraper</span>
+                                    <span class="maintenance-storage-value" id="cacheSizeMetadata">{{ cache_sizes.metadata.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                                <div class="maintenance-storage-item">
+                                    <span class="maintenance-storage-label">Database (SQLite)</span>
+                                    <span class="maintenance-storage-value" id="cacheSizeDatabase">{{ cache_sizes.database.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                                <div class="maintenance-storage-item maintenance-storage-item--total">
+                                    <span class="maintenance-storage-label">Total Cache Storage</span>
+                                    <span class="maintenance-storage-value" id="cacheSizeTotal">{{ cache_sizes.total.formatted if cache_sizes else '0 B' }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Maintenance Operations List -->
+                        <div class="maintenance-actions-list">
+                            <!-- Clean Orphan Cache -->
+                            <div class="maintenance-action-card">
+                                <div class="maintenance-action-info">
+                                    <div class="maintenance-action-name">
+                                        <strong>Clean Orphan Cache</strong>
+                                        <span class="maintenance-badge maintenance-badge--recommended">Recommended</span>
+                                    </div>
+                                    <p class="maintenance-action-desc">
+                                        Removes orphaned posters, banners, metadata, subtitles, thumbnails, and temp files for anime that have been deleted or renamed from your library disks.
+                                    </p>
+                                </div>
+                                <button type="button" class="settings-cleanup-btn maintenance-btn maintenance-btn--orphan" data-maintenance-target="orphan">
                                     Clean Orphan Cache
                                 </button>
                             </div>
+
+                            <!-- Clean Subtitles Cache -->
+                            <div class="maintenance-action-card">
+                                <div class="maintenance-action-info">
+                                    <div class="maintenance-action-name">
+                                        <strong>Clean Subtitles Cache</strong>
+                                    </div>
+                                    <p class="maintenance-action-desc">
+                                        Deletes all extracted subtitle files (<code>.vtt</code> and font assets). Subtitles will re-extract automatically when you stream videos.
+                                    </p>
+                                </div>
+                                <button type="button" class="settings-cleanup-btn maintenance-btn maintenance-btn--subtitles" data-maintenance-target="subtitles">
+                                    Clean Subtitles Cache
+                                </button>
+                            </div>
+
+                            <!-- Clean Thumbnails Cache -->
+                            <div class="maintenance-action-card">
+                                <div class="maintenance-action-info">
+                                    <div class="maintenance-action-name">
+                                        <strong>Clean Thumbnails Cache</strong>
+                                    </div>
+                                    <p class="maintenance-action-desc">
+                                        Deletes all episode video thumbnails and timeline seek preview sprite frames to reclaim disk space.
+                                    </p>
+                                </div>
+                                <button type="button" class="settings-cleanup-btn maintenance-btn maintenance-btn--thumbnails" data-maintenance-target="thumbnails">
+                                    Clean Thumbnails Cache
+                                </button>
+                            </div>
+
+                            <!-- Optimize Database -->
+                            <div class="maintenance-action-card">
+                                <div class="maintenance-action-info">
+                                    <div class="maintenance-action-name">
+                                        <strong>Optimize Database</strong>
+                                    </div>
+                                    <p class="maintenance-action-desc">
+                                        Runs <code>VACUUM</code> and <code>ANALYZE</code> on SQLite <code>library.db</code> to defragment space, shrink database size, and rebuild query planner indexes.
+                                    </p>
+                                </div>
+                                <button type="button" class="settings-cleanup-btn maintenance-btn maintenance-btn--vacuum" data-maintenance-target="vacuum">
+                                    Optimize Database
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Inline Feedback Box -->
+                        <div class="maintenance-inline-feedback" id="maintenanceFeedback" hidden></div>
+
+                        <div class="settings-maintenance-footer">
+                            <p class="settings-note">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                Cache files will be safely recreated on demand during library browsing and video playback.
+                            </p>
                         </div>
                     </section>
                 </aside>
@@ -1529,6 +1636,7 @@
 
         <form id="settingsCleanupForm" method="POST" action="{{ url_for('cleanup_cache_settings') }}">
             <input type="hidden" name="action_token" value="{{ action_token }}">
+            <input type="hidden" name="target" id="settingsCleanupTarget" value="orphan">
         </form>
 
         <form id="autoImportResolveForm" method="POST" action="{{ url_for('resolve_auto_import_settings') }}">
@@ -2965,6 +3073,135 @@ document.addEventListener('DOMContentLoaded', function() {
 
     checkShortcutDuplicates();
     applyShortcutFilter();
+})();
+
+// ==========================================
+// 09. Maintenance Interactive AJAX & Cache Sizes
+// ==========================================
+(function initMaintenanceModule() {
+    const btnRefresh = document.getElementById('btnRefreshCacheSize');
+    const maintenanceButtons = document.querySelectorAll('.maintenance-btn[data-maintenance-target]');
+    const feedbackEl = document.getElementById('maintenanceFeedback');
+    const cleanupForm = document.getElementById('settingsCleanupForm');
+    const cleanupTargetInput = document.getElementById('settingsCleanupTarget');
+    const actionToken = "{{ action_token }}";
+
+    const sizeEls = {
+        posters: document.getElementById('cacheSizePosters'),
+        thumbnails: document.getElementById('cacheSizeThumbnails'),
+        subtitles: document.getElementById('cacheSizeSubtitles'),
+        metadata: document.getElementById('cacheSizeMetadata'),
+        database: document.getElementById('cacheSizeDatabase'),
+        total: document.getElementById('cacheSizeTotal'),
+    };
+
+    function updateCacheSizeDisplays(sizes) {
+        if (!sizes) return;
+        if (sizes.posters && sizeEls.posters) sizeEls.posters.textContent = sizes.posters.formatted;
+        if (sizes.thumbnails && sizeEls.thumbnails) sizeEls.thumbnails.textContent = sizes.thumbnails.formatted;
+        if (sizes.subtitles && sizeEls.subtitles) sizeEls.subtitles.textContent = sizes.subtitles.formatted;
+        if (sizes.metadata && sizeEls.metadata) sizeEls.metadata.textContent = sizes.metadata.formatted;
+        if (sizes.database && sizeEls.database) sizeEls.database.textContent = sizes.database.formatted;
+        if (sizes.total && sizeEls.total) sizeEls.total.textContent = sizes.total.formatted;
+    }
+
+    async function fetchCacheSizes() {
+        if (btnRefresh) {
+            btnRefresh.classList.add('is-refreshing');
+        }
+        try {
+            const res = await fetch('/api/settings/cache-size');
+            const data = await res.json();
+            if (data && data.ok && data.sizes) {
+                updateCacheSizeDisplays(data.sizes);
+            }
+        } catch (err) {
+            console.warn('Failed to refresh cache sizes:', err);
+        } finally {
+            if (btnRefresh) {
+                setTimeout(() => btnRefresh.classList.remove('is-refreshing'), 450);
+            }
+        }
+    }
+
+    if (btnRefresh) {
+        btnRefresh.addEventListener('click', (e) => {
+            e.preventDefault();
+            fetchCacheSizes();
+        });
+    }
+
+    function showFeedback(message, type = 'success') {
+        if (!feedbackEl) return;
+        feedbackEl.className = 'maintenance-inline-feedback maintenance-inline-feedback--' + type;
+        feedbackEl.textContent = message;
+        feedbackEl.hidden = false;
+        feedbackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    maintenanceButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const target = btn.dataset.maintenanceTarget || 'orphan';
+            const originalText = btn.innerHTML;
+
+            if (target === 'subtitles') {
+                if (!confirm('Are you sure you want to clean all extracted subtitles? They will be re-extracted on demand when watching.')) {
+                    return;
+                }
+            } else if (target === 'thumbnails') {
+                if (!confirm('Are you sure you want to delete all cached thumbnails & seek preview frames?')) {
+                    return;
+                }
+            }
+
+            maintenanceButtons.forEach(b => { b.disabled = true; });
+            btn.innerHTML = '<span class="maintenance-spinner"></span> Processing...';
+            if (feedbackEl) feedbackEl.hidden = true;
+
+            try {
+                const response = await fetch('/settings/cleanup-cache', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action_token: actionToken,
+                        target: target,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('HTTP error ' + response.status);
+                }
+
+                const result = await response.json();
+                if (result.ok) {
+                    showFeedback(result.message || 'Cache cleaned successfully.', 'success');
+                    if (result.sizes) {
+                        updateCacheSizeDisplays(result.sizes);
+                    } else {
+                        fetchCacheSizes();
+                    }
+                } else {
+                    showFeedback(result.error || 'Operation failed.', 'error');
+                }
+            } catch (err) {
+                console.error('AJAX maintenance failed, falling back to form submit:', err);
+                if (cleanupForm && cleanupTargetInput) {
+                    cleanupTargetInput.value = target;
+                    cleanupForm.submit();
+                    return;
+                }
+                showFeedback('Network error during maintenance: ' + err.message, 'error');
+            } finally {
+                maintenanceButtons.forEach(b => { b.disabled = false; });
+                btn.innerHTML = originalText;
+            }
+        });
+    });
 })();
 </script>
 {% endblock %}

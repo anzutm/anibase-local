@@ -319,6 +319,163 @@ class TestSettingsLibraryPaths(unittest.TestCase):
                 bad_data = res_bad.get_json()
                 self.assertFalse(bad_data.get("ok", True))
 
+    def test_cleanup_anime_cache_comprehensive_subtitles_and_media(self):
+        from anibase import constants as _constants
+        from anibase.scanner import cleanup_anime_cache
+
+        anime_name = "Oshi no Ko"
+        safe_name = "Oshi_no_Ko"
+
+        # Mock cache directories inside temp dir
+        test_cache = os.path.join(self.tmp_dir.name, "cache")
+        test_subtitles = os.path.join(test_cache, "subtitles")
+        test_posters = os.path.join(test_cache, "posters")
+        test_banners = os.path.join(test_cache, "banners")
+        test_metadata = os.path.join(test_cache, "metadata")
+        test_characters = os.path.join(test_cache, "characters")
+        test_episodes = os.path.join(test_cache, "episodes")
+        test_movies = os.path.join(test_cache, "Movies")
+
+        os.makedirs(os.path.join(test_subtitles, safe_name), exist_ok=True)
+        os.makedirs(test_posters, exist_ok=True)
+        os.makedirs(test_banners, exist_ok=True)
+        os.makedirs(test_metadata, exist_ok=True)
+        os.makedirs(os.path.join(test_characters, safe_name), exist_ok=True)
+        os.makedirs(test_episodes, exist_ok=True)
+        os.makedirs(test_movies, exist_ok=True)
+
+        # Create files
+        sub_file_in_dir = os.path.join(test_subtitles, safe_name, "Ep1.clean-v3.vtt")
+        sub_file_root = os.path.join(test_subtitles, f"{safe_name}_Ep1.vtt")
+        movie_sub_file = os.path.join(test_movies, f"{safe_name}.clean-v3.vtt")
+        poster_file = os.path.join(test_posters, f"{safe_name}.webp")
+        banner_file = os.path.join(test_banners, f"{safe_name}.png")
+        meta_file = os.path.join(test_metadata, f"{safe_name}.json")
+        ep_file = os.path.join(test_episodes, f"{safe_name}.json")
+
+        for fpath in (sub_file_in_dir, sub_file_root, movie_sub_file, poster_file, banner_file, meta_file, ep_file):
+            with open(fpath, "w", encoding="utf-8") as f:
+                f.write("content")
+
+        with patch.object(_constants, "CACHE_DIR", test_cache), \
+             patch.object(_constants, "SUBTITLE_CACHE", test_subtitles), \
+             patch.object(_constants, "POSTER_CACHE", test_posters), \
+             patch.object(_constants, "BANNER_CACHE", test_banners), \
+             patch.object(_constants, "METADATA_CACHE", test_metadata), \
+             patch.object(_constants, "CHARACTER_CACHE", test_characters), \
+             patch.object(_constants, "EPISODE_CACHE", test_episodes), \
+             patch("anibase.scanner.get_active_cache_dir", return_value=os.path.abspath(test_cache)):
+
+            summary = cleanup_anime_cache(anime_name)
+
+            self.assertFalse(os.path.exists(sub_file_in_dir))
+            self.assertFalse(os.path.exists(os.path.join(test_subtitles, safe_name)))
+            self.assertFalse(os.path.exists(sub_file_root))
+            self.assertFalse(os.path.exists(movie_sub_file))
+            self.assertFalse(os.path.exists(poster_file))
+            self.assertFalse(os.path.exists(banner_file))
+            self.assertFalse(os.path.exists(meta_file))
+            self.assertFalse(os.path.exists(ep_file))
+            self.assertGreaterEqual(summary["removed_files"], 6)
+            self.assertGreaterEqual(summary["removed_dirs"], 1)
+
+    def test_cleanup_all_subtitles_and_thumbnails_cache(self):
+        from anibase import constants as _constants
+        from anibase.scanner import cleanup_all_subtitles_cache, cleanup_all_thumbnails_cache
+
+        test_cache = os.path.join(self.tmp_dir.name, "cache2")
+        test_sub = os.path.join(test_cache, "all_subs")
+        test_thumb = os.path.join(test_cache, "all_thumbs")
+        os.makedirs(os.path.join(test_sub, "Anime1"), exist_ok=True)
+        os.makedirs(os.path.join(test_thumb, "seek", "12345"), exist_ok=True)
+
+        with open(os.path.join(test_sub, "Anime1", "sub.vtt"), "w") as f:
+            f.write("test")
+        with open(os.path.join(test_thumb, "thumb1.jpg"), "w") as f:
+            f.write("test")
+
+        with patch.object(_constants, "CACHE_DIR", test_cache), \
+             patch.object(_constants, "SUBTITLE_CACHE", test_sub), \
+             patch.object(_constants, "THUMBNAIL_CACHE", test_thumb), \
+             patch("anibase.scanner.get_active_cache_dir", return_value=os.path.abspath(test_cache)):
+
+            summary_sub = cleanup_all_subtitles_cache()
+            self.assertEqual(len(os.listdir(test_sub)), 0)
+            self.assertGreater(summary_sub["removed_dirs"], 0)
+
+            summary_thumb = cleanup_all_thumbnails_cache()
+            self.assertEqual(len(os.listdir(test_thumb)), 0)
+            self.assertGreater(summary_thumb["removed_files"] + summary_thumb["removed_dirs"], 0)
+
+    def test_optimize_database(self):
+        from anibase.scanner import optimize_database
+        res = optimize_database()
+        self.assertTrue(res.get("ok"))
+        self.assertIn("berhasil", res.get("message", "").lower())
+
+    def test_cache_size_breakdown(self):
+        from anibase.scanner import get_cache_size_breakdown, format_size_bytes
+        self.assertEqual(format_size_bytes(0), "0 B")
+        self.assertEqual(format_size_bytes(1024), "1.0 KB")
+        self.assertEqual(format_size_bytes(1024 * 1024 * 5), "5.0 MB")
+
+        sizes = get_cache_size_breakdown()
+        for key in ("posters", "thumbnails", "subtitles", "metadata", "database", "total"):
+            self.assertIn(key, sizes)
+            self.assertIn("bytes", sizes[key])
+            self.assertIn("formatted", sizes[key])
+            self.assertIsInstance(sizes[key]["bytes"], (int, float))
+
+    def test_maintenance_routes(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        # 1. GET /api/settings/cache-size
+        res_size = self.client.get("/api/settings/cache-size")
+        self.assertEqual(res_size.status_code, 200)
+        data_size = res_size.get_json()
+        self.assertTrue(data_size["ok"])
+        self.assertIn("sizes", data_size)
+
+        # 2. POST /settings/cleanup-cache (AJAX json orphan)
+        res_orphan = self.client.post("/settings/cleanup-cache", json={
+            "action_token": token,
+            "target": "orphan"
+        }, headers={"X-Action-Token": token})
+        self.assertEqual(res_orphan.status_code, 200)
+        data_orphan = res_orphan.get_json()
+        self.assertTrue(data_orphan["ok"])
+        self.assertEqual(data_orphan["target"], "orphan")
+        self.assertIn("sizes", data_orphan)
+
+        # 3. POST /settings/cleanup-cache (AJAX json subtitles)
+        res_sub = self.client.post("/settings/cleanup-cache", json={
+            "action_token": token,
+            "target": "subtitles"
+        }, headers={"X-Action-Token": token})
+        self.assertEqual(res_sub.status_code, 200)
+        data_sub = res_sub.get_json()
+        self.assertTrue(data_sub["ok"])
+        self.assertEqual(data_sub["target"], "subtitles")
+
+        # 4. POST /settings/cleanup-cache (AJAX json vacuum)
+        res_vac = self.client.post("/settings/cleanup-cache", json={
+            "action_token": token,
+            "target": "vacuum"
+        }, headers={"X-Action-Token": token})
+        self.assertEqual(res_vac.status_code, 200)
+        data_vac = res_vac.get_json()
+        self.assertTrue(data_vac["ok"])
+        self.assertEqual(data_vac["target"], "vacuum")
+
+        # 5. POST /settings/cleanup-cache (Standard Form Submit)
+        res_form = self.client.post("/settings/cleanup-cache", data={
+            "action_token": token,
+            "target": "orphan"
+        }, headers={"X-Action-Token": token})
+        self.assertEqual(res_form.status_code, 302)
+        self.assertIn("cache_cleaned=1", res_form.headers["Location"])
+
 
 if __name__ == "__main__":
     unittest.main()

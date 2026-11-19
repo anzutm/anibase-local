@@ -2217,5 +2217,285 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* ==========================================================================
+   09. Maintenance & Cache Storage Breakdown Styles
+   ========================================================================== */
+
+.settings-maintenance-card {
+    border-color: rgba(239, 68, 68, 0.22);
+}
+
+.maintenance-storage-panel {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 14px;
+}
+
+.maintenance-storage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.maintenance-storage-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text, #f3f4f6);
+    letter-spacing: 0.02em;
+}
+
+.maintenance-storage-title svg {
+    color: var(--settings-accent, #38bdf8);
+}
+
+.maintenance-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary, #d1d5db);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.maintenance-refresh-btn:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: var(--settings-accent, #38bdf8);
+}
+
+.maintenance-refresh-btn.is-refreshing .maintenance-refresh-icon {
+    animation: maintenance-spin 0.75s linear infinite;
+}
+
+.maintenance-storage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.maintenance-storage-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 9px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.maintenance-storage-item--total {
+    background: rgba(56, 189, 248, 0.06);
+    border-color: rgba(56, 189, 248, 0.22);
+}
+
+.maintenance-storage-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.maintenance-storage-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+
+.maintenance-storage-item--total .maintenance-storage-value {
+    color: var(--settings-accent, #38bdf8);
+}
+
+.maintenance-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.maintenance-action-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.maintenance-action-card:hover {
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.maintenance-action-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.maintenance-action-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text, #f3f4f6);
+}
+
+.maintenance-badge {
+    display: inline-block;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.maintenance-badge--recommended {
+    background: rgba(34, 197, 94, 0.14);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.28);
+}
+
+.maintenance-action-desc {
+    font-size: 11.5px;
+    color: var(--text-muted, #9ca3af);
+    margin: 4px 0 0;
+    line-height: 1.45;
+}
+
+.maintenance-action-desc code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 10.5px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #e5e7eb;
+}
+
+.maintenance-btn {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    border-radius: 8px;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.maintenance-btn--orphan {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.32);
+    color: var(--settings-accent, #38bdf8);
+}
+
+.maintenance-btn--orphan:hover {
+    background: rgba(56, 189, 248, 0.22);
+    border-color: var(--settings-accent, #38bdf8);
+    color: #ffffff;
+}
+
+.maintenance-btn--subtitles,
+.maintenance-btn--thumbnails {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.28);
+    color: #fbbf24;
+}
+
+.maintenance-btn--subtitles:hover,
+.maintenance-btn--thumbnails:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: #fbbf24;
+    color: #ffffff;
+}
+
+.maintenance-btn--vacuum {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.28);
+    color: #c084fc;
+}
+
+.maintenance-btn--vacuum:hover {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: #c084fc;
+    color: #ffffff;
+}
+
+.maintenance-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.maintenance-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: maintenance-spin 0.75s linear infinite;
+    vertical-align: -1px;
+    margin-right: 5px;
+}
+
+@keyframes maintenance-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.maintenance-inline-feedback {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.45;
+    animation: fadeIn 0.25s ease;
+}
+
+.maintenance-inline-feedback--success {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+}
+
+.maintenance-inline-feedback--error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+@media (max-width: 680px) {
+    .maintenance-action-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .maintenance-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
 
 

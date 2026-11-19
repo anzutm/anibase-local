@@ -215,6 +215,11 @@ from anibase.scanner import (
     find_media_path,
     cleanup_orphan_cache,
     cleanup_anime_cache,
+    cleanup_all_subtitles_cache,
+    cleanup_all_thumbnails_cache,
+    optimize_database,
+    get_cache_size_breakdown,
+    make_cache_cleanup_summary,
 )
 from anibase.watcher import (
     build_auto_import_mappings_from_pairs,
@@ -639,15 +644,71 @@ def dismiss_all_auto_import_unmatched():
 @host_only
 @require_action_token
 def cleanup_cache_settings():
-    summary = cleanup_orphan_cache()
+    payload = request.get_json(silent=True) or {}
+    target = (
+        request.form.get("target")
+        or payload.get("target")
+        or "orphan"
+    ).strip().lower()
+
+    summary = None
+    message = ""
+
+    if target == "subtitles":
+        summary = cleanup_all_subtitles_cache()
+        message = f"Subtitles cache cleaned. Removed {summary['removed_files']} files and {summary['removed_dirs']} folders."
+    elif target == "thumbnails":
+        summary = cleanup_all_thumbnails_cache()
+        message = f"Thumbnails cache cleaned. Removed {summary['removed_files']} files and {summary['removed_dirs']} folders."
+    elif target in ("vacuum", "database"):
+        opt_res = optimize_database()
+        if opt_res.get("ok"):
+            message = "Database SQLite berhasil dioptimalkan dan dikompresi (VACUUM & ANALYZE selesai)."
+        else:
+            message = f"Optimasi database gagal: {opt_res.get('error')}"
+        summary = make_cache_cleanup_summary()
+    else:
+        target = "orphan"
+        summary = cleanup_orphan_cache()
+        message = (
+            f"Orphan cache cleaned. Removed {summary['removed_files']} files, "
+            f"{summary['removed_dirs']} folders, and {summary['removed_watch_entries']} watch entries. "
+            f"Skipped {summary['skipped']} items."
+        )
+
+    want_json = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+    if want_json:
+        return jsonify({
+            "ok": True,
+            "target": target,
+            "message": message,
+            "summary": summary,
+            "sizes": get_cache_size_breakdown(),
+        })
 
     return redirect(
         "/settings?cache_cleaned=1"
+        f"&target={quote_plus(target)}"
+        f"&cache_msg={quote_plus(message)}"
         f"&removed_files={summary['removed_files']}"
         f"&removed_dirs={summary['removed_dirs']}"
         f"&removed_watch_entries={summary['removed_watch_entries']}"
         f"&skipped={summary['skipped']}"
     )
+
+
+@host_only
+def api_get_cache_size():
+    """Mengembalikan rincian kapasitas cache AniBase secara realtime."""
+    return jsonify({
+        "ok": True,
+        "sizes": get_cache_size_breakdown()
+    })
 
 
 @host_only
@@ -3266,6 +3327,7 @@ def register_api_routes(app):
     app.add_url_rule("/settings/auto-import/dismiss", endpoint="dismiss_auto_import_unmatched", view_func=dismiss_auto_import_unmatched, methods=["POST"])
     app.add_url_rule("/settings/auto-import/dismiss-all", endpoint="dismiss_all_auto_import_unmatched", view_func=dismiss_all_auto_import_unmatched, methods=["POST"])
     app.add_url_rule("/settings/cleanup-cache", endpoint="cleanup_cache_settings", view_func=cleanup_cache_settings, methods=["POST"])
+    app.add_url_rule("/api/settings/cache-size", endpoint="api_get_cache_size", view_func=api_get_cache_size, methods=["GET"])
     app.add_url_rule("/settings/pick-folder", endpoint="pick_settings_folder", view_func=pick_settings_folder, methods=["POST"])
     app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file, methods=["POST"])
     app.add_url_rule("/api/settings/validate-paths", endpoint="api_settings_validate_paths", view_func=api_settings_validate_paths, methods=["GET", "POST"])

@@ -4,6 +4,7 @@
 import os
 import re
 import json
+import time
 import shutil
 import hashlib
 import functools
@@ -361,45 +362,244 @@ def cleanup_anime_cache(anime_name, summary=None, include_watch_data=False):
         summary["details"].append("Skipped anime cache cleanup because anime name is empty.")
         return summary
 
+    safe_name_variants = {
+        safe_name,
+        safe_name.replace(" ", "_"),
+        safe_name.replace("_", " "),
+    }
+    safe_name_variants_lower = {v.lower() for v in safe_name_variants}
     thumbnail_candidates = collect_cached_episode_candidates(anime_name, safe_name)
 
-    for cache_dir, label, extension in (
-        (_constants.POSTER_CACHE, "posters", ".jpg"),
-        (_constants.BANNER_CACHE, "banners", ".jpg"),
-        (_constants.METADATA_CACHE, "metadata", ".json"),
-    ):
-        remove_cache_file_if_safe(
-            summary,
-            os.path.join(cache_dir, f"{safe_name}{extension}"),
-            f"{label}/{safe_name}{extension}"
-        )
-
+    # 1. Posters & Banners (hapus semua format ekstensi gambar dan variasi spasi/underscore)
     for cache_dir, label in (
-        (_constants.CHARACTER_CACHE, "characters"),
-        (_constants.SUBTITLE_CACHE, "subtitles"),
+        (_constants.POSTER_CACHE, "posters"),
+        (_constants.BANNER_CACHE, "banners"),
     ):
-        remove_cache_dir_if_safe(
-            summary,
-            os.path.join(cache_dir, safe_name),
-            f"{label}/{safe_name}"
-        )
+        if os.path.isdir(cache_dir):
+            for filename in os.listdir(cache_dir):
+                stem, ext = os.path.splitext(filename)
+                if ext.lower() in (".jpg", ".jpeg", ".png", ".webp") and stem.lower() in safe_name_variants_lower:
+                    remove_cache_file_if_safe(
+                        summary,
+                        os.path.join(cache_dir, filename),
+                        f"{label}/{filename}"
+                    )
 
+    # 2. Metadata cache
+    if os.path.isdir(_constants.METADATA_CACHE):
+        for filename in os.listdir(_constants.METADATA_CACHE):
+            stem, ext = os.path.splitext(filename)
+            if ext.lower() == ".json" and stem.lower() in safe_name_variants_lower:
+                remove_cache_file_if_safe(
+                    summary,
+                    os.path.join(_constants.METADATA_CACHE, filename),
+                    f"metadata/{filename}"
+                )
+
+    # 3. Characters folder
+    if os.path.isdir(_constants.CHARACTER_CACHE):
+        for folder in os.listdir(_constants.CHARACTER_CACHE):
+            if folder.lower() in safe_name_variants_lower:
+                remove_cache_dir_if_safe(
+                    summary,
+                    os.path.join(_constants.CHARACTER_CACHE, folder),
+                    f"characters/{folder}"
+                )
+
+    # 4. Subtitles (Pembersihan menyeluruh seluruh subtitle anime)
+    if os.path.isdir(_constants.SUBTITLE_CACHE):
+        for folder in os.listdir(_constants.SUBTITLE_CACHE):
+            if folder.lower() == "movies":
+                continue
+            folder_path = os.path.join(_constants.SUBTITLE_CACHE, folder)
+            if os.path.isdir(folder_path):
+                if folder.lower() in safe_name_variants_lower:
+                    remove_cache_dir_if_safe(summary, folder_path, f"subtitles/{folder}")
+            elif os.path.isfile(folder_path):
+                f_lower = folder.lower()
+                matches_file = any(
+                    f_lower == f"{v}.vtt"
+                    or f_lower.startswith(f"{v}_")
+                    or f_lower.startswith(f"{v}.")
+                    for v in safe_name_variants_lower
+                )
+                if matches_file:
+                    remove_cache_file_if_safe(summary, folder_path, f"subtitles/{folder}")
+
+    # 4c. Jika anime Movies: bersihkan file di CACHE_DIR/Movies dan SUBTITLE_CACHE/Movies
+    for movie_cache_dir in (
+        os.path.join(_constants.CACHE_DIR, "Movies"),
+        os.path.join(_constants.SUBTITLE_CACHE, "Movies"),
+    ):
+        if os.path.isdir(movie_cache_dir):
+            for filename in os.listdir(movie_cache_dir):
+                f_lower = filename.lower()
+                if any(
+                    f_lower.startswith(f"{v}.") or f_lower.startswith(f"{v}_")
+                    for v in safe_name_variants_lower
+                ):
+                    remove_cache_file_if_safe(
+                        summary,
+                        os.path.join(movie_cache_dir, filename),
+                        f"movies/{filename}"
+                    )
+
+    # 5. Episode cache JSON
     if os.path.isdir(_constants.EPISODE_CACHE):
         for filename in os.listdir(_constants.EPISODE_CACHE):
             if not filename.lower().endswith(".json"):
                 continue
             stem = os.path.splitext(filename)[0]
-            if stem == safe_name or stem.startswith(f"{safe_name}_"):
+            stem_lower = stem.lower()
+            if any(
+                stem_lower == v or stem_lower.startswith(f"{v}_")
+                for v in safe_name_variants_lower
+            ):
                 remove_cache_file_if_safe(
                     summary,
                     os.path.join(_constants.EPISODE_CACHE, filename),
                     f"episodes/{filename}"
                 )
 
+    # 6. Thumbnails & Seek Previews
     cleanup_thumbnails_for_video_paths(thumbnail_candidates, summary)
+
+    # 7. Watch data jika diminta
     if include_watch_data:
         cleanup_watch_data_for_anime(anime_name, safe_name, summary)
     return summary
+
+
+def clean_stale_temp_files(summary=None):
+    """Membersihkan berkas-berkas sementara di TEMP_DIR yang sudah usang (> 1 jam)."""
+    summary = summary or make_cache_cleanup_summary()
+    if not os.path.isdir(_constants.TEMP_DIR):
+        return summary
+
+    now = time.time()
+    try:
+        for fname in os.listdir(_constants.TEMP_DIR):
+            fpath = os.path.join(_constants.TEMP_DIR, fname)
+            if os.path.isfile(fpath):
+                try:
+                    if now - os.path.getmtime(fpath) > 3600:
+                        os.remove(fpath)
+                        summary["removed_files"] += 1
+                        summary["details"].append(f"Removed stale temp file: {fname}")
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return summary
+
+
+def cleanup_all_subtitles_cache(summary=None):
+    """Menghapus SEMUA cache subtitle di SUBTITLE_CACHE untuk ekstraksi ulang yang bersih."""
+    summary = summary or make_cache_cleanup_summary()
+    if not os.path.isdir(_constants.SUBTITLE_CACHE):
+        return summary
+
+    for name in os.listdir(_constants.SUBTITLE_CACHE):
+        path = os.path.join(_constants.SUBTITLE_CACHE, name)
+        if os.path.isdir(path):
+            remove_cache_dir_if_safe(summary, path, f"subtitles/{name}")
+        elif os.path.isfile(path):
+            remove_cache_file_if_safe(summary, path, f"subtitles/{name}")
+
+    return summary
+
+
+def cleanup_all_thumbnails_cache(summary=None):
+    """Menghapus SEMUA thumbnail dan seek preview untuk di-regenerate ulang."""
+    summary = summary or make_cache_cleanup_summary()
+    if not os.path.isdir(_constants.THUMBNAIL_CACHE):
+        return summary
+
+    for name in os.listdir(_constants.THUMBNAIL_CACHE):
+        path = os.path.join(_constants.THUMBNAIL_CACHE, name)
+        if os.path.isdir(path):
+            remove_cache_dir_if_safe(summary, path, f"thumbnails/{name}")
+        elif os.path.isfile(path):
+            remove_cache_file_if_safe(summary, path, f"thumbnails/{name}")
+
+    return summary
+
+
+def optimize_database():
+    """Menjalankan VACUUM dan ANALYZE pada database SQLite library.db."""
+    try:
+        from anibase.db import db_connection
+        with db_connection() as conn:
+            conn.execute("VACUUM")
+            conn.execute("ANALYZE")
+        return {
+            "ok": True,
+            "message": "Database SQLite berhasil dioptimalkan dan dikompresi (VACUUM & ANALYZE selesai)."
+        }
+    except Exception as e:
+        app_log(f"Database optimization failed: {e}", "WARN")
+        return {"ok": False, "error": str(e)}
+
+
+def get_path_size_bytes(path):
+    if not path or not os.path.exists(path):
+        return 0
+    if os.path.isfile(path):
+        try:
+            return os.path.getsize(path)
+        except OSError:
+            return 0
+    total = 0
+    try:
+        for root, _, files in os.walk(path):
+            for f in files:
+                fp = os.path.join(root, f)
+                try:
+                    total += os.path.getsize(fp)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
+def format_size_bytes(num_bytes):
+    if num_bytes <= 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    unit_index = 0
+    size = float(num_bytes)
+    while size >= 1024.0 and unit_index < len(units) - 1:
+        size /= 1024.0
+        unit_index += 1
+    if unit_index == 0:
+        return f"{int(size)} B"
+    return f"{size:.1f} {units[unit_index]}"
+
+
+def get_cache_size_breakdown():
+    posters = get_path_size_bytes(_constants.POSTER_CACHE) + get_path_size_bytes(_constants.BANNER_CACHE)
+    thumbnails = get_path_size_bytes(_constants.THUMBNAIL_CACHE)
+    subtitles = get_path_size_bytes(_constants.SUBTITLE_CACHE)
+    metadata = (
+        get_path_size_bytes(_constants.METADATA_CACHE)
+        + get_path_size_bytes(_constants.CHARACTER_CACHE)
+        + get_path_size_bytes(_constants.SEIYUU_CACHE)
+        + get_path_size_bytes(_constants.EPISODE_CACHE)
+        + get_path_size_bytes(_constants.IMAGE_PROXY_CACHE)
+        + get_path_size_bytes(_constants.ANISKIP_CACHE)
+    )
+    database = get_path_size_bytes(_constants.DB_PATH)
+    total = posters + thumbnails + subtitles + metadata
+
+    return {
+        "posters": {"bytes": posters, "formatted": format_size_bytes(posters)},
+        "thumbnails": {"bytes": thumbnails, "formatted": format_size_bytes(thumbnails)},
+        "subtitles": {"bytes": subtitles, "formatted": format_size_bytes(subtitles)},
+        "metadata": {"bytes": metadata, "formatted": format_size_bytes(metadata)},
+        "database": {"bytes": database, "formatted": format_size_bytes(database)},
+        "total": {"bytes": total, "formatted": format_size_bytes(total)},
+    }
 
 
 def cleanup_orphan_cache():
@@ -409,6 +609,13 @@ def cleanup_orphan_cache():
         safe_cache_name(name)
         for name in existing_anime_names
     }
+    existing_safe_variants_lower = set()
+    for name in existing_anime_names:
+        s = safe_cache_name(name)
+        existing_safe_variants_lower.add(s.lower())
+        existing_safe_variants_lower.add(s.lower().replace(" ", "_"))
+        existing_safe_variants_lower.add(s.lower().replace("_", " "))
+
     available_base_paths = [
         path
         for path in get_valid_anime_paths()
@@ -431,7 +638,7 @@ def cleanup_orphan_cache():
                 summary["skipped"] += 1
                 continue
             stem, _ = os.path.splitext(filename)
-            if stem not in existing_safe_names:
+            if stem.lower() not in existing_safe_variants_lower:
                 remove_cache_file_if_safe(summary, path, f"{label}/{filename}")
 
     def clean_named_dirs(cache_dir, label):
@@ -444,8 +651,32 @@ def cleanup_orphan_cache():
             if not os.path.isdir(path):
                 summary["skipped"] += 1
                 continue
-            if folder_name not in existing_safe_names:
+            if folder_name.lower() not in existing_safe_variants_lower:
                 remove_cache_dir_if_safe(summary, path, f"{label}/{folder_name}")
+
+    def clean_orphan_subtitles():
+        if not os.path.isdir(_constants.SUBTITLE_CACHE):
+            summary["skipped"] += 1
+            summary["details"].append("Skipped missing cache folder: subtitles")
+            return
+
+        for item_name in os.listdir(_constants.SUBTITLE_CACHE):
+            item_path = os.path.join(_constants.SUBTITLE_CACHE, item_name)
+            if os.path.isdir(item_path):
+                if item_name.lower() == "movies":
+                    continue
+                if item_name.lower() not in existing_safe_variants_lower:
+                    remove_cache_dir_if_safe(summary, item_path, f"subtitles/{item_name}")
+            elif os.path.isfile(item_path):
+                stem = os.path.splitext(item_name)[0]
+                matches_any = any(
+                    stem.lower() == safe_lower
+                    or stem.lower().startswith(f"{safe_lower}_")
+                    or stem.lower().startswith(f"{safe_lower}.")
+                    for safe_lower in existing_safe_variants_lower
+                )
+                if not matches_any:
+                    remove_cache_file_if_safe(summary, item_path, f"subtitles/{item_name}")
 
     def clean_episode_files():
         if not os.path.isdir(_constants.EPISODE_CACHE):
@@ -458,9 +689,10 @@ def cleanup_orphan_cache():
                 summary["skipped"] += 1
                 continue
             stem = os.path.splitext(filename)[0]
+            stem_lower = stem.lower()
             matches_existing = any(
-                stem == safe_name or stem.startswith(f"{safe_name}_")
-                for safe_name in existing_safe_names
+                stem_lower == safe_lower or stem_lower.startswith(f"{safe_lower}_")
+                for safe_lower in existing_safe_variants_lower
             )
             if not matches_existing:
                 remove_cache_file_if_safe(summary, path, f"episodes/{filename}")
@@ -523,9 +755,11 @@ def cleanup_orphan_cache():
     clean_named_files(_constants.BANNER_CACHE, "banners")
     clean_named_files(_constants.METADATA_CACHE, "metadata")
     clean_named_dirs(_constants.CHARACTER_CACHE, "characters")
-    clean_named_dirs(_constants.SUBTITLE_CACHE, "subtitles")
+    clean_orphan_subtitles()
     clean_orphan_thumbnails()
     clean_episode_files()
+    clean_stale_temp_files(summary)
+
     summary["skipped"] += 1
     summary["details"].append(
         "Skipped protected settings/database files, watch data, and watch data backups."

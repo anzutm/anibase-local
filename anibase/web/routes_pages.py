@@ -92,6 +92,7 @@ from anibase.scanner import (
     find_media_path,
     get_anime_folder_index,
     clear_media_path_cache,
+    get_cache_size_breakdown,
 )
 from anibase.watcher import (
     reconfigure_library_observer,
@@ -195,9 +196,12 @@ def settings_page():
         is_desktop_active = False
         is_startup_registered = False
 
+    cache_sizes = get_cache_size_breakdown()
+
     return render_template(
         "settings.html",
         settings=settings,
+        cache_sizes=cache_sizes,
         settings_status_cards=build_settings_status_cards(settings, media_diagnostics),
         media_diagnostics=media_diagnostics,
         anime_folders=anime_folders,
