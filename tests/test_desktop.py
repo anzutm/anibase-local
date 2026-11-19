@@ -461,6 +461,97 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.assertIn("body.is-desktop-app #anibaseTopbar", css_text)
         self.assertIn("top: 42px", css_text)
 
+    def test_reset_desktop_window(self):
+        mock_win = MagicMock()
+        with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("anibase.desktop.shell.get_screen_bounds", return_value=(1920, 1080)):
+            res = desktop_shell.reset_desktop_window()
+            self.assertTrue(res["ok"])
+            self.assertEqual(res["width"], 1280)
+            self.assertEqual(res["height"], 800)
+            self.assertEqual(res["x"], 320)
+            self.assertEqual(res["y"], 140)
+            mock_win.restore.assert_called_once()
+            mock_win.resize.assert_called_once_with(1280, 800)
+            mock_win.move.assert_called_once_with(320, 140)
+
+    def test_desktop_api_reset_window_call(self):
+        with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True}) as mock_reset:
+            api = DesktopApi(MagicMock())
+            res = api.reset_window()
+            mock_reset.assert_called_once()
+            self.assertTrue(res["ok"])
+
+    def test_windows_startup_functions(self):
+        with patch("os.name", "nt"), \
+             patch("winreg.OpenKey") as mock_open_key, \
+             patch("winreg.QueryValueEx", return_value=('"C:\\app.exe"', 1)), \
+             patch("winreg.SetValueEx") as mock_set_val, \
+             patch("winreg.DeleteValue") as mock_del_val:
+            
+            # Test query enabled
+            self.assertTrue(desktop_shell.is_windows_startup_enabled())
+
+            # Test enable startup
+            ok_enable = desktop_shell.set_windows_startup(True)
+            self.assertTrue(ok_enable)
+            mock_set_val.assert_called()
+
+            # Test disable startup
+            ok_disable = desktop_shell.set_windows_startup(False)
+            self.assertTrue(ok_disable)
+            mock_del_val.assert_called()
+
+    def test_api_desktop_reset_window_and_status_endpoints(self):
+        app = create_app()
+        client = app.test_client()
+
+        with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True, "width": 1280}):
+            res_reset = client.post("/api/desktop/reset-window")
+            self.assertEqual(res_reset.status_code, 200)
+            data_reset = res_reset.get_json()
+            self.assertTrue(data_reset["ok"])
+
+        with patch("anibase.desktop.shell.is_windows_startup_enabled", return_value=False):
+            res_status = client.get("/api/desktop/status")
+            self.assertEqual(res_status.status_code, 200)
+            data_status = res_status.get_json()
+            self.assertTrue(data_status["ok"])
+            self.assertIn("is_desktop", data_status)
+            self.assertIn("run_on_startup", data_status)
+
+    def test_update_settings_persists_desktop_run_on_startup(self):
+        app = create_app()
+        client = app.test_client()
+        token = get_action_token()
+
+        with patch("anibase.web.routes_api.load_settings") as mock_load, \
+             patch("anibase.web.routes_api.save_settings") as mock_save, \
+             patch("anibase.web.routes_api.apply_settings"), \
+             patch("anibase.web.routes_api.reconfigure_library_observer"), \
+             patch("anibase.web.routes_api.start_auto_import_worker"), \
+             patch("anibase.web.routes_api.sync_all_library"):
+
+            mock_load.return_value = {
+                "action_token": token,
+                "desktop_minimize_to_tray": True,
+                "desktop_start_minimized": False,
+                "desktop_run_on_startup": False
+            }
+
+            resp = client.post("/settings", data={
+                "action_token": token,
+                "desktop_settings_present": "1",
+                "desktop_minimize_to_tray": "on",
+                "desktop_run_on_startup": "on"
+            }, headers={"X-Action-Token": token})
+
+            self.assertEqual(resp.status_code, 302)
+            saved = mock_save.call_args[0][0]
+            self.assertTrue(saved.get("desktop_run_on_startup"))
+            self.assertTrue(saved.get("desktop_minimize_to_tray"))
+            self.assertFalse(saved.get("desktop_start_minimized"))
+
 
 if __name__ == "__main__":
     unittest.main()

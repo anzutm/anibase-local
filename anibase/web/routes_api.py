@@ -443,6 +443,7 @@ def update_settings():
         "shortcuts": effective_shortcuts,
         "desktop_minimize_to_tray": "desktop_minimize_to_tray" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_minimize_to_tray", True),
         "desktop_start_minimized": "desktop_start_minimized" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_start_minimized", False),
+        "desktop_run_on_startup": "desktop_run_on_startup" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_run_on_startup", False),
         "desktop_window": existing_settings.get("desktop_window", {}),
         "ongoing_tracker_enabled": "ongoing_tracker_enabled" in request.form if "downloader_settings_present" in request.form else existing_settings.get("ongoing_tracker_enabled", True),
         "ongoing_tracker_interval_minutes": normalize_int_setting(
@@ -2647,6 +2648,33 @@ def api_desktop_activate():
 
 
 @host_only
+def api_desktop_reset_window():
+    """Mereset ukuran dan posisi jendela desktop ke default (1280x800 di tengah layar)."""
+    try:
+        from anibase.desktop.shell import reset_desktop_window
+        result = reset_desktop_window()
+        return jsonify(result)
+    except Exception as error:
+        return jsonify({"status": "error", "ok": False, "error": str(error)}), 500
+
+
+@host_only
+def api_desktop_status():
+    """Mengembalikan status runtime desktop app dan konfigurasi registry Windows Startup."""
+    from anibase.desktop.shell import desktop_window, is_windows_startup_enabled, _window_state
+    settings = load_settings()
+    return jsonify({
+        "ok": True,
+        "is_desktop": desktop_window is not None,
+        "run_on_startup": is_windows_startup_enabled(),
+        "settings_startup": bool(settings.get("desktop_run_on_startup")),
+        "minimize_to_tray": bool(settings.get("desktop_minimize_to_tray", True)),
+        "start_minimized": bool(settings.get("desktop_start_minimized", False)),
+        "window_state": _window_state,
+    })
+
+
+@host_only
 def api_samehadaku_latest():
     """Mengambil daftar episode anime terbaru dari Samehadaku."""
     page = request.args.get("page", default=1, type=int)
@@ -3236,4 +3264,6 @@ def register_api_routes(app):
     app.add_url_rule("/api/watch-history/remove", endpoint="api_remove_watch_history_entry", view_func=api_remove_watch_history_entry, methods=["POST"])
     app.add_url_rule("/api/anime/delete", endpoint="api_delete_anime", view_func=api_delete_anime, methods=["POST"])
     app.add_url_rule("/api/desktop/activate", endpoint="api_desktop_activate", view_func=api_desktop_activate, methods=["POST"])
+    app.add_url_rule("/api/desktop/reset-window", endpoint="api_desktop_reset_window", view_func=api_desktop_reset_window, methods=["POST"])
+    app.add_url_rule("/api/desktop/status", endpoint="api_desktop_status", view_func=api_desktop_status, methods=["GET"])
     app.add_url_rule("/clear_rpc", endpoint="clear_rpc_route", view_func=clear_rpc_route, methods=["POST"])

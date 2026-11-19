@@ -1044,21 +1044,49 @@
                         <div class="settings-card-head">
                             <span class="settings-kicker">Desktop</span>
                             <h3>Desktop Application</h3>
-                            <p>Configure Windows 11 desktop window and system tray behavior.</p>
+                            <p>Configure Windows 11 desktop window, startup, and system tray behavior.</p>
                         </div>
 
                         <input type="hidden" name="desktop_settings_present" value="1">
+
+                        <!-- Desktop Environment Status -->
+                        {% if is_desktop_active %}
+                        <div class="desktop-env-banner desktop-env-active">
+                            <span class="desktop-env-dot"></span>
+                            <span><strong>Windows Desktop Shell Aktif:</strong> Berjalan sebagai aplikasi desktop native dengan Windows 11 borderless snap layouts dan akselerasi GPU.</span>
+                        </div>
+                        {% else %}
+                        <div class="desktop-env-banner desktop-env-web">
+                            <span class="desktop-env-dot"></span>
+                            <span><strong>Mode Web Browser:</strong> Pengaturan di bawah akan aktif saat Anda membuka AniBase melalui aplikasi desktop Windows (.exe).</span>
+                        </div>
+                        {% endif %}
+
+                        <label class="settings-toggle-row settings-toggle-row--subtle">
+                            <input
+                                type="checkbox"
+                                name="desktop_run_on_startup"
+                                id="desktop_run_on_startup"
+                                {% if settings.desktop_run_on_startup or is_startup_registered %}checked{% endif %}
+                            >
+                            <span class="settings-toggle-ui" aria-hidden="true"></span>
+                            <span>
+                                <strong>Run on Windows Startup</strong>
+                                <small>Jalankan AniBase secara otomatis di latar belakang saat komputer Windows dinyalakan.</small>
+                            </span>
+                        </label>
 
                         <label class="settings-toggle-row settings-toggle-row--subtle">
                             <input
                                 type="checkbox"
                                 name="desktop_minimize_to_tray"
+                                id="desktop_minimize_to_tray"
                                 {% if settings.desktop_minimize_to_tray %}checked{% endif %}
                             >
                             <span class="settings-toggle-ui" aria-hidden="true"></span>
                             <span>
                                 <strong>Minimize to System Tray on close</strong>
-                                <small>Closing the desktop window hides it to the Windows notification area instead of quitting.</small>
+                                <small>Menutup jendela aplikasi (tombol X) akan menyembunyikannya ke area notifikasi Windows (tray), bukan keluar.</small>
                             </span>
                         </label>
 
@@ -1066,14 +1094,40 @@
                             <input
                                 type="checkbox"
                                 name="desktop_start_minimized"
+                                id="desktop_start_minimized"
                                 {% if settings.desktop_start_minimized %}checked{% endif %}
                             >
                             <span class="settings-toggle-ui" aria-hidden="true"></span>
                             <span>
                                 <strong>Start minimized to System Tray</strong>
-                                <small>Launch AniBase silently in the background when the application starts.</small>
+                                <small>Buka AniBase tanpa menampilkan jendela utama secara langsung saat aplikasi dijalankan.</small>
                             </span>
                         </label>
+
+                        <!-- Window Sizing & Positioning Troubleshooting -->
+                        <div class="desktop-troubleshoot-box">
+                            <div class="desktop-troubleshoot-header">
+                                <div>
+                                    <strong>Window Position & Sizing</strong>
+                                    <p class="settings-helper">Reset ukuran dan posisi jendela jika tersangkut di luar layar setelah melepas monitor eksternal atau rotasi layar.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="settings-btn-inline settings-btn-reset-window"
+                                    id="btnResetWindowSize"
+                                    title="Kembalikan ukuran jendela ke 1280x800 dan posisikan di tengah layar"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                    Reset Window Size & Position
+                                </button>
+                            </div>
+                            <div id="desktopResetFeedback" class="settings-test-feedback" hidden></div>
+
+                            <div class="desktop-shortcuts-tip">
+                                <span class="desktop-tip-badge">Tip</span>
+                                <span>Gunakan <kbd>Ctrl</kbd> + <kbd>+</kbd> / <kbd>-</kbd> untuk zoom antarmuka desktop, atau <kbd>Ctrl</kbd> + <kbd>0</kbd> untuk reset zoom ke 100%.</span>
+                            </div>
+                        </div>
                     </section>
 
                     <section class="settings-card settings-card-compact" id="settings-myanimelist">
@@ -2224,6 +2278,53 @@ document.addEventListener('DOMContentLoaded', function() {
             } finally {
                 btnTestLendrive.disabled = false;
                 btnTestLendrive.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    // 5. Desktop Window Reset
+    const btnResetWindow = document.getElementById('btnResetWindowSize');
+    const desktopResetFeedback = document.getElementById('desktopResetFeedback');
+
+    if (btnResetWindow) {
+        btnResetWindow.addEventListener('click', async () => {
+            btnResetWindow.disabled = true;
+            const originalHtml = btnResetWindow.innerHTML;
+            btnResetWindow.innerHTML = `<span class="path-spinner"></span> Resetting...`;
+            if (desktopResetFeedback) {
+                desktopResetFeedback.hidden = false;
+                desktopResetFeedback.className = 'settings-test-feedback loading';
+                desktopResetFeedback.textContent = 'Mereset ukuran dan posisi jendela desktop...';
+            }
+
+            try {
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.reset_window) {
+                    try {
+                        await window.pywebview.api.reset_window();
+                    } catch (_) {}
+                }
+
+                const resp = await fetch('/api/desktop/reset-window', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await resp.json();
+
+                if (desktopResetFeedback) {
+                    desktopResetFeedback.className = 'settings-test-feedback success';
+                    desktopResetFeedback.innerHTML = `<strong>✓ Berhasil:</strong> ${escapeHtml(data.message || 'Ukuran dan posisi jendela desktop berhasil diatur ulang ke 1280x800 di tengah layar.')}`;
+                    setTimeout(() => {
+                        if (desktopResetFeedback) desktopResetFeedback.hidden = true;
+                    }, 4000);
+                }
+            } catch (err) {
+                if (desktopResetFeedback) {
+                    desktopResetFeedback.className = 'settings-test-feedback error';
+                    desktopResetFeedback.textContent = 'Gagal mereset posisi jendela desktop.';
+                }
+            } finally {
+                btnResetWindow.disabled = false;
+                btnResetWindow.innerHTML = originalHtml;
             }
         });
     }

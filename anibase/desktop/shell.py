@@ -10,6 +10,7 @@ import webbrowser
 import webview
 
 from anibase.settings import load_settings, save_settings
+from anibase.logging import app_log
 
 desktop_window = None
 desktop_api = None
@@ -111,6 +112,9 @@ class DesktopApi:
             "zoom": float(_window_state.get("zoom", 1.0)),
         }
 
+    def reset_window(self):
+        return reset_desktop_window()
+
 
 def get_screen_bounds():
     """Returns (width, height) of primary screen on Windows."""
@@ -121,6 +125,120 @@ def get_screen_bounds():
         except Exception:
             pass
     return 1920, 1080
+
+
+def get_windows_startup_command() -> str:
+    """Returns the executable command line for Windows startup."""
+    import sys
+    from anibase.utils import get_application_dir
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+
+    py_dir = os.path.dirname(sys.executable)
+    pythonw = os.path.join(py_dir, "pythonw.exe")
+    exe = pythonw if os.path.isfile(pythonw) else sys.executable
+    main_py = os.path.join(get_application_dir(), "main.py")
+    return f'"{exe}" "{main_py}"'
+
+
+def is_windows_startup_enabled() -> bool:
+    """Checks if AniBase is registered in Windows Startup registry."""
+    if os.name != "nt":
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, "AniBase")
+            return bool(val)
+    except (FileNotFoundError, OSError):
+        return False
+    except Exception:
+        return False
+
+
+def set_windows_startup(enabled: bool) -> bool:
+    """Enables or disables AniBase auto-start on Windows startup via Registry."""
+    if os.name != "nt":
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE) as key:
+            if enabled:
+                cmd = get_windows_startup_command()
+                winreg.SetValueEx(key, "AniBase", 0, winreg.REG_SZ, cmd)
+                app_log("AniBase registered for Windows startup.", "INFO")
+            else:
+                try:
+                    winreg.DeleteValue(key, "AniBase")
+                    app_log("AniBase removed from Windows startup.", "INFO")
+                except FileNotFoundError:
+                    pass
+        return True
+    except Exception as e:
+        app_log(f"Failed to update Windows startup registry: {e}", "WARN")
+        return False
+
+
+def sync_windows_startup_from_settings(enabled: bool) -> bool:
+    """Synchronizes the Windows startup registry with the configured setting if needed."""
+    current = is_windows_startup_enabled()
+    if current != bool(enabled):
+        return set_windows_startup(bool(enabled))
+    return True
+
+
+def reset_desktop_window() -> dict:
+    """Resets the desktop window to default size (1280x800) and centers it on the primary monitor."""
+    global _window_state, desktop_window
+    sw, sh = get_screen_bounds()
+    w, h = 1280, 800
+    w = max(960, min(sw, w))
+    h = max(600, min(sh, h))
+    x = max(0, (sw - w) // 2)
+    y = max(0, (sh - h) // 2)
+
+    _window_state["width"] = w
+    _window_state["height"] = h
+    _window_state["x"] = x
+    _window_state["y"] = y
+    _window_state["maximized"] = False
+    _window_state["zoom"] = 1.0
+
+    try:
+        settings = load_settings()
+        settings["desktop_window"] = {
+            "x": x,
+            "y": y,
+            "width": w,
+            "height": h,
+            "maximized": False,
+            "zoom": 1.0,
+        }
+        save_settings(settings)
+    except Exception as e:
+        app_log(f"Failed to save reset window state: {e}", "WARN")
+
+    if desktop_window:
+        try:
+            if hasattr(desktop_window, "restore"):
+                desktop_window.restore()
+            if hasattr(desktop_window, "resize"):
+                desktop_window.resize(w, h)
+            if hasattr(desktop_window, "move"):
+                desktop_window.move(x, y)
+        except Exception as e:
+            app_log(f"Error repositioning desktop window: {e}", "DEBUG")
+
+    return {
+        "ok": True,
+        "width": w,
+        "height": h,
+        "x": x,
+        "y": y,
+        "desktop_active": desktop_window is not None,
+        "message": "Ukuran dan posisi jendela desktop berhasil diatur ulang ke 1280x800 di tengah layar."
+    }
+
 
 
 def get_window_hwnd():

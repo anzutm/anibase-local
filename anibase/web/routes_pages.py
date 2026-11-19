@@ -185,6 +185,14 @@ def settings_page():
     lan_url = f"http://{lan_ip}:5000"
     lan_qr_svg = generate_qr_svg(lan_url)
 
+    try:
+        from anibase.desktop.shell import desktop_window, is_windows_startup_enabled
+        is_desktop_active = desktop_window is not None
+        is_startup_registered = is_windows_startup_enabled()
+    except Exception:
+        is_desktop_active = False
+        is_startup_registered = False
+
     return render_template(
         "settings.html",
         settings=settings,
@@ -197,6 +205,8 @@ def settings_page():
         lan_ip=lan_ip,
         lan_url=lan_url,
         lan_qr_svg=lan_qr_svg,
+        is_desktop_active=is_desktop_active,
+        is_startup_registered=is_startup_registered,
         saved=request.args.get("saved") == "1",
         auto_import_scanned=request.args.get("auto_import_scanned") == "1",
         auto_import_processed=request.args.get("processed", "0"),

@@ -56,6 +56,7 @@ def get_default_settings():
         "shortcuts": constants.DEFAULT_PLAYER_SHORTCUTS.copy(),
         "desktop_minimize_to_tray": True,
         "desktop_start_minimized": False,
+        "desktop_run_on_startup": False,
         "desktop_window": {},
         "ongoing_tracker_enabled": True,
         "ongoing_tracker_interval_minutes": 30,
@@ -192,6 +193,10 @@ def load_settings():
         merged.get("desktop_start_minimized"),
         defaults["desktop_start_minimized"]
     )
+    merged["desktop_run_on_startup"] = normalize_bool_setting(
+        merged.get("desktop_run_on_startup"),
+        defaults["desktop_run_on_startup"]
+    )
     merged["ongoing_tracker_enabled"] = normalize_bool_setting(
         merged.get("ongoing_tracker_enabled"),
         defaults["ongoing_tracker_enabled"]
@@ -303,3 +308,9 @@ def apply_settings(settings, reset_discord_rpc_fn=None):
     )
     if not constants.DISCORD_RPC_ENABLED and callable(reset_discord_rpc_fn):
         reset_discord_rpc_fn()
+
+    try:
+        from anibase.desktop.shell import sync_windows_startup_from_settings
+        sync_windows_startup_from_settings(merged.get("desktop_run_on_startup", False))
+    except Exception:
+        pass
