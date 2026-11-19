@@ -350,14 +350,49 @@
                             <h3>Keyboard Shortcuts</h3>
                             <p>Customize player keyboard controls. Click any key badge to record a new key combination.</p>
                         </div>
-                        <button type="button" class="settings-shortcuts-reset-all-btn" id="resetAllShortcutsBtn" title="Reset all shortcuts to default">
-                            <span aria-hidden="true">&#8635;</span> Reset All Defaults
-                        </button>
+                        <div class="settings-shortcuts-head-actions">
+                            <button type="button" class="settings-shortcuts-reset-all-btn" id="resetAllShortcutsBtn" title="Reset all shortcuts to default">
+                                <span aria-hidden="true">&#8635;</span> Reset All Defaults
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="settings-shortcuts-container">
+                    <!-- Search and Filter Toolbar -->
+                    <div class="shortcuts-toolbar">
+                        <div class="shortcuts-search-wrap">
+                            <svg class="shortcuts-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input
+                                type="text"
+                                id="shortcutSearchInput"
+                                class="shortcuts-search-input"
+                                placeholder="Filter shortcuts (e.g. volume, seek, f, Space, subtitle)..."
+                                autocomplete="off"
+                            >
+                            <button type="button" id="shortcutSearchClearBtn" class="shortcuts-search-clear" title="Clear filter" hidden>✕</button>
+                        </div>
+                        <div class="shortcuts-category-pills" id="shortcutCategoryPills">
+                            <button type="button" class="shortcuts-cat-pill active" data-category="all">All</button>
+                            {% for cat in shortcut_definitions %}
+                            <button type="button" class="shortcuts-cat-pill" data-category="{{ cat.category_id or cat.category | lower }}">{{ cat.category }}</button>
+                            {% endfor %}
+                        </div>
+                        <div class="shortcuts-filter-count" id="shortcutFilterCount"></div>
+                    </div>
+
+                    <!-- Global Conflict Alert Banner -->
+                    <div class="shortcuts-conflict-banner" id="shortcutsConflictBanner" hidden>
+                        <div class="shortcuts-conflict-banner-content">
+                            <span class="shortcuts-conflict-icon" aria-hidden="true">⚠</span>
+                            <div class="shortcuts-conflict-banner-text" id="shortcutsConflictBannerText"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-shortcuts-container" id="shortcutsContainer">
                         {% for cat in shortcut_definitions %}
-                        <div class="shortcuts-group">
+                        <div class="shortcuts-group" data-category="{{ cat.category_id or cat.category | lower }}">
                             <div class="shortcuts-group-header">
                                 <span class="shortcuts-group-icon" aria-hidden="true">{{ cat.icon | safe }}</span>
                                 <div>
@@ -369,10 +404,11 @@
                             <div class="shortcuts-list">
                                 {% for action in cat.actions %}
                                 {% set current_val = player_shortcuts.get(action.id, action.default) %}
-                                <div class="shortcut-item" data-action-id="{{ action.id }}" data-default-key="{{ action.default }}">
+                                <div class="shortcut-item" data-action-id="{{ action.id }}" data-category="{{ cat.category_id or cat.category | lower }}" data-default-key="{{ action.default }}" data-label="{{ action.label }}">
                                     <div class="shortcut-info">
                                         <span class="shortcut-name">{{ action.label }}</span>
                                         <span class="shortcut-desc">{{ action.description }}</span>
+                                        <div class="shortcut-conflict-notice" id="shortcut_conflict_{{ action.id }}" hidden></div>
                                     </div>
                                     <div class="shortcut-control">
                                         <input
@@ -1883,30 +1919,181 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const shortcutItems = document.querySelectorAll('.shortcut-item');
     const resetAllBtn = document.getElementById('resetAllShortcutsBtn');
+    const searchInput = document.getElementById('shortcutSearchInput');
+    const searchClearBtn = document.getElementById('shortcutSearchClearBtn');
+    const categoryPills = document.getElementById('shortcutCategoryPills');
+    const filterCountEl = document.getElementById('shortcutFilterCount');
+    const shortcutsContainer = document.getElementById('shortcutsContainer');
+    let activeCategory = 'all';
 
     function checkShortcutDuplicates() {
         const keyMap = {};
+        const actionLabels = {};
+
         shortcutItems.forEach(item => {
             const input = item.querySelector('input[type="hidden"]');
             const key = input ? input.value.trim().toLowerCase() : '';
+            const actionId = item.dataset.actionId;
+            const label = item.dataset.label || item.querySelector('.shortcut-name')?.textContent || actionId;
+            actionLabels[actionId] = label;
+
             if (!key) return;
             if (!keyMap[key]) keyMap[key] = [];
-            keyMap[key].push(item);
+            keyMap[key].push({ item, actionId, label, rawKey: input.value.trim() });
         });
+
+        const conflictPairs = [];
 
         shortcutItems.forEach(item => {
             const btn = item.querySelector('.shortcut-key-btn');
             const input = item.querySelector('input[type="hidden"]');
             const key = input ? input.value.trim().toLowerCase() : '';
             const actionId = item.dataset.actionId;
+            const notice = item.querySelector('.shortcut-conflict-notice');
             const isIntentionalShare = (actionId === 'aniskip' || actionId === 'screenshot') && key === 's';
-            if (keyMap[key] && keyMap[key].length > 1 && !isIntentionalShare) {
+
+            const matches = (keyMap[key] || []).filter(entry => entry.actionId !== actionId);
+
+            if (matches.length > 0 && !isIntentionalShare) {
                 btn.classList.add('has-conflict');
-                btn.setAttribute('title', 'Duplicate key combo detected');
+                const conflictingNames = matches.map(m => `"${m.label}"`).join(', ');
+                const titleMsg = `Konflik tombol: Juga digunakan oleh ${conflictingNames}`;
+                btn.setAttribute('title', titleMsg);
+
+                if (notice) {
+                    notice.innerHTML = `<span class="conflict-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Konflik dengan: <strong>${escapeHtml(matches.map(m => m.label).join(', '))}</strong></span>`;
+                    notice.hidden = false;
+                }
+
+                // Catat pasangan konflik untuk ringkasan banner atas
+                const pairKey = [actionId, matches[0].actionId].sort().join(':');
+                if (!conflictPairs.some(p => p.pairKey === pairKey)) {
+                    conflictPairs.push({
+                        pairKey,
+                        key: matches[0].rawKey || key,
+                        action1: actionLabels[actionId],
+                        action2: matches.map(m => m.label).join(', ')
+                    });
+                }
             } else {
                 btn.classList.remove('has-conflict');
                 btn.setAttribute('title', 'Click to rebind (Esc to cancel)');
+                if (notice) {
+                    notice.innerHTML = '';
+                    notice.hidden = true;
+                }
             }
+        });
+
+        // Update Conflict Banner di atas kartu
+        const banner = document.getElementById('shortcutsConflictBanner');
+        const bannerText = document.getElementById('shortcutsConflictBannerText');
+        if (banner && bannerText) {
+            if (conflictPairs.length > 0) {
+                const listHtml = conflictPairs.map(p =>
+                    `<strong>"${escapeHtml(p.action1)}"</strong> &amp; <strong>"${escapeHtml(p.action2)}"</strong> sama-sama menggunakan tombol <kbd>${escapeHtml(p.key)}</kbd>`
+                ).join(' • ');
+                bannerText.innerHTML = `<span><strong>Peringatan Konflik (${conflictPairs.length}):</strong> ${listHtml}</span>`;
+                banner.hidden = false;
+            } else {
+                banner.hidden = true;
+                bannerText.innerHTML = '';
+            }
+        }
+    }
+
+    function applyShortcutFilter() {
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        if (searchClearBtn) {
+            searchClearBtn.hidden = !query;
+        }
+
+        let visibleCount = 0;
+        const groups = document.querySelectorAll('.shortcuts-group');
+
+        groups.forEach(group => {
+            const groupCat = group.dataset.category || '';
+            const items = group.querySelectorAll('.shortcut-item');
+            let groupHasVisible = false;
+
+            items.forEach(item => {
+                const label = (item.dataset.label || '').toLowerCase();
+                const desc = (item.querySelector('.shortcut-desc')?.textContent || '').toLowerCase();
+                const keyInput = item.querySelector('input[type="hidden"]');
+                const keyVal = (keyInput ? keyInput.value : '').toLowerCase();
+                const itemCat = item.dataset.category || groupCat;
+
+                const matchesCat = (activeCategory === 'all' || itemCat === activeCategory);
+                const matchesQuery = !query || label.includes(query) || desc.includes(query) || keyVal.includes(query);
+
+                if (matchesCat && matchesQuery) {
+                    item.hidden = false;
+                    groupHasVisible = true;
+                    visibleCount++;
+                } else {
+                    item.hidden = true;
+                }
+            });
+
+            group.hidden = !groupHasVisible;
+        });
+
+        // Counter info
+        if (filterCountEl) {
+            if (query || activeCategory !== 'all') {
+                filterCountEl.textContent = `Menampilkan ${visibleCount} dari ${shortcutItems.length} shortcut`;
+            } else {
+                filterCountEl.textContent = `${shortcutItems.length} shortcuts`;
+            }
+        }
+
+        // Empty state handling
+        let emptyState = document.getElementById('shortcutsEmptyState');
+        if (visibleCount === 0) {
+            if (!emptyState && shortcutsContainer) {
+                emptyState = document.createElement('div');
+                emptyState.id = 'shortcutsEmptyState';
+                emptyState.className = 'shortcuts-empty-state';
+                shortcutsContainer.appendChild(emptyState);
+            }
+            if (emptyState) {
+                emptyState.innerHTML = `
+                    <p>Tidak ada shortcut yang cocok dengan kriteria pencarian "${escapeHtml(query)}".</p>
+                    <button type="button" class="shortcuts-reset-filter-btn" id="resetShortcutFilterBtn">Reset Filter</button>
+                `;
+                emptyState.hidden = false;
+                document.getElementById('resetShortcutFilterBtn')?.addEventListener('click', () => {
+                    if (searchInput) searchInput.value = '';
+                    activeCategory = 'all';
+                    categoryPills?.querySelectorAll('.shortcuts-cat-pill').forEach(p => p.classList.toggle('active', p.dataset.category === 'all'));
+                    applyShortcutFilter();
+                });
+            }
+        } else if (emptyState) {
+            emptyState.hidden = true;
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', applyShortcutFilter);
+    }
+
+    if (searchClearBtn) {
+        searchClearBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            applyShortcutFilter();
+            searchInput?.focus();
+        });
+    }
+
+    if (categoryPills) {
+        categoryPills.addEventListener('click', (e) => {
+            const pill = e.target.closest('.shortcuts-cat-pill');
+            if (!pill) return;
+            categoryPills.querySelectorAll('.shortcuts-cat-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            activeCategory = pill.dataset.category;
+            applyShortcutFilter();
         });
     }
 
@@ -1982,6 +2169,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         stopRecording();
         checkShortcutDuplicates();
+        applyShortcutFilter();
     }
 
     function startRecording(btn, actionId) {
@@ -2026,6 +2214,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     display.textContent = defaultKey;
                 }
                 checkShortcutDuplicates();
+                applyShortcutFilter();
             });
         }
     });
@@ -2042,10 +2231,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             checkShortcutDuplicates();
+            applyShortcutFilter();
         });
     }
 
     checkShortcutDuplicates();
+    applyShortcutFilter();
 })();
 </script>
 {% endblock %}
