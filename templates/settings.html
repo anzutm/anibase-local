@@ -478,7 +478,7 @@
                                 </strong>
                                 <small>
                                     {% if auto_import_overview.enabled %}
-                                    Auto scan monitors the configured download folder in the background.
+                                    Auto scan monitors download folder every {{ settings.auto_import_interval_seconds or 15 }}s.
                                     {% else %}
                                     Auto scan is off. You can still run Scan Now manually.
                                     {% endif %}
@@ -495,6 +495,12 @@
                                     Folder is missing or not configured.
                                     {% endif %}
                                 </small>
+                            </div>
+
+                            <div class="auto-import-summary-card">
+                                <span class="auto-import-summary-label">Supported Formats</span>
+                                <strong>.mkv, .mp4, .avi, .webm</strong>
+                                <small>Temporary downloader files (.crdownload, .part, .aria2) are safely held until complete.</small>
                             </div>
                         </div>
 
@@ -582,8 +588,8 @@
                         <details class="settings-mapping-panel">
                             <summary class="settings-mapping-summary">
                                 <div>
-                                    <h4>Advanced Import Matching</h4>
-                                    <p>Optional title aliases. Most users can leave this closed.</p>
+                                    <h4>Advanced Import Settings & Mappings</h4>
+                                    <p>Timing intervals, file stability checks, and custom title aliases.</p>
                                 </div>
                                 <div class="settings-mapping-summary-actions" aria-hidden="true">
                                     <span>Advanced</span>
@@ -593,8 +599,37 @@
                                 </div>
                             </summary>
 
+                            <div class="auto-import-timing-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; margin-bottom: 16px; padding: 12px 14px; background: rgba(0, 0, 0, 0.15); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                                <div class="settings-field">
+                                    <label class="settings-label" for="auto_import_interval_seconds">Scan Interval (Seconds)</label>
+                                    <p class="settings-helper">How frequently AniBase scans the download folder (default: 15s).</p>
+                                    <input
+                                        class="settings-input"
+                                        type="number"
+                                        id="auto_import_interval_seconds"
+                                        name="auto_import_interval_seconds"
+                                        min="5"
+                                        max="3600"
+                                        value="{{ settings.auto_import_interval_seconds or 15 }}"
+                                    >
+                                </div>
+                                <div class="settings-field">
+                                    <label class="settings-label" for="auto_import_stable_seconds">File Stability Wait (Seconds)</label>
+                                    <p class="settings-helper">Wait duration with unchanged file size before moving (prevents partial imports, default: 60s).</p>
+                                    <input
+                                        class="settings-input"
+                                        type="number"
+                                        id="auto_import_stable_seconds"
+                                        name="auto_import_stable_seconds"
+                                        min="10"
+                                        max="86400"
+                                        value="{{ settings.auto_import_stable_seconds or 60 }}"
+                                    >
+                                </div>
+                            </div>
+
                             <p class="settings-helper">
-                                Use this only when a downloaded filename keeps matching the wrong anime.
+                                Title aliases: Use this only when a downloaded filename keeps matching the wrong anime folder.
                             </p>
                             <div class="auto-import-mapping-list" id="autoImportMappingList">
                                 {% set mapping_rows = auto_import_mapping_rows if auto_import_mapping_rows else [{'source': '', 'target': ''}] %}
@@ -2157,20 +2192,123 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     autoImportResolveButtons.forEach((button) => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', async function() {
             const row = this.closest('.auto-import-unmatched-row');
             const select = row ? row.querySelector('.auto-import-target-select') : null;
             const mapCheck = row ? row.querySelector('.auto-import-map-check input') : null;
 
             if (!select || !select.value) {
-                showPickerMessage('Choose a target anime folder before resolving.', true);
+                showPickerMessage('Pilih folder anime tujuan terlebih dahulu.', true);
+                if (select) select.focus();
                 return;
             }
 
-            autoImportResolveSource.value = this.dataset.sourcePath || select.dataset.sourcePath || '';
-            autoImportResolveTarget.value = select.value;
-            autoImportResolveMapping.disabled = !(mapCheck && mapCheck.checked);
-            autoImportResolveForm.submit();
+            const sourcePath = this.dataset.sourcePath || select.dataset.sourcePath || '';
+            const targetAnime = select.value;
+            const addMapping = Boolean(mapCheck && mapCheck.checked);
+            const originalText = this.textContent;
+
+            this.disabled = true;
+            this.textContent = 'Moving...';
+            if (row) row.style.pointerEvents = 'none';
+
+            try {
+                const actionToken = document.querySelector('input[name="action_token"]')?.value || '';
+                const formData = new FormData();
+                formData.append('source_path', sourcePath);
+                formData.append('target_anime', targetAnime);
+                if (addMapping) {
+                    formData.append('add_mapping', '1');
+                }
+                formData.append('action_token', actionToken);
+
+                const response = await fetch('/settings/auto-import/resolve', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.ok === false) {
+                    throw new Error(data.message || data.error || 'Failed to move file');
+                }
+
+                // Visual feedback success
+                if (row) {
+                    row.style.background = 'rgba(34, 197, 94, 0.15)';
+                    row.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+                    this.textContent = 'Moved!';
+
+                    // Tambahkan ke panel Recent Imports jika ada
+                    const recentPanels = document.querySelectorAll('.auto-import-results-grid .auto-import-result-panel');
+                    if (recentPanels.length > 0) {
+                        const recentPanel = recentPanels[0];
+                        let recentList = recentPanel.querySelector('.auto-import-list');
+                        const recentEmpty = recentPanel.querySelector('.auto-import-empty');
+                        if (recentEmpty) recentEmpty.remove();
+
+                        if (!recentList) {
+                            recentList = document.createElement('div');
+                            recentList.className = 'auto-import-list';
+                            recentPanel.appendChild(recentList);
+                        }
+
+                        const newRow = document.createElement('div');
+                        newRow.className = 'auto-import-row';
+                        newRow.style.animation = 'fadeIn 0.3s ease';
+                        newRow.innerHTML = `
+                            <div>
+                                <strong>${escapeHtml(data.filename || sourcePath.split(/[/\\]/).pop())}</strong>
+                                <small>download &rarr; ${escapeHtml(targetAnime)}</small>
+                            </div>
+                            <span class="auto-import-pill is-valid">Moved</span>
+                        `;
+                        recentList.insertBefore(newRow, recentList.firstChild);
+                    }
+
+                    // Animasikan baris unmatched keluar
+                    setTimeout(() => {
+                        row.style.transition = 'opacity 0.3s ease, transform 0.3s ease, max-height 0.35s ease, margin 0.3s ease, padding 0.3s ease';
+                        row.style.overflow = 'hidden';
+                        row.style.maxHeight = row.offsetHeight + 'px';
+                        row.offsetHeight; // force reflow
+                        row.style.opacity = '0';
+                        row.style.transform = 'translateX(20px)';
+                        row.style.maxHeight = '0';
+                        row.style.marginTop = '0';
+                        row.style.marginBottom = '0';
+                        row.style.paddingTop = '0';
+                        row.style.paddingBottom = '0';
+
+                        setTimeout(() => {
+                            const list = row.closest('.auto-import-list');
+                            row.remove();
+                            if (list && list.querySelectorAll('.auto-import-unmatched-row').length === 0) {
+                                const panel = list.closest('.auto-import-result-panel');
+                                list.remove();
+                                if (panel && !panel.querySelector('.auto-import-empty')) {
+                                    const empty = document.createElement('div');
+                                    empty.className = 'auto-import-empty';
+                                    empty.textContent = 'No unmatched files.';
+                                    panel.appendChild(empty);
+                                }
+                                const clearBtn = document.getElementById('autoImportClearAllBtn');
+                                if (clearBtn) clearBtn.remove();
+                            }
+                        }, 350);
+                    }, 400);
+                }
+            } catch (err) {
+                console.error('Failed to resolve auto-import file:', err);
+                showPickerMessage(err.message || 'Gagal memindahkan berkas. Coba lagi.', true);
+                this.disabled = false;
+                this.textContent = originalText;
+                if (row) {
+                    row.style.pointerEvents = '';
+                    row.style.background = '';
+                    row.style.borderColor = '';
+                }
+            }
         });
     });
 

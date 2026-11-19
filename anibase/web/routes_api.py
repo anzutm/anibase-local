@@ -520,9 +520,21 @@ def scan_auto_import_settings():
 @host_only
 @require_action_token
 def resolve_auto_import_settings():
-    source_path = request.form.get("source_path", "").strip()
-    target_anime = request.form.get("target_anime", "").strip()
-    add_mapping = "add_mapping" in request.form
+    want_json = (
+        request.accept_mimetypes.accept_json
+        and not request.accept_mimetypes.accept_html
+    ) or request.is_json
+
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        source_path = str(payload.get("source_path", "")).strip()
+        target_anime = str(payload.get("target_anime", "")).strip()
+        add_mapping = bool(payload.get("add_mapping"))
+    else:
+        source_path = request.form.get("source_path", "").strip()
+        target_anime = request.form.get("target_anime", "").strip()
+        add_mapping = "add_mapping" in request.form
+
     settings = load_settings()
 
     target_path = find_anime_path(target_anime)
@@ -531,7 +543,7 @@ def resolve_auto_import_settings():
         or not is_valid_auto_import_resolve_source(source_path, settings)
     ):
         app_log(f"Auto import manual resolve rejected unsafe source: {source_path}", "WARN")
-        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        if want_json:
             return json_error(
                 "invalid_auto_import_source",
                 "Auto import source or target is not valid.",
@@ -550,10 +562,22 @@ def resolve_auto_import_settings():
                 mappings = settings.setdefault("auto_import_mappings", {})
                 mappings[clean_title] = target_anime
                 save_settings(settings)
+        if want_json:
+            return jsonify({
+                "ok": True,
+                "message": f"Successfully moved to {target_anime}",
+                "filename": os.path.basename(source_path),
+                "source_path": source_path,
+                "target_anime": target_anime,
+                "clean_title": clean_title,
+                "mapping_added": bool(add_mapping and clean_title)
+            })
         return redirect("/settings?auto_import_resolved=1")
     except OSError as e:
         record_auto_import_unmatched(source_path, clean_title, str(e))
         app_log(f"Auto import manual resolve failed: {e}", "ERROR")
+        if want_json:
+            return json_error("move_failed", str(e), 500)
         return redirect("/settings?auto_import_scanned=1&processed=0&moved=0&unmatched=0&errors=1")
 
 

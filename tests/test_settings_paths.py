@@ -232,6 +232,93 @@ class TestSettingsLibraryPaths(unittest.TestCase):
             self.assertEqual(saved_dict.get("ongoing_tracker_interval_minutes"), 60)
             self.assertTrue(saved_dict.get("ongoing_tracker_notify_toast"))
 
+    def test_auto_import_interval_and_stability_persistence(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        with patch("anibase.web.routes_api.load_settings") as mock_load, \
+             patch("anibase.web.routes_api.save_settings") as mock_save, \
+             patch("anibase.web.routes_api.apply_settings"), \
+             patch("anibase.web.routes_api.reconfigure_library_observer"), \
+             patch("anibase.web.routes_api.start_auto_import_worker"), \
+             patch("anibase.web.routes_api.sync_all_library"):
+
+            mock_load.return_value = {
+                "action_token": token,
+                "auto_import_enabled": False,
+                "auto_import_interval_seconds": 15,
+                "auto_import_stable_seconds": 60,
+            }
+
+            res = self.client.post("/settings", data={
+                "action_token": token,
+                "auto_import_enabled": "on",
+                "auto_import_interval_seconds": "45",
+                "auto_import_stable_seconds": "90",
+            }, headers={"X-Action-Token": token})
+
+            self.assertEqual(res.status_code, 302)
+            saved = mock_save.call_args[0][0]
+            self.assertTrue(saved.get("auto_import_enabled"))
+            self.assertEqual(saved.get("auto_import_interval_seconds"), 45)
+            self.assertEqual(saved.get("auto_import_stable_seconds"), 90)
+
+    def test_resolve_auto_import_ajax_json_response(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        dl_dir = os.path.join(self.tmp_dir.name, "Downloads")
+        lib_dir = os.path.join(self.tmp_dir.name, "Library")
+        target_dir = os.path.join(lib_dir, "Sousou no Frieren")
+        os.makedirs(dl_dir, exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
+
+        source_file = os.path.join(dl_dir, "[SubsPlease] Sousou no Frieren - 01 (1080p).mkv")
+        with open(source_file, "wb") as f:
+            f.write(b"dummy video content")
+
+        with patch("anibase.web.routes_api.load_settings") as mock_load, \
+             patch("anibase.web.routes_api.save_settings"), \
+             patch("anibase.web.routes_api.find_anime_path", return_value=target_dir), \
+             patch("anibase.web.routes_api.is_valid_auto_import_resolve_source", return_value=True):
+
+            mock_load.return_value = {
+                "action_token": token,
+                "auto_import_mappings": {},
+            }
+
+            # 1. AJAX JSON request
+            res = self.client.post("/settings/auto-import/resolve", data={
+                "action_token": token,
+                "source_path": source_file,
+                "target_anime": "Sousou no Frieren",
+                "add_mapping": "1",
+            }, headers={
+                "Accept": "application/json",
+                "X-Action-Token": token,
+            })
+
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["target_anime"], "Sousou no Frieren")
+            self.assertTrue(data["mapping_added"])
+            self.assertEqual(data["filename"], "[SubsPlease] Sousou no Frieren - 01 (1080p).mkv")
+
+            # 2. Invalid source reject JSON (status 422)
+            with patch("anibase.web.routes_api.is_valid_auto_import_resolve_source", return_value=False):
+                res_bad = self.client.post("/settings/auto-import/resolve", data={
+                    "action_token": token,
+                    "source_path": "/invalid/fake/path.mkv",
+                    "target_anime": "Sousou no Frieren",
+                }, headers={
+                    "Accept": "application/json",
+                    "X-Action-Token": token,
+                })
+                self.assertEqual(res_bad.status_code, 422)
+                bad_data = res_bad.get_json()
+                self.assertFalse(bad_data.get("ok", True))
+
 
 if __name__ == "__main__":
     unittest.main()
