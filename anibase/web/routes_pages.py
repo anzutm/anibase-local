@@ -27,6 +27,8 @@ from anibase.utils import (
     safe_join_media_path,
     clean_movie_title,
     normalize_library_paths,
+    get_local_lan_ip,
+    generate_qr_svg,
 )
 from anibase.settings import (
     load_settings,
@@ -179,6 +181,10 @@ def settings_page():
             if str(source).strip() and str(target).strip()
         ]
 
+    lan_ip = get_local_lan_ip()
+    lan_url = f"http://{lan_ip}:5000"
+    lan_qr_svg = generate_qr_svg(lan_url)
+
     return render_template(
         "settings.html",
         settings=settings,
@@ -188,6 +194,9 @@ def settings_page():
         auto_import_overview=auto_import_overview,
         auto_import_destination_paths=auto_import_destination_paths,
         auto_import_mapping_rows=auto_import_mapping_rows,
+        lan_ip=lan_ip,
+        lan_url=lan_url,
+        lan_qr_svg=lan_qr_svg,
         saved=request.args.get("saved") == "1",
         auto_import_scanned=request.args.get("auto_import_scanned") == "1",
         auto_import_processed=request.args.get("processed", "0"),

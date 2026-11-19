@@ -99,6 +99,14 @@ SAMPLE_LENDRIVE_DOWNLOAD_HTML = """
 
 class LendriveIntegrationTests(unittest.TestCase):
 
+    def setUp(self):
+        from anibase.integrations.lendrive import clear_lendrive_cache
+        clear_lendrive_cache()
+
+    def tearDown(self):
+        from anibase.integrations.lendrive import clear_lendrive_cache
+        clear_lendrive_cache()
+
     def test_clean_lendrive_title(self):
         self.assertEqual(
             clean_lendrive_title("[LENDRIVE] Doumo Suki - 02 [1080p HEVC][Dualsubs]"),

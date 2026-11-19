@@ -813,58 +813,230 @@
                     <section class="settings-card settings-card-compact" id="settings-integrations">
                         <div class="settings-card-head">
                             <span class="settings-kicker">Integration</span>
-                            <h3>Integration</h3>
-                            <p>Control local integrations used while watching.</p>
+                            <h3>Integrations & Network</h3>
+                            <p>Control Discord Rich Presence, local network access (LAN), and downloader integrations.</p>
                         </div>
 
-                        <label class="settings-toggle-row settings-toggle-row--subtle">
-                            <input
-                                type="checkbox"
-                                name="discord_rpc_enabled"
-                                {% if settings.discord_rpc_enabled %}checked{% endif %}
-                            >
-                            <span class="settings-toggle-ui" aria-hidden="true"></span>
-                            <span>
-                                <strong>Discord Rich Presence</strong>
-                                <small>Show current playback status on Discord.</small>
-                            </span>
-                        </label>
+                        <!-- 1. DISCORD RICH PRESENCE -->
+                        <div class="settings-integration-group" style="margin-top: 0; padding-top: 0; border-top: none;">
+                            <div class="settings-group-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                                <span>Discord Rich Presence</span>
+                            </div>
 
-                        <label class="settings-toggle-row settings-toggle-row--subtle">
-                            <input
-                                type="checkbox"
-                                name="lan_access_enabled"
-                                {% if settings.lan_access_enabled %}checked{% endif %}
-                            >
-                            <span class="settings-toggle-ui" aria-hidden="true"></span>
-                            <span>
-                                <strong>LAN Access</strong>
-                                <small>Allow devices on the same network to open AniBase.</small>
-                            </span>
-                        </label>
+                            <label class="settings-toggle-row settings-toggle-row--subtle">
+                                <input
+                                    type="checkbox"
+                                    name="discord_rpc_enabled"
+                                    id="discord_rpc_enabled"
+                                    {% if settings.discord_rpc_enabled %}checked{% endif %}
+                                >
+                                <span class="settings-toggle-ui" aria-hidden="true"></span>
+                                <span>
+                                    <strong>Enable Discord RPC</strong>
+                                    <small>Broadcast current anime and episode to your Discord profile while playing.</small>
+                                </span>
+                            </label>
 
-                        <div class="settings-field">
-                            <label class="settings-label" for="discord_client_id">Discord Client ID</label>
-                            <p class="settings-helper">Save to apply. Discord connects during playback on this computer; LAN playback does not change its status.</p>
-                            <input
-                                class="settings-input"
-                                type="text"
-                                id="discord_client_id"
-                                name="discord_client_id"
-                                value="{{ settings.discord_client_id }}"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                placeholder="Discord application client ID"
-                            >
+                            <div class="settings-field">
+                                <div class="settings-field-head">
+                                    <label class="settings-label" for="discord_client_id">Discord Client ID</label>
+                                    <button
+                                        type="button"
+                                        class="settings-btn-inline"
+                                        id="btnTestDiscordRpc"
+                                        title="Uji apakah aplikasi Discord Desktop terdeteksi berjalan di komputer ini"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                        Test Connection
+                                    </button>
+                                </div>
+                                <input
+                                    class="settings-input"
+                                    type="text"
+                                    id="discord_client_id"
+                                    name="discord_client_id"
+                                    value="{{ settings.discord_client_id }}"
+                                    inputmode="numeric"
+                                    autocomplete="off"
+                                    placeholder="e.g. 1162402927237333063 (Leave blank for default)"
+                                >
+                                <div id="discordRpcTestResult" class="settings-test-feedback" hidden></div>
+                                <p class="settings-helper">Kosongkan untuk menggunakan Client ID default AniBase. Discord Desktop harus berjalan di komputer ini.</p>
+                            </div>
+
+                            <div class="settings-field">
+                                <label class="settings-label" for="discord_timer_mode">Discord Playback Timer</label>
+                                <select class="settings-input" id="discord_timer_mode" name="discord_timer_mode">
+                                    <option value="remaining" {% if settings.discord_timer_mode != 'elapsed' %}selected{% endif %}>Time remaining (Menghitung mundur sisa durasi)</option>
+                                    <option value="elapsed" {% if settings.discord_timer_mode == 'elapsed' %}selected{% endif %}>Elapsed playback time (Menghitung maju dari awal)</option>
+                                </select>
+                                <p class="settings-helper">Applies on the next playback update. External players show session time because playback position is unavailable.</p>
+                            </div>
                         </div>
-                        <div class="settings-field">
-                            <label class="settings-label" for="discord_timer_mode">Discord playback timer</label>
-                            <p class="settings-helper">Choose the timer shown while watching. Paused playback keeps its status without a timer. The compact status displays the anime title.</p>
-                            <select class="settings-input" id="discord_timer_mode" name="discord_timer_mode">
-                                <option value="remaining" {% if settings.discord_timer_mode != 'elapsed' %}selected{% endif %}>Time remaining</option>
-                                <option value="elapsed" {% if settings.discord_timer_mode == 'elapsed' %}selected{% endif %}>Elapsed playback time</option>
-                            </select>
-                            <p class="settings-helper">Applies on the next playback update. External players show session time because playback position is unavailable.</p>
+
+                        <!-- 2. LAN ACCESS & QR CODE HELPER -->
+                        <div class="settings-integration-group">
+                            <div class="settings-group-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                                <span>Local Network Access (LAN)</span>
+                            </div>
+
+                            <label class="settings-toggle-row settings-toggle-row--subtle">
+                                <input
+                                    type="checkbox"
+                                    name="lan_access_enabled"
+                                    id="lan_access_enabled"
+                                    {% if settings.lan_access_enabled %}checked{% endif %}
+                                >
+                                <span class="settings-toggle-ui" aria-hidden="true"></span>
+                                <span>
+                                    <strong>Allow LAN Access</strong>
+                                    <small>Izinkan smartphone, tablet, laptop lain, atau smart TV di Wi-Fi yang sama mengakses AniBase.</small>
+                                </span>
+                            </label>
+
+                            <!-- Dynamic LAN Helper Card -->
+                            <div class="lan-helper-card" id="lanHelperCard" {% if not settings.lan_access_enabled %}data-lan-disabled="1"{% endif %}>
+                                <div class="lan-helper-header">
+                                    <div class="lan-status-indicator {% if settings.lan_access_enabled %}lan-status-online{% else %}lan-status-offline{% endif %}" id="lanStatusIndicator">
+                                        <span class="lan-dot"></span>
+                                        <span id="lanStatusText">{% if settings.lan_access_enabled %}LAN Streaming Ready{% else %}LAN Access Disabled{% endif %}</span>
+                                    </div>
+                                    <button type="button" class="settings-copy-btn" id="btnCopyLanUrl" title="Salin URL LAN ke clipboard">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        <span id="btnCopyLanText">Copy URL</span>
+                                    </button>
+                                </div>
+
+                                <div class="lan-url-display">
+                                    <span class="lan-url-prefix">Local URL:</span>
+                                    <a href="{{ lan_url }}" target="_blank" rel="noopener" class="lan-url-link" id="lanUrlLink">{{ lan_url }}</a>
+                                </div>
+
+                                <div class="lan-qr-wrapper">
+                                    <div class="lan-qr-box" id="lanQrContainer">
+                                        {% if lan_qr_svg %}
+                                            {{ lan_qr_svg | safe }}
+                                        {% else %}
+                                            <div class="lan-qr-placeholder">QR Code Unavailable</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="lan-qr-caption">
+                                        <strong>Scan untuk Menonton di HP / Tablet</strong>
+                                        <p>Buka kamera HP atau pemindai QR dan sambungkan ke Wi-Fi yang sama untuk langsung menonton secara wireless tanpa memindahkan file video.</p>
+                                    </div>
+                                </div>
+
+                                <div class="lan-disabled-notice" id="lanDisabledNotice" {% if settings.lan_access_enabled %}hidden{% endif %}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                    <span>Simpan pengaturan setelah mencentang opsi di atas agar port akses LAN diizinkan menerima koneksi non-localhost.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. EPISODE DOWNLOADER & SCRAPER (LENDRIVE & SAMEHADAKU) -->
+                        <div class="settings-integration-group">
+                            <input type="hidden" name="downloader_settings_present" value="1">
+                            <div class="settings-group-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <span>Episode Downloader & Scraper (Lendrive & Samehadaku)</span>
+                            </div>
+
+                            <!-- Lendrive Cookie -->
+                            <div class="settings-field">
+                                <div class="settings-field-head">
+                                    <label class="settings-label" for="lendrive_cookie">Lendrive Anti-Bot Session Cookie</label>
+                                    <button
+                                        type="button"
+                                        class="settings-btn-inline"
+                                        id="btnTestLendriveCookie"
+                                        title="Uji apakah cookie dapat melewati proteksi WAF Lendrive"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                        Verify Cookie & Connection
+                                    </button>
+                                </div>
+                                <textarea
+                                    class="settings-input settings-textarea"
+                                    id="lendrive_cookie"
+                                    name="lendrive_cookie"
+                                    rows="2"
+                                    placeholder="Contoh: wssplashchk=... atau cf_clearance=..."
+                                >{{ settings.lendrive_cookie }}</textarea>
+                                <div id="lendriveTestResult" class="settings-test-feedback" hidden></div>
+                                <p class="settings-helper">Jika Lendrive menampilkan proteksi verifikasi anti-bot Cloudflare, salin nilai cookie <code>wssplashchk</code> atau <code>cf_clearance</code> dari browser setelah menyelesaikan captcha.</p>
+                            </div>
+
+                            <!-- Lendrive Base Mirror URL -->
+                            <div class="settings-field">
+                                <label class="settings-label" for="lendrive_base_url">Lendrive Mirror URL</label>
+                                <input
+                                    class="settings-input"
+                                    type="url"
+                                    id="lendrive_base_url"
+                                    name="lendrive_base_url"
+                                    value="{{ settings.lendrive_base_url or 'https://lendrive.web.id' }}"
+                                    placeholder="https://lendrive.web.id"
+                                >
+                                <p class="settings-helper">Domain alternatif jika mirror utama mengalami pemblokiran internet positif atau DNS filter.</p>
+                            </div>
+
+                            <!-- Parallel Downloads Quota -->
+                            <div class="settings-field">
+                                <label class="settings-label" for="download_max_concurrent">Parallel Downloads Limit</label>
+                                <select class="settings-input" id="download_max_concurrent" name="download_max_concurrent">
+                                    <option value="1" {% if settings.download_max_concurrent == 1 %}selected{% endif %}>1 Unduhan (Hemat bandwidth)</option>
+                                    <option value="2" {% if settings.download_max_concurrent == 2 or not settings.download_max_concurrent %}selected{% endif %}>2 Unduhan Bersamaan (Default yang disarankan)</option>
+                                    <option value="3" {% if settings.download_max_concurrent == 3 %}selected{% endif %}>3 Unduhan Bersamaan</option>
+                                    <option value="4" {% if settings.download_max_concurrent == 4 %}selected{% endif %}>4 Unduhan Bersamaan</option>
+                                    <option value="5" {% if settings.download_max_concurrent == 5 %}selected{% endif %}>5 Unduhan Bersamaan (Koneksi Cepat)</option>
+                                </select>
+                                <p class="settings-helper">Batas episode yang diunduh secara serentak sebelum episode berikutnya masuk ke antrean (queue).</p>
+                            </div>
+
+                            <!-- Ongoing Tracker Settings -->
+                            <label class="settings-toggle-row settings-toggle-row--subtle">
+                                <input
+                                    type="checkbox"
+                                    name="ongoing_tracker_enabled"
+                                    id="ongoing_tracker_enabled"
+                                    {% if settings.ongoing_tracker_enabled %}checked{% endif %}
+                                >
+                                <span class="settings-toggle-ui" aria-hidden="true"></span>
+                                <span>
+                                    <strong>Ongoing Episode Auto-Tracker</strong>
+                                    <small>Pantau rilis episode baru secara otomatis di latar belakang untuk anime ongoing di library.</small>
+                                </span>
+                            </label>
+
+                            <div class="settings-grid-options" style="margin-top: 10px;">
+                                <div class="settings-option-item">
+                                    <label class="settings-sub-label" for="ongoing_tracker_interval_minutes">Check Interval</label>
+                                    <select class="settings-select" id="ongoing_tracker_interval_minutes" name="ongoing_tracker_interval_minutes">
+                                        <option value="15" {% if settings.ongoing_tracker_interval_minutes == 15 %}selected{% endif %}>Setiap 15 Menit</option>
+                                        <option value="30" {% if settings.ongoing_tracker_interval_minutes == 30 or not settings.ongoing_tracker_interval_minutes %}selected{% endif %}>Setiap 30 Menit (Default)</option>
+                                        <option value="60" {% if settings.ongoing_tracker_interval_minutes == 60 %}selected{% endif %}>Setiap 1 Jam</option>
+                                        <option value="120" {% if settings.ongoing_tracker_interval_minutes == 120 %}selected{% endif %}>Setiap 2 Jam</option>
+                                    </select>
+                                </div>
+
+                                <div class="settings-option-item">
+                                    <label class="settings-sub-label" for="ongoing_tracker_notify_toast">Release Notification</label>
+                                    <label class="settings-toggle-row settings-toggle-row--subtle" style="margin-top: 6px; padding: 6px 10px;">
+                                        <input
+                                            type="checkbox"
+                                            name="ongoing_tracker_notify_toast"
+                                            id="ongoing_tracker_notify_toast"
+                                            {% if settings.ongoing_tracker_notify_toast %}checked{% endif %}
+                                        >
+                                        <span class="settings-toggle-ui" aria-hidden="true"></span>
+                                        <span>
+                                            <small style="font-size: 11px;">Toast alert saat episode baru terdeteksi</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
@@ -1911,6 +2083,156 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// Integrations & Network Manager (LAN, Discord RPC, Downloader)
+(function initIntegrationsManager() {
+    const copyLanBtn = document.getElementById('btnCopyLanUrl');
+    const copyLanText = document.getElementById('btnCopyLanText');
+    const lanUrlLink = document.getElementById('lanUrlLink');
+    const lanToggle = document.getElementById('lan_access_enabled');
+    const lanHelperCard = document.getElementById('lanHelperCard');
+    const lanStatusIndicator = document.getElementById('lanStatusIndicator');
+    const lanStatusText = document.getElementById('lanStatusText');
+    const lanDisabledNotice = document.getElementById('lanDisabledNotice');
+
+    // 1. Copy LAN URL
+    if (copyLanBtn && lanUrlLink) {
+        copyLanBtn.addEventListener('click', async () => {
+            const urlToCopy = lanUrlLink.textContent.trim();
+            if (!urlToCopy) return;
+            try {
+                await navigator.clipboard.writeText(urlToCopy);
+                if (copyLanText) copyLanText.textContent = 'Copied!';
+                copyLanBtn.classList.add('copied');
+                setTimeout(() => {
+                    if (copyLanText) copyLanText.textContent = 'Copy URL';
+                    copyLanBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                prompt('Salin URL LAN berikut:', urlToCopy);
+            }
+        });
+    }
+
+    // 2. LAN Access toggle dynamic reaction
+    if (lanToggle) {
+        lanToggle.addEventListener('change', () => {
+            const isEnabled = lanToggle.checked;
+            if (lanHelperCard) lanHelperCard.dataset.lanDisabled = isEnabled ? '0' : '1';
+            if (lanDisabledNotice) lanDisabledNotice.hidden = isEnabled;
+            if (lanStatusIndicator) {
+                lanStatusIndicator.classList.toggle('lan-status-online', isEnabled);
+                lanStatusIndicator.classList.toggle('lan-status-offline', !isEnabled);
+            }
+            if (lanStatusText) {
+                lanStatusText.textContent = isEnabled ? 'LAN Streaming Ready (Simpan untuk aktifkan)' : 'LAN Access Disabled';
+            }
+        });
+    }
+
+    // 3. Test Discord RPC
+    const btnTestDiscord = document.getElementById('btnTestDiscordRpc');
+    const discordClientIdInput = document.getElementById('discord_client_id');
+    const discordResult = document.getElementById('discordRpcTestResult');
+
+    if (btnTestDiscord) {
+        btnTestDiscord.addEventListener('click', async () => {
+            btnTestDiscord.disabled = true;
+            const originalHtml = btnTestDiscord.innerHTML;
+            btnTestDiscord.innerHTML = `<span class="path-spinner"></span> Testing...`;
+            if (discordResult) {
+                discordResult.hidden = false;
+                discordResult.className = 'settings-test-feedback loading';
+                discordResult.textContent = 'Menguji koneksi ke aplikasi Discord Desktop lokal...';
+            }
+
+            try {
+                const clientId = discordClientIdInput ? discordClientIdInput.value.trim() : '';
+                const resp = await fetch('/api/settings/test-discord', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: 'same-origin', client_id: clientId })
+                });
+                const data = await resp.json();
+                if (discordResult) {
+                    if (data.ok && data.connected) {
+                        discordResult.className = 'settings-test-feedback success';
+                        discordResult.innerHTML = `<strong>✓ Terhubung:</strong> ${escapeHtml(data.message)}`;
+                    } else if (data.ok && !data.connected) {
+                        discordResult.className = 'settings-test-feedback warning';
+                        discordResult.innerHTML = `<strong>⚠ Discord Belum Dibuka:</strong> ${escapeHtml(data.message)}`;
+                    } else {
+                        discordResult.className = 'settings-test-feedback error';
+                        discordResult.innerHTML = `<strong>✗ Gagal:</strong> ${escapeHtml(data.message)}`;
+                    }
+                }
+            } catch (err) {
+                if (discordResult) {
+                    discordResult.className = 'settings-test-feedback error';
+                    discordResult.textContent = 'Gagal menghubungi endpoint uji Discord RPC.';
+                }
+            } finally {
+                btnTestDiscord.disabled = false;
+                btnTestDiscord.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    // 4. Test Lendrive Cookie & Connection
+    const btnTestLendrive = document.getElementById('btnTestLendriveCookie');
+    const lendriveCookieInput = document.getElementById('lendrive_cookie');
+    const lendriveBaseUrlInput = document.getElementById('lendrive_base_url');
+    const lendriveResult = document.getElementById('lendriveTestResult');
+
+    if (btnTestLendrive) {
+        btnTestLendrive.addEventListener('click', async () => {
+            btnTestLendrive.disabled = true;
+            const originalHtml = btnTestLendrive.innerHTML;
+            btnTestLendrive.innerHTML = `<span class="path-spinner"></span> Verifying...`;
+            if (lendriveResult) {
+                lendriveResult.hidden = false;
+                lendriveResult.className = 'settings-test-feedback loading';
+                lendriveResult.textContent = 'Menghubungi server Lendrive dan memvalidasi respon...';
+            }
+
+            try {
+                const cookieVal = lendriveCookieInput ? lendriveCookieInput.value.trim() : '';
+                const urlVal = lendriveBaseUrlInput ? lendriveBaseUrlInput.value.trim() : '';
+                const resp = await fetch('/api/settings/test-lendrive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: 'same-origin', cookie: cookieVal, base_url: urlVal })
+                });
+                const data = await resp.json();
+                if (lendriveResult) {
+                    if (data.ok && data.valid) {
+                        lendriveResult.className = 'settings-test-feedback success';
+                        lendriveResult.innerHTML = `<strong>✓ Valid:</strong> ${escapeHtml(data.message)}`;
+                    } else if (data.ok && data.challenge) {
+                        lendriveResult.className = 'settings-test-feedback warning';
+                        lendriveResult.innerHTML = `<strong>⚠ WAF Proteksi Aktif:</strong> ${escapeHtml(data.message)}`;
+                    } else {
+                        lendriveResult.className = 'settings-test-feedback error';
+                        lendriveResult.innerHTML = `<strong>✗ Gagal:</strong> ${escapeHtml(data.message)}`;
+                    }
+                }
+            } catch (err) {
+                if (lendriveResult) {
+                    lendriveResult.className = 'settings-test-feedback error';
+                    lendriveResult.textContent = 'Gagal menghubungi endpoint uji Lendrive.';
+                }
+            } finally {
+                btnTestLendrive.disabled = false;
+                btnTestLendrive.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+    }
+})();
 
 // Keyboard Shortcuts Manager
 (function() {

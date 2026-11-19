@@ -1622,3 +1622,286 @@
     outline: 2px solid color-mix(in srgb, var(--primary, #38bdf8) 20%, transparent);
 }
 
+/* -------------------------------------------------------------
+   05. Integrations & Network Styles
+   ------------------------------------------------------------- */
+.settings-integration-group {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text, #f3f4f6);
+    letter-spacing: -0.01em;
+}
+
+.settings-group-title svg {
+    color: var(--primary, #38bdf8);
+    flex-shrink: 0;
+}
+
+.settings-btn-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text, #e5e7eb);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settings-btn-inline:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: var(--primary, #38bdf8);
+}
+
+.settings-btn-inline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.settings-test-feedback {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.settings-test-feedback.success {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+}
+
+.settings-test-feedback.error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+.settings-test-feedback.warning {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+}
+
+.settings-test-feedback.loading {
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+}
+
+/* LAN Helper Card */
+.lan-helper-card {
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: 14px;
+    background: rgba(10, 14, 23, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: all 0.3s ease;
+}
+
+.lan-helper-card[data-lan-disabled="1"] {
+    opacity: 0.75;
+    border-color: rgba(245, 158, 11, 0.2);
+    background: rgba(245, 158, 11, 0.03);
+}
+
+.lan-helper-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.lan-status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.lan-status-online {
+    color: #34d399;
+}
+
+.lan-status-offline {
+    color: #9ca3af;
+}
+
+.lan-status-online .lan-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    animation: lanPulse 2s infinite;
+}
+
+.lan-status-offline .lan-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+}
+
+@keyframes lanPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+.settings-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text, #e5e7eb);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settings-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.settings-copy-btn.copied {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #34d399;
+}
+
+.lan-url-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    overflow-x: auto;
+}
+
+.lan-url-prefix {
+    color: var(--text-muted, #9ca3af);
+    font-size: 12px;
+}
+
+.lan-url-link {
+    color: var(--primary, #38bdf8);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.lan-url-link:hover {
+    text-decoration: underline;
+}
+
+.lan-qr-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 0;
+}
+
+.lan-qr-box {
+    width: 120px;
+    height: 120px;
+    min-width: 120px;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lan-qr-box svg, .lan-qr-svg {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+.lan-qr-placeholder {
+    color: #6b7280;
+    font-size: 11px;
+    text-align: center;
+}
+
+.lan-qr-caption {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lan-qr-caption strong {
+    font-size: 13px;
+    color: var(--text, #f3f4f6);
+}
+
+.lan-qr-caption p {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-muted, #9ca3af);
+    margin: 0;
+}
+
+.lan-disabled-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    color: #fbbf24;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.lan-disabled-notice svg {
+    flex-shrink: 0;
+}
+
+.settings-textarea {
+    resize: vertical;
+    min-height: 64px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+

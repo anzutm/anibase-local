@@ -469,3 +469,53 @@ def remove_file_quietly(path):
             os.remove(path)
     except OSError:
         pass
+
+
+def get_local_lan_ip():
+    """Mengembalikan alamat IP lokal perangkat di jaringan LAN."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.5)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except Exception:
+        pass
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
+
+
+def generate_qr_svg(data: str) -> str:
+    """Menghasilkan representasi string SVG dari QR code untuk teks/URL data."""
+    if not data:
+        return ""
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+        import io
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=2,
+            image_factory=SvgPathImage
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(attrib={"class": "lan-qr-svg", "xmlns": "http://www.w3.org/2000/svg"})
+        buf = io.BytesIO()
+        img.save(buf)
+        return buf.getvalue().decode("utf-8")
+    except Exception as e:
+        app_log(f"Gagal membuat QR SVG: {e}", "DEBUG")
+        return ""
+

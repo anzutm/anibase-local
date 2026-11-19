@@ -443,7 +443,31 @@ def update_settings():
         "shortcuts": effective_shortcuts,
         "desktop_minimize_to_tray": "desktop_minimize_to_tray" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_minimize_to_tray", True),
         "desktop_start_minimized": "desktop_start_minimized" in request.form if "desktop_settings_present" in request.form else existing_settings.get("desktop_start_minimized", False),
-        "desktop_window": existing_settings.get("desktop_window", {})
+        "desktop_window": existing_settings.get("desktop_window", {}),
+        "ongoing_tracker_enabled": "ongoing_tracker_enabled" in request.form if "downloader_settings_present" in request.form else existing_settings.get("ongoing_tracker_enabled", True),
+        "ongoing_tracker_interval_minutes": normalize_int_setting(
+            request.form.get("ongoing_tracker_interval_minutes"),
+            existing_settings.get("ongoing_tracker_interval_minutes", 30),
+            5,
+            1440
+        ),
+        "ongoing_tracker_notify_toast": "ongoing_tracker_notify_toast" in request.form if "downloader_settings_present" in request.form else existing_settings.get("ongoing_tracker_notify_toast", True),
+        "download_max_concurrent": normalize_int_setting(
+            request.form.get("download_max_concurrent"),
+            existing_settings.get("download_max_concurrent", 2),
+            1,
+            10
+        ),
+        "lendrive_base_url": (
+            request.form.get("lendrive_base_url", "").strip().rstrip("/")
+            if request.form.get("lendrive_base_url", "").strip()
+            else existing_settings.get("lendrive_base_url", "https://lendrive.web.id")
+        ),
+        "lendrive_cookie": (
+            request.form.get("lendrive_cookie", "").strip()
+            if "lendrive_cookie" in request.form
+            else existing_settings.get("lendrive_cookie", "")
+        )
     })
 
     if settings["theme_preset"] not in THEME_PRESETS:
@@ -451,6 +475,11 @@ def update_settings():
 
     save_settings(settings)
     apply_settings(settings)
+    try:
+        from anibase.download_manager import set_max_concurrent_downloads
+        set_max_concurrent_downloads(settings.get("download_max_concurrent", 2), save=False)
+    except Exception:
+        pass
     reconfigure_library_observer()
     start_auto_import_worker()
     sync_busy = LIBRARY_SYNC_LOCK.locked()
@@ -821,6 +850,180 @@ def api_settings_detect_players():
         "players": detected,
         "count": len(detected)
     })
+
+
+@host_only
+def api_settings_lan_info():
+    """Mengembalikan status dan URL akses LAN aktif beserta representasi SVG QR Code."""
+    from anibase.utils import get_local_lan_ip, generate_qr_svg
+    settings = load_settings()
+    ip = get_local_lan_ip()
+    url = f"http://{ip}:5000"
+    lan_enabled = bool(settings.get("lan_access_enabled"))
+    svg = generate_qr_svg(url)
+    return jsonify({
+        "ok": True,
+        "lan_ip": ip,
+        "port": 5000,
+        "url": url,
+        "lan_enabled": lan_enabled,
+        "qr_svg": svg
+    })
+
+
+@host_only
+def api_settings_lan_qr():
+    """Mengembalikan SVG QR Code untuk alamat LAN aktif."""
+    from flask import Response
+    from anibase.utils import get_local_lan_ip, generate_qr_svg
+    ip = get_local_lan_ip()
+    url = f"http://{ip}:5000"
+    svg = generate_qr_svg(url)
+    return Response(svg, mimetype="image/svg+xml")
+
+
+@host_only
+def api_settings_test_discord():
+    """Menguji koneksi ke aplikasi Discord Desktop lokal menggunakan client ID."""
+    data = request.get_json(silent=True) or {}
+    client_id = str(data.get("client_id") or "").strip()
+    if not client_id:
+        settings = load_settings()
+        client_id = str(settings.get("discord_client_id") or "").strip()
+
+    if not client_id:
+        return jsonify({
+            "ok": False,
+            "connected": False,
+            "status": "missing_id",
+            "message": "Discord Client ID belum diisi. Masukkan Client ID terlebih dahulu."
+        })
+
+    if not client_id.isdigit():
+        return jsonify({
+            "ok": False,
+            "connected": False,
+            "status": "invalid_id",
+            "message": "Format Discord Client ID tidak valid (harus berupa deretan angka)."
+        })
+
+    if constants.Presence is None:
+        return jsonify({
+            "ok": False,
+            "connected": False,
+            "status": "missing_dependency",
+            "message": "Library pypresence tidak tersedia."
+        })
+
+    test_client = None
+    try:
+        test_client = constants.Presence(client_id)
+        test_client.connect()
+        try:
+            test_client.close()
+        except Exception:
+            pass
+        return jsonify({
+            "ok": True,
+            "connected": True,
+            "status": "connected",
+            "message": "Koneksi berhasil! Discord Desktop terdeteksi aktif dan Client ID valid."
+        })
+    except Exception as e:
+        err_name = type(e).__name__
+        err_str = str(e)
+        if err_name in {"DiscordNotFound", "InvalidPipe", "FileNotFoundError"} or "pipe" in err_str.lower():
+            return jsonify({
+                "ok": True,
+                "connected": False,
+                "status": "discord_not_running",
+                "message": "Discord Desktop tidak terdeteksi berjalan di komputer ini. Silakan buka aplikasi Discord."
+            })
+        elif err_name == "InvalidID" or "4000" in err_str:
+            return jsonify({
+                "ok": False,
+                "connected": False,
+                "status": "invalid_id",
+                "message": "Client ID tidak valid atau tidak terdaftar di Discord Developer Portal."
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "connected": False,
+                "status": "error",
+                "message": f"Koneksi gagal: {err_str}"
+            })
+    finally:
+        if test_client is not None:
+            try:
+                test_client.close()
+            except Exception:
+                pass
+
+
+@host_only
+def api_settings_test_lendrive():
+    """Menguji koneksi ke server Lendrive dan memvalidasi cookie anti-bot / WAF."""
+    import requests
+    from anibase.integrations.lendrive import is_lendrive_challenge_page, DEFAULT_USER_AGENT
+    data = request.get_json(silent=True) or {}
+    settings = load_settings()
+    base_url = str(data.get("base_url") or settings.get("lendrive_base_url") or "https://lendrive.web.id").strip().rstrip("/")
+    cookie = str(data.get("cookie") if "cookie" in data else settings.get("lendrive_cookie") or "").strip()
+
+    headers = {
+        "User-Agent": DEFAULT_USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "id,en-US;q=0.9,en;q=0.8",
+        "Referer": base_url,
+    }
+    if cookie:
+        if "=" not in cookie:
+            headers["Cookie"] = f"wssplashchk={cookie}"
+        else:
+            headers["Cookie"] = cookie
+
+    try:
+        resp = requests.get(base_url, headers=headers, timeout=8, allow_redirects=True)
+        is_challenge = is_lendrive_challenge_page(resp.text, resp.status_code)
+        if is_challenge:
+            return jsonify({
+                "ok": True,
+                "valid": False,
+                "challenge": True,
+                "status_code": resp.status_code,
+                "message": "Proteksi Cloudflare/WAF terdeteksi aktif. Cookie belum diisi atau sudah kedaluwarsa."
+            })
+        elif resp.status_code == 200:
+            return jsonify({
+                "ok": True,
+                "valid": True,
+                "challenge": False,
+                "status_code": 200,
+                "message": "Koneksi ke Lendrive berhasil! Akses web terbuka dan tidak terhalang WAF challenge."
+            })
+        else:
+            return jsonify({
+                "ok": True,
+                "valid": False,
+                "challenge": False,
+                "status_code": resp.status_code,
+                "message": f"Server Lendrive merespon dengan kode HTTP {resp.status_code}."
+            })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "ok": False,
+            "valid": False,
+            "challenge": False,
+            "message": "Waktu koneksi ke server Lendrive habis (Timeout 8s). Pastikan koneksi internet stabil atau coba URL Mirror lain."
+        })
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "valid": False,
+            "challenge": False,
+            "message": f"Gagal menghubungi server Lendrive: {str(e)}"
+        })
 
 
 def schedule_alerts():
@@ -2959,6 +3162,10 @@ def register_api_routes(app):
     app.add_url_rule("/api/settings/validate-paths", endpoint="api_settings_validate_paths", view_func=api_settings_validate_paths, methods=["GET", "POST"])
     app.add_url_rule("/api/settings/validate-path", endpoint="api_settings_validate_path", view_func=api_settings_validate_path, methods=["GET", "POST"])
     app.add_url_rule("/api/settings/detect-players", endpoint="api_settings_detect_players", view_func=api_settings_detect_players, methods=["GET", "POST"])
+    app.add_url_rule("/api/settings/lan-info", endpoint="api_settings_lan_info", view_func=api_settings_lan_info, methods=["GET"])
+    app.add_url_rule("/api/settings/lan-qr", endpoint="api_settings_lan_qr", view_func=api_settings_lan_qr, methods=["GET"])
+    app.add_url_rule("/api/settings/test-discord", endpoint="api_settings_test_discord", view_func=api_settings_test_discord, methods=["POST"])
+    app.add_url_rule("/api/settings/test-lendrive", endpoint="api_settings_test_lendrive", view_func=api_settings_test_lendrive, methods=["POST"])
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)
