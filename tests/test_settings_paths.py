@@ -515,7 +515,7 @@ class TestSettingsLibraryPaths(unittest.TestCase):
             "format": "anibase-settings-backup",
             "version": 2,
             "created_at": "2026-11-19T10:00:00Z",
-            "app_version": "1.5.2",
+            "app_version": "1.5.3",
             "settings": {"theme_preset": "dark-violet", "player_auto_next": True},
             "mappings": {
                 "anilist_mappings": {"Sousou no Frieren": {"anilist_id": 154587}},

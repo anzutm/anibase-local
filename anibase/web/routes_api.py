@@ -343,7 +343,7 @@ def export_settings_backup():
         "format": "anibase-settings-backup",
         "version": SETTINGS_BACKUP_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "app_version": "1.5.2",
+        "app_version": "1.5.3",
         "included_sections": included_sections,
     }
 
