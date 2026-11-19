@@ -18,7 +18,7 @@ import socket
 import select
 import email.utils
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse, quote_plus
 
 import requests
@@ -88,8 +88,12 @@ from anibase.watch import (
     mark_episode_unwatched,
     update_episode_watch_status,
     remove_watch_history_entry,
+    load_history_data,
+    save_watch_history,
     load_watch_status,
     save_watch_status,
+    db_sync_all_watch_history,
+    db_sync_all_watch_status,
     db_remove_episode_watch_status,
     update_watch_history,
     get_watch_history_key,
@@ -309,24 +313,154 @@ def setup_sync():
 
 @host_only
 def export_settings_backup():
-    """Download portable personal settings and mappings as a JSON backup."""
-    settings = load_settings()
-    backup_settings = dict(settings)
+    """Download portable personal settings, mappings, watch history, and reviews as a JSON backup."""
+    if request.method == "POST":
+        want_settings = "include_settings" in request.form
+        want_mappings = "include_mappings" in request.form
+        want_history = "include_watch_history" in request.form
+        want_reviews = "include_reviews" in request.form
+    else:
+        want_settings = request.args.get("include_settings", "1") in ("1", "true", "on")
+        want_mappings = request.args.get("include_mappings", "1") in ("1", "true", "on")
+        want_history = request.args.get("include_watch_history", "1") in ("1", "true", "on")
+        want_reviews = request.args.get("include_reviews", "1") in ("1", "true", "on")
+
+    raw_settings = load_settings()
+    backup_settings = dict(raw_settings)
     backup_settings.pop("action_token", None)
+
+    anilist_mappings = backup_settings.get("anilist_mappings", {})
+    auto_import_mappings = backup_settings.get("auto_import_mappings", {})
+    episode_display_names = backup_settings.get("episode_display_names", {})
+
+    if not want_mappings:
+        backup_settings.pop("anilist_mappings", None)
+        backup_settings.pop("auto_import_mappings", None)
+        backup_settings.pop("episode_display_names", None)
+
+    included_sections = []
     payload = {
         "format": "anibase-settings-backup",
         "version": SETTINGS_BACKUP_SCHEMA_VERSION,
-        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "settings": backup_settings,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "app_version": "1.5.2",
+        "included_sections": included_sections,
     }
-    backup_path = os.path.join(CACHE_DIR, "anibase-settings-backup.json")
-    atomic_write_json_file(backup_path, payload, "Settings backup")
+
+    if want_settings:
+        payload["settings"] = backup_settings
+        included_sections.append("settings")
+
+    if want_mappings:
+        payload["mappings"] = {
+            "anilist_mappings": anilist_mappings if isinstance(anilist_mappings, dict) else {},
+            "auto_import_mappings": auto_import_mappings if isinstance(auto_import_mappings, dict) else {},
+            "episode_display_names": episode_display_names if isinstance(episode_display_names, dict) else {},
+        }
+        if want_settings:
+            payload["settings"]["anilist_mappings"] = anilist_mappings
+            payload["settings"]["auto_import_mappings"] = auto_import_mappings
+            payload["settings"]["episode_display_names"] = episode_display_names
+        included_sections.append("mappings")
+
+    if want_history:
+        history_data = load_history_data()
+        status_data = load_watch_status()
+        payload["watch_history"] = history_data if isinstance(history_data, dict) else {}
+        payload["watch_status"] = status_data if isinstance(status_data, dict) else {}
+        included_sections.append("watch_history")
+
+    if want_reviews:
+        reviews = []
+        try:
+            with db_connection() as conn:
+                rows = conn.execute("SELECT anime_name, mal_id, score, comments, updated_at FROM anime_user_reviews").fetchall()
+                for r in rows:
+                    reviews.append({
+                        "anime_name": r[0],
+                        "mal_id": r[1],
+                        "score": r[2],
+                        "comments": r[3] or "",
+                        "updated_at": r[4]
+                    })
+        except Exception as e:
+            app_log(f"Export reviews error: {e}", "WARN")
+        payload["user_reviews"] = reviews
+        included_sections.append("reviews")
+
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"anibase-backup-{date_str}.json"
+    buffer = BytesIO(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"))
+    buffer.seek(0)
     return send_file(
-        backup_path,
+        buffer,
         as_attachment=True,
-        download_name="anibase-settings-backup.json",
+        download_name=filename,
         mimetype="application/json",
     )
+
+
+@host_only
+@require_action_token
+def inspect_settings_backup():
+    """Inspects a backup file and returns its schema, metadata, and data counts without restoring."""
+    upload = request.files.get("backup_file")
+    if not upload or not upload.filename:
+        return jsonify({"ok": False, "error": "No backup file selected"}), 400
+    try:
+        payload = json.load(upload.stream)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return jsonify({"ok": False, "error": "Backup file is not valid JSON"}), 400
+
+    if not isinstance(payload, dict) or payload.get("format") != "anibase-settings-backup":
+        return jsonify({"ok": False, "error": "Invalid AniBase backup file format"}), 400
+
+    version = payload.get("version", 1)
+    created_at = payload.get("created_at", "")
+    app_version = payload.get("app_version", "unknown")
+
+    settings_dict = payload.get("settings", {})
+    has_settings = isinstance(settings_dict, dict) and bool(settings_dict)
+
+    mappings_dict = payload.get("mappings")
+    if not isinstance(mappings_dict, dict):
+        mappings_dict = {
+            "anilist_mappings": settings_dict.get("anilist_mappings", {}),
+            "auto_import_mappings": settings_dict.get("auto_import_mappings", {}),
+            "episode_display_names": settings_dict.get("episode_display_names", {}),
+        }
+    anilist_map_count = len(mappings_dict.get("anilist_mappings", {}) or {})
+    auto_import_map_count = len(mappings_dict.get("auto_import_mappings", {}) or {})
+    episode_names_count = sum(len(eps) for eps in (mappings_dict.get("episode_display_names", {}) or {}).values() if isinstance(eps, dict))
+
+    watch_history = payload.get("watch_history", {})
+    watch_status = payload.get("watch_status", {})
+    history_count = len(watch_history) if isinstance(watch_history, dict) else 0
+    status_episode_count = sum(len(eps) for eps in watch_status.values() if isinstance(eps, dict)) if isinstance(watch_status, dict) else 0
+
+    user_reviews = payload.get("user_reviews", [])
+    review_count = len(user_reviews) if isinstance(user_reviews, list) else 0
+
+    return jsonify({
+        "ok": True,
+        "format": payload.get("format"),
+        "version": version,
+        "created_at": created_at,
+        "app_version": app_version,
+        "summary": {
+            "has_settings": has_settings,
+            "settings_count": len(settings_dict) if has_settings else 0,
+            "has_mappings": bool(anilist_map_count or auto_import_map_count or episode_names_count),
+            "anilist_mappings_count": anilist_map_count,
+            "auto_import_mappings_count": auto_import_map_count,
+            "episode_display_names_count": episode_names_count,
+            "has_watch_history": bool(history_count or status_episode_count),
+            "watch_history_count": history_count,
+            "watch_status_count": status_episode_count,
+            "has_reviews": bool(review_count),
+            "review_count": review_count,
+        }
+    })
 
 
 @host_only
@@ -341,21 +475,129 @@ def import_settings_backup():
         return redirect("/settings?backup_error=Backup+file+is+not+valid+JSON")
     if not isinstance(payload, dict) or payload.get("format") != "anibase-settings-backup":
         return redirect("/settings?backup_error=Invalid+AniBase+backup+file")
-    imported = payload.get("settings")
-    if not isinstance(imported, dict):
-        return redirect("/settings?backup_error=Backup+does+not+contain+settings")
 
-    current = load_settings()
-    imported.pop("action_token", None)
-    merged = get_default_settings()
-    merged.update(current)
-    merged.update(imported)
-    merged["action_token"] = current.get("action_token", "")
-    save_settings(merged)
-    apply_settings(load_settings())
-    reconfigure_library_observer()
-    start_auto_import_worker()
-    return redirect("/settings?backup_imported=1")
+    has_selective_flags = any(k.startswith("restore_") for k in request.form.keys())
+    if has_selective_flags:
+        do_settings = "restore_settings" in request.form
+        do_mappings = "restore_mappings" in request.form
+        do_watch_history = "restore_watch_history" in request.form
+        do_reviews = "restore_reviews" in request.form
+    else:
+        do_settings = True
+        do_mappings = True
+        do_watch_history = True
+        do_reviews = True
+
+    stats = []
+
+    # 1. Restore Settings
+    if do_settings and "settings" in payload and isinstance(payload["settings"], dict):
+        imported = dict(payload["settings"])
+        current = load_settings()
+        imported.pop("action_token", None)
+        if not do_mappings:
+            imported["anilist_mappings"] = current.get("anilist_mappings", {})
+            imported["auto_import_mappings"] = current.get("auto_import_mappings", {})
+            imported["episode_display_names"] = current.get("episode_display_names", {})
+
+        merged = get_default_settings()
+        merged.update(current)
+        merged.update(imported)
+        merged["action_token"] = current.get("action_token", "")
+        save_settings(merged)
+        apply_settings(load_settings())
+        reconfigure_library_observer()
+        start_auto_import_worker()
+        stats.append("Preferences")
+
+    # 2. Restore Mappings
+    if do_mappings:
+        mappings_dict = payload.get("mappings")
+        if not isinstance(mappings_dict, dict) and not do_settings and "settings" in payload and isinstance(payload["settings"], dict):
+            mappings_dict = {
+                "anilist_mappings": payload["settings"].get("anilist_mappings", {}),
+                "auto_import_mappings": payload["settings"].get("auto_import_mappings", {}),
+                "episode_display_names": payload["settings"].get("episode_display_names", {}),
+            }
+        if isinstance(mappings_dict, dict):
+            current = load_settings()
+            if "anilist_mappings" in mappings_dict and isinstance(mappings_dict["anilist_mappings"], dict):
+                cur_maps = current.get("anilist_mappings", {})
+                cur_maps.update(mappings_dict["anilist_mappings"])
+                current["anilist_mappings"] = cur_maps
+            if "auto_import_mappings" in mappings_dict and isinstance(mappings_dict["auto_import_mappings"], dict):
+                cur_aimaps = current.get("auto_import_mappings", {})
+                cur_aimaps.update(mappings_dict["auto_import_mappings"])
+                current["auto_import_mappings"] = cur_aimaps
+            if "episode_display_names" in mappings_dict and isinstance(mappings_dict["episode_display_names"], dict):
+                cur_names = current.get("episode_display_names", {})
+                for anime, ep_dict in mappings_dict["episode_display_names"].items():
+                    if isinstance(ep_dict, dict):
+                        if anime not in cur_names:
+                            cur_names[anime] = {}
+                        cur_names[anime].update(ep_dict)
+                current["episode_display_names"] = cur_names
+            save_settings(current)
+            apply_settings(load_settings())
+        if not do_settings or "mappings" in payload:
+            stats.append("Mappings")
+
+    # 3. Restore Watch History & Status
+    if do_watch_history:
+        watch_hist = payload.get("watch_history")
+        watch_stat = payload.get("watch_status")
+        restored_hist = False
+        restored_stat = False
+        if isinstance(watch_hist, dict) and watch_hist:
+            cur_hist = load_history_data()
+            cur_hist.update(watch_hist)
+            save_watch_history(cur_hist)
+            db_sync_all_watch_history(cur_hist)
+            restored_hist = True
+        if isinstance(watch_stat, dict) and watch_stat:
+            cur_stat = load_watch_status()
+            for anime, eps in watch_stat.items():
+                if isinstance(eps, dict):
+                    if anime not in cur_stat:
+                        cur_stat[anime] = {}
+                    cur_stat[anime].update(eps)
+            save_watch_status(cur_stat)
+            db_sync_all_watch_status(cur_stat)
+            restored_stat = True
+        if restored_hist or restored_stat:
+            stats.append("Watch History & Progress")
+
+    # 4. Restore User Reviews
+    if do_reviews and "user_reviews" in payload and isinstance(payload["user_reviews"], list):
+        reviews_count = 0
+        for r in payload["user_reviews"]:
+            if isinstance(r, dict) and r.get("anime_name"):
+                if save_user_anime_review(
+                    r["anime_name"],
+                    mal_id=r.get("mal_id"),
+                    score=r.get("score", 0),
+                    comments=r.get("comments", "")
+                ):
+                    reviews_count += 1
+        if reviews_count > 0:
+            stats.append(f"{reviews_count} Reviews")
+
+    want_json = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+    summary_msg = f"Backup restored successfully: {', '.join(stats)}." if stats else "Backup restored (no matching data sections found)."
+
+    if want_json:
+        return jsonify({
+            "ok": True,
+            "message": summary_msg,
+            "sections_restored": stats
+        })
+
+    return redirect(f"/settings?backup_imported=1&backup_msg={quote_plus(summary_msg)}")
 
 
 @host_only
@@ -3318,7 +3560,8 @@ def api_ongoing_tracker_quick_download():
 def register_api_routes(app):
     """Register all API, streaming, and RPC endpoints on the Flask application."""
     app.add_url_rule("/setup/sync", endpoint="setup_sync", view_func=setup_sync, methods=["GET", "POST"])
-    app.add_url_rule("/settings/backup/export", endpoint="export_settings_backup", view_func=export_settings_backup)
+    app.add_url_rule("/settings/backup/export", endpoint="export_settings_backup", view_func=export_settings_backup, methods=["GET", "POST"])
+    app.add_url_rule("/api/settings/backup/inspect", endpoint="inspect_settings_backup", view_func=inspect_settings_backup, methods=["POST"])
     app.add_url_rule("/settings/backup/import", endpoint="import_settings_backup", view_func=import_settings_backup, methods=["POST"])
     app.add_url_rule("/settings/media-diagnostics/check", endpoint="refresh_media_diagnostics_settings", view_func=refresh_media_diagnostics_settings, methods=["POST"])
     app.add_url_rule("/settings", endpoint="update_settings", view_func=update_settings, methods=["POST"])

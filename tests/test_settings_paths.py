@@ -476,6 +476,164 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         self.assertEqual(res_form.status_code, 302)
         self.assertIn("cache_cleaned=1", res_form.headers["Location"])
 
+    def test_export_settings_backup_full_and_selective(self):
+        # 1. Full export (all sections included)
+        res_full = self.client.get("/settings/backup/export")
+        self.assertEqual(res_full.status_code, 200)
+        self.assertIn("attachment", res_full.headers.get("Content-Disposition", ""))
+        self.assertIn("anibase-backup-", res_full.headers.get("Content-Disposition", ""))
+
+        payload_full = json.loads(res_full.data.decode("utf-8"))
+        self.assertEqual(payload_full["format"], "anibase-settings-backup")
+        self.assertEqual(payload_full["version"], 2)
+        self.assertIn("settings", payload_full)
+        self.assertNotIn("action_token", payload_full["settings"])
+        self.assertIn("mappings", payload_full)
+        self.assertIn("watch_history", payload_full)
+        self.assertIn("watch_status", payload_full)
+        self.assertIn("user_reviews", payload_full)
+        self.assertIn("settings", payload_full["included_sections"])
+        self.assertIn("mappings", payload_full["included_sections"])
+        self.assertIn("watch_history", payload_full["included_sections"])
+
+        # 2. Selective export (only settings and mappings)
+        res_sel = self.client.get("/settings/backup/export?include_settings=1&include_mappings=1&include_watch_history=0&include_reviews=0")
+        self.assertEqual(res_sel.status_code, 200)
+        payload_sel = json.loads(res_sel.data.decode("utf-8"))
+        self.assertIn("settings", payload_sel)
+        self.assertIn("mappings", payload_sel)
+        self.assertNotIn("watch_history", payload_sel)
+        self.assertNotIn("user_reviews", payload_sel)
+        self.assertEqual(payload_sel["included_sections"], ["settings", "mappings"])
+
+    def test_inspect_settings_backup(self):
+        import io
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        valid_backup = {
+            "format": "anibase-settings-backup",
+            "version": 2,
+            "created_at": "2026-11-19T10:00:00Z",
+            "app_version": "1.5.2",
+            "settings": {"theme_preset": "dark-violet", "player_auto_next": True},
+            "mappings": {
+                "anilist_mappings": {"Sousou no Frieren": {"anilist_id": 154587}},
+                "auto_import_mappings": {"/Downloads": "/Anime"},
+                "episode_display_names": {"Sousou no Frieren": {"ep1.mkv": "Episode 1"}},
+            },
+            "watch_history": {"Sousou no Frieren": {"progress": 100}},
+            "watch_status": {"Sousou no Frieren": {"ep1.mkv": {"watched": True}}},
+            "user_reviews": [{"anime_name": "Sousou no Frieren", "score": 10, "comments": "Masterpiece"}],
+        }
+
+        # 1. Valid backup inspection
+        data = io.BytesIO(json.dumps(valid_backup).encode("utf-8"))
+        res = self.client.post(
+            "/api/settings/backup/inspect",
+            data={"backup_file": (data, "backup.json"), "action_token": token},
+            content_type="multipart/form-data",
+            headers={"X-Action-Token": token}
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["version"], 2)
+        sum_data = body["summary"]
+        self.assertTrue(sum_data["has_settings"])
+        self.assertEqual(sum_data["settings_count"], 2)
+        self.assertTrue(sum_data["has_mappings"])
+        self.assertEqual(sum_data["anilist_mappings_count"], 1)
+        self.assertEqual(sum_data["auto_import_mappings_count"], 1)
+        self.assertEqual(sum_data["episode_display_names_count"], 1)
+        self.assertTrue(sum_data["has_watch_history"])
+        self.assertEqual(sum_data["watch_history_count"], 1)
+        self.assertEqual(sum_data["watch_status_count"], 1)
+        self.assertTrue(sum_data["has_reviews"])
+        self.assertEqual(sum_data["review_count"], 1)
+
+        # 2. Invalid JSON format rejection
+        bad_json = io.BytesIO(b"not a valid json string")
+        res_bad = self.client.post(
+            "/api/settings/backup/inspect",
+            data={"backup_file": (bad_json, "bad.json"), "action_token": token},
+            content_type="multipart/form-data",
+            headers={"X-Action-Token": token}
+        )
+        self.assertEqual(res_bad.status_code, 400)
+        self.assertFalse(res_bad.get_json()["ok"])
+
+        # 3. Invalid format marker rejection
+        wrong_fmt = io.BytesIO(json.dumps({"format": "other-app", "version": 1}).encode("utf-8"))
+        res_fmt = self.client.post(
+            "/api/settings/backup/inspect",
+            data={"backup_file": (wrong_fmt, "wrong.json"), "action_token": token},
+            content_type="multipart/form-data",
+            headers={"X-Action-Token": token}
+        )
+        self.assertEqual(res_fmt.status_code, 400)
+
+    def test_import_settings_backup_ajax_and_form(self):
+        import io
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        backup_payload = {
+            "format": "anibase-settings-backup",
+            "version": 2,
+            "created_at": "2026-11-19T10:00:00Z",
+            "settings": {"theme_preset": "oled-black", "screenshot_filename_prefix": "anibase_shot"},
+            "mappings": {
+                "anilist_mappings": {"Frieren": {"anilist_id": 154587}},
+                "auto_import_mappings": {},
+                "episode_display_names": {},
+            },
+            "watch_history": {"Frieren": {"media_name": "Frieren", "time": 120, "duration": 1400}},
+            "watch_status": {"Frieren": {"ep1.mkv": {"watched": True, "progress": 100}}},
+            "user_reviews": [{"anime_name": "Frieren", "score": 9, "comments": "Great show"}],
+        }
+
+        # 1. AJAX JSON restore
+        data_io = io.BytesIO(json.dumps(backup_payload).encode("utf-8"))
+        res_ajax = self.client.post(
+            "/settings/backup/import",
+            data={
+                "backup_file": (data_io, "backup.json"),
+                "action_token": token,
+                "restore_settings": "1",
+                "restore_mappings": "1",
+                "restore_watch_history": "1",
+                "restore_reviews": "1",
+            },
+            content_type="multipart/form-data",
+            headers={
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "X-Action-Token": token
+            }
+        )
+        self.assertEqual(res_ajax.status_code, 200)
+        ajax_body = res_ajax.get_json()
+        self.assertTrue(ajax_body["ok"])
+        self.assertIn("Preferences", ajax_body["sections_restored"])
+        self.assertIn("Mappings", ajax_body["sections_restored"])
+        self.assertIn("Watch History & Progress", ajax_body["sections_restored"])
+        self.assertIn("1 Reviews", ajax_body["sections_restored"])
+
+        # 2. Standard Form submit restore (redirect)
+        data_io2 = io.BytesIO(json.dumps(backup_payload).encode("utf-8"))
+        res_form = self.client.post(
+            "/settings/backup/import",
+            data={
+                "backup_file": (data_io2, "backup.json"),
+                "action_token": token,
+            },
+            content_type="multipart/form-data",
+            headers={"X-Action-Token": token}
+        )
+        self.assertEqual(res_form.status_code, 302)
+        self.assertIn("backup_imported=1", res_form.headers["Location"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -251,7 +251,7 @@ def tenrai_wait_for_rate_limit():
     """Reserve a public Tenrai request slot (4 requests per second)."""
     with _constants.PROVIDER_REQUEST_STATE_LOCK:
         now = time.monotonic()
-        wait_seconds = max(0.0, _constants.TENRAI_NEXT_REQUEST_AT - now)
+        wait_seconds = min(3.0, max(0.0, _constants.TENRAI_NEXT_REQUEST_AT - now))
         _constants.TENRAI_NEXT_REQUEST_AT = max(now, _constants.TENRAI_NEXT_REQUEST_AT) + _constants.TENRAI_MIN_REQUEST_INTERVAL_SECONDS
     if wait_seconds:
         time.sleep(wait_seconds)

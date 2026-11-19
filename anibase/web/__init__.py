@@ -69,6 +69,7 @@ from anibase.web.routes_pages import (
 from anibase.web.routes_api import (
     setup_sync,
     export_settings_backup,
+    inspect_settings_backup,
     import_settings_backup,
     refresh_media_diagnostics_settings,
     update_settings,

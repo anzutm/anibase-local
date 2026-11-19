@@ -45,7 +45,13 @@
         {% endif %}
 
         {% if request.args.get('backup_imported') == '1' %}
-        <div class="settings-success">Settings and mappings restored from backup.</div>
+        <div class="settings-success">
+            {% if request.args.get('backup_msg') %}
+                {{ request.args.get('backup_msg') }}
+            {% else %}
+                Settings and data restored successfully from backup.
+            {% endif %}
+        </div>
         {% endif %}
         {% if request.args.get('backup_error') %}
         <div class="settings-error">Backup failed: {{ request.args.get('backup_error') }}</div>
@@ -1607,30 +1613,161 @@
 
         <section class="settings-card settings-backup-card" id="settings-backup">
             <div class="settings-card-head">
-                <span class="settings-kicker">Backup</span>
-                <h3>Personal Settings Backup</h3>
-                <p>Export library paths, mappings, automation, theme, and playback preferences. The security action token is excluded.</p>
+                <span class="settings-kicker">10. Backup &amp; Restore</span>
+                <h3>Personal Settings, Mappings &amp; Data Backup</h3>
+                <p>Export your preferences, library paths, mappings, watch progress, and ratings to a portable JSON file, or preview and restore anytime.</p>
             </div>
-            <div class="settings-backup-actions">
-                <a class="settings-backup-download" href="{{ url_for('export_settings_backup') }}">
-                    <span class="settings-backup-action-icon" aria-hidden="true">↓</span>
-                    <span>
-                        <strong>Download backup</strong>
-                        <small>Save settings and mappings</small>
-                    </span>
-                </a>
-                <form method="POST" action="{{ url_for('import_settings_backup') }}" enctype="multipart/form-data" class="settings-backup-restore">
-                    <input type="hidden" name="action_token" value="{{ action_token }}">
-                    <label class="settings-backup-file" for="settingsBackupFile">
-                        <span class="settings-backup-action-icon" aria-hidden="true">↑</span>
-                        <span class="settings-backup-file-copy">
-                            <strong id="settingsBackupFileName">Choose backup file</strong>
-                            <small>JSON file only</small>
-                        </span>
-                        <input id="settingsBackupFile" type="file" name="backup_file" accept="application/json,.json" required>
-                    </label>
-                    <button class="settings-backup-submit" type="submit">Restore backup</button>
-                </form>
+
+            <div class="backup-container-grid">
+                <!-- Export Section -->
+                <div class="backup-panel backup-panel--export">
+                    <div class="backup-panel-header">
+                        <div class="backup-panel-title">
+                            <span class="backup-panel-icon backup-panel-icon--download">↓</span>
+                            <div>
+                                <h4>Export Backup</h4>
+                                <p>Choose which data sections to bundle into the JSON file.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="backupExportForm" method="GET" action="{{ url_for('export_settings_backup') }}">
+                        <div class="backup-options-list">
+                            <label class="backup-option-item">
+                                <input type="checkbox" name="include_settings" value="1" checked id="chkExportSettings">
+                                <div class="backup-option-copy">
+                                    <strong>App Settings &amp; Preferences</strong>
+                                    <small>Library paths, theme preset, player shortcuts, auto-import config, and downloader preferences.</small>
+                                </div>
+                            </label>
+
+                            <label class="backup-option-item">
+                                <input type="checkbox" name="include_mappings" value="1" checked id="chkExportMappings">
+                                <div class="backup-option-copy">
+                                    <strong>Title &amp; Episode Mappings</strong>
+                                    <small>AniList match overrides, custom episode titles, and auto-import folder mappings.</small>
+                                </div>
+                            </label>
+
+                            <label class="backup-option-item">
+                                <input type="checkbox" name="include_watch_history" value="1" checked id="chkExportHistory">
+                                <div class="backup-option-copy">
+                                    <strong>Watch History &amp; Progress</strong>
+                                    <small>Playback continue timestamps, duration, and completed episode checkmarks.</small>
+                                </div>
+                            </label>
+
+                            <label class="backup-option-item">
+                                <input type="checkbox" name="include_reviews" value="1" checked id="chkExportReviews">
+                                <div class="backup-option-copy">
+                                    <strong>User Reviews &amp; Ratings</strong>
+                                    <small>Personal anime scores, star ratings, and written episode/series comments.</small>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="backup-action-footer">
+                            <button type="submit" class="settings-backup-submit-btn" id="btnExportBackup">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span>Download Backup JSON</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Restore Section -->
+                <div class="backup-panel backup-panel--restore">
+                    <div class="backup-panel-header">
+                        <div class="backup-panel-title">
+                            <span class="backup-panel-icon backup-panel-icon--upload">↑</span>
+                            <div>
+                                <h4>Restore from Backup</h4>
+                                <p>Select an AniBase backup file (.json) to preview and import.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="backupRestoreForm" method="POST" action="{{ url_for('import_settings_backup') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="action_token" value="{{ action_token }}">
+
+                        <!-- File Picker Dropzone -->
+                        <label class="settings-backup-dropzone" for="settingsBackupFile">
+                            <input id="settingsBackupFile" type="file" name="backup_file" accept="application/json,.json" required>
+                            <span class="backup-dropzone-icon">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                            </span>
+                            <div class="backup-dropzone-info">
+                                <strong id="settingsBackupFileName">Choose or drag backup file</strong>
+                                <small id="settingsBackupFileSize">Supported format: .json</small>
+                            </div>
+                        </label>
+
+                        <!-- Live Inspect / Preview Card (hidden until file is selected) -->
+                        <div class="backup-inspect-card" id="backupInspectCard" hidden>
+                            <div class="backup-inspect-head">
+                                <span class="backup-inspect-badge" id="backupInspectBadge">Version 2 Backup</span>
+                                <span class="backup-inspect-date" id="backupInspectDate">Created: Unknown</span>
+                            </div>
+
+                            <div class="backup-inspect-grid">
+                                <div class="backup-inspect-stat">
+                                    <span class="backup-stat-val" id="statSettingsCount">0</span>
+                                    <span class="backup-stat-lbl">Settings</span>
+                                </div>
+                                <div class="backup-inspect-stat">
+                                    <span class="backup-stat-val" id="statMappingsCount">0</span>
+                                    <span class="backup-stat-lbl">Mappings</span>
+                                </div>
+                                <div class="backup-inspect-stat">
+                                    <span class="backup-stat-val" id="statHistoryCount">0</span>
+                                    <span class="backup-stat-lbl">Watch History</span>
+                                </div>
+                                <div class="backup-inspect-stat">
+                                    <span class="backup-stat-val" id="statReviewsCount">0</span>
+                                    <span class="backup-stat-lbl">Reviews</span>
+                                </div>
+                            </div>
+
+                            <!-- Selective Restore Checkboxes -->
+                            <div class="backup-restore-selection">
+                                <span class="backup-selection-caption">SELECT SECTIONS TO RESTORE:</span>
+                                <div class="backup-selection-checks">
+                                    <label class="backup-check-item">
+                                        <input type="checkbox" name="restore_settings" value="1" checked id="chkRestoreSettings">
+                                        <span>Preferences &amp; Settings</span>
+                                    </label>
+                                    <label class="backup-check-item">
+                                        <input type="checkbox" name="restore_mappings" value="1" checked id="chkRestoreMappings">
+                                        <span>Mappings &amp; Titles</span>
+                                    </label>
+                                    <label class="backup-check-item">
+                                        <input type="checkbox" name="restore_watch_history" value="1" checked id="chkRestoreHistory">
+                                        <span>Watch History &amp; Progress</span>
+                                    </label>
+                                    <label class="backup-check-item">
+                                        <input type="checkbox" name="restore_reviews" value="1" checked id="chkRestoreReviews">
+                                        <span>User Reviews</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="settings-backup-submit-btn settings-backup-submit-btn--restore" id="btnConfirmRestore">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                <span>Confirm &amp; Restore Backup</span>
+                            </button>
+                        </div>
+
+                        <!-- Fallback submit button when inspect not yet loaded or on pure form -->
+                        <div class="backup-action-footer" id="backupDefaultSubmitWrap">
+                            <button type="submit" class="settings-backup-submit-btn settings-backup-submit-btn--restore" id="btnDefaultRestore">
+                                <span>Restore Backup</span>
+                            </button>
+                        </div>
+
+                        <!-- Inline Feedback -->
+                        <div class="backup-inline-feedback" id="backupRestoreFeedback" hidden></div>
+                    </form>
+                </div>
             </div>
         </section>
 
@@ -1654,14 +1791,212 @@
 <script src="{{ url_for('static', filename='settings.js', v='2') }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const backupInput = document.getElementById('settingsBackupFile');
-    const backupName = document.getElementById('settingsBackupFileName');
-    if (backupInput && backupName) {
-        backupInput.addEventListener('change', function() {
-            const file = backupInput.files && backupInput.files[0];
-            backupName.textContent = file ? file.name : 'Choose backup file';
-        });
-    }
+    // ==========================================
+    // 10. Backup & Restore Interactive Inspection & Selective Restore
+    // ==========================================
+    (function initBackupRestoreModule() {
+        const exportForm = document.getElementById('backupExportForm');
+        const backupInput = document.getElementById('settingsBackupFile');
+        const backupName = document.getElementById('settingsBackupFileName');
+        const backupSize = document.getElementById('settingsBackupFileSize');
+        const inspectCard = document.getElementById('backupInspectCard');
+        const defaultSubmitWrap = document.getElementById('backupDefaultSubmitWrap');
+        const restoreForm = document.getElementById('backupRestoreForm');
+        const restoreFeedback = document.getElementById('backupRestoreFeedback');
+        const btnConfirmRestore = document.getElementById('btnConfirmRestore');
+        const actionToken = "{{ action_token }}";
+
+        const statEls = {
+            settings: document.getElementById('statSettingsCount'),
+            mappings: document.getElementById('statMappingsCount'),
+            history: document.getElementById('statHistoryCount'),
+            reviews: document.getElementById('statReviewsCount'),
+            badge: document.getElementById('backupInspectBadge'),
+            date: document.getElementById('backupInspectDate'),
+        };
+
+        const checkEls = {
+            settings: document.getElementById('chkRestoreSettings'),
+            mappings: document.getElementById('chkRestoreMappings'),
+            history: document.getElementById('chkRestoreHistory'),
+            reviews: document.getElementById('chkRestoreReviews'),
+        };
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes <= 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex += 1;
+            }
+            return (unitIndex === 0 ? size : size.toFixed(1)) + ' ' + units[unitIndex];
+        }
+
+        // Export validation
+        if (exportForm) {
+            exportForm.addEventListener('submit', function(e) {
+                const checks = exportForm.querySelectorAll('input[type="checkbox"]:checked');
+                if (checks.length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one data section to export.');
+                }
+            });
+        }
+
+        // File inspection on selection
+        if (backupInput) {
+            backupInput.addEventListener('change', async function() {
+                const file = backupInput.files && backupInput.files[0];
+                if (!file) {
+                    if (backupName) backupName.textContent = 'Choose or drag backup file';
+                    if (backupSize) backupSize.textContent = 'Supported format: .json';
+                    if (inspectCard) inspectCard.hidden = true;
+                    if (defaultSubmitWrap) defaultSubmitWrap.hidden = false;
+                    return;
+                }
+
+                if (backupName) backupName.textContent = file.name;
+                if (backupSize) backupSize.textContent = 'Size: ' + formatBytes(file.size);
+                if (restoreFeedback) restoreFeedback.hidden = true;
+
+                if (inspectCard) {
+                    inspectCard.hidden = false;
+                    if (statEls.badge) statEls.badge.textContent = 'Inspecting file...';
+                    if (statEls.date) statEls.date.textContent = 'Reading JSON structure...';
+                }
+                if (defaultSubmitWrap) defaultSubmitWrap.hidden = true;
+
+                const formData = new FormData();
+                formData.append('backup_file', file);
+                formData.append('action_token', actionToken);
+
+                try {
+                    const response = await fetch('/api/settings/backup/inspect', {
+                        method: 'POST',
+                        headers: {
+                            'X-Action-Token': actionToken,
+                        },
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.error || 'Invalid backup file');
+                    }
+
+                    const sum = data.summary || {};
+                    if (statEls.badge) statEls.badge.textContent = `Version ${data.version} Backup`;
+                    if (statEls.date) statEls.date.textContent = data.created_at ? `Created: ${data.created_at.slice(0, 10)}` : 'Created: Unknown';
+                    if (statEls.settings) statEls.settings.textContent = sum.settings_count || 0;
+                    if (statEls.mappings) {
+                        const totalMaps = (sum.anilist_mappings_count || 0) + (sum.auto_import_mappings_count || 0) + (sum.episode_display_names_count || 0);
+                        statEls.mappings.textContent = totalMaps;
+                    }
+                    if (statEls.history) {
+                        const totalHist = (sum.watch_history_count || 0) + (sum.watch_status_count || 0);
+                        statEls.history.textContent = totalHist;
+                    }
+                    if (statEls.reviews) statEls.reviews.textContent = sum.review_count || 0;
+
+                    // Update restore checkboxes according to backup content
+                    if (checkEls.settings) {
+                        checkEls.settings.checked = Boolean(sum.has_settings);
+                        checkEls.settings.disabled = !sum.has_settings;
+                    }
+                    if (checkEls.mappings) {
+                        checkEls.mappings.checked = Boolean(sum.has_mappings);
+                        checkEls.mappings.disabled = !sum.has_mappings;
+                    }
+                    if (checkEls.history) {
+                        checkEls.history.checked = Boolean(sum.has_watch_history);
+                        checkEls.history.disabled = !sum.has_watch_history;
+                    }
+                    if (checkEls.reviews) {
+                        checkEls.reviews.checked = Boolean(sum.has_reviews);
+                        checkEls.reviews.disabled = !sum.has_reviews;
+                    }
+                } catch (err) {
+                    if (inspectCard) inspectCard.hidden = true;
+                    if (defaultSubmitWrap) defaultSubmitWrap.hidden = false;
+                    if (restoreFeedback) {
+                        restoreFeedback.className = 'backup-inline-feedback backup-inline-feedback--error';
+                        restoreFeedback.textContent = 'Inspection failed: ' + err.message;
+                        restoreFeedback.hidden = false;
+                    }
+                }
+            });
+        }
+
+        // AJAX Restore submission
+        if (restoreForm) {
+            restoreForm.addEventListener('submit', async function(e) {
+                // If native submit requested or no JS fetch supported
+                if (!window.fetch || !window.FormData) return;
+
+                e.preventDefault();
+                const file = backupInput && backupInput.files && backupInput.files[0];
+                if (!file) {
+                    alert('Please select a backup file first.');
+                    return;
+                }
+
+                if (btnConfirmRestore) {
+                    btnConfirmRestore.disabled = true;
+                    btnConfirmRestore.innerHTML = '<span class="maintenance-spinner"></span> Restoring Data...';
+                }
+
+                if (restoreFeedback) restoreFeedback.hidden = true;
+
+                const formData = new FormData(restoreForm);
+                formData.set('action_token', actionToken);
+
+                try {
+                    const response = await fetch(restoreForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'X-Action-Token': actionToken,
+                        },
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.error || 'Failed to restore backup');
+                    }
+
+                    if (restoreFeedback) {
+                        restoreFeedback.className = 'backup-inline-feedback backup-inline-feedback--success';
+                        restoreFeedback.textContent = data.message || 'Backup restored successfully.';
+                        restoreFeedback.hidden = false;
+                    }
+
+                    // Reset inspect card after success
+                    if (backupInput) backupInput.value = '';
+                    if (backupName) backupName.textContent = 'Choose or drag backup file';
+                    if (backupSize) backupSize.textContent = 'Supported format: .json';
+                    if (inspectCard) inspectCard.hidden = true;
+                    if (defaultSubmitWrap) defaultSubmitWrap.hidden = false;
+                } catch (err) {
+                    // Fallback to regular form submission if fetch failed unexpectedly
+                    console.error('AJAX backup restore error:', err);
+                    if (restoreFeedback) {
+                        restoreFeedback.className = 'backup-inline-feedback backup-inline-feedback--error';
+                        restoreFeedback.textContent = 'Restore failed: ' + err.message;
+                        restoreFeedback.hidden = false;
+                    }
+                } finally {
+                    if (btnConfirmRestore) {
+                        btnConfirmRestore.disabled = false;
+                        btnConfirmRestore.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg><span>Confirm &amp; Restore Backup</span>';
+                    }
+                }
+            });
+        }
+    })();
 
     const connectMalBtn = document.getElementById('connectMalBtn');
     const malClientIdInput = document.getElementById('mal_client_id');

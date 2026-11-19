@@ -444,6 +444,7 @@ from anibase.web import (
     register_page_routes,
     setup_sync,
     export_settings_backup,
+    inspect_settings_backup,
     import_settings_backup,
     refresh_media_diagnostics_settings,
     update_settings,
