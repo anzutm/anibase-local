@@ -466,6 +466,9 @@
     data-next-ep="{{ next_episode }}"
     data-resume-time="{{ resume_time or 0 }}"
     data-vlc-available="{{ '1' if vlc_available else '0' }}"
+    data-auto-next="{{ '1' if player_auto_next else '0' }}"
+    data-default-audio="{{ player_default_audio_lang or 'jpn' }}"
+    data-default-sub="{{ player_default_sub_lang or 'ind' }}"
     data-is-movie="{{ '1' if is_movie else '0' }}"
     data-display-title="{{ watch_display_name if is_movie else anime_name }}"
     data-player-url-template="{{ url_for('player', anime_name='__ANIME__', episode='__EPISODE__') }}"
@@ -493,6 +496,9 @@
         window.NEXT_EP_PATH = (config.nextEp && config.nextEp !== 'None') ? config.nextEp : null;
         window.RESUME_TIME = parseFloat(config.resumeTime || 0);
         window.VLC_AVAILABLE = config.vlcAvailable === '1';
+        window.PLAYER_AUTO_NEXT = config.autoNext === '1';
+        window.PLAYER_DEFAULT_AUDIO = config.defaultAudio || 'jpn';
+        window.PLAYER_DEFAULT_SUB = config.defaultSub || 'ind';
         window.PLYR_ICON_URL = "{{ url_for('static', filename='plyr.svg') }}";
         window.ANIBASE_ACTION_TOKEN = "{{ action_token }}";
         window.PLAYER_URL_TEMPLATE = config.playerUrlTemplate;

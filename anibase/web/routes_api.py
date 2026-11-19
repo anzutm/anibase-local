@@ -392,6 +392,9 @@ def update_settings():
         "ongoing_path": library_paths[1] if len(library_paths) > 1 else "",
         "movie_path": request.form.get("movie_path", "").strip(),
         "vlc_path": request.form.get("vlc_path", "").strip(),
+        "player_auto_next": "player_auto_next" in request.form if "player_settings_present" in request.form else existing_settings.get("player_auto_next", True),
+        "player_default_audio_lang": request.form.get("player_default_audio_lang", existing_settings.get("player_default_audio_lang", "jpn")).strip().lower(),
+        "player_default_sub_lang": request.form.get("player_default_sub_lang", existing_settings.get("player_default_sub_lang", "ind")).strip().lower(),
         "screenshot_folder": request.form.get("screenshot_folder", "").strip(),
         "screenshot_filename_prefix": normalize_screenshot_filename_prefix(
             request.form.get("screenshot_filename_prefix"),
@@ -806,6 +809,18 @@ def api_settings_validate_path():
     res = inspect_folder_path(path_val, is_movie=is_movie)
     res["ok"] = True
     return jsonify(res)
+
+
+@host_only
+def api_settings_detect_players():
+    """Mendeteksi instalasi media player eksternal (VLC, MPV, MPC-HC, PotPlayer) di sistem."""
+    from anibase.player import detect_installed_media_players
+    detected = detect_installed_media_players()
+    return jsonify({
+        "ok": True,
+        "players": detected,
+        "count": len(detected)
+    })
 
 
 def schedule_alerts():
@@ -2943,6 +2958,7 @@ def register_api_routes(app):
     app.add_url_rule("/settings/pick-file", endpoint="pick_settings_file", view_func=pick_settings_file, methods=["POST"])
     app.add_url_rule("/api/settings/validate-paths", endpoint="api_settings_validate_paths", view_func=api_settings_validate_paths, methods=["GET", "POST"])
     app.add_url_rule("/api/settings/validate-path", endpoint="api_settings_validate_path", view_func=api_settings_validate_path, methods=["GET", "POST"])
+    app.add_url_rule("/api/settings/detect-players", endpoint="api_settings_detect_players", view_func=api_settings_detect_players, methods=["GET", "POST"])
     app.add_url_rule("/api/schedule-alerts", endpoint="schedule_alerts", view_func=schedule_alerts)
     app.add_url_rule("/api/search/spotlight", endpoint="api_spotlight_search", view_func=api_spotlight_search)
     app.add_url_rule("/api/anilist/search", endpoint="api_anilist_search", view_func=api_anilist_search)

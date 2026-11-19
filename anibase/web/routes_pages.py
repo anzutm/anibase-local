@@ -1243,6 +1243,9 @@ def player(anime_name, episode):
             constants.VLC_PATH
             and os.path.isfile(constants.VLC_PATH)
         ),
+        player_auto_next=settings.get("player_auto_next", True),
+        player_default_audio_lang=settings.get("player_default_audio_lang", "jpn"),
+        player_default_sub_lang=settings.get("player_default_sub_lang", "ind"),
         episodes=episodes
     )
 

@@ -214,30 +214,93 @@
                 <section class="settings-card settings-card-compact" id="settings-playback">
                     <div class="settings-card-head">
                         <span class="settings-kicker">Playback</span>
-                        <h3>Player</h3>
-                        <p>Optional external player executable.</p>
+                        <h3>Media Player & Playback</h3>
+                        <p>Configure external media player integration and default web player behavior.</p>
                     </div>
 
+                    <input type="hidden" name="player_settings_present" value="1">
+
                     <div class="settings-field">
-                        <label class="settings-label" for="vlc_path">Player Path</label>
-                        <p class="settings-helper">Leave empty to use browser playback.</p>
-                        <div class="settings-input-row">
-                            <input
-                                class="settings-input settings-path-input"
-                                id="vlc_path"
-                                type="text"
-                                name="vlc_path"
-                                value="{{ settings.vlc_path }}"
-                                autocomplete="off"
-                            >
+                        <div class="settings-field-head">
+                            <div>
+                                <label class="settings-label" for="vlc_path">External Player Path (VLC / MPV / MPC-HC / PotPlayer)</label>
+                                <p class="settings-helper">Executable file used for external playback. Leave empty to play inside browser.</p>
+                            </div>
                             <button
-                                class="settings-browse-btn"
+                                class="settings-add-path-btn settings-auto-detect-btn"
                                 type="button"
-                                data-picker="file"
-                                data-target="vlc_path"
+                                id="autoDetectPlayerBtn"
+                                title="Pindai sistem untuk mendeteksi VLC, MPV, MPC-HC, atau PotPlayer otomatis"
                             >
-                                Browse File
+                                ⚡ Auto-Detect Player
                             </button>
+                        </div>
+                        <div class="settings-path-item">
+                            <div class="settings-input-row">
+                                <input
+                                    class="settings-input settings-path-input"
+                                    id="vlc_path"
+                                    type="text"
+                                    name="vlc_path"
+                                    value="{{ settings.vlc_path }}"
+                                    autocomplete="off"
+                                    placeholder="C:/Program Files/VideoLAN/VLC/vlc.exe"
+                                >
+                                <button
+                                    class="settings-browse-btn"
+                                    type="button"
+                                    data-picker="file"
+                                    data-target="vlc_path"
+                                >
+                                    Browse File
+                                </button>
+                            </div>
+                            <div class="settings-path-feedback" id="vlc_path_feedback" aria-live="polite"></div>
+                            <div id="detectedPlayersList" class="detected-players-list" hidden></div>
+                        </div>
+                    </div>
+
+                    <!-- In-Browser Web Player Defaults -->
+                    <div class="settings-field settings-web-player-field">
+                        <label class="settings-label">In-Browser Player Defaults</label>
+                        <p class="settings-helper">Default audio language, subtitle preference, and auto-play behavior when watching in AniBase.</p>
+                        
+                        <div class="settings-grid-options">
+                            <div class="settings-option-item">
+                                <label class="settings-sub-label" for="player_default_audio_lang">Default Audio Language</label>
+                                <select class="settings-select" id="player_default_audio_lang" name="player_default_audio_lang">
+                                    <option value="jpn" {% if settings.player_default_audio_lang == 'jpn' or not settings.player_default_audio_lang %}selected{% endif %}>Japanese (Original)</option>
+                                    <option value="eng" {% if settings.player_default_audio_lang == 'eng' %}selected{% endif %}>English Dub</option>
+                                    <option value="ind" {% if settings.player_default_audio_lang == 'ind' %}selected{% endif %}>Indonesian Dub</option>
+                                    <option value="und" {% if settings.player_default_audio_lang == 'und' %}selected{% endif %}>First Available Track</option>
+                                </select>
+                            </div>
+
+                            <div class="settings-option-item">
+                                <label class="settings-sub-label" for="player_default_sub_lang">Default Subtitle Language</label>
+                                <select class="settings-select" id="player_default_sub_lang" name="player_default_sub_lang">
+                                    <option value="ind" {% if settings.player_default_sub_lang == 'ind' or not settings.player_default_sub_lang %}selected{% endif %}>Indonesian (Sub Indo)</option>
+                                    <option value="eng" {% if settings.player_default_sub_lang == 'eng' %}selected{% endif %}>English (Sub)</option>
+                                    <option value="jpn" {% if settings.player_default_sub_lang == 'jpn' %}selected{% endif %}>Japanese</option>
+                                    <option value="off" {% if settings.player_default_sub_lang == 'off' %}selected{% endif %}>Off by Default</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-toggle-row settings-toggle-row--subtle">
+                            <div>
+                                <strong>Auto-Play Next Episode</strong>
+                                <small>Automatically play the subsequent episode when current episode ends.</small>
+                            </div>
+                            <label class="switch">
+                                <input
+                                    type="checkbox"
+                                    name="player_auto_next"
+                                    value="1"
+                                    {% if settings.player_auto_next is not defined or settings.player_auto_next %}checked{% endif %}
+                                >
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
 
@@ -1386,6 +1449,148 @@ document.addEventListener('DOMContentLoaded', function() {
     if (moviePathInput) {
         moviePathInput.addEventListener('input', function() {
             schedulePathValidation(400);
+        });
+    }
+
+    // --- 03. Playback: Auto-Detect Player & Synchronize Defaults ---
+    const autoDetectPlayerBtn = document.getElementById('autoDetectPlayerBtn');
+    const vlcPathInput = document.getElementById('vlc_path');
+    const vlcPathFeedback = document.getElementById('vlc_path_feedback');
+    const detectedPlayersList = document.getElementById('detectedPlayersList');
+    const playerDefaultAudioSelect = document.getElementById('player_default_audio_lang');
+    const playerDefaultSubSelect = document.getElementById('player_default_sub_lang');
+
+    // Sinkronisasi preferensi audio & subtitle ke browser localStorage agar instan efektif di player web
+    if (playerDefaultAudioSelect) {
+        playerDefaultAudioSelect.addEventListener('change', function() {
+            localStorage.setItem('anibase_preferred_audio_lang', this.value);
+        });
+    }
+    if (playerDefaultSubSelect) {
+        playerDefaultSubSelect.addEventListener('change', function() {
+            if (this.value === 'off') {
+                localStorage.setItem('anibase_subtitle_disabled', 'true');
+            } else {
+                localStorage.removeItem('anibase_subtitle_disabled');
+                localStorage.setItem('anibase_preferred_subtitle_lang', this.value);
+            }
+        });
+    }
+
+    async function checkPlayerPathStatus() {
+        if (!vlcPathInput || !vlcPathFeedback) return;
+        const val = vlcPathInput.value.trim();
+        if (!val) {
+            vlcPathFeedback.innerHTML = `<span class="path-status" style="color:var(--text-muted);font-size:12px;">Browser playback aktif (tidak menggunakan player eksternal).</span>`;
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/settings/validate-path?path=${encodeURIComponent(val)}&is_movie=0`);
+            const data = await res.json();
+            if (data.exists && !data.is_dir) {
+                vlcPathFeedback.innerHTML = `
+                    <div class="path-feedback-card is-valid" style="margin-top:6px;">
+                        <div class="path-feedback-main">
+                            <span class="path-badge is-valid">✓ Terverifikasi</span>
+                            <span class="path-feedback-detail">Executable player eksternal ditemukan dan siap digunakan.</span>
+                        </div>
+                    </div>
+                `;
+            } else if (data.is_dir) {
+                vlcPathFeedback.innerHTML = `
+                    <div class="path-feedback-card is-invalid" style="margin-top:6px;">
+                        <div class="path-feedback-main">
+                            <span class="path-badge is-invalid">✕ Folder</span>
+                            <span class="path-feedback-detail">Path mengarah ke folder direktori, bukan berkas .exe media player.</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                vlcPathFeedback.innerHTML = `
+                    <div class="path-feedback-card is-invalid" style="margin-top:6px;">
+                        <div class="path-feedback-main">
+                            <span class="path-badge is-invalid">✕ Tidak Ditemukan</span>
+                            <span class="path-feedback-detail">File executable player tidak ditemukan di lokasi tersebut.</span>
+                        </div>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.error('Error validating player path:', e);
+        }
+    }
+
+    if (vlcPathInput) {
+        vlcPathInput.addEventListener('input', () => {
+            setTimeout(checkPlayerPathStatus, 300);
+        });
+        setTimeout(checkPlayerPathStatus, 250);
+    }
+
+    if (autoDetectPlayerBtn) {
+        autoDetectPlayerBtn.addEventListener('click', async function() {
+            autoDetectPlayerBtn.disabled = true;
+            autoDetectPlayerBtn.innerHTML = `<span class="path-spinner"></span> Scanning...`;
+            if (detectedPlayersList) detectedPlayersList.hidden = true;
+
+            try {
+                const res = await fetch('/api/settings/detect-players');
+                const data = await res.json();
+
+                if (data.ok && Array.isArray(data.players) && data.players.length > 0) {
+                    let html = `<div class="detected-players-box"><strong style="font-size:12px;color:var(--primary);">Pilih Player Terdeteksi:</strong><div class="detected-player-pills">`;
+                    data.players.forEach(p => {
+                        html += `
+                            <button type="button" class="detected-player-pill" data-player-path="${escapeHtml(p.path)}">
+                                <strong>${escapeHtml(p.name)}</strong>
+                                <span>${escapeHtml(p.path)}</span>
+                            </button>
+                        `;
+                    });
+                    html += `</div></div>`;
+                    if (detectedPlayersList) {
+                        detectedPlayersList.innerHTML = html;
+                        detectedPlayersList.hidden = false;
+                    }
+
+                    // Isi otomatis dengan player pertama jika vlc_path kosong
+                    if (vlcPathInput && !vlcPathInput.value.trim()) {
+                        vlcPathInput.value = data.players[0].path;
+                        checkPlayerPathStatus();
+                    }
+                } else {
+                    if (detectedPlayersList) {
+                        detectedPlayersList.innerHTML = `
+                            <div class="path-feedback-card is-warning" style="margin-top:6px;">
+                                <div class="path-feedback-main">
+                                    <span class="path-badge is-warning">Info</span>
+                                    <span class="path-feedback-detail">Tidak menemukan instalasi VLC/MPV/MPC-HC di folder standar. Anda dapat memasukkan path secara manual atau menggunakan Browse File.</span>
+                                </div>
+                            </div>
+                        `;
+                        detectedPlayersList.hidden = false;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to auto-detect players:', err);
+            } finally {
+                autoDetectPlayerBtn.disabled = false;
+                autoDetectPlayerBtn.innerHTML = `⚡ Auto-Detect Player`;
+            }
+        });
+    }
+
+    if (detectedPlayersList) {
+        detectedPlayersList.addEventListener('click', function(e) {
+            const pill = e.target.closest('.detected-player-pill');
+            if (pill && vlcPathInput) {
+                vlcPathInput.value = pill.dataset.playerPath;
+                checkPlayerPathStatus();
+                // Beri efek highlight
+                detectedPlayersList.querySelectorAll('.detected-player-pill').forEach(el => el.classList.remove('selected'));
+                pill.classList.add('selected');
+            }
         });
     }
 

@@ -60,3 +60,53 @@ def diagnose_vlc_path(vlc_path):
         "available",
         "Media Player executable path is valid."
     )
+
+
+def detect_installed_media_players():
+    """Memindai lokasi instalasi standar media player di Windows/OS untuk deteksi otomatis."""
+    detected = []
+
+    candidates = [
+        ("VLC Media Player", [
+            os.path.expandvars(r"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\VideoLAN\VLC\vlc.exe"),
+            os.path.expandvars(r"%LocalAppData%\Programs\VideoLAN\VLC\vlc.exe"),
+            "/usr/bin/vlc",
+            "/Applications/VLC.app/Contents/MacOS/VLC",
+        ]),
+        ("MPV Player", [
+            os.path.expandvars(r"%ProgramFiles%\mpv\mpv.exe"),
+            os.path.expandvars(r"%LocalAppData%\Programs\mpv\mpv.exe"),
+            r"C:\tools\mpv\mpv.exe",
+            r"C:\mpv\mpv.exe",
+            "/usr/bin/mpv",
+            "/usr/local/bin/mpv",
+        ]),
+        ("MPC-HC / MPC-BE", [
+            os.path.expandvars(r"%ProgramFiles%\MPC-HC\mpc-hc64.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\MPC-HC\mpc-hc.exe"),
+            os.path.expandvars(r"%ProgramFiles%\MPC-BE x64\mpc-be64.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\MPC-BE\mpc-be.exe"),
+        ]),
+        ("PotPlayer", [
+            os.path.expandvars(r"%ProgramFiles%\DAUM\PotPlayer\PotPlayer64.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\DAUM\PotPlayer\PotPlayer.exe"),
+        ]),
+    ]
+
+    seen = set()
+    for name, paths in candidates:
+        for p in paths:
+            norm = os.path.normpath(p)
+            if norm.lower() in seen:
+                continue
+            if os.path.isfile(p):
+                seen.add(norm.lower())
+                detected.append({
+                    "name": name,
+                    "path": norm,
+                    "exists": True
+                })
+                break
+
+    return detected

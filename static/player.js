@@ -1254,7 +1254,8 @@ player.on('timeupdate seeking play pause loadedmetadata', updateNextOverlay);
 
 // Auto Next
 player.on('ended', () => {
-    if (!nextEpisodeCancelled && window.NEXT_EP_PATH && window.NEXT_EP_PATH !== 'None') {
+    const isAutoNextAllowed = window.PLAYER_AUTO_NEXT !== false && !nextEpisodeCancelled;
+    if (isAutoNextAllowed && window.NEXT_EP_PATH && window.NEXT_EP_PATH !== 'None') {
         switchEpisode(window.NEXT_EP_PATH, { autoplay: true });
     } else {
         sendWatchProgress();
@@ -1949,11 +1950,15 @@ let currentSubtitleTrackId = null;
 let subtitleFetchController = null;
 
 function isSubtitleExplicitlyDisabled() {
-    return localStorage.getItem('anibase_subtitle_disabled') === 'true';
+    const local = localStorage.getItem('anibase_subtitle_disabled');
+    if (local !== null) {
+        return local === 'true';
+    }
+    return window.PLAYER_DEFAULT_SUB === 'off';
 }
 
 function getPreferredSubtitleLang() {
-    return localStorage.getItem('anibase_preferred_subtitle_lang');
+    return localStorage.getItem('anibase_preferred_subtitle_lang') || window.PLAYER_DEFAULT_SUB || 'ind';
 }
 
 function updateSubtitlePickerButton(label) {

@@ -113,5 +113,13 @@ class TestSettingsLibraryPaths(unittest.TestCase):
             self.assertTrue(saved_dict.get("ongoing_tracker_enabled"))
 
 
+    def test_api_settings_detect_players_endpoint(self):
+        res = self.client.get("/api/settings/detect-players")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["ok"])
+        self.assertIsInstance(data["players"], list)
+
+
 if __name__ == "__main__":
     unittest.main()
