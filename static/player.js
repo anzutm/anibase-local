@@ -480,7 +480,6 @@ player.on('ready', () => {
         getSeekFeedback('forward');
     }
     createEpisodesDrawer();
-    initDoubleTapSeek();
 
     // Sinkronisasi Fullscreen Desktop App
     player.on('enterfullscreen', () => {
@@ -515,108 +514,6 @@ player.on('ready', () => {
             { once: true, signal: mediaLoadController.signal });
     }
 });
-
-// --- Double-Click / Double-Tap Side Seek with Wave Ripple (YouTube Style) ---
-let doubleTapRippleTimer = { backward: null, forward: null };
-let doubleTapRippleAccumulator = { backward: 0, forward: 0 };
-let doubleTapRippleElements = { backward: null, forward: null };
-let preDblClickPlaying = false;
-
-function getDoubleTapRippleElement(direction) {
-    if (!doubleTapRippleElements[direction] && player.elements && player.elements.container) {
-        const isLeft = direction === 'backward';
-        const ripple = document.createElement('div');
-        ripple.className = `player-doubletap-ripple player-doubletap-ripple--${isLeft ? 'left' : 'right'}`;
-        ripple.hidden = true;
-        ripple.setAttribute('aria-hidden', 'true');
-        ripple.innerHTML = `
-            <div class="ripple-wave"></div>
-            <div class="ripple-content">
-                <span class="ripple-arrows" aria-hidden="true">${isLeft ? '&#171;&#171;' : '&#187;&#187;'}</span>
-                <span class="ripple-text">10 seconds</span>
-            </div>
-        `;
-        player.elements.container.appendChild(ripple);
-        doubleTapRippleElements[direction] = ripple;
-    }
-    return doubleTapRippleElements[direction];
-}
-
-function showDoubleTapRipple(direction, seconds) {
-    const ripple = getDoubleTapRippleElement(direction);
-    if (!ripple) return;
-
-    const textEl = ripple.querySelector('.ripple-text');
-    if (textEl) textEl.textContent = `${seconds} seconds`;
-
-    ripple.hidden = false;
-    ripple.classList.remove('is-active', 'is-fading');
-    void ripple.offsetWidth;
-    ripple.classList.add('is-active');
-
-    clearTimeout(doubleTapRippleTimer[direction]);
-    doubleTapRippleTimer[direction] = setTimeout(() => {
-        ripple.classList.remove('is-active');
-        ripple.classList.add('is-fading');
-        setTimeout(() => {
-            if (!ripple.classList.contains('is-active')) {
-                ripple.hidden = true;
-                ripple.classList.remove('is-fading');
-                doubleTapRippleAccumulator[direction] = 0;
-            }
-        }, 250);
-    }, 650);
-}
-
-function handleSideDoubleTap(direction) {
-    doubleTapRippleAccumulator[direction] = (doubleTapRippleAccumulator[direction] || 0) + 10;
-    showDoubleTapRipple(direction, doubleTapRippleAccumulator[direction]);
-    seekByShortcut(direction, 10);
-}
-
-function initDoubleTapSeek() {
-    const container = player.elements?.container;
-    if (!container || container.dataset.doubleTapBound) return;
-    container.dataset.doubleTapBound = 'true';
-
-    container.addEventListener('pointerdown', (e) => {
-        if (!e.target.closest('.plyr__controls, #playerEpisodesDrawer, .player-shortcuts-modal-overlay, button, input, a, select')) {
-            preDblClickPlaying = !player.paused;
-        }
-    }, true);
-
-    container.addEventListener('dblclick', (e) => {
-        if (e.target.closest('.plyr__controls, #playerEpisodesDrawer, .player-shortcuts-modal-overlay, button, input, a, select')) {
-            return;
-        }
-
-        const rect = container.getBoundingClientRect();
-        if (rect.width <= 0) return;
-        const ratio = (e.clientX - rect.left) / rect.width;
-
-        if (ratio < 0.35) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            if (preDblClickPlaying && player.paused) {
-                player.play().catch(() => {});
-            }
-            handleSideDoubleTap('backward');
-        } else if (ratio > 0.65) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            if (preDblClickPlaying && player.paused) {
-                player.play().catch(() => {});
-            }
-            handleSideDoubleTap('forward');
-        }
-    }, true);
-}
-
-if (player.elements?.container) {
-    initDoubleTapSeek();
-}
 
 // Master Keyboard Shortcut Dispatcher
 const shortcutsModal = document.getElementById('playerShortcutsModal');
