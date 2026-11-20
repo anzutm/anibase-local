@@ -168,6 +168,53 @@ class TestFFmpegHWAccel(unittest.TestCase):
         self.assertIn("message", hwaccel_info)
         self.assertIsInstance(hwaccel_info["available"], bool)
 
+    def test_hwaccel_selects_vaapi_on_linux(self):
+        """On Linux with vaapi available, vaapi should be selected over d3d11va."""
+        import anibase.ffmpeg as ffmpeg_mod
+        with patch("anibase.ffmpeg.os") as mock_os, \
+             patch.object(ffmpeg_mod, "_HWACCEL_CACHE", None), \
+             patch.object(ffmpeg_mod, "get_media_tool_path", return_value="/usr/bin/ffmpeg"), \
+             patch("anibase.ffmpeg.run_hidden_subprocess") as mock_subp:
+            mock_os.name = "posix"
+            mock_os.path.isfile.return_value = True
+            mock_os.environ.get.side_effect = lambda k, d="": ""
+            mock_subp.return_value.returncode = 0
+            mock_subp.return_value.stdout = "Hardware acceleration methods:\nvaapi\ncuda\nvulkan\n"
+            hw = ffmpeg_mod.detect_available_hwaccels(force=True)
+            self.assertIn("vaapi", hw["methods"])
+            self.assertEqual(hw["selected"], "vaapi")
+
+    def test_hwaccel_selects_d3d11va_on_windows(self):
+        """On Windows with d3d11va available, d3d11va should be selected."""
+        import anibase.ffmpeg as ffmpeg_mod
+        with patch("anibase.ffmpeg.os") as mock_os, \
+             patch.object(ffmpeg_mod, "_HWACCEL_CACHE", None), \
+             patch.object(ffmpeg_mod, "get_media_tool_path", return_value="ffmpeg.exe"), \
+             patch("anibase.ffmpeg.run_hidden_subprocess") as mock_subp:
+            mock_os.name = "nt"
+            mock_os.path.isfile.return_value = True
+            mock_os.environ.get.side_effect = lambda k, d="": ""
+            mock_subp.return_value.returncode = 0
+            mock_subp.return_value.stdout = "Hardware acceleration methods:\nd3d11va\ndxva2\ncuda\n"
+            hw = ffmpeg_mod.detect_available_hwaccels(force=True)
+            self.assertIn("d3d11va", hw["methods"])
+            self.assertEqual(hw["selected"], "d3d11va")
+
+    def test_hwaccel_env_override(self):
+        """ANIBASE_HWACCEL env var overrides automatic selection."""
+        import anibase.ffmpeg as ffmpeg_mod
+        with patch("anibase.ffmpeg.os") as mock_os, \
+             patch.object(ffmpeg_mod, "_HWACCEL_CACHE", None), \
+             patch.object(ffmpeg_mod, "get_media_tool_path", return_value="/usr/bin/ffmpeg"), \
+             patch("anibase.ffmpeg.run_hidden_subprocess") as mock_subp:
+            mock_os.name = "posix"
+            mock_os.path.isfile.return_value = True
+            mock_os.environ.get.side_effect = lambda k, d="": "cuda" if k == "ANIBASE_HWACCEL" else ""
+            mock_subp.return_value.returncode = 0
+            mock_subp.return_value.stdout = "Hardware acceleration methods:\nvaapi\ncuda\n"
+            hw = ffmpeg_mod.detect_available_hwaccels(force=True)
+            self.assertEqual(hw["selected"], "cuda")
+
 
 class TestSpotlightFtsIntegration(unittest.TestCase):
     """Test spotlight search integration with FTS5."""
@@ -206,6 +253,98 @@ class TestSpotlightFtsIntegration(unittest.TestCase):
             self.assertEqual(len(anime_matches), 1)
             self.assertEqual(anime_matches[0]["name"], "Bocchi the Rock!")
             self.assertGreater(anime_matches[0]["relevance"], 20)
+
+
+class TestMediaPlayerDetection(unittest.TestCase):
+    """Test suite for cross-platform media player path detection."""
+
+    def test_detect_installed_media_players_returns_list(self):
+        """detect_installed_media_players() always returns a list (may be empty)."""
+        from anibase.player import detect_installed_media_players
+        result = detect_installed_media_players()
+        self.assertIsInstance(result, list)
+        for item in result:
+            self.assertIn("name", item)
+            self.assertIn("path", item)
+            self.assertIn("exists", item)
+            self.assertTrue(item["exists"])
+
+    def test_detect_installed_media_players_finds_mocked_vlc(self):
+        """detect_installed_media_players() finds VLC when it exists at a known path."""
+        from anibase.player import detect_installed_media_players
+        with patch("anibase.player.os.path.isfile") as mock_isfile, \
+             patch("anibase.player.shutil.which", return_value=None):
+            # Only return True for /usr/bin/vlc
+            mock_isfile.side_effect = lambda p: p == "/usr/bin/vlc"
+            result = detect_installed_media_players()
+            names = [r["name"] for r in result]
+            self.assertIn("VLC Media Player", names)
+
+    def test_detect_installed_media_players_finds_mocked_mpv(self):
+        """detect_installed_media_players() finds MPV on Linux via shutil.which."""
+        from anibase.player import detect_installed_media_players
+        with patch("anibase.player.os.name", "posix"), \
+             patch("anibase.player.os.path.isfile") as mock_isfile, \
+             patch("anibase.player.shutil.which") as mock_which:
+            mock_which.side_effect = lambda cmd: "/usr/bin/mpv" if cmd == "mpv" else None
+            # which result is prepended, then isfile checks it
+            mock_isfile.side_effect = lambda p: p == "/usr/bin/mpv"
+            result = detect_installed_media_players()
+            names = [r["name"] for r in result]
+            self.assertIn("MPV Player", names)
+
+    def test_pick_native_path_linux_uses_zenity(self):
+        """pick_native_path on Linux calls zenity when available."""
+        from anibase.web.helpers import _pick_path_linux
+        with patch("anibase.web.helpers.shutil.which", return_value="/usr/bin/zenity"), \
+             patch("anibase.web.helpers.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "/home/user/Videos\n"
+            result = _pick_path_linux("folder")
+            self.assertEqual(result, "/home/user/Videos")
+            args = mock_run.call_args[0][0]
+            self.assertIn("zenity", args)
+            self.assertIn("--directory", args)
+
+    def test_pick_native_path_linux_falls_back_to_kdialog(self):
+        """pick_native_path on Linux falls back to kdialog when zenity is unavailable."""
+        from anibase.web.helpers import _pick_path_linux
+        with patch("anibase.web.helpers.shutil.which", side_effect=lambda cmd: None if cmd == "zenity" else "/usr/bin/kdialog"), \
+             patch("anibase.web.helpers.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "/home/user/Downloads\n"
+            result = _pick_path_linux("folder")
+            self.assertEqual(result, "/home/user/Downloads")
+            args = mock_run.call_args[0][0]
+            self.assertIn("kdialog", args)
+
+    def test_pick_native_path_linux_returns_empty_when_cancelled(self):
+        """_pick_path_linux() returns '' when user cancels (returncode != 0)."""
+        from anibase.web.helpers import _pick_path_linux
+        with patch("anibase.web.helpers.shutil.which", return_value="/usr/bin/zenity"), \
+             patch("anibase.web.helpers.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+            result = _pick_path_linux("folder")
+            self.assertEqual(result, "")
+
+    def test_pick_native_path_linux_falls_back_to_tkinter(self):
+        """_pick_path_linux() falls back to tkinter when zenity and kdialog are missing."""
+        from anibase.web.helpers import _pick_path_linux
+        with patch("anibase.web.helpers.shutil.which", return_value=None), \
+             patch.dict("os.environ", {"DISPLAY": ":0"}), \
+             patch("tkinter.Tk"), \
+             patch("tkinter.filedialog.askdirectory", return_value="/home/user/Anime"):
+            result = _pick_path_linux("folder")
+            self.assertEqual(result, "/home/user/Anime")
+
+    def test_pick_windows_path_is_backward_compatible_alias(self):
+        """pick_windows_path calls pick_native_path for backward compatibility."""
+        from anibase.web.helpers import pick_windows_path
+        with patch("anibase.web.helpers.pick_native_path", return_value="mock_result") as mock_pick:
+            res = pick_windows_path("folder")
+            mock_pick.assert_called_once_with("folder")
+            self.assertEqual(res, "mock_result")
 
 
 if __name__ == "__main__":

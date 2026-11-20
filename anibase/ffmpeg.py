@@ -338,7 +338,14 @@ def detect_available_hwaccels(force=False):
             if env_choice and (env_choice in methods or env_choice == "auto"):
                 selected = env_choice
             else:
-                for preferred in ("auto", "d3d11va", "dxva2", "cuda"):
+                # Prefer platform-appropriate accelerators
+                if os.name == "nt":
+                    preferred_order = ("d3d11va", "dxva2", "cuda", "auto")
+                else:
+                    # Linux: VA-API (Intel/AMD open-source), NVDEC/CUDA (NVIDIA),
+                    # DRM (generic KMS), Vulkan; fall back to auto last
+                    preferred_order = ("vaapi", "cuda", "nvdec", "drm", "vulkan", "auto")
+                for preferred in preferred_order:
                     if preferred in methods or preferred == "auto":
                         selected = preferred
                         break

@@ -6,8 +6,10 @@ import sys
 import re
 import json
 import gzip
+import shutil
 import sqlite3
 import secrets
+import subprocess
 import functools
 import ipaddress
 import threading
@@ -484,7 +486,103 @@ def is_localhost_request():
     return is_local_request()
 
 
-def pick_windows_path(picker_type):
+def _pick_path_linux(picker_type: str) -> str:
+    """
+    Opens a native Linux file/folder picker via Zenity or kdialog (GTK / KDE).
+    Falls back to Tkinter if neither CLI dialog tool is installed.
+    Returns the selected path as a string, or '' if cancelled / unavailable.
+    """
+    is_folder = picker_type != "file"
+
+    # -- Zenity (GNOME / GTK) --
+    if shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--title=Select Path"]
+        if is_folder:
+            cmd.append("--directory")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            # User cancelled or closed Zenity window
+            return ""
+        except Exception as e:
+            app_log(f"Zenity picker failed: {e}", "WARN")
+
+    # -- kdialog (KDE / Qt) --
+    if shutil.which("kdialog"):
+        if is_folder:
+            cmd = ["kdialog", "--getexistingdirectory", "."]
+        else:
+            cmd = ["kdialog", "--getopenfilename", "."]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            # User cancelled or closed kdialog window
+            return ""
+        except Exception as e:
+            app_log(f"kdialog picker failed: {e}", "WARN")
+
+    # -- Fallback to Tkinter (if graphical session is active) --
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.update()
+            try:
+                if is_folder:
+                    return filedialog.askdirectory(parent=root) or ""
+                return filedialog.askopenfilename(
+                    parent=root,
+                    filetypes=[("All files", "*.*")]
+                ) or ""
+            finally:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+        except Exception as e:
+            app_log(f"Tkinter Linux fallback picker failed: {e}", "WARN")
+
+    return ""
+
+
+def _pick_path_windows(picker_type: str) -> str:
+    """Opens a native Windows file/folder picker via tkinter. Returns selected path or ''."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    root.update()
+    try:
+        if picker_type == "file":
+            return filedialog.askopenfilename(
+                parent=root,
+                filetypes=[
+                    ("Executable files", "*.exe *.bat *.cmd"),
+                    ("All files", "*.*"),
+                ]
+            ) or ""
+        else:
+            return filedialog.askdirectory(parent=root) or ""
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+
+def pick_native_path(picker_type: str):
+    """
+    Cross-platform native path picker (file or folder).
+    Uses tkinter on Windows, Zenity/kdialog on Linux/macOS.
+    """
     if not is_localhost_request():
         return jsonify({
             "ok": False,
@@ -493,29 +591,13 @@ def pick_windows_path(picker_type):
             "message": "Browse picker is only available on the server device. Type the path manually from LAN."
         }), 403
 
-    root = None
-
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        root.update()
-
-        if picker_type == "file":
-            selected_path = filedialog.askopenfilename(
-                parent=root,
-                filetypes=[
-                    ("Executable files", "*.exe"),
-                    ("All files", "*.*")
-                ]
-            )
+        if os.name == "nt":
+            selected_path = _pick_path_windows(picker_type)
         else:
-            selected_path = filedialog.askdirectory(parent=root)
+            selected_path = _pick_path_linux(picker_type)
 
-        return jsonify({"ok": True, "path": selected_path or ""})
+        return jsonify({"ok": True, "path": selected_path})
 
     except Exception as e:
         app_log(f"Path picker failed: {e}", "ERROR")
@@ -526,12 +608,10 @@ def pick_windows_path(picker_type):
             "message": "Unable to open picker. Type the path manually."
         }), 500
 
-    finally:
-        if root is not None:
-            try:
-                root.destroy()
-            except Exception:
-                pass
+
+def pick_windows_path(picker_type: str):
+    """Backward-compatibility alias for pick_native_path."""
+    return pick_native_path(picker_type)
 
 
 def get_anime_watch_summary(anime_name, total_episodes, anime_status=None, status_data=None):

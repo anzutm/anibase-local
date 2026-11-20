@@ -244,6 +244,7 @@ from anibase.web.helpers import (
     apply_settings,
     is_local_request,
     get_watch_status_payload,
+    pick_native_path,
     pick_windows_path,
     get_character_image_cache_path,
     get_spotlight_results,
@@ -956,13 +957,13 @@ def api_get_cache_size():
 @host_only
 @require_action_token
 def pick_settings_folder():
-    return pick_windows_path("folder")
+    return pick_native_path("folder")
 
 
 @host_only
 @require_action_token
 def pick_settings_file():
-    return pick_windows_path("file")
+    return pick_native_path("file")
 
 
 def inspect_folder_path(path_str: str, is_movie: bool = False) -> dict:

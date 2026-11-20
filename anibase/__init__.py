@@ -128,6 +128,7 @@ from anibase.ffmpeg import (
 )
 from anibase.player import (
     diagnose_vlc_path,
+    detect_installed_media_players,
 )
 from anibase.media import (
     get_video_duration_seconds,
@@ -420,6 +421,7 @@ from anibase.web import (
     dependency_card_text,
     build_settings_status_cards,
     is_localhost_request,
+    pick_native_path,
     pick_windows_path,
     get_anime_watch_summary,
     get_anime,

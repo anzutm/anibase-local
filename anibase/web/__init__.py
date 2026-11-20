@@ -39,6 +39,7 @@ from anibase.web.helpers import (
     dependency_card_text,
     build_settings_status_cards,
     is_localhost_request,
+    pick_native_path,
     pick_windows_path,
     get_anime_watch_summary,
     get_anime,

@@ -3492,7 +3492,7 @@ class LanHostOnlyAccessTests(unittest.TestCase):
 
     def test_folder_picker_accepts_local_with_valid_token(self):
         from unittest.mock import patch
-        with patch("anibase.web.routes_api.pick_windows_path", return_value=({"ok": True, "path": "C:/test"}, 200)):
+        with patch("anibase.web.routes_api.pick_native_path", return_value=({"ok": True, "path": "C:/test"}, 200)):
             response = self.request(
                 "POST",
                 "/settings/pick-folder",
