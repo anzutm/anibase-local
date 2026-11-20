@@ -117,11 +117,32 @@ class DesktopApi:
 
 
 def get_screen_bounds():
-    """Returns (width, height) of primary screen on Windows."""
+    """Returns (width, height) of primary screen, cross-platform."""
     if os.name == "nt":
         try:
             user32 = ctypes.windll.user32
             return int(user32.GetSystemMetrics(0)), int(user32.GetSystemMetrics(1))
+        except Exception:
+            pass
+    else:
+        # Linux / macOS: try pywebview screens first
+        try:
+            import webview  # type: ignore[import]
+            screens = webview.screens
+            if screens:
+                s = screens[0]
+                return int(s.width), int(s.height)
+        except Exception:
+            pass
+        # Fallback: PySide6
+        try:
+            from PySide6.QtWidgets import QApplication  # type: ignore[import]
+            app = QApplication.instance()
+            if app:
+                screen = app.primaryScreen()
+                if screen:
+                    size = screen.size()
+                    return int(size.width()), int(size.height())
         except Exception:
             pass
     return 1920, 1080
@@ -179,12 +200,121 @@ def set_windows_startup(enabled: bool) -> bool:
         return False
 
 
-def sync_windows_startup_from_settings(enabled: bool) -> bool:
-    """Synchronizes the Windows startup registry with the configured setting if needed."""
-    current = is_windows_startup_enabled()
+# ---------------------------------------------------------------------------
+# Linux / Freedesktop XDG Autostart
+# ---------------------------------------------------------------------------
+
+def _get_linux_autostart_path() -> str:
+    """Returns path to the Freedesktop autostart .desktop file."""
+    config_home = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    if not config_home:
+        config_home = os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(config_home, "autostart", "anibase.desktop")
+
+
+def _get_linux_startup_command() -> str:
+    """Returns the Exec= value for the Linux .desktop autostart file."""
+    import sys
+    from anibase.utils import get_application_dir
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+    main_py = os.path.join(get_application_dir(), "main.py")
+    return f'"{sys.executable}" "{main_py}"'
+
+
+def _get_linux_icon_path() -> str:
+    """Returns path to AniBase icon for the .desktop file."""
+    try:
+        from anibase.utils import get_resource_dir
+        icon = os.path.join(get_resource_dir(), "static", "arcana.jpg")
+        if os.path.isfile(icon):
+            return icon
+    except Exception:
+        pass
+    return "anibase"
+
+
+def is_linux_startup_enabled() -> bool:
+    """Checks if AniBase is registered in XDG autostart."""
+    path = _get_linux_autostart_path()
+    if not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Explicitly disabled trumps everything
+        if "X-GNOME-Autostart-enabled=false" in content:
+            return False
+        return "[Desktop Entry]" in content
+    except OSError:
+        return False
+
+
+def set_linux_startup(enabled: bool) -> bool:
+    """Enables or disables AniBase autostart via XDG .desktop file."""
+    path = _get_linux_autostart_path()
+    if enabled:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            cmd = _get_linux_startup_command()
+            icon = _get_linux_icon_path()
+            content = (
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=AniBase\n"
+                f"Exec={cmd}\n"
+                f"Icon={icon}\n"
+                "X-GNOME-Autostart-enabled=true\n"
+                "NoDisplay=false\n"
+                "Comment=Private Anime Streaming & Library Management\n"
+            )
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            app_log("AniBase registered for Linux autostart.", "INFO")
+            return True
+        except OSError as e:
+            app_log(f"Failed to write Linux autostart file: {e}", "WARN")
+            return False
+    else:
+        try:
+            if os.path.isfile(path):
+                os.unlink(path)
+            app_log("AniBase removed from Linux autostart.", "INFO")
+        except OSError as e:
+            app_log(f"Failed to remove Linux autostart file: {e}", "WARN")
+            return False
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform public API
+# ---------------------------------------------------------------------------
+
+def is_system_startup_enabled() -> bool:
+    """Checks if AniBase is configured to run on system startup (cross-platform)."""
+    if os.name == "nt":
+        return is_windows_startup_enabled()
+    return is_linux_startup_enabled()
+
+
+def set_system_startup(enabled: bool) -> bool:
+    """Enables or disables AniBase system startup (cross-platform)."""
+    if os.name == "nt":
+        return set_windows_startup(enabled)
+    return set_linux_startup(enabled)
+
+
+def sync_startup_from_settings(enabled: bool) -> bool:
+    """Synchronizes system startup state with the configured setting (cross-platform)."""
+    current = is_system_startup_enabled()
     if current != bool(enabled):
-        return set_windows_startup(bool(enabled))
+        return set_system_startup(bool(enabled))
     return True
+
+
+def sync_windows_startup_from_settings(enabled: bool) -> bool:
+    """Backward-compatibility alias for sync_startup_from_settings."""
+    return sync_startup_from_settings(enabled)
 
 
 def reset_desktop_window() -> dict:

@@ -310,7 +310,7 @@ def apply_settings(settings, reset_discord_rpc_fn=None):
         reset_discord_rpc_fn()
 
     try:
-        from anibase.desktop.shell import sync_windows_startup_from_settings
-        sync_windows_startup_from_settings(merged.get("desktop_run_on_startup", False))
+        from anibase.desktop.shell import sync_startup_from_settings
+        sync_startup_from_settings(merged.get("desktop_run_on_startup", False))
     except Exception:
         pass

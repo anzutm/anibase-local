@@ -189,9 +189,9 @@ def settings_page():
     lan_qr_svg = generate_qr_svg(lan_url)
 
     try:
-        from anibase.desktop.shell import desktop_window, is_windows_startup_enabled
+        from anibase.desktop.shell import desktop_window, is_system_startup_enabled
         is_desktop_active = desktop_window is not None
-        is_startup_registered = is_windows_startup_enabled()
+        is_startup_registered = is_system_startup_enabled()
     except Exception:
         is_desktop_active = False
         is_startup_registered = False

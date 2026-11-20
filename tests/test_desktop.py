@@ -502,6 +502,98 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             self.assertTrue(ok_disable)
             mock_del_val.assert_called()
 
+    def test_is_system_startup_enabled_dispatches_by_platform(self):
+        """is_system_startup_enabled() delegates to Windows or Linux helper correctly."""
+        with patch("anibase.desktop.shell.os") as mock_os:
+            mock_os.name = "nt"
+            with patch.object(desktop_shell, "is_windows_startup_enabled", return_value=True) as mock_win:
+                result = desktop_shell.is_system_startup_enabled()
+                mock_win.assert_called_once()
+                self.assertTrue(result)
+
+            mock_os.name = "posix"
+            with patch.object(desktop_shell, "is_linux_startup_enabled", return_value=False) as mock_lin:
+                result = desktop_shell.is_system_startup_enabled()
+                mock_lin.assert_called_once()
+                self.assertFalse(result)
+
+    def test_set_system_startup_dispatches_by_platform(self):
+        """set_system_startup() delegates to Windows or Linux helper correctly."""
+        with patch("anibase.desktop.shell.os") as mock_os:
+            mock_os.name = "nt"
+            with patch.object(desktop_shell, "set_windows_startup", return_value=True) as mock_win:
+                desktop_shell.set_system_startup(True)
+                mock_win.assert_called_once_with(True)
+
+            mock_os.name = "posix"
+            with patch.object(desktop_shell, "set_linux_startup", return_value=True) as mock_lin:
+                desktop_shell.set_system_startup(True)
+                mock_lin.assert_called_once_with(True)
+
+    def test_linux_autostart_enable_creates_desktop_file(self):
+        """set_linux_startup(True) writes a valid .desktop file."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            desktop_path = os.path.join(tmpdir, "autostart", "anibase.desktop")
+            with patch.object(desktop_shell, "_get_linux_autostart_path", return_value=desktop_path), \
+                 patch.object(desktop_shell, "_get_linux_startup_command", return_value='"/usr/bin/anibase"'), \
+                 patch.object(desktop_shell, "_get_linux_icon_path", return_value="anibase"):
+                result = desktop_shell.set_linux_startup(True)
+                self.assertTrue(result)
+                self.assertTrue(os.path.isfile(desktop_path))
+                with open(desktop_path, encoding="utf-8") as fh:
+                    content = fh.read()
+                self.assertIn("[Desktop Entry]", content)
+                self.assertIn("X-GNOME-Autostart-enabled=true", content)
+                self.assertIn('"/usr/bin/anibase"', content)
+
+    def test_linux_autostart_disable_removes_desktop_file(self):
+        """set_linux_startup(False) removes the .desktop file."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            desktop_path = os.path.join(tmpdir, "autostart", "anibase.desktop")
+            os.makedirs(os.path.dirname(desktop_path), exist_ok=True)
+            with open(desktop_path, "w") as f:
+                f.write("[Desktop Entry]\nType=Application\n")
+            with patch.object(desktop_shell, "_get_linux_autostart_path", return_value=desktop_path):
+                result = desktop_shell.set_linux_startup(False)
+                self.assertTrue(result)
+                self.assertFalse(os.path.isfile(desktop_path))
+
+    def test_is_linux_startup_enabled_true(self):
+        """is_linux_startup_enabled() returns True when valid .desktop file exists."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            desktop_path = os.path.join(tmpdir, "anibase.desktop")
+            with open(desktop_path, "w") as f:
+                f.write("[Desktop Entry]\nType=Application\nX-GNOME-Autostart-enabled=true\n")
+            with patch.object(desktop_shell, "_get_linux_autostart_path", return_value=desktop_path):
+                self.assertTrue(desktop_shell.is_linux_startup_enabled())
+
+    def test_is_linux_startup_enabled_false_when_explicitly_disabled(self):
+        """is_linux_startup_enabled() returns False when X-GNOME-Autostart-enabled=false."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            desktop_path = os.path.join(tmpdir, "anibase.desktop")
+            with open(desktop_path, "w") as f:
+                f.write("[Desktop Entry]\nType=Application\nX-GNOME-Autostart-enabled=false\n")
+            with patch.object(desktop_shell, "_get_linux_autostart_path", return_value=desktop_path):
+                self.assertFalse(desktop_shell.is_linux_startup_enabled())
+
+    def test_is_linux_startup_enabled_false_when_missing(self):
+        """is_linux_startup_enabled() returns False when .desktop file is absent."""
+        with patch.object(desktop_shell, "_get_linux_autostart_path", return_value="/nonexistent/path/anibase.desktop"):
+            self.assertFalse(desktop_shell.is_linux_startup_enabled())
+
+    def test_get_screen_bounds_fallback(self):
+        """get_screen_bounds() falls back to (1920, 1080) when all detection fails."""
+        with patch("anibase.desktop.shell.os") as mock_os, \
+             patch.dict("sys.modules", {"webview": None, "PySide6": None, "PySide6.QtWidgets": None}):
+            mock_os.name = "posix"
+            # Both webview and PySide6 unavailable → should return fallback
+            result = desktop_shell.get_screen_bounds()
+            self.assertEqual(result, (1920, 1080))
+
     def test_api_desktop_reset_window_and_status_endpoints(self):
         app = create_app()
         client = app.test_client()
@@ -512,7 +604,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             data_reset = res_reset.get_json()
             self.assertTrue(data_reset["ok"])
 
-        with patch("anibase.desktop.shell.is_windows_startup_enabled", return_value=False):
+        with patch("anibase.desktop.shell.is_system_startup_enabled", return_value=False):
             res_status = client.get("/api/desktop/status")
             self.assertEqual(res_status.status_code, 200)
             data_status = res_status.get_json()

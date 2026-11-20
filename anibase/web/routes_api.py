@@ -3044,13 +3044,13 @@ def api_desktop_reset_window():
 
 @host_only
 def api_desktop_status():
-    """Mengembalikan status runtime desktop app dan konfigurasi registry Windows Startup."""
-    from anibase.desktop.shell import desktop_window, is_windows_startup_enabled, _window_state
+    """Mengembalikan status runtime desktop app dan konfigurasi startup lintas platform."""
+    from anibase.desktop.shell import desktop_window, is_system_startup_enabled, _window_state
     settings = load_settings()
     return jsonify({
         "ok": True,
         "is_desktop": desktop_window is not None,
-        "run_on_startup": is_windows_startup_enabled(),
+        "run_on_startup": is_system_startup_enabled(),
         "settings_startup": bool(settings.get("desktop_run_on_startup")),
         "minimize_to_tray": bool(settings.get("desktop_minimize_to_tray", True)),
         "start_minimized": bool(settings.get("desktop_start_minimized", False)),
