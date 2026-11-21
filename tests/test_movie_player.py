@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
+import requests
 
 from anibase.web import create_app
 import anibase.constants as constants
@@ -24,11 +25,15 @@ class MoviePlayerTests(unittest.TestCase):
         self.orig_movie_path = constants.MOVIE_PATH
         constants.MOVIE_PATH = self.movie_dir
 
+        self.req_patcher = patch("requests.get", side_effect=requests.RequestException("No network in tests"))
+        self.req_patcher.start()
+
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.req_patcher.stop()
         constants.MOVIE_PATH = self.orig_movie_path
         self.temp_dir.cleanup()
 

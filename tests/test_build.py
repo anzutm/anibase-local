@@ -191,6 +191,63 @@ class BuildPackagingTests(unittest.TestCase):
             compile_app.assert_not_called()
             copy.assert_not_called()
 
+    def test_make_desktop_entry_format(self):
+        entry_exe = build.make_desktop_entry(executable=True)
+        self.assertIn("[Desktop Entry]", entry_exe)
+        self.assertIn("Name=AniBase", entry_exe)
+        self.assertIn('Exec="AniBase"', entry_exe)
+        self.assertIn("Categories=AudioVideo;Video;Player;", entry_exe)
+        self.assertIn("StartupWMClass=anibase", entry_exe)
+
+        entry_src = build.make_desktop_entry(executable=False)
+        self.assertIn("Exec=./run_tray.sh", entry_src)
+
+    def test_create_source_release_includes_linux_launchers_and_desktop_entry(self):
+        rel_dir = self.root / "source_release"
+        with patch.object(build, "RELEASES_DIR", self.root):
+            build.create_source_release(rel_dir)
+        self.assertTrue((rel_dir / "run_server.bat").is_file())
+        self.assertTrue((rel_dir / "run_tray.bat").is_file())
+        self.assertTrue((rel_dir / "run_server.sh").is_file())
+        self.assertTrue((rel_dir / "run_tray.sh").is_file())
+        self.assertTrue((rel_dir / "anibase.desktop").is_file())
+        self.assertTrue((rel_dir / "anibase.png").is_file())
+
+        sh_content = (rel_dir / "run_tray.sh").read_text(encoding="utf-8")
+        self.assertIn("#!/usr/bin/env bash", sh_content)
+        self.assertIn("python tray_ui.py", sh_content)
+
+    def test_copy_exe_release_files_includes_desktop_entry(self):
+        source = self.root / "source"
+        source.mkdir()
+        (source / "AniBase.exe").write_bytes(b"mock exe")
+        rel_dir = self.root / "exe_release"
+        with patch.object(build, "RELEASES_DIR", self.root):
+            build.copy_exe_release_files(source, rel_dir)
+        self.assertTrue((rel_dir / "anibase.desktop").is_file())
+        self.assertTrue((rel_dir / "anibase.png").is_file())
+
+    def test_pyinstaller_command_linux_options(self):
+        with patch("build.os.name", "posix"), \
+             patch.object(build.subprocess, "run") as run:
+            build.run_pyinstaller("v1.5.3")
+        command = run.call_args.args[0]
+        self.assertNotIn("--version-file", command)
+        self.assertNotIn("pythonnet", command)
+        self.assertNotIn("clr_loader", command)
+        self.assertIn("PySide6", command)
+        self.assertIn("webview", command)
+        self.assertIn("anibase", command)
+
+    def test_create_release_archive_gztar(self):
+        rel_dir = self.root / "pkg"
+        rel_dir.mkdir()
+        (rel_dir / "test.txt").write_text("content", encoding="utf-8")
+        with patch.object(build, "RELEASES_DIR", self.root):
+            archive_path = build.create_release_archive(rel_dir, "v1.5.3", archive_format="gztar")
+            self.assertTrue(archive_path.is_file())
+            self.assertTrue(str(archive_path).endswith(".tar.gz"))
+
 
 if __name__ == "__main__":
     unittest.main()

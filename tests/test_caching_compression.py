@@ -1,11 +1,23 @@
 import unittest
 import gzip
+from unittest.mock import patch
 import main
 
 
 class CachingAndCompressionTestCase(unittest.TestCase):
     def setUp(self):
         self.client = main.app.test_client()
+        self.patchers = [
+            patch("anibase.web.routes_pages.get_anime", return_value=[]),
+            patch("anibase.web.routes_pages.get_movies", return_value=[]),
+            patch("anibase.web.routes_pages.get_cached_anilist_info", return_value=None),
+        ]
+        for p in self.patchers:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.patchers):
+            p.stop()
 
     def test_html_response_compressed_when_gzip_accepted(self):
         resp = self.client.get('/', headers={'Accept-Encoding': 'gzip, deflate'})

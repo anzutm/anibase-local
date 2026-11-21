@@ -284,7 +284,6 @@ def ensure_pyinstaller():
 
 
 def run_pyinstaller(version="0.0.0"):
-    version_file = write_version_info(version)
     command = [
         sys.executable,
         "-m",
@@ -299,8 +298,6 @@ def run_pyinstaller(version="0.0.0"):
         "--distpath", str(DIST_DIR),
         "--name",
         APP_NAME,
-        "--version-file",
-        str(version_file),
         "--add-data",
         f"{PROJECT_ROOT / 'templates'}{os.pathsep}templates",
         "--add-data",
@@ -309,21 +306,41 @@ def run_pyinstaller(version="0.0.0"):
         "anibase",
         "--collect-all",
         "webview",
-        "--collect-all",
-        "pythonnet",
-        "--collect-all",
-        "clr_loader",
         "--hidden-import",
         "main",
         str(PROJECT_ROOT / ENTRYPOINT),
     ]
 
-    icon_path = PROJECT_ROOT / "static" / "favicon.ico"
-    if icon_path.exists():
+    if os.name == "nt":
+        version_file = write_version_info(version)
         command[-1:-1] = [
-            "--icon",
-            str(icon_path),
+            "--version-file",
+            str(version_file),
+            "--collect-all",
+            "pythonnet",
+            "--collect-all",
+            "clr_loader",
         ]
+        icon_path = PROJECT_ROOT / "static" / "favicon.ico"
+        if icon_path.exists():
+            command[-1:-1] = [
+                "--icon",
+                str(icon_path),
+            ]
+    else:
+        # Linux packaging options
+        command[-1:-1] = [
+            "--collect-all",
+            "PySide6",
+        ]
+        icon_path = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
+        if not icon_path.exists():
+            icon_path = PROJECT_ROOT / "static" / "favicon.ico"
+        if icon_path.exists():
+            command[-1:-1] = [
+                "--icon",
+                str(icon_path),
+            ]
 
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
 
@@ -353,6 +370,16 @@ def find_media_tool(name):
                     candidate = rel_dir / "tools" / f"{name}{suffix}"
                     if candidate.is_file():
                         return candidate.resolve()
+    else:
+        # Linux fallback locations
+        suffix = ""
+        for candidate_path in (
+            PROJECT_ROOT / "tools" / f"{name}",
+            Path(f"/usr/bin/{name}"),
+            Path(f"/usr/local/bin/{name}"),
+        ):
+            if candidate_path.is_file():
+                return candidate_path.resolve()
 
     raise FileNotFoundError(
         f"{name} was not found on PATH on the build machine. "
@@ -367,8 +394,16 @@ def bundle_media_tools(release_dir):
     ffmpeg = find_media_tool("ffmpeg")
     ffprobe = find_media_tool("ffprobe")
     suffix = ".exe" if os.name == "nt" else ""
-    shutil.copy2(ffmpeg, tools_dir / f"ffmpeg{suffix}")
-    shutil.copy2(ffprobe, tools_dir / f"ffprobe{suffix}")
+    ffmpeg_target = tools_dir / f"ffmpeg{suffix}"
+    ffprobe_target = tools_dir / f"ffprobe{suffix}"
+    shutil.copy2(ffmpeg, ffmpeg_target)
+    shutil.copy2(ffprobe, ffprobe_target)
+    if os.name != "nt":
+        try:
+            os.chmod(ffmpeg_target, 0o755)
+            os.chmod(ffprobe_target, 0o755)
+        except OSError:
+            pass
     # Shared Windows FFmpeg builds need the DLLs shipped alongside their executables.
     if os.name == 'nt':
         for directory in {ffmpeg.parent, ffprobe.parent}:
@@ -406,9 +441,42 @@ def copy_exe_release_files(source_dir, release_dir):
         if source.exists():
             shutil.copy2(source, release_dir / filename)
 
+    # Linux desktop entry & application icon
+    write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=True), newline="\n")
+    icon_source = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
+    if icon_source.is_file():
+        shutil.copy2(icon_source, release_dir / "anibase.png")
 
-def write_text(path, content):
-    path.write_text(content, encoding="utf-8", newline="\r\n")
+    if os.name != "nt":
+        exe_file = release_dir / APP_NAME
+        if exe_file.is_file():
+            try:
+                os.chmod(exe_file, 0o755)
+            except OSError:
+                pass
+
+
+def write_text(path, content, newline=None):
+    if newline is None:
+        newline = "\r\n" if os.name == "nt" and not str(path).endswith((".sh", ".desktop")) else "\n"
+    path.write_text(content, encoding="utf-8", newline=newline)
+
+
+def make_desktop_entry(executable=True):
+    """Generates Freedesktop standard .desktop entry for Linux desktop environments (GNOME, KDE, etc.)."""
+    exec_target = f'"{APP_NAME}"' if executable else './run_tray.sh'
+    return (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        f"Name={APP_NAME}\n"
+        "Comment=Private Anime Streaming & Library Management\n"
+        f"Exec={exec_target}\n"
+        "Icon=anibase\n"
+        "Terminal=false\n"
+        "Categories=AudioVideo;Video;Player;\n"
+        "Keywords=anime;streaming;player;video;\n"
+        "StartupWMClass=anibase\n"
+    )
 
 
 def create_source_release(release_dir):
@@ -434,6 +502,7 @@ def create_source_release(release_dir):
     cache_dir.mkdir(exist_ok=True)
     write_text(cache_dir / ".gitkeep", "")
 
+    # Windows launcher batch files
     write_text(
         release_dir / "run_server.bat",
         "@echo off\n"
@@ -465,6 +534,44 @@ def create_source_release(release_dir):
         "if errorlevel 1 exit /b 1\n"
         "pythonw tray_ui.py\n",
     )
+
+    # Linux shell launcher scripts
+    server_sh = (
+        "#!/usr/bin/env bash\n"
+        "set -e\n"
+        'cd "$(dirname "$0")"\n'
+        'if [ ! -d ".venv" ]; then\n'
+        '  python3 -m venv .venv\n'
+        'fi\n'
+        'source .venv/bin/activate\n'
+        'pip install -r requirements.txt\n'
+        'python main.py\n'
+    )
+    tray_sh = (
+        "#!/usr/bin/env bash\n"
+        "set -e\n"
+        'cd "$(dirname "$0")"\n'
+        'if [ ! -d ".venv" ]; then\n'
+        '  python3 -m venv .venv\n'
+        'fi\n'
+        'source .venv/bin/activate\n'
+        'pip install -r requirements.txt\n'
+        'python tray_ui.py\n'
+    )
+    write_text(release_dir / "run_server.sh", server_sh, newline="\n")
+    write_text(release_dir / "run_tray.sh", tray_sh, newline="\n")
+    if os.name != "nt":
+        try:
+            os.chmod(release_dir / "run_server.sh", 0o755)
+            os.chmod(release_dir / "run_tray.sh", 0o755)
+        except OSError:
+            pass
+
+    # Linux desktop entry & application icon
+    write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=False), newline="\n")
+    icon_source = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
+    if icon_source.is_file():
+        shutil.copy2(icon_source, release_dir / "anibase.png")
 
 
 def build_exe_release(release_dir, version="0.0.0"):
@@ -502,16 +609,17 @@ def platform_tag():
     )
 
 
-def create_release_archive(release_dir, version):
+def create_release_archive(release_dir, version, archive_format=None):
     base = RELEASES_DIR / f"{APP_NAME}-{version}-{platform_tag()}"
-    if os.name == "nt":
-        archive_path = Path(f"{base}.zip")
-        remove_path(archive_path)
-        shutil.make_archive(str(base), "zip", root_dir=release_dir)
-    else:
+    fmt = archive_format or ("zip" if os.name == "nt" else "gztar")
+    if fmt in {"gztar", "tar.gz", "tgz"}:
         archive_path = Path(f"{base}.tar.gz")
         remove_path(archive_path)
         shutil.make_archive(str(base), "gztar", root_dir=release_dir)
+    else:
+        archive_path = Path(f"{base}.zip")
+        remove_path(archive_path)
+        shutil.make_archive(str(base), "zip", root_dir=release_dir)
     return archive_path
 
 
@@ -528,6 +636,11 @@ def main():
         "--keep-temp",
         action="store_true",
         help="Retain temporary build/dist output after completion.",
+    )
+    parser.add_argument(
+        "--tar",
+        action="store_true",
+        help="Package output as .tar.gz archive (default on Linux, optional on Windows).",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -596,9 +709,10 @@ def main():
 
     release_type = "executable" if built_exe else "source"
     print(f"{release_type.capitalize()} build complete: {release_dir}")
-    if built_exe:
-        archive_path = create_release_archive(release_dir, version)
-        print(f"Portable archive complete: {archive_path}")
+    archive_format = "gztar" if getattr(args, "tar", False) or os.name != "nt" else "zip"
+    if built_exe or getattr(args, "tar", False):
+        archive_path = create_release_archive(release_dir, version, archive_format=archive_format)
+        print(f"Archive complete: {archive_path}")
     if not args.keep_temp and not args.package_existing:
         cleanup_output(BUILD_DIR / APP_NAME)
         cleanup_output(DIST_DIR / APP_NAME)

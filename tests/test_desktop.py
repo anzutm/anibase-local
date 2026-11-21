@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
+import requests
 
 from anibase.desktop.shell import (
     DesktopApi,
@@ -320,11 +321,15 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         save_settings(test_defaults)
         apply_settings(test_defaults)
 
+        self.req_patcher = patch("requests.get", side_effect=requests.RequestException("No network in tests"))
+        self.req_patcher.start()
+
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.req_patcher.stop()
         anibase_constants.SETTINGS_FILE = self.orig_settings_file
         anibase_constants.ANIME_PATHS = self.orig_anime_paths
         self.temp_dir.cleanup()
