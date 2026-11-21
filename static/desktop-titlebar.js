@@ -26,8 +26,37 @@
         const btnMin = document.getElementById('desktopBtnMin');
         const btnMax = document.getElementById('desktopBtnMax');
         const btnClose = document.getElementById('desktopBtnClose');
+        const btnMinMac = document.getElementById('desktopBtnMinMac');
+        const btnMaxMac = document.getElementById('desktopBtnMaxMac');
+        const btnCloseMac = document.getElementById('desktopBtnCloseMac');
         const titlebar = document.getElementById('desktopTitlebar');
         const titleEl = document.getElementById('desktopTitlebarTitle');
+
+        // Dynamic titlebar style detection (Default to macOS on Linux / macOS, Windows on Windows)
+        let titlebarStyle = localStorage.getItem('anibase_titlebar_style');
+        if (!titlebarStyle) {
+            const isWindows = navigator.platform.indexOf('Win') !== -1 || (navigator.userAgent && navigator.userAgent.indexOf('Windows') !== -1);
+            titlebarStyle = isWindows ? 'windows' : 'macos';
+        }
+        document.body.classList.remove('titlebar-windows', 'titlebar-macos');
+        document.body.classList.add('titlebar-' + titlebarStyle);
+
+        window.__anibase_set_titlebar_style = function(style) {
+            document.body.classList.remove('titlebar-windows', 'titlebar-macos');
+            document.body.classList.add('titlebar-' + style);
+            try {
+                localStorage.setItem('anibase_titlebar_style', style);
+            } catch (_) {}
+        };
+
+        // Window maximize state tracker
+        window.__anibase_set_maximized = function(isMax) {
+            if (isMax) {
+                document.body.classList.add('is-maximized');
+            } else {
+                document.body.classList.remove('is-maximized');
+            }
+        };
 
         // Dynamic title synchronization
         function syncTitle() {
@@ -44,13 +73,54 @@
             observer.observe(titleTag, { childList: true, subtree: true, characterData: true });
         }
 
-        const controls = document.querySelector('.desktop-titlebar-controls');
-        if (controls) {
-            controls.addEventListener('mousedown', function(e) {
+        const allControls = document.querySelectorAll('.desktop-titlebar-controls');
+        allControls.forEach(function(ctrl) {
+            ctrl.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+            });
+        });
+
+        // macOS Traffic Light button actions
+        if (btnMinMac) {
+            btnMinMac.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.minimize) {
+                    window.pywebview.api.minimize();
+                }
+            });
+            btnMinMac.addEventListener('mousedown', function(e) {
                 e.stopPropagation();
             });
         }
 
+        if (btnMaxMac) {
+            btnMaxMac.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_maximize) {
+                    window.pywebview.api.toggle_maximize();
+                }
+            });
+            btnMaxMac.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        if (btnCloseMac) {
+            btnCloseMac.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.close) {
+                    window.pywebview.api.close();
+                }
+            });
+            btnCloseMac.addEventListener('mousedown', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        // Windows control button actions
         if (btnMin) {
             btnMin.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -91,8 +161,17 @@
         }
 
         if (titlebar) {
+            titlebar.addEventListener('mousedown', function(e) {
+                if (e.target.closest('.desktop-titlebar-controls, button, a, input, select, textarea')) return;
+                if (e.button === 0) {
+                    if (window.pywebview && window.pywebview.api && window.pywebview.api.start_drag) {
+                        window.pywebview.api.start_drag(e.screenX, e.screenY);
+                    }
+                }
+            });
+
             titlebar.addEventListener('dblclick', function(e) {
-                if (e.target.closest('.desktop-titlebar-controls, button, a, input')) return;
+                if (e.target.closest('.desktop-titlebar-controls, button, a, input, select, textarea')) return;
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_maximize) {
                     window.pywebview.api.toggle_maximize();
                 }

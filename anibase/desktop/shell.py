@@ -117,6 +117,40 @@ class DesktopApi:
     def reset_window(self):
         return reset_desktop_window()
 
+    def start_drag(self, screen_x=0, screen_y=0):
+        if os.name != "nt":
+            win = self._window or desktop_window
+            if not win:
+                return
+            try:
+                import gi
+                gi.require_version("Gdk", "3.0")
+                from gi.repository import Gdk, GLib
+                from webview.platforms.gtk import BrowserView
+                bv = BrowserView.instances.get(win.uid)
+                if bv and getattr(bv, "window", None):
+                    def _drag():
+                        try:
+                            bv.window.begin_move_drag(1, int(screen_x), int(screen_y), Gdk.CURRENT_TIME)
+                        except Exception:
+                            pass
+                    GLib.idle_add(_drag)
+            except Exception:
+                pass
+
+    def get_titlebar_style(self):
+        settings = load_settings()
+        default_style = "windows" if os.name == "nt" else "macos"
+        return settings.get("desktop_titlebar_style", default_style)
+
+    def set_titlebar_style(self, style):
+        style = "macos" if str(style).lower() == "macos" else "windows"
+        settings = load_settings()
+        settings["desktop_titlebar_style"] = style
+        save_settings(settings)
+        safe_evaluate_js(f"window.__anibase_set_titlebar_style && window.__anibase_set_titlebar_style('{style}')")
+        return style
+
 
 def get_screen_bounds():
     """Returns (width, height) of primary screen, cross-platform."""
@@ -704,6 +738,97 @@ def on_window_loaded(*args, **kwargs):
     configure_webview2_settings()
 
 
+def setup_linux_gtk_window_controls(win):
+    if os.name == "nt" or not win:
+        return
+    try:
+        from webview.platforms.gtk import BrowserView
+        import gi
+        gi.require_version("Gtk", "3.0")
+        gi.require_version("Gdk", "3.0")
+        from gi.repository import Gdk, Gtk
+        bv = BrowserView.instances.get(win.uid)
+        if not bv or not getattr(bv, "webview", None) or not getattr(bv, "window", None):
+            return
+
+        def on_webview_button_press(widget, event):
+            if event.button != 1:
+                return False
+
+            width, height = bv.window.get_size()
+            BORDER = 5
+
+            # Edge resizing detection for frameless window
+            edge = None
+            if event.y <= BORDER:
+                if event.x <= BORDER:
+                    edge = Gdk.WindowEdge.NORTH_WEST
+                elif event.x >= width - BORDER:
+                    edge = Gdk.WindowEdge.NORTH_EAST
+                else:
+                    edge = Gdk.WindowEdge.NORTH
+            elif event.y >= height - BORDER:
+                if event.x <= BORDER:
+                    edge = Gdk.WindowEdge.SOUTH_WEST
+                elif event.x >= width - BORDER:
+                    edge = Gdk.WindowEdge.SOUTH_EAST
+                else:
+                    edge = Gdk.WindowEdge.SOUTH
+            elif event.x <= BORDER:
+                edge = Gdk.WindowEdge.WEST
+            elif event.x >= width - BORDER:
+                edge = Gdk.WindowEdge.EAST
+
+            if edge is not None:
+                try:
+                    bv.window.begin_resize_drag(
+                        edge,
+                        event.button,
+                        int(event.x_root),
+                        int(event.y_root),
+                        event.time
+                    )
+                    return True
+                except Exception:
+                    pass
+
+            # Titlebar height is 36px
+            if event.y <= 36:
+                if event.type == Gdk.EventType._2BUTTON_PRESS:
+                    if _window_state.get("maximized"):
+                        bv.window.unmaximize()
+                    else:
+                        bv.window.maximize()
+                    return True
+
+                # If user clicked the window control buttons, let WebKit handle the button click!
+                settings = load_settings()
+                titlebar_style = settings.get("desktop_titlebar_style", "macos")
+                if titlebar_style == "macos" and event.x < 75:
+                    return False
+                elif titlebar_style == "windows" and event.x > (width - 140):
+                    return False
+
+                try:
+                    bv.window.begin_move_drag(
+                        event.button,
+                        int(event.x_root),
+                        int(event.y_root),
+                        event.time
+                    )
+                    return True
+                except Exception as err:
+                    app_log(f"Linux begin_move_drag error: {err}", "WARN")
+                    return False
+
+            return False
+
+        bv.webview.connect("button-press-event", on_webview_button_press)
+        app_log("Linux GTK titlebar native drag and edge resize initialized.", "INFO")
+    except Exception as err:
+        app_log(f"Failed to setup Linux GTK window controls: {err}", "WARN")
+
+
 def on_window_shown():
     hwnd = get_window_hwnd()
     if hwnd:
@@ -719,6 +844,7 @@ def on_window_shown():
                     native.set_icon_from_file(icon_path)
         except Exception:
             pass
+        setup_linux_gtk_window_controls(desktop_window)
 
 
 def on_window_maximized():

@@ -70,6 +70,118 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
     pointer-events: none;
 }
 
+/* ==========================================================================
+   macOS Traffic Light Window Controls
+   ========================================================================== */
+.macos-controls {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    height: 100%;
+    -webkit-app-region: no-drag !important;
+    pointer-events: auto !important;
+    flex-shrink: 0;
+}
+
+.macos-btn {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    box-sizing: border-box;
+    transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    -webkit-app-region: no-drag !important;
+    pointer-events: auto !important;
+}
+
+.macos-btn:hover {
+    filter: brightness(0.92);
+}
+
+.macos-btn:active {
+    filter: brightness(0.8);
+    transform: scale(0.92);
+}
+
+.macos-btn .macos-icon {
+    opacity: 0;
+    transition: opacity 0.12s ease-in-out;
+    pointer-events: none;
+}
+
+.macos-controls:hover .macos-btn .macos-icon,
+.macos-btn:focus .macos-icon {
+    opacity: 1;
+}
+
+/* Authentic macOS colors (matching WhiteSur theme) */
+.macos-btn.macos-close {
+    background: #ff5f56;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+
+.macos-btn.macos-min {
+    background: #ffbd2e;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+
+.macos-btn.macos-max {
+    background: #27c93f;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+
+/* Maximized / Restore icon state on macOS button */
+body.is-maximized .macos-btn.macos-max .icon-mac-max {
+    display: none !important;
+}
+body.is-maximized .macos-btn.macos-max .icon-mac-restore {
+    display: inline-block !important;
+}
+
+/* Default on Linux & macOS (or when titlebar-macos is set): show macOS traffic lights */
+body.titlebar-macos .desktop-titlebar .macos-controls,
+body:not(.titlebar-windows) .desktop-titlebar .macos-controls {
+    display: flex;
+}
+
+body.titlebar-macos .desktop-titlebar .macos-spacer,
+body:not(.titlebar-windows) .desktop-titlebar .macos-spacer {
+    display: block;
+    width: 70px;
+    flex-shrink: 0;
+}
+
+body.titlebar-macos .desktop-titlebar .win-controls,
+body.titlebar-macos .desktop-titlebar .win-spacer,
+body:not(.titlebar-windows) .desktop-titlebar .win-controls,
+body:not(.titlebar-windows) .desktop-titlebar .win-spacer {
+    display: none !important;
+}
+
+/* When titlebar-windows is explicitly set: show Windows controls */
+body.titlebar-windows .desktop-titlebar .win-controls {
+    display: flex;
+}
+
+body.titlebar-windows .desktop-titlebar .win-spacer {
+    display: block;
+    width: 132px;
+    flex-shrink: 0;
+}
+
+body.titlebar-windows .desktop-titlebar .macos-controls,
+body.titlebar-windows .desktop-titlebar .macos-spacer {
+    display: none !important;
+}
+
 .desktop-titlebar-left {
     display: flex;
     align-items: center;
