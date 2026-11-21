@@ -372,6 +372,10 @@ def get_media_dependency_diagnostics(settings=None, force=False):
     from anibase.player import diagnose_vlc_path
     settings = settings if isinstance(settings, dict) else load_settings()
     vlc_path = normalize_library_path(settings.get("vlc_path", ""))
+    if not vlc_path and settings.get("player_auto_detect", True):
+        bundled_player = shutil.which("vlc") or shutil.which("mpv")
+        if bundled_player and os.path.isfile(bundled_player):
+            vlc_path = bundled_player
     cache_key = (
         "media-dependencies",
         vlc_path

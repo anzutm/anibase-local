@@ -404,6 +404,29 @@ def bundle_media_tools(release_dir):
             os.chmod(ffprobe_target, 0o755)
         except OSError:
             pass
+        zenity_src = PROJECT_ROOT / "tools" / "zenity"
+        if zenity_src.is_file():
+            zenity_target = tools_dir / "zenity"
+            shutil.copy2(zenity_src, zenity_target)
+            try:
+                os.chmod(zenity_target, 0o755)
+            except OSError:
+                pass
+        vlc_src = PROJECT_ROOT / "tools" / "vlc"
+        if vlc_src.is_file():
+            vlc_target = tools_dir / "vlc"
+            shutil.copy2(vlc_src, vlc_target)
+            try:
+                os.chmod(vlc_target, 0o755)
+            except OSError:
+                pass
+        try:
+            ffplay_bin = find_media_tool("ffplay")
+            ffplay_target = tools_dir / f"ffplay{suffix}"
+            shutil.copy2(ffplay_bin, ffplay_target)
+            os.chmod(ffplay_target, 0o755)
+        except Exception:
+            pass
     # Shared Windows FFmpeg builds need the DLLs shipped alongside their executables.
     if os.name == 'nt':
         for directory in {ffmpeg.parent, ffprobe.parent}:

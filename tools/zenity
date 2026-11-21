@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""
+AniBase Bundled Zenity-Compatible File & Folder Picker.
+
+Emulates GNOME/Zenity CLI interface using native desktop integrations:
+1. PySide6 (QFileDialog with FreeDesktop XDG Desktop Portal / Wayland)
+2. GTK3 (Gtk.FileChooserNative / Gtk.FileChooserDialog)
+3. Tkinter (fallback)
+
+This ensures seamless native file/folder picking on Linux without requiring
+users to manually install system-level zenity via package managers.
+"""
+
+import os
+import sys
+import argparse
+
+# If not running inside our project's .venv, re-exec with .venv python if available
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+venv_python = os.path.join(project_root, ".venv", "bin", "python")
+if os.path.isfile(venv_python) and os.path.realpath(sys.executable) != os.path.realpath(venv_python):
+    try:
+        os.execv(venv_python, [venv_python] + sys.argv)
+    except Exception:
+        pass
+
+
+def pick_pyside6(is_folder: bool, is_save: bool, title: str, initial_path: str):
+    try:
+        from PySide6.QtWidgets import QApplication, QFileDialog
+
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication([sys.argv[0]])
+
+        if is_folder:
+            path = QFileDialog.getExistingDirectory(
+                None,
+                title or "Select Folder",
+                initial_path or "",
+            )
+        elif is_save:
+            path, _ = QFileDialog.getSaveFileName(
+                None,
+                title or "Save File",
+                initial_path or "",
+                "All Files (*.*)",
+            )
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                None,
+                title or "Select File",
+                initial_path or "",
+                "All Files (*.*)",
+            )
+
+        if path and str(path).strip():
+            print(str(path).strip())
+            sys.exit(0)
+        else:
+            # User cancelled
+            sys.exit(1)
+    except Exception:
+        return False
+    return True
+
+
+def pick_gtk(is_folder: bool, is_save: bool, title: str, initial_path: str):
+    try:
+        import gi
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gtk
+
+        if is_folder:
+            action = Gtk.FileChooserAction.SELECT_FOLDER
+            default_title = "Select Folder"
+        elif is_save:
+            action = Gtk.FileChooserAction.SAVE
+            default_title = "Save File"
+        else:
+            action = Gtk.FileChooserAction.OPEN
+            default_title = "Select File"
+
+        dialog = Gtk.FileChooserNative.new(
+            title or default_title,
+            None,
+            action,
+            "_Save" if is_save else "_Select",
+            "_Cancel",
+        )
+
+        if initial_path:
+            if os.path.isdir(initial_path):
+                dialog.set_current_folder(initial_path)
+            elif os.path.isfile(initial_path):
+                dialog.set_filename(initial_path)
+
+        response = dialog.run()
+        if response == Gtk.ResponseType.ACCEPT:
+            filename = dialog.get_filename()
+            dialog.destroy()
+            if filename and str(filename).strip():
+                print(str(filename).strip())
+                sys.exit(0)
+
+        dialog.destroy()
+        sys.exit(1)
+    except Exception:
+        return False
+    return True
+
+
+def pick_tkinter(is_folder: bool, is_save: bool, title: str, initial_path: str):
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        root.update()
+
+        initial_dir = initial_path if (initial_path and os.path.isdir(initial_path)) else None
+
+        if is_folder:
+            path = filedialog.askdirectory(
+                title=title or "Select Folder",
+                initialdir=initial_dir,
+            )
+        elif is_save:
+            path = filedialog.asksaveasfilename(
+                title=title or "Save File",
+                initialdir=initial_dir,
+            )
+        else:
+            path = filedialog.askopenfilename(
+                title=title or "Select File",
+                initialdir=initial_dir,
+            )
+
+        root.destroy()
+        if path and str(path).strip():
+            print(str(path).strip())
+            sys.exit(0)
+        sys.exit(1)
+    except Exception:
+        return False
+    return True
+
+
+def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Zenity-compatible CLI file/folder picker for AniBase.")
+        print("Options: --file-selection, --directory, --save, --title, --filename")
+        sys.exit(0)
+
+    parser = argparse.ArgumentParser(description="Zenity-compatible CLI picker", add_help=False)
+    parser.add_argument("--file-selection", action="store_true")
+    parser.add_argument("--directory", action="store_true")
+    parser.add_argument("--save", action="store_true")
+    parser.add_argument("--title", type=str, default="Select Path")
+    parser.add_argument("--filename", type=str, default="")
+    parser.add_argument("--confirm-overwrite", action="store_true")
+    args, _ = parser.parse_known_args()
+
+    is_folder = bool(args.directory)
+    is_save = bool(args.save)
+    title = args.title
+    initial_path = args.filename
+
+    # Priority 1: PySide6 (Uses native FreeDesktop XDG Desktop Portal on Wayland / GNOME / KDE)
+    if pick_pyside6(is_folder, is_save, title, initial_path):
+        return
+
+    # Priority 2: GTK3 Native
+    if pick_gtk(is_folder, is_save, title, initial_path):
+        return
+
+    # Priority 3: Tkinter fallback
+    if pick_tkinter(is_folder, is_save, title, initial_path):
+        return
+
+    # If all dialog backends failed
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

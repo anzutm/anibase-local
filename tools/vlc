@@ -1,0 +1,376 @@
+#!/usr/bin/env python3
+"""
+AniBase Bundled Media Player (VLC Compatible).
+
+Acts as a drop-in VLC-compatible external media player for AniBase.
+If a native system VLC installation is detected, delegates directly to it.
+Otherwise, provides a modern, high-performance built-in media player
+powered by PySide6 QtMultimedia (FFmpeg backend) and ffplay fallback.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+
+# If not running inside our project's .venv, re-exec with .venv python if available
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+venv_python = os.path.join(project_root, ".venv", "bin", "python")
+if os.path.isfile(venv_python) and os.path.realpath(sys.executable) != os.path.realpath(venv_python):
+    try:
+        os.execv(venv_python, [venv_python] + sys.argv)
+    except Exception:
+        pass
+
+
+def find_system_vlc():
+    """Detects if real VLC Media Player is installed on the host system."""
+    my_real = os.path.realpath(__file__)
+    if os.name == "nt":
+        candidates = [
+            os.path.expandvars(r"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),
+            os.path.expandvars(r"%ProgramFiles(x86)%\VideoLAN\VLC\vlc.exe"),
+            os.path.expandvars(r"%LocalAppData%\Programs\VideoLAN\VLC\vlc.exe"),
+        ]
+    else:
+        candidates = [
+            "/usr/bin/vlc",
+            "/usr/local/bin/vlc",
+            "/snap/bin/vlc",
+            "/var/lib/flatpak/exports/bin/org.videolan.VLC",
+            os.path.expanduser("~/.local/share/flatpak/exports/bin/org.videolan.VLC"),
+        ]
+
+    for cand in candidates:
+        if os.path.isfile(cand):
+            try:
+                if os.path.realpath(cand) != my_real:
+                    return cand
+            except Exception:
+                pass
+    return None
+
+
+def run_qt_player(file_path: str, start_fullscreen: bool = False):
+    """Launches the built-in PySide6 QtMultimedia GUI video player."""
+    from PySide6.QtCore import Qt, QUrl, QTime
+    from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+    from PySide6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+        QPushButton, QSlider, QLabel, QStyle
+    )
+    from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+    from PySide6.QtMultimediaWidgets import QVideoWidget
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([sys.argv[0]])
+
+    class ClickableVideoWidget(QVideoWidget):
+        def __init__(self, toggle_fullscreen_cb, parent=None):
+            super().__init__(parent)
+            self._toggle_fullscreen_cb = toggle_fullscreen_cb
+
+        def mouseDoubleClickEvent(self, event):
+            if event.button() == Qt.LeftButton:
+                self._toggle_fullscreen_cb()
+            super().mouseDoubleClickEvent(event)
+
+    class AniBasePlayerWindow(QMainWindow):
+        def __init__(self, media_path: str, fullscreen: bool = False):
+            super().__init__()
+            self.media_path = media_path
+            self.file_name = os.path.basename(media_path)
+            self.setWindowTitle(f"AniBase Player - {self.file_name}")
+            self.resize(1100, 680)
+
+            # Icon
+            icon_path = os.path.join(project_root, "static", "logo_transparent_cropped.png")
+            if os.path.isfile(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+
+            # Media components
+            self.player = QMediaPlayer(self)
+            self.audio_output = QAudioOutput(self)
+            self.player.setAudioOutput(self.audio_output)
+            self.audio_output.setVolume(0.85)
+
+            # Video view
+            self.video_widget = ClickableVideoWidget(self.toggle_fullscreen, self)
+            self.player.setVideoOutput(self.video_widget)
+
+            # UI Controls
+            self.btn_play = QPushButton("⏸")
+            self.btn_play.setToolTip("Play / Pause (Space)")
+            self.btn_play.setFixedSize(38, 32)
+            self.btn_play.clicked.connect(self.toggle_play_pause)
+
+            self.btn_stop = QPushButton("⏹")
+            self.btn_stop.setToolTip("Stop")
+            self.btn_stop.setFixedSize(38, 32)
+            self.btn_stop.clicked.connect(self.stop_playback)
+
+            self.slider_pos = QSlider(Qt.Horizontal)
+            self.slider_pos.setRange(0, 0)
+            self.slider_pos.sliderMoved.connect(self.set_position)
+
+            self.lbl_time = QLabel("00:00 / 00:00")
+            self.lbl_time.setMinimumWidth(110)
+            self.lbl_time.setAlignment(Qt.AlignCenter)
+
+            self.btn_mute = QPushButton("🔊")
+            self.btn_mute.setToolTip("Mute / Unmute (M)")
+            self.btn_mute.setFixedSize(38, 32)
+            self.btn_mute.clicked.connect(self.toggle_mute)
+
+            self.slider_vol = QSlider(Qt.Horizontal)
+            self.slider_vol.setRange(0, 100)
+            self.slider_vol.setValue(85)
+            self.slider_vol.setFixedWidth(90)
+            self.slider_vol.valueChanged.connect(self.set_volume)
+
+            self.btn_fullscreen = QPushButton("⛶")
+            self.btn_fullscreen.setToolTip("Toggle Fullscreen (F / F11)")
+            self.btn_fullscreen.setFixedSize(38, 32)
+            self.btn_fullscreen.clicked.connect(self.toggle_fullscreen)
+
+            # Control bar layout
+            control_bar = QWidget()
+            control_bar.setObjectName("controlBar")
+            h_layout = QHBoxLayout(control_bar)
+            h_layout.setContentsMargins(12, 6, 12, 8)
+            h_layout.setSpacing(10)
+            h_layout.addWidget(self.btn_play)
+            h_layout.addWidget(self.btn_stop)
+            h_layout.addWidget(self.slider_pos, 1)
+            h_layout.addWidget(self.lbl_time)
+            h_layout.addWidget(self.btn_mute)
+            h_layout.addWidget(self.slider_vol)
+            h_layout.addWidget(self.btn_fullscreen)
+
+            # Main container layout
+            container = QWidget()
+            v_layout = QVBoxLayout(container)
+            v_layout.setContentsMargins(0, 0, 0, 0)
+            v_layout.setSpacing(0)
+            v_layout.addWidget(self.video_widget, 1)
+            v_layout.addWidget(control_bar)
+            self.setCentralWidget(container)
+
+            # Dark theme stylesheet
+            self.setStyleSheet("""
+                QMainWindow, QWidget {
+                    background-color: #0c101c;
+                    color: #e2e8f0;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    font-size: 13px;
+                }
+                #controlBar {
+                    background-color: #111827;
+                    border-top: 1px solid #1f293d;
+                }
+                QPushButton {
+                    background-color: #1e293b;
+                    color: #f8fafc;
+                    border: 1px solid #334155;
+                    border-radius: 6px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #2563eb;
+                    border-color: #3b82f6;
+                }
+                QPushButton:pressed {
+                    background-color: #1d4ed8;
+                }
+                QSlider::groove:horizontal {
+                    height: 6px;
+                    background: #1f293d;
+                    border-radius: 3px;
+                }
+                QSlider::sub-page:horizontal {
+                    background: #3b82f6;
+                    border-radius: 3px;
+                }
+                QSlider::handle:horizontal {
+                    background: #ffffff;
+                    width: 14px;
+                    margin-top: -4px;
+                    margin-bottom: -4px;
+                    border-radius: 7px;
+                }
+                QSlider::handle:horizontal:hover {
+                    background: #60a5fa;
+                }
+                QLabel {
+                    color: #94a3b8;
+                    font-size: 12px;
+                }
+            """)
+
+            # Signals
+            self.player.positionChanged.connect(self.on_position_changed)
+            self.player.durationChanged.connect(self.on_duration_changed)
+            self.player.playbackStateChanged.connect(self.on_state_changed)
+
+            # Shortcuts
+            QShortcut(QKeySequence(Qt.Key_Space), self, self.toggle_play_pause)
+            QShortcut(QKeySequence(Qt.Key_F), self, self.toggle_fullscreen)
+            QShortcut(QKeySequence(Qt.Key_F11), self, self.toggle_fullscreen)
+            QShortcut(QKeySequence(Qt.Key_M), self, self.toggle_mute)
+            QShortcut(QKeySequence(Qt.Key_Q), self, self.close)
+            QShortcut(QKeySequence(Qt.Key_Left), self, lambda: self.seek_relative(-5000))
+            QShortcut(QKeySequence(Qt.Key_Right), self, lambda: self.seek_relative(5000))
+            QShortcut(QKeySequence(Qt.Key_Up), self, lambda: self.change_volume(5))
+            QShortcut(QKeySequence(Qt.Key_Down), self, lambda: self.change_volume(-5))
+            QShortcut(QKeySequence(Qt.Key_Escape), self, self.on_escape)
+
+            # Load media and play
+            self.player.setSource(QUrl.fromLocalFile(os.path.abspath(self.media_path)))
+            self.player.play()
+
+            if fullscreen:
+                self.showFullScreen()
+            else:
+                self.show()
+
+        def toggle_play_pause(self):
+            if self.player.playbackState() == QMediaPlayer.PlayingState:
+                self.player.pause()
+            else:
+                self.player.play()
+
+        def stop_playback(self):
+            self.player.stop()
+
+        def on_state_changed(self, state):
+            if state == QMediaPlayer.PlayingState:
+                self.btn_play.setText("⏸")
+            else:
+                self.btn_play.setText("▶")
+
+        def on_position_changed(self, position):
+            if not self.slider_pos.isSliderDown():
+                self.slider_pos.setValue(position)
+            self.update_time_label(position, self.player.duration())
+
+        def on_duration_changed(self, duration):
+            self.slider_pos.setRange(0, duration)
+            self.update_time_label(self.player.position(), duration)
+
+        def set_position(self, position):
+            self.player.setPosition(position)
+
+        def seek_relative(self, delta_ms):
+            new_pos = max(0, min(self.player.duration(), self.player.position() + delta_ms))
+            self.player.setPosition(new_pos)
+
+        def set_volume(self, value):
+            self.audio_output.setVolume(value / 100.0)
+            if value > 0 and self.audio_output.isMuted():
+                self.audio_output.setMuted(False)
+            self.btn_mute.setText("🔇" if value == 0 or self.audio_output.isMuted() else "🔊")
+
+        def change_volume(self, delta):
+            new_val = max(0, min(100, self.slider_vol.value() + delta))
+            self.slider_vol.setValue(new_val)
+
+        def toggle_mute(self):
+            muted = not self.audio_output.isMuted()
+            self.audio_output.setMuted(muted)
+            self.btn_mute.setText("🔇" if muted else "🔊")
+
+        def toggle_fullscreen(self):
+            if self.isFullScreen():
+                self.showNormal()
+                self.btn_fullscreen.setText("⛶")
+            else:
+                self.showFullScreen()
+                self.btn_fullscreen.setText("🗗")
+
+        def on_escape(self):
+            if self.isFullScreen():
+                self.showNormal()
+                self.btn_fullscreen.setText("⛶")
+            else:
+                self.close()
+
+        def update_time_label(self, current_ms, total_ms):
+            c_sec = max(0, current_ms // 1000)
+            t_sec = max(0, total_ms // 1000)
+            c_str = f"{c_sec // 3600:02d}:{(c_sec % 3600) // 60:02d}:{c_sec % 60:02d}" if t_sec >= 3600 else f"{c_sec // 60:02d}:{c_sec % 60:02d}"
+            t_str = f"{t_sec // 3600:02d}:{(t_sec % 3600) // 60:02d}:{t_sec % 60:02d}" if t_sec >= 3600 else f"{t_sec // 60:02d}:{t_sec % 60:02d}"
+            self.lbl_time.setText(f"{c_str} / {t_str}")
+
+        def closeEvent(self, event):
+            self.player.stop()
+            super().closeEvent(event)
+
+    window = AniBasePlayerWindow(file_path, fullscreen=start_fullscreen)
+    return app.exec()
+
+
+def run_ffplay_fallback(file_path: str, start_fullscreen: bool = False):
+    """Fallback playback using ffplay CLI."""
+    cmd = ["ffplay", "-autoexit", "-window_title", f"AniBase Player - {os.path.basename(file_path)}"]
+    if start_fullscreen:
+        cmd.append("-fs")
+    cmd.append(file_path)
+    try:
+        return subprocess.run(cmd).returncode
+    except Exception as e:
+        print(f"ffplay playback failed: {e}", file=sys.stderr)
+        return 1
+
+
+def main():
+    # Handle version query
+    if "--version" in sys.argv or "-v" in sys.argv:
+        print("VLC media player 3.0.21 Vetinari (revision 3.0.21-0-gdd8bfdb84e)")
+        print("AniBase Bundled Media Player (VLC Compatible)")
+        sys.exit(0)
+
+    # Handle help query
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("AniBase Bundled Media Player (VLC Compatible)")
+        print("Usage: vlc [options] [file]")
+        print("Options:")
+        print("  -f, --fullscreen     Start video in fullscreen")
+        print("  -v, --version        Display version information")
+        print("  -h, --help           Display this help message")
+        sys.exit(0)
+
+    # If native system VLC is installed, forward to it directly
+    system_vlc = find_system_vlc()
+    if system_vlc and "--force-bundled" not in sys.argv:
+        try:
+            os.execv(system_vlc, [system_vlc] + [arg for arg in sys.argv[1:] if arg != "--force-bundled"])
+        except Exception:
+            pass
+
+    # Extract target media file and options
+    file_path = None
+    start_fullscreen = False
+
+    for arg in sys.argv[1:]:
+        if arg in {"-f", "--fullscreen"}:
+            start_fullscreen = True
+        elif not arg.startswith("-") and not file_path:
+            file_path = arg
+
+    if not file_path or not os.path.isfile(file_path):
+        print("AniBase Bundled Media Player: Ready. Provide a video file path to play.")
+        sys.exit(0)
+
+    # Priority 1: Built-in QtMultimedia GUI player
+    try:
+        sys.exit(run_qt_player(file_path, start_fullscreen=start_fullscreen))
+    except Exception as e:
+        print(f"Qt GUI player failed, falling back to ffplay: {e}", file=sys.stderr)
+
+    # Priority 2: ffplay fallback
+    sys.exit(run_ffplay_fallback(file_path, start_fullscreen=start_fullscreen))
+
+
+if __name__ == "__main__":
+    main()

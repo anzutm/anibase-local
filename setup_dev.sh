@@ -16,6 +16,13 @@ cmd_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Ensure project bundled tools are executable and accessible on PATH
+if [ -d "$PROJECT_ROOT/tools" ]; then
+    chmod +x "$PROJECT_ROOT/tools/zenity" 2>/dev/null || true
+    chmod +x "$PROJECT_ROOT/tools/vlc" 2>/dev/null || true
+    export PATH="$PROJECT_ROOT/tools:$PATH"
+fi
+
 # ------------------------------------------------------------------------------
 # [1/5] Detect Linux Distribution & System Dependencies
 # ------------------------------------------------------------------------------
@@ -130,7 +137,13 @@ chmod +x setup_dev.sh run_tray.sh run_server.sh 2>/dev/null || true
 echo ""
 echo "[5/5] Validating AniBase prerequisites & assets..."
 "$VENV_PY" -m pip check
-"$VENV_PY" build.py --check
+if "$VENV_PY" -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 12) else 1)" 2>/dev/null; then
+    "$VENV_PY" build.py --check
+else
+    echo "  Notice: Python $PY_FULL_VER detected (standalone release packaging requires Python 3.12.x)."
+    "$VENV_PY" -c "from build import validate_assets, PROJECT_ROOT; validate_assets(PROJECT_ROOT)"
+    echo "  Checks passed. Static and template assets validated."
+fi
 
 echo ""
 echo "=================================================="

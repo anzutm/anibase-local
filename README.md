@@ -87,8 +87,10 @@ Install recommended system packages:
 
 ```bash
 # CachyOS / Arch Linux:
-sudo pacman -S --needed ffmpeg zenity python-gobject webkit2gtk-4.1 libnotify gnome-shell-extension-appindicator
+sudo pacman -S --needed python python-pip ffmpeg vlc mpv webkit2gtk-4.1 python-gobject zenity libnotify gnome-shell-extension-appindicator
 ```
+
+See [docs/cachyos-gnome-testing-guide.md](docs/cachyos-gnome-testing-guide.md) for full step-by-step documentation, GNOME Shell AppIndicator configuration, and manual feature verification checklists.
 
 Clone and run the automated setup script:
 

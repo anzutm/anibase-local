@@ -350,6 +350,44 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             self.assertEqual(data.get("status"), "success")
             self.assertFalse(data.get("restored"))
 
+    def test_desktop_api_endpoints_allowed_when_setup_not_completed(self):
+        """Desktop API endpoints must not be redirected to /setup when setup_completed is False."""
+        uncompleted_settings = get_default_settings()
+        uncompleted_settings["setup_completed"] = False
+        uncompleted_settings["library_paths"] = []
+        save_settings(uncompleted_settings)
+        apply_settings(uncompleted_settings)
+
+        # Normal page is redirected to /setup
+        res_index = self.client.get("/")
+        self.assertEqual(res_index.status_code, 302)
+        self.assertIn("/setup", res_index.headers.get("Location", ""))
+
+        # Desktop activate endpoint returns 200 JSON (not 302 redirect)
+        with patch("anibase.desktop.shell.restore_desktop_window", return_value=True):
+            res_activate = self.client.post("/api/desktop/activate")
+            self.assertEqual(res_activate.status_code, 200)
+            self.assertTrue(res_activate.get_json().get("ok"))
+
+        # Desktop status endpoint returns 200 JSON
+        with patch("anibase.desktop.shell.is_system_startup_enabled", return_value=False):
+            res_status = self.client.get("/api/desktop/status")
+            self.assertEqual(res_status.status_code, 200)
+            self.assertTrue(res_status.get_json().get("ok"))
+
+        # Desktop reset window endpoint returns 200 JSON
+        with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True}):
+            res_reset = self.client.post("/api/desktop/reset-window")
+            self.assertEqual(res_reset.status_code, 200)
+            self.assertTrue(res_reset.get_json().get("ok"))
+
+        # Desktop shutdown endpoint returns 200 JSON (patched thread to avoid stopping test runner)
+        with patch("threading.Thread"), \
+             patch("anibase.desktop.shell.close_desktop_window_permanent"):
+            res_shutdown = self.client.post("/api/desktop/shutdown")
+            self.assertEqual(res_shutdown.status_code, 200)
+            self.assertTrue(res_shutdown.get_json().get("ok"))
+
     def test_titlebar_rendered_in_base_template(self):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)

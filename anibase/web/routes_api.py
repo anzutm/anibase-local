@@ -2550,7 +2550,13 @@ def play_episode(anime_name, episode):
             404
         )
 
-    vlc_diagnostics = diagnose_vlc_path(constants.VLC_PATH)
+    effective_player = constants.VLC_PATH
+    if not effective_player:
+        bundled_player = shutil.which("vlc") or shutil.which("mpv")
+        if bundled_player and os.path.isfile(bundled_player):
+            effective_player = bundled_player
+
+    vlc_diagnostics = diagnose_vlc_path(effective_player)
     if vlc_diagnostics["status"] == "not_configured":
         return jsonify({
             "ok": False,
@@ -2569,7 +2575,7 @@ def play_episode(anime_name, episode):
 
     try:
         player_process = popen_hidden_subprocess([
-            constants.VLC_PATH,
+            effective_player,
             episode_path
         ])
 
@@ -3041,6 +3047,19 @@ def api_desktop_reset_window():
         return jsonify(result)
     except Exception as error:
         return jsonify({"status": "error", "ok": False, "error": str(error)}), 500
+
+
+@host_only
+def api_desktop_shutdown():
+    """Trigger graceful shutdown of the desktop application."""
+    try:
+        from anibase.desktop.shell import close_desktop_window_permanent
+        close_desktop_window_permanent()
+    except Exception:
+        pass
+    import signal
+    threading.Thread(target=lambda: (time.sleep(0.3), os.kill(os.getpid(), signal.SIGTERM)), daemon=True).start()
+    return jsonify({"status": "success", "ok": True})
 
 
 @host_only
@@ -3654,5 +3673,6 @@ def register_api_routes(app):
     app.add_url_rule("/api/anime/delete", endpoint="api_delete_anime", view_func=api_delete_anime, methods=["POST"])
     app.add_url_rule("/api/desktop/activate", endpoint="api_desktop_activate", view_func=api_desktop_activate, methods=["POST"])
     app.add_url_rule("/api/desktop/reset-window", endpoint="api_desktop_reset_window", view_func=api_desktop_reset_window, methods=["POST"])
+    app.add_url_rule("/api/desktop/shutdown", endpoint="api_desktop_shutdown", view_func=api_desktop_shutdown, methods=["POST"])
     app.add_url_rule("/api/desktop/status", endpoint="api_desktop_status", view_func=api_desktop_status, methods=["GET"])
     app.add_url_rule("/clear_rpc", endpoint="clear_rpc_route", view_func=clear_rpc_route, methods=["POST"])

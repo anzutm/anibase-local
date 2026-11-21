@@ -14,6 +14,7 @@ import functools
 import ipaddress
 import threading
 from urllib.parse import unquote
+from pathlib import Path
 
 from flask import request, jsonify, redirect, url_for, render_template
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -233,6 +234,10 @@ def redirect_to_setup_when_needed():
         "setup_sync",
         "pick_settings_folder",
         "pick_settings_file",
+        "api_desktop_activate",
+        "api_desktop_reset_window",
+        "api_desktop_shutdown",
+        "api_desktop_status",
     }
 
     if request.endpoint in allowed_endpoints:
@@ -494,7 +499,13 @@ def _pick_path_linux(picker_type: str) -> str:
     """
     is_folder = picker_type != "file"
 
-    # -- Zenity (GNOME / GTK) --
+    # -- Zenity (GNOME / GTK / Project-Bundled) --
+    if not shutil.which("zenity") and not shutil.which("kdialog"):
+        project_root = Path(__file__).resolve().parent.parent.parent
+        bundled_tools = project_root / "tools"
+        if (bundled_tools / "zenity").is_file():
+            os.environ["PATH"] = f"{bundled_tools}{os.pathsep}{os.environ.get('PATH', '')}"
+
     if shutil.which("zenity"):
         cmd = ["zenity", "--file-selection", "--title=Select Path"]
         if is_folder:
@@ -547,6 +558,31 @@ def _pick_path_linux(picker_type: str) -> str:
                     pass
         except Exception as e:
             app_log(f"Tkinter Linux fallback picker failed: {e}", "WARN")
+
+    # -- Fallback to PySide6 QFileDialog (Qt Desktop Portal picker) --
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        try:
+            picker_code = (
+                "import sys\n"
+                "from PySide6.QtWidgets import QApplication, QFileDialog\n"
+                "app = QApplication(sys.argv)\n"
+                "if sys.argv[1] == 'folder':\n"
+                "    path = QFileDialog.getExistingDirectory(None, 'Select Anime Folder', '')\n"
+                "else:\n"
+                "    path, _ = QFileDialog.getOpenFileName(None, 'Select File', '')\n"
+                "if path:\n"
+                "    print(path)\n"
+            )
+            res = subprocess.run(
+                [sys.executable, "-c", picker_code, "folder" if is_folder else "file"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if res.returncode == 0:
+                return res.stdout.strip()
+        except Exception as e:
+            app_log(f"PySide6 Linux picker fallback failed: {e}", "WARN")
 
     return ""
 

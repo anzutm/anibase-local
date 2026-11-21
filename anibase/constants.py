@@ -57,6 +57,14 @@ RESOURCE_DIR = _get_initial_resource_dir()
 USER_DATA_DIR = _get_initial_user_data_dir()
 BASE_DIR = APP_DIR
 
+# Ensure project-bundled tools (e.g. tools/zenity on Linux) are available in PATH
+_bundled_tools_dir = os.path.join(APP_DIR, "tools")
+if os.path.isdir(_bundled_tools_dir):
+    _current_path = os.environ.get("PATH", "")
+    if _bundled_tools_dir not in _current_path.split(os.pathsep):
+        os.environ["PATH"] = f"{_bundled_tools_dir}{os.pathsep}{_current_path}"
+
+
 MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024
 
 # Logging Paths & Configuration

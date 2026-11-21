@@ -10,5 +10,6 @@ if [ ! -f ".venv/bin/python" ]; then
 fi
 
 source .venv/bin/activate
+export PATH="$PROJECT_ROOT/tools:$PATH"
 export GDK_BACKEND=wayland,x11
 python tray_ui.py "$@"

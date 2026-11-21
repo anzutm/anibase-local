@@ -85,6 +85,10 @@ def detect_installed_media_players():
     detected = []
 
     # --- Common Linux binary paths for VLC and MPV ---
+    _app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _bundled_vlc = [
+        os.path.join(_app_root, "tools", "vlc.exe" if os.name == "nt" else "vlc"),
+    ]
     _vlc_linux = [
         "/usr/bin/vlc",
         "/usr/local/bin/vlc",
@@ -101,6 +105,7 @@ def detect_installed_media_players():
     ]
 
     candidates = [
+        ("AniBase Built-in Player (VLC Compatible)", _bundled_vlc),
         ("VLC Media Player", [
             # Windows
             os.path.expandvars(r"%ProgramFiles%\VideoLAN\VLC\vlc.exe"),

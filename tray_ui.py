@@ -46,6 +46,7 @@ flask_server = None
 flask_thread = None
 scanner_thread = None
 sync_thread = None
+tray_proc = None
 
 
 def get_fallback_log_file():
@@ -365,7 +366,13 @@ def open_dashboard():
 
 
 def perform_graceful_shutdown():
+    global tray_proc
     app_log("Tray exit requested.")
+    if tray_proc and tray_proc.poll() is None:
+        try:
+            tray_proc.terminate()
+        except Exception:
+            pass
     try:
         from anibase.desktop.shell import close_desktop_window_permanent
         close_desktop_window_permanent()
@@ -384,7 +391,7 @@ def perform_graceful_shutdown():
     )
 
 
-def run_qt_tray():
+def run_qt_tray(helper_mode=False):
     from PySide6.QtCore import QObject, QPoint, Qt, QThread, QTimer, Signal
     from PySide6.QtGui import QAction, QColor, QCursor, QIcon, QPixmap
     from PySide6.QtWidgets import (
@@ -404,6 +411,21 @@ def run_qt_tray():
         finished = Signal(str)
 
         def run(self):
+            if helper_mode:
+                import urllib.request
+                try:
+                    req = urllib.request.Request(f"{APP_URL}refresh_library", data=b"", method="POST")
+                    with urllib.request.urlopen(req, timeout=5.0) as resp:
+                        if resp.status == 200:
+                            self.finished.emit("Completed")
+                        elif resp.status == 409:
+                            self.finished.emit("Sync already running.")
+                        else:
+                            self.finished.emit("Refresh failed.")
+                except Exception:
+                    self.finished.emit("Refresh failed.")
+                return
+
             try:
                 result = sync_all_library("Tray manual library sync")
                 if isinstance(result, dict) and result.get("skipped"):
@@ -583,7 +605,13 @@ def run_qt_tray():
             self.refresh_worker = None
             self.shutting_down = False
 
-            self.popup.open_requested.connect(open_dashboard)
+            if helper_mode:
+                self.parent_pid = os.getppid()
+                self.parent_timer = QTimer(self)
+                self.parent_timer.timeout.connect(self.check_parent_alive)
+                self.parent_timer.start(1000)
+
+            self.popup.open_requested.connect(self.handle_open_dashboard)
             self.popup.refresh_requested.connect(self.refresh_library)
             self.popup.exit_requested.connect(self.exit_application)
             self.tray.activated.connect(self.handle_tray_activated)
@@ -616,7 +644,7 @@ def run_qt_tray():
             """)
 
             action_open = self.context_menu.addAction("Open Desktop App")
-            action_open.triggered.connect(open_dashboard)
+            action_open.triggered.connect(self.handle_open_dashboard)
 
             action_browser = self.context_menu.addAction("Open in Web Browser")
             action_browser.triggered.connect(lambda: webbrowser.open(APP_URL))
@@ -632,12 +660,31 @@ def run_qt_tray():
             self.tray.setContextMenu(self.context_menu)
             self.tray.show()
 
+        def check_parent_alive(self):
+            if not helper_mode:
+                return
+            try:
+                cur_ppid = os.getppid()
+                if cur_ppid != self.parent_pid:
+                    self.qt_app.quit()
+                    return
+                os.kill(self.parent_pid, 0)
+            except OSError:
+                self.qt_app.quit()
+
+        def handle_open_dashboard(self):
+            if helper_mode:
+                if not notify_running_instance_to_activate():
+                    launch_app_window(APP_URL)
+            else:
+                open_dashboard()
+
         def handle_tray_activated(self, reason):
             if reason in {
                 QSystemTrayIcon.ActivationReason.Trigger,
                 QSystemTrayIcon.ActivationReason.DoubleClick,
             }:
-                open_dashboard()
+                self.handle_open_dashboard()
 
         def toggle_popup(self):
             if self.popup.isVisible():
@@ -691,7 +738,20 @@ def run_qt_tray():
             self.shutting_down = True
             self.popup.hide()
             self.tray.hide()
-            perform_graceful_shutdown()
+            if helper_mode:
+                import urllib.request
+                import signal
+                try:
+                    req = urllib.request.Request(f"{APP_URL}api/desktop/shutdown", data=b"{}", method="POST")
+                    urllib.request.urlopen(req, timeout=1.5)
+                except Exception:
+                    pass
+                try:
+                    os.kill(self.parent_pid, signal.SIGTERM)
+                except OSError:
+                    pass
+            else:
+                perform_graceful_shutdown()
             self.qt_app.quit()
 
     qt_app = QApplication(sys.argv)
@@ -705,15 +765,37 @@ def run_qt_tray():
 
 
 def main():
+    if "--tray-helper" in sys.argv:
+        load_application_components()
+        return run_qt_tray(helper_mode=True)
+
     if not acquire_single_instance_guard():
         return 0
 
     try:
+        import signal
+        try:
+            signal.signal(signal.SIGTERM, lambda signum, frame: (perform_graceful_shutdown(), sys.exit(0)))
+        except Exception:
+            pass
+
         load_application_components()
         start_background_services()
 
-        qt_thread = threading.Thread(target=run_qt_tray, name="qt-tray", daemon=True)
-        qt_thread.start()
+        global tray_proc
+        tray_proc = None
+        qt_thread = None
+
+        if os.name != "nt":
+            try:
+                tray_cmd = [sys.executable, str(Path(__file__).resolve()), "--tray-helper"]
+                tray_proc = subprocess.Popen(tray_cmd)
+                atexit.register(lambda: tray_proc.terminate() if tray_proc and tray_proc.poll() is None else None)
+            except Exception as err:
+                fallback_log(f"Failed to launch tray helper process: {err}")
+        else:
+            qt_thread = threading.Thread(target=run_qt_tray, name="qt-tray", daemon=True)
+            qt_thread.start()
 
         try:
             from anibase.desktop.shell import (
@@ -739,13 +821,17 @@ def main():
                 storage_path=storage_path,
             )
             perform_graceful_shutdown()
+            if tray_proc and tray_proc.poll() is None:
+                tray_proc.terminate()
             return 0
         except Exception as error:
             error_msg = str(error)
             fallback_log(f"Desktop GUI launch failed: {error_msg}. Launching standalone app window mode.")
             launch_app_window(APP_URL)
-            if qt_thread.is_alive():
+            if qt_thread and qt_thread.is_alive():
                 qt_thread.join()
+            elif tray_proc and tray_proc.poll() is None:
+                tray_proc.wait()
             return 0
     finally:
         release_instance_mutex()

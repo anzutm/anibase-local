@@ -5,7 +5,7 @@ import os
 import tempfile
 import sqlite3
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from anibase.db import (
     db_connection,
@@ -331,10 +331,13 @@ class TestMediaPlayerDetection(unittest.TestCase):
     def test_pick_native_path_linux_falls_back_to_tkinter(self):
         """_pick_path_linux() falls back to tkinter when zenity and kdialog are missing."""
         from anibase.web.helpers import _pick_path_linux
+        mock_tk = MagicMock()
+        mock_filedialog = MagicMock()
+        mock_filedialog.askdirectory.return_value = "/home/user/Anime"
+        mock_tk.filedialog = mock_filedialog
         with patch("anibase.web.helpers.shutil.which", return_value=None), \
              patch.dict("os.environ", {"DISPLAY": ":0"}), \
-             patch("tkinter.Tk"), \
-             patch("tkinter.filedialog.askdirectory", return_value="/home/user/Anime"):
+             patch.dict("sys.modules", {"tkinter": mock_tk, "tkinter.filedialog": mock_filedialog}):
             result = _pick_path_linux("folder")
             self.assertEqual(result, "/home/user/Anime")
 

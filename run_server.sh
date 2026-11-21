@@ -10,4 +10,5 @@ if [ ! -f ".venv/bin/python" ]; then
 fi
 
 source .venv/bin/activate
+export PATH="$PROJECT_ROOT/tools:$PATH"
 python main.py "$@"
