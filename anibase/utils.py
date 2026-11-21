@@ -45,6 +45,24 @@ def with_hidden_subprocess_window(kwargs):
         # IDLE_PRIORITY_CLASS (0x00000040) ensures background tasks (FFmpeg thumbnails/previews)
         # only run when no other process/thread needs CPU or disk I/O, preventing media stream lag.
         merged["creationflags"] = merged.get("creationflags", 0) | 0x00000040
+    elif os.name != "nt":
+        # When running frozen under PyInstaller on Linux, LD_LIBRARY_PATH contains _internal.
+        # This breaks external binaries like system ffmpeg/ffprobe/vlc due to library version mismatch.
+        # Restore the original LD_LIBRARY_PATH from LD_LIBRARY_PATH_ORIG or strip out _internal paths.
+        env = dict(merged.get("env") or os.environ)
+        if "LD_LIBRARY_PATH_ORIG" in os.environ:
+            orig = os.environ["LD_LIBRARY_PATH_ORIG"]
+            if orig:
+                env["LD_LIBRARY_PATH"] = orig
+            else:
+                env.pop("LD_LIBRARY_PATH", None)
+        elif "LD_LIBRARY_PATH" in env:
+            cleaned = [p for p in env["LD_LIBRARY_PATH"].split(":") if p and "_internal" not in p]
+            if cleaned:
+                env["LD_LIBRARY_PATH"] = ":".join(cleaned)
+            else:
+                env.pop("LD_LIBRARY_PATH", None)
+        merged["env"] = env
     return merged
 
 def run_hidden_subprocess(args, **kwargs):
@@ -284,7 +302,6 @@ def ensure_linux_path_mounted(path):
         return
 
     try:
-        import subprocess
         from pathlib import Path
         parts = Path(path).parts
         uuid_or_label = None
@@ -299,7 +316,7 @@ def ensure_linux_path_mounted(path):
         for by_dir in ("/dev/disk/by-uuid", "/dev/disk/by-label"):
             dev_link = os.path.join(by_dir, uuid_or_label)
             if os.path.exists(dev_link):
-                subprocess.run(
+                run_hidden_subprocess(
                     ["udisksctl", "mount", "-b", dev_link, "--no-user-interaction"],
                     capture_output=True,
                     timeout=5,
@@ -384,6 +401,9 @@ def safe_join_media_path(base_path, relative_path):
         return None
 
     base_path = os.path.abspath(base_path)
+    if os.name != "nt" and not os.path.isdir(base_path):
+        ensure_linux_path_mounted(base_path)
+
     candidate_path = os.path.abspath(
         os.path.normpath(
             os.path.join(

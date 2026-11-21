@@ -12,6 +12,7 @@ from anibase.utils import (
     run_hidden_subprocess,
     get_media_tool_path,
     atomic_write_json_file,
+    ensure_linux_path_mounted,
 )
 
 
@@ -345,6 +346,57 @@ def save_episode_cache_file(cache_file, cache_data):
     )
 
 
+def probe_video_metadata(video_path):
+    """Probe duration and resolution in a single fast ffprobe invocation."""
+    ensure_linux_path_mounted(video_path)
+    if not os.path.isfile(video_path):
+        return {"duration": "", "resolution": ""}
+
+    duration_str = ""
+    resolution_str = ""
+    try:
+        result = run_hidden_subprocess(
+            [
+                get_media_tool_path("ffprobe"),
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                "-show_streams",
+                video_path
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_constants.MEDIA_PROBE_TIMEOUT_SECONDS
+        )
+
+        data = json.loads(result.stdout) if result.stdout else {}
+        format_info = data.get("format", {})
+        if "duration" in format_info:
+            try:
+                seconds = int(float(format_info["duration"]))
+                minutes = seconds // 60
+                duration_str = f"{minutes} min"
+            except (ValueError, TypeError):
+                pass
+
+        streams = data.get("streams", [])
+        for stream in streams:
+            if stream.get("codec_type") == "video" and "height" in stream:
+                resolution_str = f"{stream['height']}p"
+                break
+    except subprocess.TimeoutExpired:
+        app_log(f"Media probe timed out for {video_path}", "WARN")
+    except Exception as e:
+        app_log(f"Media probe failed for {video_path}: {e}", "WARN")
+
+    return {
+        "duration": duration_str,
+        "resolution": resolution_str
+    }
+
+
 def get_episode_cache(anime_name, video_path, season_name=None):
     cache_name = anime_name
 
@@ -371,12 +423,10 @@ def get_episode_cache(anime_name, video_path, season_name=None):
     if filename in cache_data:
         return cache_data[filename]
 
-    duration = get_video_duration(video_path)
-    resolution = get_video_resolution(video_path)
-
+    meta = probe_video_metadata(video_path)
     episode_cache_entry = {
-        "duration": duration,
-        "resolution": resolution
+        "duration": meta["duration"],
+        "resolution": meta["resolution"]
     }
 
     with _constants.EPISODE_CACHE_LOCK:

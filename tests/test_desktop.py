@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -160,7 +161,8 @@ class DesktopApiTests(unittest.TestCase):
         mock_win.native.InvokeRequired = False
 
         desktop_shell._window_state["zoom"] = 1.25
-        res = desktop_shell.configure_webview2_settings(mock_win)
+        with patch("os.name", "nt"):
+            res = desktop_shell.configure_webview2_settings(mock_win)
         self.assertTrue(res)
         self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
         self.assertTrue(mock_settings.IsZoomControlEnabled)
@@ -175,7 +177,7 @@ class DesktopApiTests(unittest.TestCase):
 
         with patch("anibase.desktop.shell.desktop_window", mock_win), \
              patch("os.name", "nt"), \
-             patch("ctypes.windll") as mock_windll, \
+             patch("ctypes.windll", create=True) as mock_windll, \
              patch("anibase.desktop.shell.apply_windows_11_attributes") as mock_apply_w11:
             mock_user32 = MagicMock()
             # Current style has WS_THICKFRAME (0x00040000)
@@ -290,7 +292,7 @@ class WindowStateTests(unittest.TestCase):
 class Windows11DWMTests(unittest.TestCase):
     def test_apply_windows_11_attributes(self):
         with patch("os.name", "nt"), \
-             patch("ctypes.windll") as mock_windll:
+             patch("ctypes.windll", create=True) as mock_windll:
             mock_dwmapi = MagicMock()
             mock_dwmapi.DwmSetWindowAttribute.return_value = 0
             mock_user32 = MagicMock()
@@ -477,7 +479,8 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         mock_win.native.webview = mock_webview_ctrl
         mock_win.native.InvokeRequired = False
 
-        res = desktop_shell.configure_webview2_settings(mock_win)
+        with patch("os.name", "nt"):
+            res = desktop_shell.configure_webview2_settings(mock_win)
         self.assertTrue(res)
         self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
         self.assertTrue(mock_settings.IsZoomControlEnabled)
@@ -490,7 +493,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         with patch("anibase.desktop.shell.desktop_window", mock_win), \
              patch("anibase.desktop.shell.get_window_hwnd", return_value=54321), \
              patch("os.name", "nt"), \
-             patch("ctypes.windll") as mock_windll:
+             patch("ctypes.windll", create=True) as mock_windll:
             mock_user32 = MagicMock()
             mock_windll.user32 = mock_user32
             mock_user32.GetForegroundWindow.return_value = 54321
@@ -536,11 +539,14 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             self.assertTrue(res["ok"])
 
     def test_windows_startup_functions(self):
+        mock_winreg = MagicMock()
+        mock_winreg.HKEY_CURRENT_USER = 1
+        mock_winreg.KEY_READ = 1
+        mock_winreg.KEY_SET_VALUE = 2
+        mock_winreg.REG_SZ = 1
+        mock_winreg.QueryValueEx.return_value = ('"C:\\app.exe"', 1)
         with patch("os.name", "nt"), \
-             patch("winreg.OpenKey") as mock_open_key, \
-             patch("winreg.QueryValueEx", return_value=('"C:\\app.exe"', 1)), \
-             patch("winreg.SetValueEx") as mock_set_val, \
-             patch("winreg.DeleteValue") as mock_del_val:
+             patch.dict(sys.modules, {"winreg": mock_winreg}):
             
             # Test query enabled
             self.assertTrue(desktop_shell.is_windows_startup_enabled())
@@ -548,12 +554,12 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             # Test enable startup
             ok_enable = desktop_shell.set_windows_startup(True)
             self.assertTrue(ok_enable)
-            mock_set_val.assert_called()
+            mock_winreg.SetValueEx.assert_called()
 
             # Test disable startup
             ok_disable = desktop_shell.set_windows_startup(False)
             self.assertTrue(ok_disable)
-            mock_del_val.assert_called()
+            mock_winreg.DeleteValue.assert_called()
 
     def test_is_system_startup_enabled_dispatches_by_platform(self):
         """is_system_startup_enabled() delegates to Windows or Linux helper correctly."""

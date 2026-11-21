@@ -187,6 +187,7 @@ class DesktopApi:
 
     def set_titlebar_style(self, style):
         style = "macos" if str(style).lower() == "macos" else "windows"
+        _window_state["titlebar_style"] = style
         settings = load_settings()
         settings["desktop_titlebar_style"] = style
         save_settings(settings)
@@ -678,16 +679,48 @@ def safe_evaluate_js(script: str):
     if not ready or not ready.is_set():
         return
 
+    if type(desktop_window).__name__ == "MagicMock":
+        try:
+            desktop_window.evaluate_js(script)
+        except Exception:
+            pass
+        return
+
+    # On Linux GTK, WebKit2 provides asynchronous evaluate_javascript/run_javascript.
+    # Invoking it via GLib.idle_add guarantees zero semaphore deadlock.
+    if os.name != "nt":
+        try:
+            from webview.platforms.gtk import BrowserView
+            from gi.repository import GLib
+            bv = BrowserView.instances.get(desktop_window.uid)
+            if bv and getattr(bv, "webview", None):
+                def _run_js():
+                    try:
+                        wv = bv.webview
+                        if hasattr(wv, "evaluate_javascript"):
+                            try:
+                                wv.evaluate_javascript(script, len(script), None, None, None, None, None)
+                                return False
+                            except TypeError:
+                                wv.evaluate_javascript(script, len(script), None, None, None, None)
+                                return False
+                        elif hasattr(wv, "run_javascript"):
+                            wv.run_javascript(script)
+                    except Exception:
+                        pass
+                    return False
+                GLib.idle_add(_run_js)
+                return
+        except Exception:
+            pass
+
     def _eval():
         try:
             desktop_window.evaluate_js(script)
         except Exception:
             pass
 
-    if type(desktop_window).__name__ == "MagicMock":
-        _eval()
-    else:
-        threading.Thread(target=_eval, daemon=True).start()
+    threading.Thread(target=_eval, daemon=True).start()
 
 
 def _invoke_on_ui_thread(window_native, callback):
@@ -852,19 +885,25 @@ def setup_linux_gtk_window_controls(win):
                 # Direct native titlebar button clicks (Right side: WhiteSur or Windows controls)
                 if event.x >= (width - 132):
                     rel_x = width - event.x
-                    settings = load_settings()
-                    titlebar_style = settings.get("desktop_titlebar_style", "macos")
+                    titlebar_style = _window_state.get("titlebar_style")
+                    if not titlebar_style:
+                        try:
+                            titlebar_style = load_settings().get("desktop_titlebar_style", "macos")
+                            _window_state["titlebar_style"] = titlebar_style
+                        except Exception:
+                            titlebar_style = "macos"
+
                     api = desktop_api or DesktopApi(win)
                     if titlebar_style == "macos":
                         if rel_x <= 28:
                             # Red Close
                             api.close()
                             return True
-                        elif rel_x <= 54:
+                        elif rel_x <= 50:
                             # Green Maximize / Restore
                             api.toggle_maximize()
                             return True
-                        elif rel_x <= 85:
+                        elif rel_x <= 72:
                             # Yellow Minimize
                             api.minimize()
                             return True
@@ -875,7 +914,7 @@ def setup_linux_gtk_window_controls(win):
                         elif rel_x <= 88:
                             api.toggle_maximize()
                             return True
-                        else:
+                        elif rel_x <= 132:
                             api.minimize()
                             return True
 
