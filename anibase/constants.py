@@ -7,6 +7,7 @@ import sys
 import threading
 
 APP_NAME = "AniBase"
+APP_VERSION = "1.5.5"
 APP_DATA_DIR_NAME = "AniBase"
 LEGACY_APP_DATA_DIR_NAMES = ("".join(("Anzu", "Anime Server")),)
 PROJECT_RUNTIME_ENV_NAMES = (

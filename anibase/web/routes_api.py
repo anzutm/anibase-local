@@ -34,6 +34,7 @@ from flask import (
 
 import anibase.constants as constants
 from anibase.constants import (
+    APP_VERSION,
     CACHE_DIR,
     SETTINGS_BACKUP_SCHEMA_VERSION,
     DEFAULT_PLAYER_SHORTCUTS,
@@ -344,7 +345,7 @@ def export_settings_backup():
         "format": "anibase-settings-backup",
         "version": SETTINGS_BACKUP_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "app_version": "1.5.3",
+        "app_version": APP_VERSION,
         "included_sections": included_sections,
     }
 

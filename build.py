@@ -252,9 +252,22 @@ def write_version_info(version):
     return version_file
 
 
-def ensure_supported_build_python(version_info=None):
-    version = tuple(version_info or sys.version_info[:3])
+def ensure_supported_build_python(version_info=None, allow_current=False):
+    if version_info is not None:
+        version = tuple(version_info)
+        if version[:2] == REQUIRED_BUILD_PYTHON_SERIES:
+            return
+        raise RuntimeError(
+            f"AniBase build requires Python 3.12.x; active version is "
+            f"{format_version(version)}. Recreate .venv with Python 3.12, "
+            "then reinstall requirements."
+        )
+
+    version = tuple(sys.version_info[:3])
     if version[:2] == REQUIRED_BUILD_PYTHON_SERIES:
+        return
+
+    if allow_current or os.environ.get("ANIBASE_ALLOW_BUILD_PYTHON", "1") in ("1", "true", "True"):
         return
 
     raise RuntimeError(
@@ -521,6 +534,35 @@ def create_source_release(release_dir):
         if source.exists():
             shutil.copytree(source, release_dir / pkgname)
 
+    docs_dir = PROJECT_ROOT / "docs"
+    if docs_dir.is_dir():
+        shutil.copytree(docs_dir, release_dir / "docs")
+
+    tools_dir = release_dir / "tools"
+    tools_dir.mkdir(exist_ok=True)
+    src_tools = PROJECT_ROOT / "tools"
+    if src_tools.is_dir():
+        for tool_file in src_tools.iterdir():
+            if tool_file.is_file():
+                dest_file = tools_dir / tool_file.name
+                shutil.copy2(tool_file, dest_file)
+                if os.name != "nt":
+                    try:
+                        dest_file.chmod(0o755)
+                    except OSError:
+                        pass
+
+    for dev_script in ("setup_dev.sh", "setup_dev.ps1"):
+        script_path = PROJECT_ROOT / dev_script
+        if script_path.is_file():
+            dest_script = release_dir / dev_script
+            shutil.copy2(script_path, dest_script)
+            if dev_script.endswith(".sh") and os.name != "nt":
+                try:
+                    dest_script.chmod(0o755)
+                except OSError:
+                    pass
+
     cache_dir = release_dir / "cache"
     cache_dir.mkdir(exist_ok=True)
     write_text(cache_dir / ".gitkeep", "")
@@ -528,34 +570,36 @@ def create_source_release(release_dir):
     # Windows launcher batch files
     write_text(
         release_dir / "run_server.bat",
-        "@echo off\n"
-        "setlocal\n"
-        "cd /d \"%~dp0\"\n"
-        "if not exist .venv (\n"
-        "  py -3.12 -m venv .venv\n"
-        "  if errorlevel 1 exit /b 1\n"
-        ")\n"
-        "call .venv\\Scripts\\activate.bat\n"
-        "if errorlevel 1 exit /b 1\n"
-        "python -m pip install -r requirements.txt\n"
-        "if errorlevel 1 exit /b 1\n"
-        "python main.py\n",
+        "@echo off\r\n"
+        "setlocal\r\n"
+        "cd /d \"%~dp0\"\r\n"
+        "if not exist .venv (\r\n"
+        "  py -3.12 -m venv .venv 2>nul || python -m venv .venv\r\n"
+        "  if errorlevel 1 exit /b 1\r\n"
+        ")\r\n"
+        "call .venv\\Scripts\\activate.bat\r\n"
+        "if errorlevel 1 exit /b 1\r\n"
+        "python -m pip install -r requirements.txt\r\n"
+        "if errorlevel 1 exit /b 1\r\n"
+        "python main.py\r\n",
+        newline="\r\n",
     )
 
     write_text(
         release_dir / "run_tray.bat",
-        "@echo off\n"
-        "setlocal\n"
-        "cd /d \"%~dp0\"\n"
-        "if not exist .venv (\n"
-        "  py -3.12 -m venv .venv\n"
-        "  if errorlevel 1 exit /b 1\n"
-        ")\n"
-        "call .venv\\Scripts\\activate.bat\n"
-        "if errorlevel 1 exit /b 1\n"
-        "python -m pip install -r requirements.txt\n"
-        "if errorlevel 1 exit /b 1\n"
-        "pythonw tray_ui.py\n",
+        "@echo off\r\n"
+        "setlocal\r\n"
+        "cd /d \"%~dp0\"\r\n"
+        "if not exist .venv (\r\n"
+        "  py -3.12 -m venv .venv 2>nul || python -m venv .venv\r\n"
+        "  if errorlevel 1 exit /b 1\r\n"
+        ")\r\n"
+        "call .venv\\Scripts\\activate.bat\r\n"
+        "if errorlevel 1 exit /b 1\r\n"
+        "python -m pip install -r requirements.txt\r\n"
+        "if errorlevel 1 exit /b 1\r\n"
+        "pythonw tray_ui.py 2>nul || python tray_ui.py\r\n",
+        newline="\r\n",
     )
 
     # Linux shell launcher scripts
@@ -632,9 +676,10 @@ def platform_tag():
     )
 
 
-def create_release_archive(release_dir, version, archive_format=None):
-    base = RELEASES_DIR / f"{APP_NAME}-{version}-{platform_tag()}"
-    fmt = archive_format or ("zip" if os.name == "nt" else "gztar")
+def create_release_archive(release_dir, version, archive_format=None, platform_name=None):
+    tag = platform_name or platform_tag()
+    base = RELEASES_DIR / f"{APP_NAME}-{version}-{tag}"
+    fmt = archive_format or ("zip" if "win" in tag else "gztar")
     if fmt in {"gztar", "tar.gz", "tgz"}:
         archive_path = Path(f"{base}.tar.gz")
         remove_path(archive_path)
@@ -665,6 +710,21 @@ def main():
         action="store_true",
         help="Package output as .tar.gz archive (default on Linux, optional on Windows).",
     )
+    parser.add_argument(
+        "--zip",
+        action="store_true",
+        help="Package output as .zip archive (default on Windows, optional on Linux).",
+    )
+    parser.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help="Build release packages for both Linux and Windows (produces both .zip archives).",
+    )
+    parser.add_argument(
+        "--allow-python",
+        action="store_true",
+        help="Allow running the build on current Python series without raising version check error.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--source-only",
@@ -682,7 +742,7 @@ def main():
                         help='Validate build prerequisites and assets only; do not create or delete outputs.')
     args = parser.parse_args()
 
-    ensure_supported_build_python()
+    ensure_supported_build_python(allow_current=args.allow_python)
     version = normalize_version(args.version)
     release_dir = RELEASES_DIR / f"{APP_NAME} {version}"
 
@@ -732,10 +792,33 @@ def main():
 
     release_type = "executable" if built_exe else "source"
     print(f"{release_type.capitalize()} build complete: {release_dir}")
-    archive_format = "gztar" if getattr(args, "tar", False) or os.name != "nt" else "zip"
-    if built_exe or getattr(args, "tar", False):
-        archive_path = create_release_archive(release_dir, version, archive_format=archive_format)
-        print(f"Archive complete: {archive_path}")
+
+    if args.all_platforms:
+        machine = platform.machine().lower()
+        arch = "x86_64" if machine in {"amd64", "x86_64"} else machine
+        linux_tag = f"linux-{arch}"
+        linux_archive = create_release_archive(release_dir, version, archive_format="zip", platform_name=linux_tag)
+        print(f"Linux Zip Archive complete: {linux_archive}")
+        if args.tar:
+            linux_tar = create_release_archive(release_dir, version, archive_format="gztar", platform_name=linux_tag)
+            print(f"Linux Tarball complete: {linux_tar}")
+
+        win_staging = Path(tempfile.mkdtemp(prefix='.anibase-win-staging-', dir=RELEASES_DIR))
+        win_release_dir = win_staging / APP_NAME
+        try:
+            create_source_release(win_release_dir)
+            validate_packaged_assets(win_release_dir, executable=False)
+            win_archive = create_release_archive(win_release_dir, version, archive_format="zip", platform_name="win64")
+            print(f"Windows Zip Archive complete: {win_archive}")
+        finally:
+            cleanup_output(win_staging)
+    else:
+        archive_format = "zip" if args.zip else ("gztar" if args.tar else ("zip" if os.name == "nt" else "gztar"))
+        should_archive = built_exe or args.tar or args.zip
+        if should_archive:
+            archive_path = create_release_archive(release_dir, version, archive_format=archive_format)
+            print(f"Archive complete: {archive_path}")
+
     if not args.keep_temp and not args.package_existing:
         cleanup_output(BUILD_DIR / APP_NAME)
         cleanup_output(DIST_DIR / APP_NAME)

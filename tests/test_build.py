@@ -91,12 +91,15 @@ class BuildPackagingTests(unittest.TestCase):
         self.assertEqual(command[command.index('--specpath') + 1], str(build.BUILD_DIR / build.APP_NAME))
         self.assertIn(f"{build.PROJECT_ROOT / 'static'}{build.os.pathsep}static", command)
         self.assertIn("webview", command)
-        self.assertIn("pythonnet", command)
-        self.assertIn("clr_loader", command)
+        if build.os.name == "nt":
+            self.assertIn("pythonnet", command)
+            self.assertIn("clr_loader", command)
+            version_file = Path(command[command.index('--version-file') + 1])
+            self.assertIn("StringStruct('CompanyName', 'Anzutm')", version_file.read_text(encoding='utf-8'))
+            self.assertIn("StringStruct('ProductVersion', '1.4.0')", version_file.read_text(encoding='utf-8'))
+        else:
+            self.assertIn("PySide6", command)
         self.assertEqual(command[-1], str(build.PROJECT_ROOT / build.ENTRYPOINT))
-        version_file = Path(command[command.index('--version-file') + 1])
-        self.assertIn("StringStruct('CompanyName', 'Anzutm')", version_file.read_text(encoding='utf-8'))
-        self.assertIn("StringStruct('ProductVersion', '1.4.0')", version_file.read_text(encoding='utf-8'))
 
     def test_check_mode_never_builds_or_cleans(self):
         with patch.object(build.sys, 'argv', ['build.py', '--check']), \
@@ -247,6 +250,26 @@ class BuildPackagingTests(unittest.TestCase):
             archive_path = build.create_release_archive(rel_dir, "v1.5.3", archive_format="gztar")
             self.assertTrue(archive_path.is_file())
             self.assertTrue(str(archive_path).endswith(".tar.gz"))
+
+    def test_create_release_archive_zip(self):
+        rel_dir = self.root / "pkg"
+        rel_dir.mkdir()
+        (rel_dir / "test.txt").write_text("content", encoding="utf-8")
+        with patch.object(build, "RELEASES_DIR", self.root):
+            archive_path = build.create_release_archive(rel_dir, "v1.5.5", archive_format="zip", platform_name="win64")
+            self.assertTrue(archive_path.is_file())
+            self.assertTrue(str(archive_path).endswith("AniBase-v1.5.5-win64.zip"))
+
+    def test_all_platforms_argument(self):
+        with patch.object(build.sys, "argv", ["build.py", "v1.5.5", "--all-platforms", "--source-only"]), \
+             patch.object(build, "preflight"), \
+             patch.object(build, "create_source_release"), \
+             patch.object(build, "validate_packaged_assets"), \
+             patch.object(build, "publish_release"), \
+             patch.object(build, "create_release_archive") as mock_archive:
+            mock_archive.return_value = Path("dummy.zip")
+            self.assertEqual(build.main(), 0)
+            self.assertEqual(mock_archive.call_count, 2)
 
 
 if __name__ == "__main__":
