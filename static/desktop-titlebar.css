@@ -79,6 +79,8 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
     gap: 8px;
     padding: 0 14px;
     height: 100%;
+    min-width: 80px;
+    justify-content: flex-end;
     -webkit-app-region: no-drag !important;
     pointer-events: auto !important;
     flex-shrink: 0;
@@ -146,47 +148,27 @@ body.is-maximized .macos-btn.macos-max .icon-mac-restore {
     display: inline-block !important;
 }
 
-/* Default on Linux & macOS (or when titlebar-macos is set): show macOS traffic lights */
+/* Default on Linux & macOS (or when titlebar-macos is set): show macOS traffic lights on right */
 .desktop-titlebar.style-macos .macos-controls,
 body.titlebar-macos .desktop-titlebar .macos-controls,
 body:not(.titlebar-windows) .desktop-titlebar .macos-controls {
     display: flex !important;
 }
 
-.desktop-titlebar.style-macos .macos-spacer,
-body.titlebar-macos .desktop-titlebar .macos-spacer,
-body:not(.titlebar-windows) .desktop-titlebar .macos-spacer {
-    display: block !important;
-    width: 70px;
-    flex-shrink: 0;
-}
-
 .desktop-titlebar.style-macos .win-controls,
-.desktop-titlebar.style-macos .win-spacer,
 body.titlebar-macos .desktop-titlebar .win-controls,
-body.titlebar-macos .desktop-titlebar .win-spacer,
-body:not(.titlebar-windows) .desktop-titlebar .win-controls,
-body:not(.titlebar-windows) .desktop-titlebar .win-spacer {
+body:not(.titlebar-windows) .desktop-titlebar .win-controls {
     display: none !important;
 }
 
-/* When titlebar-windows is explicitly set: show Windows controls */
+/* When titlebar-windows is explicitly set: show Windows controls on right */
 .desktop-titlebar.style-windows .win-controls,
 body.titlebar-windows .desktop-titlebar .win-controls {
     display: flex !important;
 }
 
-.desktop-titlebar.style-windows .win-spacer,
-body.titlebar-windows .desktop-titlebar .win-spacer {
-    display: block !important;
-    width: 132px;
-    flex-shrink: 0;
-}
-
 .desktop-titlebar.style-windows .macos-controls,
-.desktop-titlebar.style-windows .macos-spacer,
-body.titlebar-windows .desktop-titlebar .macos-controls,
-body.titlebar-windows .desktop-titlebar .macos-spacer {
+body.titlebar-windows .desktop-titlebar .macos-controls {
     display: none !important;
 }
 

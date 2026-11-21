@@ -102,85 +102,30 @@
             });
         });
 
-        // macOS Traffic Light button actions
-        if (btnMinMac) {
-            btnMinMac.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.minimize) {
-                    window.pywebview.api.minimize();
+        function bindAction(el, actionName) {
+            if (!el) return;
+            const handler = function(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
-            });
-            btnMinMac.addEventListener('mousedown', function(e) {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[actionName] === 'function') {
+                    window.pywebview.api[actionName]();
+                }
+            };
+            el.addEventListener('click', handler);
+            el.onclick = handler;
+            el.addEventListener('mousedown', function(e) {
                 e.stopPropagation();
             });
         }
 
-        if (btnMaxMac) {
-            btnMaxMac.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_maximize) {
-                    window.pywebview.api.toggle_maximize();
-                }
-            });
-            btnMaxMac.addEventListener('mousedown', function(e) {
-                e.stopPropagation();
-            });
-        }
-
-        if (btnCloseMac) {
-            btnCloseMac.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.close) {
-                    window.pywebview.api.close();
-                }
-            });
-            btnCloseMac.addEventListener('mousedown', function(e) {
-                e.stopPropagation();
-            });
-        }
-
-        // Windows control button actions
-        if (btnMin) {
-            btnMin.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.minimize) {
-                    window.pywebview.api.minimize();
-                }
-            });
-            btnMin.addEventListener('mousedown', function(e) {
-                e.stopPropagation();
-            });
-        }
-
-        if (btnMax) {
-            btnMax.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.toggle_maximize) {
-                    window.pywebview.api.toggle_maximize();
-                }
-            });
-            btnMax.addEventListener('mousedown', function(e) {
-                e.stopPropagation();
-            });
-        }
-
-        if (btnClose) {
-            btnClose.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.pywebview && window.pywebview.api && window.pywebview.api.close) {
-                    window.pywebview.api.close();
-                }
-            });
-            btnClose.addEventListener('mousedown', function(e) {
-                e.stopPropagation();
-            });
-        }
+        bindAction(btnMinMac, 'minimize');
+        bindAction(btnMaxMac, 'toggle_maximize');
+        bindAction(btnCloseMac, 'close');
+        bindAction(btnMin, 'minimize');
+        bindAction(btnMax, 'toggle_maximize');
+        bindAction(btnClose, 'close');
 
         if (titlebar) {
             titlebar.addEventListener('mousedown', function(e) {

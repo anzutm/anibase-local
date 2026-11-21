@@ -77,10 +77,15 @@ class DesktopApi:
                     from gi.repository import GLib
                     bv = BrowserView.instances.get(win.uid)
                     if bv and getattr(bv, "window", None):
-                        if _window_state.get("maximized"):
+                        is_max = bv.window.is_maximized() if hasattr(bv.window, "is_maximized") else bool(_window_state.get("maximized"))
+                        if is_max:
                             GLib.idle_add(bv.window.unmaximize)
+                            _window_state["maximized"] = False
+                            safe_evaluate_js("window.__anibase_set_maximized && window.__anibase_set_maximized(false);")
                         else:
                             GLib.idle_add(bv.window.maximize)
+                            _window_state["maximized"] = True
+                            safe_evaluate_js("window.__anibase_set_maximized && window.__anibase_set_maximized(true);")
                         return
                 except Exception as err:
                     app_log(f"Linux toggle_maximize error: {err}", "WARN")
@@ -830,19 +835,51 @@ def setup_linux_gtk_window_controls(win):
                     pass
 
             # Titlebar height is 36px
-            if event.y <= 36:
+            if event.y <= 36 and event.button == 1:
+                # Double click toggles maximize/restore
                 if event.type == Gdk.EventType._2BUTTON_PRESS:
-                    if _window_state.get("maximized"):
+                    is_max = bv.window.is_maximized() if hasattr(bv.window, "is_maximized") else bool(_window_state.get("maximized"))
+                    if is_max:
                         bv.window.unmaximize()
+                        _window_state["maximized"] = False
+                        safe_evaluate_js("window.__anibase_set_maximized && window.__anibase_set_maximized(false);")
                     else:
                         bv.window.maximize()
+                        _window_state["maximized"] = True
+                        safe_evaluate_js("window.__anibase_set_maximized && window.__anibase_set_maximized(true);")
                     return True
 
-                # If user clicked button regions (macOS traffic lights on left, or Windows controls on right),
-                # do NOT start drag; let WebKit receive the click event!
-                if event.x < 90 or event.x > (width - 140):
-                    return False
+                # Direct native titlebar button clicks (Right side: WhiteSur or Windows controls)
+                if event.x >= (width - 132):
+                    rel_x = width - event.x
+                    settings = load_settings()
+                    titlebar_style = settings.get("desktop_titlebar_style", "macos")
+                    api = desktop_api or DesktopApi(win)
+                    if titlebar_style == "macos":
+                        if rel_x <= 28:
+                            # Red Close
+                            api.close()
+                            return True
+                        elif rel_x <= 54:
+                            # Green Maximize / Restore
+                            api.toggle_maximize()
+                            return True
+                        elif rel_x <= 85:
+                            # Yellow Minimize
+                            api.minimize()
+                            return True
+                    else:
+                        if rel_x <= 44:
+                            api.close()
+                            return True
+                        elif rel_x <= 88:
+                            api.toggle_maximize()
+                            return True
+                        else:
+                            api.minimize()
+                            return True
 
+                # Anywhere else on titlebar: Wayland native drag
                 try:
                     bv.window.begin_move_drag(
                         event.button,
