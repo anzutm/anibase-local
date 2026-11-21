@@ -10,6 +10,11 @@ from pathlib import Path
 
 from werkzeug.serving import make_server
 
+if os.name != "nt":
+    os.environ.setdefault("GDK_BACKEND", "wayland,x11")
+    if not os.environ.get("QT_QPA_PLATFORM"):
+        os.environ.setdefault("QT_QPA_PLATFORM", "wayland;xcb")
+
 
 APP_HOST = "0.0.0.0"
 APP_PORT = 5000
@@ -258,10 +263,39 @@ def get_icon_path():
 def find_chromium_browser():
     """Mencari executable browser berbasis Chromium di sistem untuk mode standalone app window."""
     if os.name != "nt":
-        for name in ("google-chrome", "brave-browser", "chromium", "microsoft-edge"):
+        candidates = [
+            "google-chrome-stable",
+            "google-chrome",
+            "chromium",
+            "chromium-browser",
+            "brave-browser",
+            "brave",
+            "microsoft-edge-stable",
+            "microsoft-edge",
+            "vivaldi",
+            "opera",
+        ]
+        for name in candidates:
             path = shutil.which(name)
             if path:
                 return path
+
+        # Check standard flatpak & snap paths
+        home = os.path.expanduser("~")
+        flatpak_snap_paths = [
+            "/var/lib/flatpak/exports/bin/com.google.Chrome",
+            "/var/lib/flatpak/exports/bin/org.chromium.Chromium",
+            "/var/lib/flatpak/exports/bin/com.brave.Browser",
+            "/var/lib/flatpak/exports/bin/com.microsoft.Edge",
+            os.path.join(home, ".local", "share", "flatpak", "exports", "bin", "com.google.Chrome"),
+            os.path.join(home, ".local", "share", "flatpak", "exports", "bin", "org.chromium.Chromium"),
+            os.path.join(home, ".local", "share", "flatpak", "exports", "bin", "com.brave.Browser"),
+            "/snap/bin/chromium",
+            "/snap/bin/brave",
+        ]
+        for fp in flatpak_snap_paths:
+            if os.path.isfile(fp):
+                return fp
         return None
 
     # 1. Cek Windows Registry App Paths (mendukung instalasi custom drive/folder)
@@ -536,6 +570,14 @@ def run_qt_tray():
             self.icon = QIcon(get_icon_path())
             self.tray = QSystemTrayIcon(self.icon, self)
             self.tray.setToolTip("AniBase - Running")
+            self.tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+            if not self.tray_available:
+                fallback_log("QSystemTrayIcon is not available on this desktop environment (e.g. standard GNOME without AppIndicator).")
+            try:
+                from anibase.desktop.shell import set_system_tray_available
+                set_system_tray_available(self.tray_available)
+            except Exception:
+                pass
             self.popup = TrayPopup(get_icon_path())
             self.refresh_thread = None
             self.refresh_worker = None
@@ -654,6 +696,10 @@ def run_qt_tray():
 
     qt_app = QApplication(sys.argv)
     qt_app.setQuitOnLastWindowClosed(False)
+    if os.name != "nt":
+        qt_app.setDesktopFileName("anibase")
+        qt_app.setApplicationName("AniBase")
+        qt_app.setOrganizationName("AniBase")
     controller = TrayController(qt_app)
     return qt_app.exec()
 
@@ -670,34 +716,33 @@ def main():
         qt_thread.start()
 
         try:
+            from anibase.desktop.shell import (
+                create_desktop_window,
+                get_desktop_gui_engine,
+                get_desktop_storage_path,
+            )
+
+            storage_path = get_desktop_storage_path()
             if os.name == "nt":
-                local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
-                if not local_app_data:
-                    local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
-                webview2_dir = os.path.join(local_app_data, "AniBase", "webview2")
-                try:
-                    os.makedirs(webview2_dir, exist_ok=True)
-                    os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_dir)
-                    os.environ.setdefault(
-                        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                        "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
-                    )
-                except OSError:
-                    pass
+                os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", storage_path)
+                os.environ.setdefault(
+                    "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                    "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
+                )
 
             import webview
-            from anibase.desktop.shell import create_desktop_window
+            gui_engine = get_desktop_gui_engine()
             create_desktop_window(APP_URL)
             webview.start(
-                gui="edgechromium",
+                gui=gui_engine,
                 private_mode=False,
-                storage_path=webview2_dir if os.name == "nt" else None,
+                storage_path=storage_path,
             )
             perform_graceful_shutdown()
             return 0
         except Exception as error:
             error_msg = str(error)
-            fallback_log(f"WebView2 desktop launch failed: {error_msg}. Launching standalone app window mode.")
+            fallback_log(f"Desktop GUI launch failed: {error_msg}. Launching standalone app window mode.")
             launch_app_window(APP_URL)
             if qt_thread.is_alive():
                 qt_thread.join()

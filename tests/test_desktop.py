@@ -260,6 +260,16 @@ class WindowStateTests(unittest.TestCase):
             self.assertTrue(desktop_shell._is_shutting_down)
         desktop_shell._is_shutting_down = False
 
+    def test_on_window_closing_allows_close_when_tray_unavailable(self):
+        desktop_shell._is_shutting_down = False
+        with patch("anibase.desktop.shell.load_settings", return_value={"desktop_minimize_to_tray": True}), \
+             patch("anibase.desktop.shell.is_system_tray_available", return_value=False), \
+             patch("anibase.desktop.shell.save_current_window_state"):
+            ret = on_window_closing()
+            self.assertTrue(ret)
+            self.assertTrue(desktop_shell._is_shutting_down)
+        desktop_shell._is_shutting_down = False
+
     def test_on_window_fullscreened(self):
         mock_win = MagicMock()
         with patch("anibase.desktop.shell.desktop_window", mock_win):
@@ -643,6 +653,66 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             self.assertTrue(saved.get("desktop_run_on_startup"))
             self.assertTrue(saved.get("desktop_minimize_to_tray"))
             self.assertFalse(saved.get("desktop_start_minimized"))
+
+
+class LinuxDesktopShellCompatibilityTests(unittest.TestCase):
+    """Tests for PyWebView GUI engine selection, storage paths, and GNOME/Linux shell compatibility."""
+
+    def test_get_desktop_gui_engine_windows(self):
+        with patch("anibase.desktop.shell.os.name", "nt"), \
+             patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(desktop_shell.get_desktop_gui_engine(), "edgechromium")
+
+    def test_get_desktop_gui_engine_override(self):
+        with patch.dict("os.environ", {"ANIBASE_WEBVIEW_GUI": "gtk"}):
+            self.assertEqual(desktop_shell.get_desktop_gui_engine(), "gtk")
+
+        with patch.dict("os.environ", {"ANIBASE_WEBVIEW_GUI": "qt"}):
+            self.assertEqual(desktop_shell.get_desktop_gui_engine(), "qt")
+
+    def test_get_desktop_storage_path(self):
+        with patch("anibase.desktop.shell.os.name", "nt"), \
+             patch.dict("os.environ", {"LOCALAPPDATA": "C:\\MockAppData"}), \
+             patch("os.makedirs"):
+            path = desktop_shell.get_desktop_storage_path()
+            self.assertTrue(path.startswith("C:\\MockAppData"))
+
+        with patch("anibase.desktop.shell.os.name", "posix"), \
+             patch("anibase.utils.get_user_data_dir", return_value="/home/user/.local/share/AniBase"), \
+             patch("os.makedirs"):
+            path = desktop_shell.get_desktop_storage_path()
+            self.assertEqual(path.replace("\\", "/"), "/home/user/.local/share/AniBase/webview")
+
+    def test_system_tray_available_flag(self):
+        desktop_shell.set_system_tray_available(False)
+        self.assertFalse(desktop_shell.is_system_tray_available())
+        desktop_shell.set_system_tray_available(True)
+        self.assertTrue(desktop_shell.is_system_tray_available())
+
+    def test_restore_desktop_window_linux_presents_gtk_window(self):
+        mock_win = MagicMock()
+        mock_native = MagicMock()
+        mock_win.native = mock_native
+
+        with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("anibase.desktop.shell.os.name", "posix"):
+            res = desktop_shell.restore_desktop_window()
+            self.assertTrue(res)
+            mock_win.show.assert_called_once()
+            mock_native.present.assert_called_once()
+
+    def test_find_chromium_browser_linux(self):
+        import tray_ui
+        with patch("tray_ui.os.name", "posix"), \
+             patch("tray_ui.shutil.which", side_effect=lambda name: "/usr/bin/google-chrome-stable" if name == "google-chrome-stable" else None):
+            browser = tray_ui.find_chromium_browser()
+            self.assertEqual(browser, "/usr/bin/google-chrome-stable")
+
+    def test_get_linux_icon_path_prioritizes_png(self):
+        with patch("anibase.desktop.shell.get_resource_dir", return_value=os.path.abspath(".")):
+            icon = desktop_shell._get_linux_icon_path()
+            self.assertTrue(os.path.isfile(icon))
+            self.assertTrue(icon.endswith(".png") or icon.endswith(".jpg"))
 
 
 if __name__ == "__main__":

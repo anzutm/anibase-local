@@ -10,6 +10,10 @@ from anibase.desktop.shell import (
     is_system_startup_enabled,
     set_system_startup,
     sync_startup_from_settings,
+    get_desktop_gui_engine,
+    get_desktop_storage_path,
+    is_system_tray_available,
+    set_system_tray_available,
     # Windows-specific (kept for backward compatibility)
     is_windows_startup_enabled,
     set_windows_startup,
@@ -29,6 +33,10 @@ __all__ = [
     "is_system_startup_enabled",
     "set_system_startup",
     "sync_startup_from_settings",
+    "get_desktop_gui_engine",
+    "get_desktop_storage_path",
+    "is_system_tray_available",
+    "set_system_tray_available",
     # Windows-specific (backward compat)
     "is_windows_startup_enabled",
     "set_windows_startup",

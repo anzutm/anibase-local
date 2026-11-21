@@ -11,9 +11,11 @@ import webview
 
 from anibase.settings import load_settings, save_settings
 from anibase.logging import app_log
+from anibase.utils import get_resource_dir
 
 desktop_window = None
 desktop_api = None
+_system_tray_available: bool | None = None
 _window_state = {
     "x": None,
     "y": None,
@@ -72,7 +74,7 @@ class DesktopApi:
             save_current_window_state()
             settings = load_settings()
             minimize_to_tray = settings.get("desktop_minimize_to_tray", True)
-            if minimize_to_tray:
+            if minimize_to_tray and is_system_tray_available():
                 win.hide()
             else:
                 close_desktop_window_permanent()
@@ -223,12 +225,14 @@ def _get_linux_startup_command() -> str:
 
 
 def _get_linux_icon_path() -> str:
-    """Returns path to AniBase icon for the .desktop file."""
+    """Returns path to AniBase icon for the .desktop file and window icon."""
     try:
         from anibase.utils import get_resource_dir
-        icon = os.path.join(get_resource_dir(), "static", "arcana.jpg")
-        if os.path.isfile(icon):
-            return icon
+        res_dir = get_resource_dir()
+        for candidate in ("logo_transparent_cropped.png", "arcana.jpg", "favicon.ico"):
+            icon = os.path.join(res_dir, "static", candidate)
+            if os.path.isfile(icon):
+                return icon
     except Exception:
         pass
     return "anibase"
@@ -315,6 +319,81 @@ def sync_startup_from_settings(enabled: bool) -> bool:
 def sync_windows_startup_from_settings(enabled: bool) -> bool:
     """Backward-compatibility alias for sync_startup_from_settings."""
     return sync_startup_from_settings(enabled)
+
+
+# ---------------------------------------------------------------------------
+# System Tray Availability & Desktop Engine Helpers
+# ---------------------------------------------------------------------------
+
+def set_system_tray_available(available: bool):
+    """Sets whether system tray icon support is confirmed available by the GUI backend."""
+    global _system_tray_available
+    _system_tray_available = bool(available)
+
+
+def is_system_tray_available() -> bool:
+    """Checks if system tray support is available on this environment."""
+    global _system_tray_available
+    if _system_tray_available is not None:
+        return _system_tray_available
+    if os.name == "nt":
+        return True
+    return True
+
+
+def get_desktop_gui_engine() -> str | None:
+    """
+    Determines the appropriate pywebview GUI engine:
+    - Windows: 'edgechromium' (Edge WebView2)
+    - Linux: 'gtk' (WebKit2GTK), 'qt' (PySide6/QtWebEngine), or None (pywebview auto-detect)
+    Allows override via ANIBASE_WEBVIEW_GUI environment variable.
+    """
+    env_engine = os.environ.get("ANIBASE_WEBVIEW_GUI", "").strip().lower()
+    if env_engine:
+        return env_engine
+
+    if os.name == "nt":
+        return "edgechromium"
+
+    # Linux: Check GTK (WebKit2GTK) first
+    try:
+        import gi  # type: ignore[import]
+        gi.require_version("Gtk", "3.0")
+        try:
+            gi.require_version("WebKit2", "4.1")
+        except (ValueError, AttributeError):
+            gi.require_version("WebKit2", "4.0")
+        from gi.repository import Gtk, WebKit2  # noqa: F401
+        return "gtk"
+    except Exception:
+        pass
+
+    # Check Qt (PySide6 / PyQt5) second
+    try:
+        from PySide6 import QtWebEngineWidgets  # noqa: F401
+        return "qt"
+    except Exception:
+        pass
+
+    return None
+
+
+def get_desktop_storage_path() -> str:
+    """Returns persistent cache and profile storage directory for the desktop web engine."""
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+        if not local_app_data:
+            local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+        storage_dir = os.path.join(local_app_data, "AniBase", "webview2")
+    else:
+        from anibase.utils import get_user_data_dir
+        storage_dir = os.path.join(get_user_data_dir(), "webview")
+
+    try:
+        os.makedirs(storage_dir, exist_ok=True)
+    except OSError:
+        pass
+    return storage_dir
 
 
 def reset_desktop_window() -> dict:
@@ -505,7 +584,7 @@ def on_window_closing():
     save_current_window_state()
     settings = load_settings()
     minimize_to_tray = settings.get("desktop_minimize_to_tray", True)
-    if not minimize_to_tray:
+    if not minimize_to_tray or not is_system_tray_available():
         _is_shutting_down = True
         return True
 
@@ -535,20 +614,21 @@ def safe_evaluate_js(script: str):
         threading.Thread(target=_eval, daemon=True).start()
 
 
-def _invoke_on_ui_thread(form, callback):
-    """Safely invokes callback on WinForms UI thread asynchronously if required."""
-    if not form:
+def _invoke_on_ui_thread(window_native, callback):
+    """Safely invokes callback on the UI thread across WinForms, GTK, and Qt."""
+    if not window_native:
         try:
             callback()
         except Exception:
             pass
         return
 
-    if getattr(form, "InvokeRequired", False):
+    # WinForms (.NET WebView2) thread synchronization
+    if getattr(window_native, "InvokeRequired", False):
         try:
             action_cls = getattr(sys.modules.get("System", None) or __import__("System"), "Action", None)
             if action_cls:
-                begin_invoke = getattr(form, "BeginInvoke", None)
+                begin_invoke = getattr(window_native, "BeginInvoke", None)
                 if callable(begin_invoke):
                     begin_invoke(action_cls(callback))
                     return
@@ -583,6 +663,8 @@ def adjust_desktop_zoom_step(direction: int) -> dict:
 
 def configure_webview2_settings(window=None):
     """Enables browser accelerator keys, zoom controls, and restores zoom on Edge WebView2."""
+    if os.name != "nt":
+        return False
     win = window or desktop_window
     if not win or not hasattr(win, "native") or not win.native:
         return False
@@ -624,8 +706,19 @@ def on_window_loaded(*args, **kwargs):
 
 def on_window_shown():
     hwnd = get_window_hwnd()
-    apply_windows_11_attributes(hwnd)
+    if hwnd:
+        apply_windows_11_attributes(hwnd)
     configure_webview2_settings()
+
+    if os.name != "nt":
+        try:
+            icon_path = _get_linux_icon_path()
+            if icon_path and os.path.isfile(icon_path):
+                native = getattr(desktop_window, "native", None)
+                if native and hasattr(native, "set_icon_from_file"):
+                    native.set_icon_from_file(icon_path)
+        except Exception:
+            pass
 
 
 def on_window_maximized():
@@ -758,6 +851,19 @@ def restore_desktop_window():
                         user32.BringWindowToTop(hwnd)
             except Exception:
                 pass
+        else:
+            # Linux: GTK / Qt window presentation
+            try:
+                native = getattr(desktop_window, "native", None)
+                if native:
+                    if hasattr(native, "present"):
+                        native.present()
+                    elif hasattr(native, "raise_"):
+                        native.raise_()
+                        if hasattr(native, "activateWindow"):
+                            native.activateWindow()
+            except Exception:
+                pass
         return True
     except Exception:
         return False
@@ -767,19 +873,25 @@ def create_desktop_window(url):
     """Initializes and returns the pywebview desktop window."""
     global desktop_window, desktop_api
 
+    storage_dir = get_desktop_storage_path()
     if os.name == "nt":
-        local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
-        if not local_app_data:
-            local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
-        webview2_cache_dir = os.path.join(local_app_data, "AniBase", "webview2")
         try:
-            os.makedirs(webview2_cache_dir, exist_ok=True)
-            os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", webview2_cache_dir)
+            os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", storage_dir)
             os.environ.setdefault(
                 "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
                 "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
             )
         except OSError:
+            pass
+    else:
+        # GNOME / Wayland application identification
+        try:
+            import gi  # type: ignore[import]
+            gi.require_version("GLib", "2.0")
+            from gi.repository import GLib  # type: ignore[import]
+            GLib.set_prgname("anibase")
+            GLib.set_application_name("AniBase")
+        except Exception:
             pass
 
     load_saved_window_state()
