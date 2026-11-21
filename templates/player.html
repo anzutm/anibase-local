@@ -38,10 +38,10 @@
     <link rel="preload" href="{{ url_for('static', filename='vendor/subtitles-octopus/InterVariable.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='11') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='player-redesign.css', v='21') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='desktop-titlebar.css', v='3') }}">
 </head>
 
-<body class="player-body">
+<body class="player-body {% if is_linux %}titlebar-macos{% else %}titlebar-windows{% endif %}">
 {% include "_desktop_titlebar.html" %}
 
 <div class="player-backdrop">
@@ -524,7 +524,7 @@
 <script src="{{ url_for('static', filename='player.js', v='player-ui-29') }}"></script>
 <script src="{{ url_for('static', filename='episode-thumbnails.js', v='2') }}"></script>
 
-<script src="{{ url_for('static', filename='desktop-titlebar.js', v='1') }}"></script>
+<script src="{{ url_for('static', filename='desktop-titlebar.js', v='3') }}"></script>
 </body>
 
 </html>

@@ -147,18 +147,22 @@ body.is-maximized .macos-btn.macos-max .icon-mac-restore {
 }
 
 /* Default on Linux & macOS (or when titlebar-macos is set): show macOS traffic lights */
+.desktop-titlebar.style-macos .macos-controls,
 body.titlebar-macos .desktop-titlebar .macos-controls,
 body:not(.titlebar-windows) .desktop-titlebar .macos-controls {
-    display: flex;
+    display: flex !important;
 }
 
+.desktop-titlebar.style-macos .macos-spacer,
 body.titlebar-macos .desktop-titlebar .macos-spacer,
 body:not(.titlebar-windows) .desktop-titlebar .macos-spacer {
-    display: block;
+    display: block !important;
     width: 70px;
     flex-shrink: 0;
 }
 
+.desktop-titlebar.style-macos .win-controls,
+.desktop-titlebar.style-macos .win-spacer,
 body.titlebar-macos .desktop-titlebar .win-controls,
 body.titlebar-macos .desktop-titlebar .win-spacer,
 body:not(.titlebar-windows) .desktop-titlebar .win-controls,
@@ -167,16 +171,20 @@ body:not(.titlebar-windows) .desktop-titlebar .win-spacer {
 }
 
 /* When titlebar-windows is explicitly set: show Windows controls */
+.desktop-titlebar.style-windows .win-controls,
 body.titlebar-windows .desktop-titlebar .win-controls {
-    display: flex;
+    display: flex !important;
 }
 
+.desktop-titlebar.style-windows .win-spacer,
 body.titlebar-windows .desktop-titlebar .win-spacer {
-    display: block;
+    display: block !important;
     width: 132px;
     flex-shrink: 0;
 }
 
+.desktop-titlebar.style-windows .macos-controls,
+.desktop-titlebar.style-windows .macos-spacer,
 body.titlebar-windows .desktop-titlebar .macos-controls,
 body.titlebar-windows .desktop-titlebar .macos-spacer {
     display: none !important;

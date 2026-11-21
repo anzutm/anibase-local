@@ -33,6 +33,7 @@ from anibase.web.helpers import (
     inject_theme,
     inject_shortcuts,
     inject_mal_user,
+    inject_platform,
     safe_cache_name,
     get_character_image_cache_path,
     dependency_card_state,
@@ -157,6 +158,7 @@ def setup_web_app(app):
     app.context_processor(inject_theme)
     app.context_processor(inject_shortcuts)
     app.context_processor(inject_mal_user)
+    app.context_processor(inject_platform)
     register_page_routes(app)
     register_api_routes(app)
     return app

@@ -35,19 +35,41 @@
         // Dynamic titlebar style detection (Default to macOS on Linux / macOS, Windows on Windows)
         let titlebarStyle = localStorage.getItem('anibase_titlebar_style');
         if (!titlebarStyle) {
-            const isWindows = navigator.platform.indexOf('Win') !== -1 || (navigator.userAgent && navigator.userAgent.indexOf('Windows') !== -1);
-            titlebarStyle = isWindows ? 'windows' : 'macos';
+            if (titlebar && titlebar.classList.contains('style-macos')) {
+                titlebarStyle = 'macos';
+            } else if (titlebar && titlebar.classList.contains('style-windows')) {
+                titlebarStyle = 'windows';
+            } else {
+                const isWindows = navigator.platform.indexOf('Win') !== -1 || (navigator.userAgent && navigator.userAgent.indexOf('Windows') !== -1);
+                titlebarStyle = isWindows ? 'windows' : 'macos';
+            }
         }
         document.body.classList.remove('titlebar-windows', 'titlebar-macos');
         document.body.classList.add('titlebar-' + titlebarStyle);
+        if (titlebar) {
+            titlebar.classList.remove('style-windows', 'style-macos');
+            titlebar.classList.add('style-' + titlebarStyle);
+        }
 
         window.__anibase_set_titlebar_style = function(style) {
             document.body.classList.remove('titlebar-windows', 'titlebar-macos');
             document.body.classList.add('titlebar-' + style);
+            if (titlebar) {
+                titlebar.classList.remove('style-windows', 'style-macos');
+                titlebar.classList.add('style-' + style);
+            }
             try {
                 localStorage.setItem('anibase_titlebar_style', style);
             } catch (_) {}
         };
+
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_titlebar_style) {
+            window.pywebview.api.get_titlebar_style().then(function(srvStyle) {
+                if (srvStyle && srvStyle !== titlebarStyle) {
+                    window.__anibase_set_titlebar_style(srvStyle);
+                }
+            }).catch(function() {});
+        }
 
         // Window maximize state tracker
         window.__anibase_set_maximized = function(isMax) {
@@ -433,6 +455,7 @@
     let isInitialized = false;
     function safeInit() {
         if (isInitialized) return;
+        if (!window.pywebview) return;
         isInitialized = true;
         initDesktopApp();
     }

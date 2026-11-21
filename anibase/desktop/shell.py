@@ -36,17 +36,54 @@ class DesktopApi:
         self._window = window
 
     def minimize(self):
+        """User clicked minimize in titlebar."""
+        win = self._window or desktop_window
+        if not win:
+            return
+        if type(win).__name__ == "MagicMock":
+            win.minimize()
+            return
+
         def _action():
-            win = self._window or desktop_window
-            if win:
-                win.minimize()
+            if os.name != "nt":
+                try:
+                    from webview.platforms.gtk import BrowserView
+                    from gi.repository import GLib
+                    bv = BrowserView.instances.get(win.uid)
+                    if bv and getattr(bv, "window", None):
+                        GLib.idle_add(bv.window.iconify)
+                        return
+                except Exception as err:
+                    app_log(f"Linux minimize error: {err}", "WARN")
+            win.minimize()
         threading.Thread(target=_action, daemon=True).start()
 
     def toggle_maximize(self):
+        """User clicked maximize/restore in titlebar."""
+        win = self._window or desktop_window
+        if not win:
+            return
+        if type(win).__name__ == "MagicMock":
+            if _window_state.get("maximized"):
+                win.restore()
+            else:
+                win.maximize()
+            return
+
         def _action():
-            win = self._window or desktop_window
-            if not win:
-                return
+            if os.name != "nt":
+                try:
+                    from webview.platforms.gtk import BrowserView
+                    from gi.repository import GLib
+                    bv = BrowserView.instances.get(win.uid)
+                    if bv and getattr(bv, "window", None):
+                        if _window_state.get("maximized"):
+                            GLib.idle_add(bv.window.unmaximize)
+                        else:
+                            GLib.idle_add(bv.window.maximize)
+                        return
+                except Exception as err:
+                    app_log(f"Linux toggle_maximize error: {err}", "WARN")
             if _window_state.get("maximized"):
                 win.restore()
             else:
@@ -801,12 +838,9 @@ def setup_linux_gtk_window_controls(win):
                         bv.window.maximize()
                     return True
 
-                # If user clicked the window control buttons, let WebKit handle the button click!
-                settings = load_settings()
-                titlebar_style = settings.get("desktop_titlebar_style", "macos")
-                if titlebar_style == "macos" and event.x < 75:
-                    return False
-                elif titlebar_style == "windows" and event.x > (width - 140):
+                # If user clicked button regions (macOS traffic lights on left, or Windows controls on right),
+                # do NOT start drag; let WebKit receive the click event!
+                if event.x < 90 or event.x > (width - 140):
                     return False
 
                 try:

@@ -284,6 +284,14 @@ def inject_mal_user():
     }
 
 
+def inject_platform():
+    return {
+        "os_platform": "windows" if os.name == "nt" else "linux",
+        "is_windows": os.name == "nt",
+        "is_linux": os.name != "nt",
+    }
+
+
 def get_character_image_cache_path(anime_name, filename):
     safe_anime = safe_cache_name(anime_name)
     if not safe_anime or safe_anime in {".", ".."}:
