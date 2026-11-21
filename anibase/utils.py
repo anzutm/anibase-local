@@ -277,6 +277,38 @@ def normalize_screenshot_filename_prefix(value, default="vlcsnap"):
     prefix = re.sub(r"\s+", " ", prefix).strip(" .")
     return prefix[:80] or default
 
+def ensure_linux_path_mounted(path):
+    """If a Linux path is on an unmounted removable/secondary partition under /run/media/ or /media/,
+    attempt to auto-mount its backing device via udisksctl."""
+    if os.name == "nt" or not path or os.path.isdir(path):
+        return
+
+    try:
+        import subprocess
+        from pathlib import Path
+        parts = Path(path).parts
+        uuid_or_label = None
+        if len(parts) >= 5 and parts[1] == "run" and parts[2] == "media":
+            uuid_or_label = parts[4]
+        elif len(parts) >= 4 and parts[1] == "media":
+            uuid_or_label = parts[3]
+
+        if not uuid_or_label:
+            return
+
+        for by_dir in ("/dev/disk/by-uuid", "/dev/disk/by-label"):
+            dev_link = os.path.join(by_dir, uuid_or_label)
+            if os.path.exists(dev_link):
+                subprocess.run(
+                    ["udisksctl", "mount", "-b", dev_link, "--no-user-interaction"],
+                    capture_output=True,
+                    timeout=5,
+                )
+                break
+    except Exception:
+        pass
+
+
 def normalize_library_path(path):
     if not path:
         return ""
@@ -289,6 +321,8 @@ def normalize_library_path(path):
 
     if normalized == constants.BASE_DIR:
         return ""
+
+    ensure_linux_path_mounted(normalized)
 
     return normalized
 
