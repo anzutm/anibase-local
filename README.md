@@ -81,7 +81,35 @@ Set `ANIBASE_USE_PROJECT_RUNTIME=1` before launching to use project-local develo
 <details>
 <summary><strong>Developer setup · Python 3.12</strong></summary>
 
-On Windows:
+### On Linux (CachyOS / Arch / GNOME)
+
+Install recommended system packages:
+
+```bash
+# CachyOS / Arch Linux:
+sudo pacman -S --needed ffmpeg zenity python-gobject webkit2gtk-4.1 libnotify gnome-shell-extension-appindicator
+```
+
+Clone and run the automated setup script:
+
+```bash
+git clone https://github.com/anzutm/anibase-local.git
+cd anibase-local
+chmod +x setup_dev.sh run_tray.sh run_server.sh
+./setup_dev.sh
+```
+
+Launch AniBase:
+
+```bash
+# Tray + Desktop UI (Recommended):
+./run_tray.sh
+
+# Or Web Server only:
+./run_server.sh
+```
+
+### On Windows
 
 ```powershell
 git clone https://github.com/anzutm/anibase-local.git
@@ -92,8 +120,6 @@ python tray_ui.py
 ```
 
 The setup script installs dependencies and checks FFmpeg/FFprobe. Recreate an existing virtual environment if it uses another Python version. Use `python main.py` to run only the web server.
-
-On Linux, create and activate a Python 3.12 virtual environment, install `requirements.txt`, and put `ffmpeg`/`ffprobe` on `PATH` before running `python tray_ui.py`.
 
 </details>
 
