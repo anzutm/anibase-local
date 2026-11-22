@@ -145,6 +145,9 @@ else
     echo "  Checks passed. Static and template assets validated."
 fi
 
+# Ensure AniBase desktop launcher & application icon are registered
+"$VENV_PY" -c "from anibase.desktop.shell import ensure_linux_desktop_entry; ensure_linux_desktop_entry()" 2>/dev/null || true
+
 echo ""
 echo "=================================================="
 echo "    AniBase Linux environment is ready!           "

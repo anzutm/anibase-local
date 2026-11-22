@@ -371,6 +371,60 @@ def set_linux_startup(enabled: bool) -> bool:
         return True
 
 
+def ensure_linux_desktop_entry():
+    """Ensures AniBase .desktop entry and high-res icon are installed in ~/.local/share/applications and icons."""
+    if os.name == "nt":
+        return
+    try:
+        home = os.path.expanduser("~")
+        apps_dir = os.path.join(home, ".local", "share", "applications")
+        icons_dir = os.path.join(home, ".local", "share", "icons", "hicolor", "512x512", "apps")
+        os.makedirs(apps_dir, exist_ok=True)
+        os.makedirs(icons_dir, exist_ok=True)
+
+        icon_path = _get_linux_icon_path()
+        dest_icon = os.path.join(icons_dir, "anibase.png")
+        if icon_path and os.path.isfile(icon_path):
+            if not os.path.isfile(dest_icon) or os.path.getmtime(icon_path) > os.path.getmtime(dest_icon):
+                import shutil
+                shutil.copy2(icon_path, dest_icon)
+                fallback_icon = os.path.join(home, ".local", "share", "icons", "anibase.png")
+                shutil.copy2(icon_path, fallback_icon)
+
+        desktop_file = os.path.join(apps_dir, "anibase.desktop")
+        from anibase.utils import get_application_dir
+        app_dir = get_application_dir()
+        run_tray = os.path.join(app_dir, "run_tray.sh")
+        if os.path.isfile(run_tray):
+            exec_cmd = f'"{run_tray}"'
+        else:
+            import sys
+            exec_cmd = f'"{sys.executable}" "{os.path.join(app_dir, "tray_ui.py")}"'
+
+        entry_content = (
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=AniBase\n"
+            "Comment=Private Anime Streaming & Library Management\n"
+            f"Exec={exec_cmd}\n"
+            f"Icon={dest_icon if os.path.isfile(dest_icon) else (icon_path or 'anibase')}\n"
+            "Terminal=false\n"
+            "Categories=AudioVideo;Video;Player;\n"
+            "Keywords=anime;streaming;player;video;\n"
+            "StartupWMClass=anibase\n"
+        )
+        if not os.path.isfile(desktop_file):
+            with open(desktop_file, "w", encoding="utf-8") as f:
+                f.write(entry_content)
+            try:
+                import subprocess
+                subprocess.run(["update-desktop-database", apps_dir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+    except Exception as err:
+        app_log(f"Failed to ensure Linux desktop entry: {err}", "WARN")
+
+
 # ---------------------------------------------------------------------------
 # Cross-platform public API
 # ---------------------------------------------------------------------------
@@ -938,6 +992,14 @@ def setup_linux_gtk_window_controls(win):
             return False
 
         bv.webview.connect("button-press-event", on_webview_button_press)
+        if getattr(bv, "window", None):
+            icon_path = _get_linux_icon_path()
+            if icon_path and os.path.isfile(icon_path):
+                try:
+                    bv.window.set_icon_from_file(icon_path)
+                    Gtk.Window.set_default_icon_from_file(icon_path)
+                except Exception:
+                    pass
         app_log("Linux GTK titlebar native drag and edge resize initialized.", "INFO")
     except Exception as err:
         app_log(f"Failed to setup Linux GTK window controls: {err}", "WARN")
@@ -956,9 +1018,17 @@ def on_window_shown():
                 native = getattr(desktop_window, "native", None)
                 if native and hasattr(native, "set_icon_from_file"):
                     native.set_icon_from_file(icon_path)
+                try:
+                    import gi
+                    gi.require_version("Gtk", "3.0")
+                    from gi.repository import Gtk
+                    Gtk.Window.set_default_icon_from_file(icon_path)
+                except Exception:
+                    pass
         except Exception:
             pass
         setup_linux_gtk_window_controls(desktop_window)
+        ensure_linux_desktop_entry()
 
 
 def on_window_maximized():

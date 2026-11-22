@@ -73,9 +73,10 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
 /* ==========================================================================
    macOS Traffic Light Window Controls
    ========================================================================== */
-.macos-controls {
+.macos-controls,
+.desktop-titlebar-controls.macos-controls {
     display: none;
-    align-items: center;
+    align-items: center !important;
     gap: 8px;
     padding: 0 14px;
     height: 100%;
@@ -96,6 +97,7 @@ body.is-desktop-app:not(.is-maximized):not(.is-desktop-fullscreen) .desktop-titl
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    align-self: center;
     cursor: pointer;
     position: relative;
     box-sizing: border-box;
@@ -176,6 +178,7 @@ body.titlebar-windows .desktop-titlebar .macos-controls {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-left: 14px;
     flex-shrink: 0;
 }
 
@@ -227,6 +230,10 @@ body.titlebar-windows .desktop-titlebar .macos-controls {
     -webkit-app-region: no-drag !important;
     pointer-events: auto !important;
     flex-shrink: 0;
+}
+
+.desktop-titlebar-controls.macos-controls {
+    align-items: center !important;
 }
 
 .desktop-control-btn {

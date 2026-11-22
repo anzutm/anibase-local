@@ -257,10 +257,11 @@ def start_background_services():
 
 
 def get_icon_path():
-    favicon_path = os.path.join(RESOURCE_DIR, "static", "favicon.ico")
-    if os.path.exists(favicon_path):
-        return favicon_path
-    return os.path.join(RESOURCE_DIR, "static", "arcana.jpg")
+    for candidate in ("logo_transparent_cropped.png", "favicon.ico", "arcana.jpg"):
+        candidate_path = os.path.join(RESOURCE_DIR, "static", candidate)
+        if os.path.exists(candidate_path):
+            return candidate_path
+    return os.path.join(RESOURCE_DIR, "static", "favicon.ico")
 
 
 def find_chromium_browser():
@@ -817,10 +818,18 @@ def main():
             import webview
             gui_engine = get_desktop_gui_engine()
             create_desktop_window(APP_URL)
+            icon_file = get_icon_path()
+            if os.name != "nt":
+                try:
+                    from anibase.desktop.shell import ensure_linux_desktop_entry
+                    ensure_linux_desktop_entry()
+                except Exception:
+                    pass
             webview.start(
                 gui=gui_engine,
                 private_mode=False,
                 storage_path=storage_path,
+                icon=icon_file,
             )
             perform_graceful_shutdown()
             if tray_proc and tray_proc.poll() is None:
