@@ -11,6 +11,8 @@ from pathlib import Path
 from werkzeug.serving import make_server
 
 if os.name != "nt":
+    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+    os.environ.setdefault("WEBKIT_GST_DMABUF_SINK_DISABLED", "1")
     os.environ.setdefault("GDK_BACKEND", "wayland,x11")
     if not os.environ.get("QT_QPA_PLATFORM"):
         os.environ.setdefault("QT_QPA_PLATFORM", "wayland;xcb")

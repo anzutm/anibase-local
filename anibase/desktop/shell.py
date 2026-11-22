@@ -9,6 +9,10 @@ import time
 import webbrowser
 import webview
 
+if os.name != "nt":
+    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+    os.environ.setdefault("WEBKIT_GST_DMABUF_SINK_DISABLED", "1")
+
 from anibase.settings import load_settings, save_settings
 from anibase.logging import app_log
 from anibase.utils import get_resource_dir

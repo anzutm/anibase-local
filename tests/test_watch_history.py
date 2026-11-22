@@ -1868,16 +1868,17 @@ class EpisodeNumberingTests(unittest.TestCase):
         subtitle_response.close()
         self.assertEqual(captured["basename"], "Gap Anime - 07.mkv")
 
-        play_response = self.local_request(
-            "POST",
-            self.url_for(
-                "play_episode",
-                anime_name="Gap Anime",
-                episode="Gap Anime - 07.mkv",
-            ),
-        )
-        self.assertEqual(play_response.status_code, 400)
-        self.assertEqual(play_response.get_json()["error"], "vlc_not_configured")
+        with patch("anibase.constants.VLC_PATH", None), patch("anibase.web.routes_api.shutil.which", return_value=None):
+            play_response = self.local_request(
+                "POST",
+                self.url_for(
+                    "play_episode",
+                    anime_name="Gap Anime",
+                    episode="Gap Anime - 07.mkv",
+                ),
+            )
+            self.assertEqual(play_response.status_code, 400)
+            self.assertEqual(play_response.get_json()["error"], "vlc_not_configured")
 
 
 class InternalUrlEncodingTests(unittest.TestCase):
@@ -2109,13 +2110,14 @@ class InternalUrlEncodingTests(unittest.TestCase):
         self.assertNotIn(self.root, response.get_data(as_text=True))
 
     def test_play_endpoint_resolves_encoded_url_before_vlc_validation(self):
-        response = self.local_request(
-            "POST",
-            self.url_for("play_episode", anime_name=self.anime_name, episode=self.episode),
-        )
+        with patch("anibase.constants.VLC_PATH", None), patch("anibase.web.routes_api.shutil.which", return_value=None):
+            response = self.local_request(
+                "POST",
+                self.url_for("play_episode", anime_name=self.anime_name, episode=self.episode),
+            )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.get_json()["status"], "vlc_not_configured")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.get_json()["status"], "vlc_not_configured")
 
     def test_progress_endpoint_preserves_special_episode_key(self):
         response = self.local_request(

@@ -353,9 +353,9 @@ body.player-body .player-sub-menu {
     max-width: 320px;
     max-height: 280px;
     overflow-y: auto;
-    background: rgba(12, 16, 24, .96);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    background: rgba(12, 16, 24, .98);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, .12);
     border-radius: 9px;
     padding: 6px;
@@ -476,9 +476,9 @@ body.player-body .player-skip-btn {
     padding: 0 16px;
     border: 1px solid rgba(255, 255, 255, .20);
     border-radius: 9px;
-    background: rgba(14, 18, 28, .88);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    background: rgba(14, 18, 28, .96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow: 0 10px 28px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .06);
     color: #fff;
     font-size: 13px;
@@ -2202,9 +2202,9 @@ body.player-body .player-hud-volume {
     gap: 14px;
     padding: 12px 22px;
     min-width: 220px;
-    background: rgba(13, 17, 28, 0.88);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(13, 17, 28, 0.95);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 16px color-mix(in srgb, var(--player-accent, #38bdf8) 25%, transparent);
@@ -2259,4 +2259,52 @@ body.player-body .player-hud-vol-text {
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: #f8fafc;
+}
+
+/* Centered Playback Speed HUD Overlay (OSD) */
+body.player-body .player-hud-speed {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    z-index: 35;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    background: rgba(13, 17, 28, 0.95);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 16px color-mix(in srgb, var(--player-accent, #38bdf8) 25%, transparent);
+    color: #f1f5f9;
+    font-size: 15px;
+    font-weight: 700;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+body.player-body .player-hud-speed[hidden] {
+    display: none !important;
+}
+
+body.player-body .player-hud-speed.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+body.player-body .player-hud-speed.is-fading-out {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+}
+
+body.player-body .player-hud-speed-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--player-accent, #38bdf8);
+    flex-shrink: 0;
 }

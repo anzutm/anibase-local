@@ -330,13 +330,6 @@ function isSeekTargetBuffered(targetTime) {
 }
 
 function applyMediaSeek(targetTime) {
-    // fastSeek melompat langsung ke I-frame (keyframe) terdekat layaknya VLC, tanpa decode frame perantara
-    if (videoElement && typeof videoElement.fastSeek === 'function') {
-        try {
-            videoElement.fastSeek(targetTime);
-            return;
-        } catch (_) {}
-    }
     if (videoElement) {
         videoElement.currentTime = targetTime;
     } else if (player) {
@@ -834,6 +827,54 @@ function showVolumeHUD(percent, isMuted = false) {
             }
         }, 220);
     }, 1200);
+}
+
+// --- Centered Speed HUD Overlay (OSD) ---
+let speedHudTimer = null;
+let speedHudEl = null;
+
+function getSpeedHUD() {
+    if (!speedHudEl && player.elements && player.elements.container) {
+        speedHudEl = document.createElement('div');
+        speedHudEl.className = 'player-hud-speed';
+        speedHudEl.hidden = true;
+        speedHudEl.setAttribute('aria-hidden', 'true');
+        speedHudEl.innerHTML = `
+            <span class="player-hud-speed-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+            </span>
+            <span class="player-hud-speed-text"></span>
+        `;
+        player.elements.container.appendChild(speedHudEl);
+    }
+    return speedHudEl;
+}
+
+function showSpeedHUD(speed) {
+    const hud = getSpeedHUD();
+    if (!hud) return;
+
+    const text = hud.querySelector('.player-hud-speed-text');
+    if (text) text.textContent = `${speed}x`;
+
+    hud.hidden = false;
+    hud.classList.remove('is-fading-out');
+    void hud.offsetWidth;
+    hud.classList.add('is-visible');
+
+    clearTimeout(speedHudTimer);
+    speedHudTimer = setTimeout(() => {
+        hud.classList.remove('is-visible');
+        hud.classList.add('is-fading-out');
+        setTimeout(() => {
+            if (!hud.classList.contains('is-visible')) {
+                hud.hidden = true;
+                hud.classList.remove('is-fading-out');
+            }
+        }, 220);
+    }, 900);
 }
 
 function adjustVolume(delta) {
@@ -1787,7 +1828,7 @@ function changePlaybackSpeed(direction) {
     }
 
     player.speed = nextSpeed;
-    showScreenshotToast(`Playback speed: ${nextSpeed}x`, { icon: '&#9889;' });
+    showSpeedHUD(nextSpeed);
 }
 
 // Mouse wheel controls volume inside the video, including fullscreen.
