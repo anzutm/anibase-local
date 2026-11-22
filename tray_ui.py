@@ -11,8 +11,21 @@ from pathlib import Path
 from werkzeug.serving import make_server
 
 if os.name != "nt":
-    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-    os.environ.setdefault("WEBKIT_GST_DMABUF_SINK_DISABLED", "1")
+    if getattr(sys, "frozen", False):
+        lp_orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+        if lp_orig is not None:
+            if lp_orig:
+                os.environ["LD_LIBRARY_PATH"] = lp_orig
+            else:
+                os.environ.pop("LD_LIBRARY_PATH", None)
+        elif "LD_LIBRARY_PATH" in os.environ:
+            cleaned = [p for p in os.environ["LD_LIBRARY_PATH"].split(":") if p and "_internal" not in p]
+            if cleaned:
+                os.environ["LD_LIBRARY_PATH"] = ":".join(cleaned)
+            else:
+                os.environ.pop("LD_LIBRARY_PATH", None)
+
+    os.environ.setdefault("__NV_DISABLE_EXPLICIT_SYNC", "1")
     os.environ.setdefault("GDK_BACKEND", "wayland,x11")
     if not os.environ.get("QT_QPA_PLATFORM"):
         os.environ.setdefault("QT_QPA_PLATFORM", "wayland;xcb")
@@ -822,7 +835,7 @@ def main():
             if os.name != "nt":
                 try:
                     from anibase.desktop.shell import ensure_linux_desktop_entry
-                    ensure_linux_desktop_entry()
+                    threading.Thread(target=ensure_linux_desktop_entry, daemon=True).start()
                 except Exception:
                     pass
             webview.start(

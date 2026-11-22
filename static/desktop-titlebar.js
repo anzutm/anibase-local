@@ -8,18 +8,32 @@
         // Startup splash transition: only shown on initial cold start in this session
         const splash = document.getElementById('desktopSplash');
         if (splash) {
-            const hasLoadedBefore = sessionStorage.getItem('anibase_desktop_loaded');
+            let hasLoadedBefore = false;
+            try {
+                hasLoadedBefore = sessionStorage.getItem('anibase_desktop_loaded');
+            } catch (_) {}
+
             if (!hasLoadedBefore) {
                 document.body.classList.add('is-desktop-loading');
                 setTimeout(function() {
                     splash.classList.add('fade-out');
                     setTimeout(function() {
                         document.body.classList.remove('is-desktop-loading');
-                        sessionStorage.setItem('anibase_desktop_loaded', '1');
+                        try {
+                            sessionStorage.setItem('anibase_desktop_loaded', '1');
+                        } catch (_) {}
                     }, 320);
                 }, 380);
+
+                // Hard failsafe: under no circumstance allow splash overlay to block the screen indefinitely
+                setTimeout(function() {
+                    document.body.classList.remove('is-desktop-loading');
+                    splash.classList.add('fade-out');
+                    splash.style.display = 'none';
+                }, 800);
             } else {
                 splash.style.display = 'none';
+                document.body.classList.remove('is-desktop-loading');
             }
         }
 

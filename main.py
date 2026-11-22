@@ -14,6 +14,20 @@ import logging as std_logging
 from logging.handlers import RotatingFileHandler
 import os
 import sys
+
+if os.name != "nt" and getattr(sys, "frozen", False):
+    lp_orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if lp_orig is not None:
+        if lp_orig:
+            os.environ["LD_LIBRARY_PATH"] = lp_orig
+        else:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+    elif "LD_LIBRARY_PATH" in os.environ:
+        cleaned = [p for p in os.environ["LD_LIBRARY_PATH"].split(":") if p and "_internal" not in p]
+        if cleaned:
+            os.environ["LD_LIBRARY_PATH"] = ":".join(cleaned)
+        else:
+            os.environ.pop("LD_LIBRARY_PATH", None)
 import types
 import subprocess
 import requests

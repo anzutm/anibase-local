@@ -10,8 +10,7 @@ if [ ! -f ".venv/bin/python" ]; then
 fi
 
 source .venv/bin/activate
-export WEBKIT_DISABLE_DMABUF_RENDERER=1
-export WEBKIT_GST_DMABUF_SINK_DISABLED=1
+export __NV_DISABLE_EXPLICIT_SYNC=1
 export PATH="$PROJECT_ROOT/tools:$PATH"
 export GDK_BACKEND=wayland,x11
 python tray_ui.py "$@"

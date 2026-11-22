@@ -10,8 +10,21 @@ import webbrowser
 import webview
 
 if os.name != "nt":
-    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-    os.environ.setdefault("WEBKIT_GST_DMABUF_SINK_DISABLED", "1")
+    if getattr(sys, "frozen", False):
+        lp_orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+        if lp_orig is not None:
+            if lp_orig:
+                os.environ["LD_LIBRARY_PATH"] = lp_orig
+            else:
+                os.environ.pop("LD_LIBRARY_PATH", None)
+        elif "LD_LIBRARY_PATH" in os.environ:
+            cleaned = [p for p in os.environ["LD_LIBRARY_PATH"].split(":") if p and "_internal" not in p]
+            if cleaned:
+                os.environ["LD_LIBRARY_PATH"] = ":".join(cleaned)
+            else:
+                os.environ.pop("LD_LIBRARY_PATH", None)
+
+    os.environ.setdefault("__NV_DISABLE_EXPLICIT_SYNC", "1")
 
 from anibase.settings import load_settings, save_settings
 from anibase.logging import app_log
@@ -394,12 +407,14 @@ def ensure_linux_desktop_entry():
         desktop_file = os.path.join(apps_dir, "anibase.desktop")
         from anibase.utils import get_application_dir
         app_dir = get_application_dir()
-        run_tray = os.path.join(app_dir, "run_tray.sh")
-        if os.path.isfile(run_tray):
-            exec_cmd = f'"{run_tray}"'
+        if getattr(sys, "frozen", False):
+            exec_cmd = f'"{sys.executable}"'
         else:
-            import sys
-            exec_cmd = f'"{sys.executable}" "{os.path.join(app_dir, "tray_ui.py")}"'
+            run_tray = os.path.join(app_dir, "run_tray.sh")
+            if os.path.isfile(run_tray):
+                exec_cmd = f'"{run_tray}"'
+            else:
+                exec_cmd = f'"{sys.executable}" "{os.path.join(app_dir, "tray_ui.py")}"'
 
         entry_content = (
             "[Desktop Entry]\n"
@@ -413,7 +428,15 @@ def ensure_linux_desktop_entry():
             "Keywords=anime;streaming;player;video;\n"
             "StartupWMClass=anibase\n"
         )
-        if not os.path.isfile(desktop_file):
+        should_write = True
+        if os.path.isfile(desktop_file):
+            try:
+                with open(desktop_file, "r", encoding="utf-8") as rf:
+                    if rf.read() == entry_content:
+                        should_write = False
+            except OSError:
+                pass
+        if should_write:
             with open(desktop_file, "w", encoding="utf-8") as f:
                 f.write(entry_content)
             try:
@@ -884,6 +907,20 @@ def setup_linux_gtk_window_controls(win):
         if not bv or not getattr(bv, "webview", None) or not getattr(bv, "window", None):
             return
 
+        try:
+            bv.webview.set_opacity(1.0)
+            settings = bv.webview.get_settings()
+            import gi
+            try:
+                gi.require_version("WebKit2", "4.1")
+            except ValueError:
+                gi.require_version("WebKit2", "4.0")
+            from gi.repository import WebKit2
+            if hasattr(WebKit2, "HardwareAccelerationPolicy") and hasattr(settings, "set_hardware_acceleration_policy"):
+                settings.set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.ON_DEMAND)
+        except Exception:
+            pass
+
         def on_webview_button_press(widget, event):
             if event.button != 1:
                 return False
@@ -1028,7 +1065,7 @@ def on_window_shown():
         except Exception:
             pass
         setup_linux_gtk_window_controls(desktop_window)
-        ensure_linux_desktop_entry()
+        threading.Thread(target=ensure_linux_desktop_entry, daemon=True).start()
 
 
 def on_window_maximized():
