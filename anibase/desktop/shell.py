@@ -185,13 +185,15 @@ class DesktopApi:
             try:
                 import gi
                 gi.require_version("Gdk", "3.0")
-                from gi.repository import Gdk, GLib
+                gi.require_version("Gtk", "3.0")
+                from gi.repository import Gdk, GLib, Gtk
                 from webview.platforms.gtk import BrowserView
                 bv = BrowserView.instances.get(win.uid)
                 if bv and getattr(bv, "window", None):
                     def _drag():
                         try:
-                            bv.window.begin_move_drag(1, int(screen_x), int(screen_y), Gdk.CURRENT_TIME)
+                            t = Gtk.get_current_event_time() or Gdk.CURRENT_TIME
+                            bv.window.begin_move_drag(1, int(screen_x), int(screen_y), t)
                         except Exception:
                             pass
                     GLib.idle_add(_drag)
@@ -453,6 +455,9 @@ def ensure_linux_desktop_entry():
             try:
                 import subprocess
                 subprocess.run(["update-desktop-database", apps_dir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                kbuildsycoca = shutil.which("kbuildsycoca6") or shutil.which("kbuildsycoca5")
+                if kbuildsycoca:
+                    subprocess.run([kbuildsycoca], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
     except Exception as err:
@@ -1300,6 +1305,12 @@ def restore_desktop_window():
                         native.raise_()
                         if hasattr(native, "activateWindow"):
                             native.activateWindow()
+                else:
+                    from webview.platforms.gtk import BrowserView
+                    from gi.repository import GLib
+                    bv = BrowserView.instances.get(desktop_window.uid)
+                    if bv and getattr(bv, "window", None):
+                        GLib.idle_add(bv.window.present)
             except Exception:
                 pass
         return True
