@@ -494,11 +494,19 @@ def run_qt_tray(helper_mode=False):
 
             title_box = QVBoxLayout()
             title_box.setSpacing(2)
+            title_row = QHBoxLayout()
+            title_row.setSpacing(6)
             title = QLabel("AniBase")
             title.setObjectName("Title")
+            from anibase.constants import APP_VERSION
+            version_badge = QLabel(f"v{APP_VERSION}")
+            version_badge.setObjectName("VersionBadge")
+            title_row.addWidget(title)
+            title_row.addWidget(version_badge)
+            title_row.addStretch()
+            title_box.addLayout(title_row)
             self.server_status = QLabel("Server Running")
             self.server_status.setObjectName("Running")
-            title_box.addWidget(title)
             title_box.addWidget(self.server_status)
             header.addLayout(title_box, 1)
             layout.addLayout(header)
@@ -542,6 +550,15 @@ def run_qt_tray(helper_mode=False):
                 QLabel#Title {
                     font-size: 16px;
                     font-weight: 700;
+                }
+                QLabel#VersionBadge {
+                    color: #8fa0c0;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 1px 6px;
+                    background: rgba(255, 255, 255, 0.08);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border-radius: 6px;
                 }
                 QLabel#Running {
                     color: #74f2a6;
@@ -669,6 +686,9 @@ def run_qt_tray(helper_mode=False):
             action_refresh = self.context_menu.addAction("Refresh Library")
             action_refresh.triggered.connect(self.refresh_library)
 
+            action_update = self.context_menu.addAction("Check for Updates")
+            action_update.triggered.connect(self.check_for_updates)
+
             self.context_menu.addSeparator()
 
             action_exit = self.context_menu.addAction("Exit AniBase")
@@ -676,6 +696,25 @@ def run_qt_tray(helper_mode=False):
 
             self.tray.setContextMenu(self.context_menu)
             self.tray.show()
+
+            # Start background update checker and post-update notification service
+            try:
+                from anibase.desktop.updater import start_update_checker_service
+                start_update_checker_service()
+            except Exception as err:
+                fallback_log(f"Failed to start update checker service: {err}")
+
+        def check_for_updates(self):
+            def _check():
+                from anibase.desktop.updater import check_github_release, send_desktop_notification
+                from anibase.constants import APP_VERSION
+                res = check_github_release(force=True, notify=True)
+                if res.get("ok") and not res.get("update_available"):
+                    send_desktop_notification(
+                        "AniBase Update",
+                        f"AniBase sudah menggunakan versi terbaru (v{APP_VERSION}).",
+                    )
+            threading.Thread(target=_check, daemon=True, name="manual-update-check").start()
 
         def check_parent_alive(self):
             if not helper_mode:

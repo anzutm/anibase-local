@@ -212,6 +212,15 @@ class DesktopApi:
         safe_evaluate_js(f"window.__anibase_set_titlebar_style && window.__anibase_set_titlebar_style('{style}')")
         return style
 
+    def check_for_updates(self, force=True):
+        """Checks for new updates via GitHub API."""
+        try:
+            from anibase.desktop.updater import check_github_release
+            return check_github_release(force=bool(force), notify=True)
+        except Exception as err:
+            app_log(f"DesktopApi check_for_updates error: {err}", "WARN")
+            return {"ok": False, "error": str(err)}
+
 
 def get_screen_bounds():
     """Returns (width, height) of primary screen, cross-platform."""
@@ -1356,6 +1365,13 @@ def create_desktop_window(url):
     desktop_window.events.restored += on_window_restored
     desktop_window.events.resized += on_window_resized
     desktop_window.events.moved += on_window_moved
+
+    # Start background update checker and post-update notification service
+    try:
+        from anibase.desktop.updater import start_update_checker_service
+        start_update_checker_service()
+    except Exception as err:
+        app_log(f"Failed to start update checker service: {err}", "WARN")
 
     return desktop_window
 

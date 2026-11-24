@@ -3067,7 +3067,10 @@ def api_desktop_shutdown():
 def api_desktop_status():
     """Mengembalikan status runtime desktop app dan konfigurasi startup lintas platform."""
     from anibase.desktop.shell import desktop_window, is_system_startup_enabled, _window_state
+    from anibase.desktop.updater import load_version_state, is_version_newer
     settings = load_settings()
+    version_state = load_version_state()
+    latest_release = version_state.get("latest_known_release", APP_VERSION)
     return jsonify({
         "ok": True,
         "is_desktop": desktop_window is not None,
@@ -3076,7 +3079,20 @@ def api_desktop_status():
         "minimize_to_tray": bool(settings.get("desktop_minimize_to_tray", True)),
         "start_minimized": bool(settings.get("desktop_start_minimized", False)),
         "window_state": _window_state,
+        "app_version": APP_VERSION,
+        "latest_known_release": latest_release,
+        "update_available": is_version_newer(latest_release, APP_VERSION),
+        "release_url": version_state.get("latest_release_url") or "https://github.com/anzutm/anibase-local/releases",
     })
+
+
+@host_only
+def api_desktop_check_update():
+    """Memeriksa pembaruan rilis AniBase melalui GitHub Releases API."""
+    force = request.args.get("force", "false").lower() in ("1", "true", "yes")
+    from anibase.desktop.updater import check_github_release
+    result = check_github_release(force=force, notify=True)
+    return jsonify(result)
 
 
 @host_only
@@ -3676,4 +3692,5 @@ def register_api_routes(app):
     app.add_url_rule("/api/desktop/reset-window", endpoint="api_desktop_reset_window", view_func=api_desktop_reset_window, methods=["POST"])
     app.add_url_rule("/api/desktop/shutdown", endpoint="api_desktop_shutdown", view_func=api_desktop_shutdown, methods=["POST"])
     app.add_url_rule("/api/desktop/status", endpoint="api_desktop_status", view_func=api_desktop_status, methods=["GET"])
+    app.add_url_rule("/api/desktop/check-update", endpoint="api_desktop_check_update", view_func=api_desktop_check_update, methods=["GET", "POST"])
     app.add_url_rule("/clear_rpc", endpoint="clear_rpc_route", view_func=clear_rpc_route, methods=["POST"])

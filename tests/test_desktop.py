@@ -678,6 +678,21 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             self.assertTrue(data_status["ok"])
             self.assertIn("is_desktop", data_status)
             self.assertIn("run_on_startup", data_status)
+            self.assertIn("app_version", data_status)
+
+        with patch("anibase.desktop.updater.check_github_release", return_value={"ok": True, "update_available": False}):
+            res_update = client.get("/api/desktop/check-update")
+            self.assertEqual(res_update.status_code, 200)
+            data_update = res_update.get_json()
+            self.assertTrue(data_update["ok"])
+            self.assertFalse(data_update["update_available"])
+
+    def test_desktop_api_check_for_updates(self):
+        api = desktop_shell.DesktopApi()
+        with patch("anibase.desktop.updater.check_github_release", return_value={"ok": True, "update_available": True}):
+            res = api.check_for_updates(force=True)
+            self.assertTrue(res["ok"])
+            self.assertTrue(res["update_available"])
 
     def test_update_settings_persists_desktop_run_on_startup(self):
         app = create_app()

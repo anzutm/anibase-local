@@ -23,6 +23,13 @@ from anibase.desktop.shell import (
     set_linux_startup,
     DesktopApi,
 )
+from anibase.desktop.updater import (
+    send_desktop_notification,
+    check_post_update_notification,
+    check_github_release,
+    start_update_checker_service,
+    is_version_newer,
+)
 
 __all__ = [
     "create_desktop_window",
@@ -45,5 +52,11 @@ __all__ = [
     "is_linux_startup_enabled",
     "set_linux_startup",
     "DesktopApi",
+    # Updater & Notifications
+    "send_desktop_notification",
+    "check_post_update_notification",
+    "check_github_release",
+    "start_update_checker_service",
+    "is_version_newer",
 ]
 
