@@ -10,6 +10,7 @@ if [ ! -f ".venv/bin/python" ]; then
 fi
 
 source .venv/bin/activate
+export GTK_CSD=1
 export __NV_DISABLE_EXPLICIT_SYNC=1
 export PATH="$PROJECT_ROOT/tools:$PATH"
 export GDK_BACKEND=wayland,x11

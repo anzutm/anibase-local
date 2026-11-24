@@ -319,6 +319,12 @@ def run_pyinstaller(version="0.0.0"):
         "anibase",
         "--collect-all",
         "webview",
+        "--exclude-module",
+        "PyQt5",
+        "--exclude-module",
+        "PyQt6",
+        "--exclude-module",
+        "PySide2",
         "--hidden-import",
         "main",
         str(PROJECT_ROOT / ENTRYPOINT),
@@ -355,7 +361,9 @@ def run_pyinstaller(version="0.0.0"):
                 str(icon_path),
             ]
 
-    subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+    build_env = dict(os.environ)
+    build_env["QT_API"] = "pyside6"
+    subprocess.run(command, cwd=PROJECT_ROOT, check=True, env=build_env)
 
 
 def find_media_tool(name):

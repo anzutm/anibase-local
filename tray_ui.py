@@ -25,6 +25,7 @@ if os.name != "nt":
             else:
                 os.environ.pop("LD_LIBRARY_PATH", None)
 
+    os.environ.setdefault("GTK_CSD", "1")
     os.environ.setdefault("__NV_DISABLE_EXPLICIT_SYNC", "1")
     os.environ.setdefault("GDK_BACKEND", "wayland,x11")
     if not os.environ.get("QT_QPA_PLATFORM"):

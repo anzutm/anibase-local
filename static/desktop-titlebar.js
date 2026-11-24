@@ -8,12 +8,14 @@
         // Startup splash transition: only shown on initial cold start in this session
         const splash = document.getElementById('desktopSplash');
         if (splash) {
-            let hasLoadedBefore = false;
+            let isColdStart = true;
             try {
-                hasLoadedBefore = sessionStorage.getItem('anibase_desktop_loaded');
+                if (sessionStorage.getItem('anibase_desktop_loaded')) {
+                    isColdStart = false;
+                }
             } catch (_) {}
 
-            if (!hasLoadedBefore) {
+            if (isColdStart) {
                 document.body.classList.add('is-desktop-loading');
                 setTimeout(function() {
                     splash.classList.add('fade-out');

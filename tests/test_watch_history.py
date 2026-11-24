@@ -534,6 +534,8 @@ class AniListManualMappingTests(unittest.TestCase):
         })
         main.save_settings(settings)
         main.init_db()
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
+        main.TENRAI_NEXT_REQUEST_AT = 0
 
     def tearDown(self):
         for key, value in self.originals.items():
@@ -805,6 +807,7 @@ class AniListManualMappingTests(unittest.TestCase):
             json.dump(stale, handle)
 
         calls = []
+        main.ANILIST_UNAVAILABLE_UNTIL = 0
         main.get_anilist_info = lambda name, anilist_id=None: (
             calls.append((name, anilist_id)) or self.metadata(anilist_id)
         )

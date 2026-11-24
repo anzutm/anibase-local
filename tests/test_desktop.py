@@ -653,6 +653,14 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             result = desktop_shell.get_screen_bounds()
             self.assertEqual(result, (1920, 1080))
 
+    def test_ensure_kde_kwin_rule_applies_noborder(self):
+        """ensure_kde_kwin_rule() configures noborder rule on KDE Plasma."""
+        with patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}), \
+             patch("shutil.which", return_value="/usr/bin/kwriteconfig6"), \
+             patch("subprocess.run") as mock_run:
+            desktop_shell.ensure_kde_kwin_rule()
+            self.assertTrue(mock_run.called)
+
     def test_api_desktop_reset_window_and_status_endpoints(self):
         app = create_app()
         client = app.test_client()

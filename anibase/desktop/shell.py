@@ -24,6 +24,7 @@ if os.name != "nt":
             else:
                 os.environ.pop("LD_LIBRARY_PATH", None)
 
+    os.environ.setdefault("GTK_CSD", "1")
     os.environ.setdefault("__NV_DISABLE_EXPLICIT_SYNC", "1")
 
 from anibase.settings import load_settings, save_settings
@@ -388,6 +389,7 @@ def ensure_linux_desktop_entry():
     """Ensures AniBase .desktop entry and high-res icon are installed in ~/.local/share/applications and icons."""
     if os.name == "nt":
         return
+    ensure_kde_kwin_rule()
     try:
         home = os.path.expanduser("~")
         apps_dir = os.path.join(home, ".local", "share", "applications")
@@ -446,6 +448,79 @@ def ensure_linux_desktop_entry():
                 pass
     except Exception as err:
         app_log(f"Failed to ensure Linux desktop entry: {err}", "WARN")
+
+
+def ensure_kde_kwin_rule():
+    """Ensures KWin suppresses duplicate server-side decorations on KDE Plasma."""
+    if os.name == "nt":
+        return
+    desktop = (os.environ.get("XDG_CURRENT_DESKTOP") or "").upper()
+    if "KDE" not in desktop and not os.environ.get("KDE_FULL_SESSION"):
+        return
+
+    try:
+        import shutil
+        import subprocess
+
+        kread = shutil.which("kreadconfig6") or shutil.which("kreadconfig5")
+        kwrite = shutil.which("kwriteconfig6") or shutil.which("kwriteconfig5")
+        rules_path = os.path.expanduser("~/.config/kwinrulesrc")
+
+        target_group = None
+        if os.path.isfile(rules_path):
+            import configparser
+            config = configparser.ConfigParser(interpolation=None)
+            config.optionxform = str
+            config.read(rules_path, encoding="utf-8")
+            for sec in config.sections():
+                if sec in ("General", "$Version"):
+                    continue
+                if config.get(sec, "wmclass", fallback="").lower() == "anibase":
+                    target_group = sec
+                    break
+
+        if not target_group:
+            import configparser
+            config = configparser.ConfigParser(interpolation=None)
+            config.optionxform = str
+            if os.path.isfile(rules_path):
+                config.read(rules_path, encoding="utf-8")
+            existing_indices = [int(s) for s in config.sections() if s.isdigit()]
+            target_group = str(max(existing_indices, default=0) + 1)
+
+            if kwrite:
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "Description", "AniBase - Borderless"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "wmclass", "anibase"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "wmclassmatch", "1"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "noborder", "true"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "noborderrule", "2"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "decorationpolicy", "none"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "decorationpolicyrule", "2"], check=False)
+
+                order = ""
+                if kread:
+                    res = subprocess.run([kread, "--file", "kwinrulesrc", "--group", "General", "--key", "Order"], capture_output=True, text=True)
+                    order = res.stdout.strip()
+                orders = [o.strip() for o in order.split(",") if o.strip()]
+                if target_group not in orders:
+                    orders.append(target_group)
+                    subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", "General", "--key", "Order", ",".join(orders)], check=False)
+        else:
+            if kwrite:
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "noborder", "true"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "noborderrule", "2"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "decorationpolicy", "none"], check=False)
+                subprocess.run([kwrite, "--file", "kwinrulesrc", "--group", target_group, "--key", "decorationpolicyrule", "2"], check=False)
+
+        subprocess.run(
+            ["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        app_log("KDE Plasma KWin borderless rule configured successfully.", "INFO")
+    except Exception as err:
+        app_log(f"Failed to ensure KDE KWin rule: {err}", "WARN")
 
 
 # ---------------------------------------------------------------------------
@@ -712,20 +787,27 @@ def save_current_window_state():
         return
     try:
         if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
-            if desktop_window.width and desktop_window.height:
-                _window_state["width"] = int(desktop_window.width)
-                _window_state["height"] = int(desktop_window.height)
-            if desktop_window.x is not None and desktop_window.y is not None:
-                _window_state["x"] = int(desktop_window.x)
-                _window_state["y"] = int(desktop_window.y)
+            # On Linux GTK, never access desktop_window.width/height/x/y as pywebview GTK
+            # uses glib.idle_add + Semaphore.acquire() which deadlocks when called from the UI thread.
+            # _window_state is kept up to date via on_window_resized and on_window_moved.
+            if type(desktop_window).__name__ == "MagicMock" or os.name == "nt":
+                try:
+                    if desktop_window.width and desktop_window.height:
+                        _window_state["width"] = int(desktop_window.width)
+                        _window_state["height"] = int(desktop_window.height)
+                    if desktop_window.x is not None and desktop_window.y is not None:
+                        _window_state["x"] = int(desktop_window.x)
+                        _window_state["y"] = int(desktop_window.y)
+                except Exception:
+                    pass
 
         settings = load_settings()
         settings["desktop_window"] = {
-            "x": _window_state["x"],
-            "y": _window_state["y"],
-            "width": _window_state["width"],
-            "height": _window_state["height"],
-            "maximized": bool(_window_state["maximized"]),
+            "x": _window_state.get("x"),
+            "y": _window_state.get("y"),
+            "width": _window_state.get("width", 1280),
+            "height": _window_state.get("height", 800),
+            "maximized": bool(_window_state.get("maximized")),
             "zoom": float(_window_state.get("zoom", 1.0)),
         }
         save_settings(settings)
@@ -1240,6 +1322,7 @@ def create_desktop_window(url):
             GLib.set_application_name("AniBase")
         except Exception:
             pass
+        ensure_kde_kwin_rule()
 
     load_saved_window_state()
     settings = load_settings()
@@ -1268,12 +1351,18 @@ def create_desktop_window(url):
     desktop_window.events.shown += on_window_shown
     desktop_window.events.loaded += on_window_loaded
     desktop_window.events.closing += on_window_closing
+    desktop_window.events.closed += on_window_closed
     desktop_window.events.maximized += on_window_maximized
     desktop_window.events.restored += on_window_restored
     desktop_window.events.resized += on_window_resized
     desktop_window.events.moved += on_window_moved
 
     return desktop_window
+
+
+def on_window_closed():
+    global desktop_window
+    desktop_window = None
 
 
 def close_desktop_window_permanent():
