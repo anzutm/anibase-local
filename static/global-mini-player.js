@@ -279,7 +279,9 @@
             // Clean state so full player doesn't conflict
             clearSavedState();
 
-            let targetUrl = state.playerUrl || `/player?anime_name=${encodeURIComponent(state.animeName)}&episode=${encodeURIComponent(state.episodePath)}`;
+            let targetUrl = state.playerUrl || (
+                `/player/${encodeURIComponent(state.animeName)}/${String(state.episodePath || '').split('/').map(encodeURIComponent).join('/')}`
+            );
             const urlObj = new URL(targetUrl, window.location.origin);
             urlObj.searchParams.set('t', String(currentPosition));
 

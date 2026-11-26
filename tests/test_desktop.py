@@ -337,20 +337,28 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_api_desktop_activate_success(self):
+        token = get_action_token()
         with patch("anibase.desktop.shell.restore_desktop_window", return_value=True):
-            resp = self.client.post("/api/desktop/activate")
+            resp = self.client.post("/api/desktop/activate", headers={"X-Action-Token": token})
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
             self.assertEqual(data.get("status"), "success")
             self.assertTrue(data.get("restored"))
 
     def test_api_desktop_activate_fallback(self):
+        token = get_action_token()
         with patch("anibase.desktop.shell.restore_desktop_window", return_value=False):
-            resp = self.client.post("/api/desktop/activate")
+            resp = self.client.post("/api/desktop/activate", headers={"X-Action-Token": token})
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
             self.assertEqual(data.get("status"), "success")
             self.assertFalse(data.get("restored"))
+
+    def test_desktop_post_endpoints_require_action_token(self):
+        for endpoint in ("/api/desktop/activate", "/api/desktop/reset-window", "/api/desktop/shutdown"):
+            resp = self.client.post(endpoint)
+            self.assertEqual(resp.status_code, 403, f"Expected 403 without token for {endpoint}")
+            self.assertEqual(resp.get_json().get("error"), "invalid_action_token")
 
     def test_desktop_api_endpoints_allowed_when_setup_not_completed(self):
         """Desktop API endpoints must not be redirected to /setup when setup_completed is False."""
@@ -359,6 +367,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
         uncompleted_settings["library_paths"] = []
         save_settings(uncompleted_settings)
         apply_settings(uncompleted_settings)
+        token = get_action_token()
 
         # Normal page is redirected to /setup
         res_index = self.client.get("/")
@@ -367,7 +376,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
 
         # Desktop activate endpoint returns 200 JSON (not 302 redirect)
         with patch("anibase.desktop.shell.restore_desktop_window", return_value=True):
-            res_activate = self.client.post("/api/desktop/activate")
+            res_activate = self.client.post("/api/desktop/activate", headers={"X-Action-Token": token})
             self.assertEqual(res_activate.status_code, 200)
             self.assertTrue(res_activate.get_json().get("ok"))
 
@@ -379,14 +388,14 @@ class DesktopWebIntegrationTests(unittest.TestCase):
 
         # Desktop reset window endpoint returns 200 JSON
         with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True}):
-            res_reset = self.client.post("/api/desktop/reset-window")
+            res_reset = self.client.post("/api/desktop/reset-window", headers={"X-Action-Token": token})
             self.assertEqual(res_reset.status_code, 200)
             self.assertTrue(res_reset.get_json().get("ok"))
 
         # Desktop shutdown endpoint returns 200 JSON (patched thread to avoid stopping test runner)
         with patch("threading.Thread"), \
              patch("anibase.desktop.shell.close_desktop_window_permanent"):
-            res_shutdown = self.client.post("/api/desktop/shutdown")
+            res_shutdown = self.client.post("/api/desktop/shutdown", headers={"X-Action-Token": token})
             self.assertEqual(res_shutdown.status_code, 200)
             self.assertTrue(res_shutdown.get_json().get("ok"))
 
@@ -664,12 +673,12 @@ class DesktopWebIntegrationTests(unittest.TestCase):
     def test_api_desktop_reset_window_and_status_endpoints(self):
         app = create_app()
         client = app.test_client()
-
-        with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True, "width": 1280}):
-            res_reset = client.post("/api/desktop/reset-window")
-            self.assertEqual(res_reset.status_code, 200)
-            data_reset = res_reset.get_json()
-            self.assertTrue(data_reset["ok"])
+        with patch("anibase.settings.get_action_token", return_value="test-desktop-token"):
+            with patch("anibase.desktop.shell.reset_desktop_window", return_value={"ok": True, "width": 1280}):
+                res_reset = client.post("/api/desktop/reset-window", headers={"X-Action-Token": "test-desktop-token"})
+                self.assertEqual(res_reset.status_code, 200)
+                data_reset = res_reset.get_json()
+                self.assertTrue(data_reset["ok"])
 
         with patch("anibase.desktop.shell.is_system_startup_enabled", return_value=False):
             res_status = client.get("/api/desktop/status")
@@ -780,11 +789,92 @@ class LinuxDesktopShellCompatibilityTests(unittest.TestCase):
             browser = tray_ui.find_chromium_browser()
             self.assertEqual(browser, "/usr/bin/google-chrome-stable")
 
-    def test_get_linux_icon_path_prioritizes_png(self):
+    def test_get_linux_icon_path_prioritizes_favicon_ico(self):
         with patch("anibase.desktop.shell.get_resource_dir", return_value=os.path.abspath(".")):
             icon = desktop_shell._get_linux_icon_path()
             self.assertTrue(os.path.isfile(icon))
-            self.assertTrue(icon.endswith(".png") or icon.endswith(".jpg"))
+            self.assertEqual(os.path.basename(icon), "favicon.ico")
+
+    def test_tray_get_icon_path_prioritizes_favicon_ico(self):
+        import tray_ui
+        with patch.object(tray_ui, "RESOURCE_DIR", os.path.abspath("."), create=True):
+            icon = tray_ui.get_icon_path()
+            self.assertTrue(os.path.isfile(icon))
+            self.assertEqual(os.path.basename(icon), "favicon.ico")
+
+    def test_ensure_linux_desktop_entry_replaces_stale_icon_with_favicon_png(self):
+        import tempfile
+        from anibase.utils import ico_to_png_bytes
+
+        expected_png = ico_to_png_bytes(os.path.abspath("static/favicon.ico"))
+        self.assertIsNotNone(expected_png)
+        self.assertTrue(expected_png.startswith(b"\x89PNG\r\n\x1a\n"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dest_icon = os.path.join(tmpdir, ".local", "share", "icons", "hicolor", "512x512", "apps", "anibase.png")
+            os.makedirs(os.path.dirname(dest_icon), exist_ok=True)
+            with open(dest_icon, "wb") as f:
+                f.write(b"stale-newer-icon")
+
+            with patch("anibase.desktop.shell.os.name", "posix"), \
+                 patch("anibase.desktop.shell.os.path.expanduser", return_value=tmpdir), \
+                 patch("anibase.desktop.shell.ensure_kde_kwin_rule"), \
+                 patch("anibase.desktop.shell.get_resource_dir", return_value=os.path.abspath(".")), \
+                 patch("anibase.utils.get_application_dir", return_value=os.path.abspath(".")), \
+                 patch("subprocess.run"):
+                desktop_shell.ensure_linux_desktop_entry()
+
+            with open(dest_icon, "rb") as f:
+                self.assertEqual(f.read(), expected_png)
+
+    def test_ico_to_png_bytes_pure_python_fallback(self):
+        import builtins
+        from anibase.utils import ico_to_png_bytes
+
+        orig_import = builtins.__import__
+
+        def block_pil(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "PIL" or name.startswith("PIL."):
+                raise ImportError("no PIL")
+            return orig_import(name, globals, locals, fromlist, level)
+
+        with patch.object(builtins, "__import__", side_effect=block_pil):
+            png_data = ico_to_png_bytes(os.path.abspath("static/favicon.ico"))
+        self.assertIsNotNone(png_data)
+        self.assertTrue(png_data.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_tray_start_background_services_starts_watchlist_tracker(self):
+        import tray_ui
+        with patch("tray_ui.threading.Thread"), \
+             patch("tray_ui.start_auto_import_worker"), \
+             patch("tray_ui.start_watchlist_tracker_worker") as mock_tracker, \
+             patch("tray_ui.log_startup_summary"):
+            tray_ui.start_background_services()
+            mock_tracker.assert_called_once()
+
+    def test_tray_local_action_headers_include_action_token(self):
+        import tray_ui
+        with patch("anibase.settings.get_action_token", return_value="tray-secret-token"):
+            headers = tray_ui._get_local_action_headers()
+            self.assertEqual(headers.get("X-AniBase-Action-Token"), "tray-secret-token")
+            self.assertEqual(headers.get("X-Action-Token"), "tray-secret-token")
+
+    def test_monitor_tray_helper_stream_syncs_availability(self):
+        import io
+        import tray_ui
+        orig = desktop_shell._system_tray_available
+        try:
+            desktop_shell._system_tray_available = None
+            tray_ui._monitor_tray_helper_stream(io.StringIO("Qt warning\nANIBASE_TRAY_AVAILABLE=0\n"))
+            self.assertFalse(desktop_shell.is_system_tray_available())
+
+            tray_ui._monitor_tray_helper_stream(io.StringIO("ANIBASE_TRAY_AVAILABLE=1\n"))
+            self.assertTrue(desktop_shell.is_system_tray_available())
+
+            tray_ui._monitor_tray_helper_stream(io.StringIO(""))
+            self.assertFalse(desktop_shell.is_system_tray_available())
+        finally:
+            desktop_shell._system_tray_available = orig
 
 
 if __name__ == "__main__":

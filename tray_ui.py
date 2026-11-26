@@ -54,6 +54,7 @@ sync_all_library = None
 start_scanner = None
 periodic_sync_task = None
 start_auto_import_worker = None
+start_watchlist_tracker_worker = None
 request_shutdown = None
 stop_library_observer = None
 join_background_workers = None
@@ -109,13 +110,26 @@ def release_instance_mutex():
         INSTANCE_MUTEX_HANDLE = None
 
 
+def _get_local_action_headers():
+    headers = {"Content-Type": "application/json"}
+    try:
+        from anibase.settings import get_action_token
+        token = get_action_token()
+        if token:
+            headers["X-AniBase-Action-Token"] = token
+            headers["X-Action-Token"] = token
+    except Exception:
+        pass
+    return headers
+
+
 def notify_running_instance_to_activate():
     try:
         import urllib.request
         req = urllib.request.Request(
             f"http://127.0.0.1:{APP_PORT}/api/desktop/activate",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers=_get_local_action_headers(),
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=1.5) as resp:
@@ -182,6 +196,7 @@ def acquire_single_instance_guard():
 def load_application_components():
     global app, app_log, RESOURCE_DIR, load_settings, log_startup_summary
     global sync_all_library, start_scanner, periodic_sync_task, start_auto_import_worker
+    global start_watchlist_tracker_worker
     global request_shutdown, stop_library_observer, join_background_workers
 
     from main import (
@@ -194,6 +209,7 @@ def load_application_components():
         start_scanner as main_start_scanner,
         periodic_sync_task as main_periodic_sync_task,
         start_auto_import_worker as main_start_auto_import_worker,
+        start_watchlist_tracker_worker as main_start_watchlist_tracker_worker,
         request_shutdown as main_request_shutdown,
         stop_library_observer as main_stop_library_observer,
         join_background_workers as main_join_background_workers,
@@ -208,6 +224,7 @@ def load_application_components():
     start_scanner = main_start_scanner
     periodic_sync_task = main_periodic_sync_task
     start_auto_import_worker = main_start_auto_import_worker
+    start_watchlist_tracker_worker = main_start_watchlist_tracker_worker
     request_shutdown = main_request_shutdown
     stop_library_observer = main_stop_library_observer
     join_background_workers = main_join_background_workers
@@ -260,6 +277,8 @@ def start_background_services():
     sync_thread.start()
 
     start_auto_import_worker()
+    if callable(start_watchlist_tracker_worker):
+        start_watchlist_tracker_worker()
     log_startup_summary(
         mode="tray",
         host=APP_HOST,
@@ -271,7 +290,7 @@ def start_background_services():
 
 
 def get_icon_path():
-    for candidate in ("logo_transparent_cropped.png", "favicon.ico", "arcana.jpg"):
+    for candidate in ("favicon.ico", "arcana.jpg", "logo_transparent_cropped.png"):
         candidate_path = os.path.join(RESOURCE_DIR, "static", candidate)
         if os.path.exists(candidate_path):
             return candidate_path
@@ -429,9 +448,15 @@ def run_qt_tray(helper_mode=False):
 
         def run(self):
             if helper_mode:
+                import urllib.error
                 import urllib.request
                 try:
-                    req = urllib.request.Request(f"{APP_URL}refresh_library", data=b"", method="POST")
+                    req = urllib.request.Request(
+                        f"{APP_URL}api/library/refresh",
+                        data=b"{}",
+                        headers=_get_local_action_headers(),
+                        method="POST",
+                    )
                     with urllib.request.urlopen(req, timeout=5.0) as resp:
                         if resp.status == 200:
                             self.finished.emit("Completed")
@@ -439,6 +464,11 @@ def run_qt_tray(helper_mode=False):
                             self.finished.emit("Sync already running.")
                         else:
                             self.finished.emit("Refresh failed.")
+                except urllib.error.HTTPError as err:
+                    if err.code == 409:
+                        self.finished.emit("Sync already running.")
+                    else:
+                        self.finished.emit("Refresh failed.")
                 except Exception:
                     self.finished.emit("Refresh failed.")
                 return
@@ -487,7 +517,9 @@ def run_qt_tray(helper_mode=False):
             header = QHBoxLayout()
             header.setSpacing(12)
             logo = QLabel()
-            pixmap = QPixmap(icon_path)
+            pixmap = QIcon(icon_path).pixmap(48, 48)
+            if pixmap.isNull():
+                pixmap = QPixmap(icon_path)
             logo.setPixmap(pixmap.scaled(42, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             logo.setFixedSize(42, 42)
             header.addWidget(logo)
@@ -696,6 +728,12 @@ def run_qt_tray(helper_mode=False):
 
             self.tray.setContextMenu(self.context_menu)
             self.tray.show()
+            if helper_mode:
+                try:
+                    sys.stdout.write(f"ANIBASE_TRAY_AVAILABLE={1 if self.tray_available else 0}\n")
+                    sys.stdout.flush()
+                except Exception:
+                    pass
 
             # Start background update checker and post-update notification service
             try:
@@ -798,7 +836,12 @@ def run_qt_tray(helper_mode=False):
                 import urllib.request
                 import signal
                 try:
-                    req = urllib.request.Request(f"{APP_URL}api/desktop/shutdown", data=b"{}", method="POST")
+                    req = urllib.request.Request(
+                        f"{APP_URL}api/desktop/shutdown",
+                        data=b"{}",
+                        headers=_get_local_action_headers(),
+                        method="POST",
+                    )
                     urllib.request.urlopen(req, timeout=1.5)
                 except Exception:
                     pass
@@ -818,6 +861,31 @@ def run_qt_tray(helper_mode=False):
         qt_app.setOrganizationName("AniBase")
     controller = TrayController(qt_app)
     return qt_app.exec()
+
+
+def _monitor_tray_helper_stream(stream):
+    """Read Linux tray helper availability signals and sync them into desktop shell state."""
+    from anibase.desktop.shell import set_system_tray_available
+
+    confirmed = False
+    try:
+        if stream is not None:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if line == "ANIBASE_TRAY_AVAILABLE=1":
+                    set_system_tray_available(True)
+                    confirmed = True
+                elif line == "ANIBASE_TRAY_AVAILABLE=0":
+                    set_system_tray_available(False)
+                    confirmed = True
+    except Exception:
+        pass
+    finally:
+        if not confirmed:
+            try:
+                set_system_tray_available(False)
+            except Exception:
+                pass
 
 
 def main():
@@ -845,9 +913,25 @@ def main():
         if os.name != "nt":
             try:
                 tray_cmd = [sys.executable, str(Path(__file__).resolve()), "--tray-helper"]
-                tray_proc = subprocess.Popen(tray_cmd)
+                tray_proc = subprocess.Popen(
+                    tray_cmd,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                threading.Thread(
+                    target=_monitor_tray_helper_stream,
+                    args=(tray_proc.stdout,),
+                    name="tray-helper-monitor",
+                    daemon=True,
+                ).start()
                 atexit.register(lambda: tray_proc.terminate() if tray_proc and tray_proc.poll() is None else None)
             except Exception as err:
+                try:
+                    from anibase.desktop.shell import set_system_tray_available
+                    set_system_tray_available(False)
+                except Exception:
+                    pass
                 fallback_log(f"Failed to launch tray helper process: {err}")
         else:
             qt_thread = threading.Thread(target=run_qt_tray, name="qt-tray", daemon=True)

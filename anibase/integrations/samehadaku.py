@@ -18,6 +18,7 @@ from typing import Optional, List, Dict, Any
 import requests
 from anibase.constants import CACHE_DIR
 from anibase.logging import app_log
+from anibase.utils import validate_external_provider_url, get_samehadaku_allowed_hosts
 
 SAMEHADAKU_BASE_URL = "https://v2.samehadaku.how"
 DEFAULT_USER_AGENT = (
@@ -177,9 +178,12 @@ def search_samehadaku(query: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[s
 
 def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
     """Mengambil detail anime, daftar episode, dan tautan batch dari halaman anime Samehadaku."""
-    clean_url = str(page_url or "").strip()
-    if not clean_url:
-        return {"ok": False, "error": "URL kosong"}
+    is_valid, clean_url, err_msg = validate_external_provider_url(
+        page_url,
+        allowed_hosts=get_samehadaku_allowed_hosts(),
+    )
+    if not is_valid:
+        return {"ok": False, "error": err_msg or "URL tidak valid"}
 
     cache_key = "anime_v2_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()
     cached = _get_cached_data(cache_key)
@@ -197,14 +201,19 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
     # Jika URL yang diberikan adalah episode atau batch, cari apakah ada link ke hub /anime/...
     if "/anime/" not in clean_url:
         hub_match = re.search(
-            r'<a\s+[^>]*href=["\'](https://v2\.samehadaku\.how/anime/[^"\']+)["\'][^>]*>(?:All Episode|<span[^>]*itemprop=["\']name["\']>[^<]+</span>|Tonton Episode Lainnya)',
+            r'<a\s+[^>]*href=["\'](https://[^"\']+/anime/[^"\']+)["\'][^>]*>(?:All Episode|<span[^>]*itemprop=["\']name["\']>[^<]+</span>|Tonton Episode Lainnya)',
             html_text,
             re.I
         )
         if hub_match:
             hub_url = hub_match.group(1).strip()
-            # Fetch the actual anime hub page for comprehensive episode list
-            return get_samehadaku_anime_details(hub_url, timeout=timeout)
+            hub_ok, safe_hub_url, _ = validate_external_provider_url(
+                hub_url,
+                allowed_hosts=get_samehadaku_allowed_hosts(),
+            )
+            if hub_ok:
+                # Fetch the actual anime hub page for comprehensive episode list
+                return get_samehadaku_anime_details(safe_hub_url, timeout=timeout)
 
     # Parse title
     title = ""
@@ -381,8 +390,11 @@ def get_samehadaku_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) 
 
 def get_samehadaku_download_links(page_url: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
     """Mengekstrak daftar unduhan per format dan resolusi dari halaman episode atau batch Samehadaku."""
-    clean_url = str(page_url or "").strip()
-    if not clean_url:
+    is_valid, clean_url, _ = validate_external_provider_url(
+        page_url,
+        allowed_hosts=get_samehadaku_allowed_hosts(),
+    )
+    if not is_valid:
         return []
 
     cache_key = "dl_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()

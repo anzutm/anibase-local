@@ -254,6 +254,42 @@ class TestSpotlightFtsIntegration(unittest.TestCase):
             self.assertEqual(anime_matches[0]["name"], "Bocchi the Rock!")
             self.assertGreater(anime_matches[0]["relevance"], 20)
 
+    def test_sync_all_library_no_enrich_skips_network_metadata_fetch(self):
+        import main
+        from anibase.scanner import sync_all_library
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lib_dir = os.path.join(tmpdir, "Anime")
+            show_dir = os.path.join(lib_dir, "Offline Show")
+            cache_dir = os.path.join(tmpdir, "cache")
+            meta_dir = os.path.join(cache_dir, "metadata")
+            db_path = os.path.join(cache_dir, "library.db")
+            os.makedirs(show_dir, exist_ok=True)
+            os.makedirs(meta_dir, exist_ok=True)
+            with open(os.path.join(show_dir, "Episode 01.mkv"), "wb") as f:
+                f.write(b"video")
+
+            orig_paths = main.ANIME_PATHS
+            orig_cache = main.CACHE_DIR
+            orig_meta = main.METADATA_CACHE
+            orig_db = main.DB_PATH
+            try:
+                main.ANIME_PATHS = [lib_dir]
+                main.CACHE_DIR = cache_dir
+                main.METADATA_CACHE = meta_dir
+                main.DB_PATH = db_path
+                main.init_db(db_path)
+
+                with patch("anibase.scanner.get_cached_anilist_info") as mock_fetch:
+                    result = sync_all_library("Fast test sync", enrich_metadata=False)
+                    self.assertTrue(result["ok"])
+                    mock_fetch.assert_not_called()
+            finally:
+                main.ANIME_PATHS = orig_paths
+                main.CACHE_DIR = orig_cache
+                main.METADATA_CACHE = orig_meta
+                main.DB_PATH = orig_db
+
 
 class TestMediaPlayerDetection(unittest.TestCase):
     """Test suite for cross-platform media player path detection."""

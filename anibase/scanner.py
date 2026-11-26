@@ -16,6 +16,7 @@ from anibase.utils import (
     normalize_library_path,
     is_resolved_path_inside,
     safe_cache_name,
+    safe_join_media_path,
     load_json_dict_if_exists,
     is_shutdown_requested,
     wait_for_shutdown,
@@ -342,14 +343,17 @@ def collect_cached_episode_candidates(anime_name, safe_name):
     return candidates
 
 
-def cleanup_thumbnails_for_video_paths(video_paths, summary):
+def cleanup_thumbnails_for_video_paths(video_paths, summary, thumbnail_cache_dir=None):
+    thumb_root = thumbnail_cache_dir or _constants.THUMBNAIL_CACHE
     for video_path in video_paths:
+        if not video_path:
+            continue
         stem = hashlib.md5(video_path.encode("utf-8")).hexdigest()
         for filename in (stem + ".jpg", stem + "_v2.jpg"):
-            thumbnail_path = os.path.join(_constants.THUMBNAIL_CACHE, filename)
+            thumbnail_path = os.path.join(thumb_root, filename)
             if os.path.isfile(thumbnail_path):
                 remove_cache_file_if_safe(summary, thumbnail_path, f"thumbnails/{filename}")
-        preview_path = os.path.join(_constants.THUMBNAIL_CACHE, "seek", stem)
+        preview_path = os.path.join(thumb_root, "seek", stem)
         if os.path.isdir(preview_path):
             remove_cache_dir_if_safe(summary, preview_path, f"thumbnails/seek/{stem}")
 
@@ -878,6 +882,7 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
         debug_log("Syncing library...")
         found_data = []
         found_names = []
+        fts_info_by_name = {}
         configured_paths = get_configured_anime_paths()
         previous_row_count = count_library_rows()
         scan_roots, failed_roots = collect_library_scan_roots(configured_paths)
@@ -929,13 +934,20 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
                         continue
 
                     if enrich_metadata:
-                        cache_file = os.path.join(_constants.METADATA_CACHE, f"{name}.json")
+                        cache_file = (
+                            safe_join_media_path(
+                                _constants.METADATA_CACHE,
+                                f"{os.path.basename(name)}.json",
+                            )
+                            or os.path.join(_constants.METADATA_CACHE, f"{safe_cache_name(name)}.json")
+                        )
                         info = get_cached_anilist_info(name)
                         if not os.path.exists(cache_file) and wait_for_shutdown(0.7):
                             break
                     else:
                         info = get_cached_metadata_only(name)
 
+                    fts_info_by_name[name] = info
                     found_data.append((
                         name,
                         episode_count,
@@ -1012,7 +1024,7 @@ def sync_all_library(trigger_label="Full library sync", enrich_metadata=True, pr
                 """, found_data)
                 for item in found_data:
                     a_name = item[0]
-                    a_info = get_cached_anilist_info(a_name)
+                    a_info = fts_info_by_name.get(a_name)
                     sync_anime_fts(
                         conn,
                         a_name,

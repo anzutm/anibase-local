@@ -18,6 +18,7 @@ import requests
 from anibase.constants import CACHE_DIR, VIDEO_EXTENSIONS
 from anibase.logging import app_log, debug_log
 from anibase.settings import load_settings, get_settings_library_paths
+from anibase.utils import is_lendrive_provider_url
 from anibase.scanner import find_media_path, clear_media_path_cache
 from anibase.watcher import clean_auto_import_folder_name, unique_destination_path
 from anibase.integrations.samehadaku import (
@@ -1125,7 +1126,7 @@ def resolve_best_direct_link(
     if not clean_url:
         return None
 
-    if "lendrive.web.id" in clean_url:
+    if is_lendrive_provider_url(clean_url):
         try:
             from anibase.integrations.lendrive import resolve_lendrive_best_direct_link
             res = resolve_lendrive_best_direct_link(clean_url, preferred_quality=preferred_quality)
@@ -1299,7 +1300,7 @@ def _batch_worker(batch_id: str, cancel_event: threading.Event):
         quality_found = link_info.get("quality") or pref_quality
         format_found = (link_info.get("format") or pref_format).lower()
 
-        is_lendrive = "lendrive.web.id" in ep_url or link_info.get("provider") == "lendrive" or link_info.get("is_hevc")
+        is_lendrive = is_lendrive_provider_url(ep_url) or link_info.get("provider") == "lendrive" or link_info.get("is_hevc")
         provider = "lendrive" if is_lendrive else "samehadaku"
 
         clean_anime = clean_auto_import_folder_name(anime_name) or "Anime"

@@ -1341,6 +1341,9 @@ def season_detail(anime_name, season_name):
 
 
 def favicon():
+    ico_path = os.path.join(RESOURCE_DIR, "static", "favicon.ico")
+    if os.path.isfile(ico_path):
+        return send_file(ico_path, mimetype="image/x-icon")
     return send_file(
         os.path.join(RESOURCE_DIR, "static", "arcana.jpg"),
         mimetype="image/jpeg"

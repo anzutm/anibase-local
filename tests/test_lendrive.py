@@ -683,6 +683,22 @@ class LendriveFilenameAndDownloadManagerTests(unittest.TestCase):
             self.assertFalse(os.path.exists(save_path))
             self.assertFalse(os.path.exists(temp_path))
 
+    def test_custom_lendrive_mirror_detected_and_ssrf_blocked(self):
+        from anibase.utils import is_lendrive_provider_url
+        with patch("anibase.settings.load_settings", return_value={"lendrive_base_url": "https://mirror.lendrive.cc"}):
+            self.assertTrue(is_lendrive_provider_url("https://mirror.lendrive.cc/ep-1/"))
+            self.assertTrue(is_lendrive_provider_url("https://lendrive.web.id/ep-1/"))
+            self.assertFalse(is_lendrive_provider_url("https://evil.example/ep-1/"))
+            with patch("anibase.integrations.lendrive.resolve_lendrive_best_direct_link", return_value={"direct_url": "https://pixeldrain.com/api/file/abc?download"}) as mock_res:
+                res = resolve_best_direct_link("https://mirror.lendrive.cc/ep-1/", preferred_quality="1080p")
+                self.assertEqual(res["provider"], "lendrive")
+                mock_res.assert_called_once()
+
+        with patch("anibase.integrations.lendrive.requests.get") as mock_get:
+            self.assertFalse(get_lendrive_anime_details("http://127.0.0.1/admin").get("ok"))
+            self.assertEqual(get_lendrive_download_links("https://evil.example/ep-1/"), [])
+            mock_get.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

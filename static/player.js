@@ -2687,13 +2687,13 @@ function savePersistentMiniPlayerState(active = true) {
         if (!streamSrc && window.STREAM_URL_TEMPLATE && window.ANIME_NAME && window.EPISODE_PATH) {
             streamSrc = window.STREAM_URL_TEMPLATE
                 .replace('__ANIME__', encodeURIComponent(window.ANIME_NAME))
-                .replace('__EPISODE__', encodeURIComponent(window.EPISODE_PATH));
+                .replace('__EPISODE__', encodeEpisodePath(window.EPISODE_PATH));
         }
         let subSrc = (subtitleTrack && subtitleTrack.dataset.subtitleSrc) || '';
         if (!subSrc && window.SUBTITLE_URL_TEMPLATE && window.ANIME_NAME && window.EPISODE_PATH) {
             subSrc = window.SUBTITLE_URL_TEMPLATE
                 .replace('__ANIME__', encodeURIComponent(window.ANIME_NAME))
-                .replace('__EPISODE__', encodeURIComponent(window.EPISODE_PATH));
+                .replace('__EPISODE__', encodeEpisodePath(window.EPISODE_PATH));
         }
         const wasPlaying = isActivelyPlaying || (!videoElement.paused && !videoElement.ended);
         const state = {

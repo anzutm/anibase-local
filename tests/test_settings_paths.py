@@ -137,10 +137,21 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         self.assertIn(b"<svg", res_qr.data)
 
     def test_api_settings_test_discord_endpoint(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        # Missing token must be rejected
+        res_unauth = self.client.post("/api/settings/test-discord", json={"client_id": "123456789012345678"})
+        self.assertEqual(res_unauth.status_code, 403)
+
         with patch("anibase.web.routes_api.load_settings") as mock_load:
             mock_load.return_value = {"discord_client_id": ""}
             # Empty client ID
-            res = self.client.post("/api/settings/test-discord", json={"client_id": ""})
+            res = self.client.post(
+                "/api/settings/test-discord",
+                headers={"X-Action-Token": token},
+                json={"client_id": ""},
+            )
             self.assertEqual(res.status_code, 200)
             data = res.get_json()
             self.assertFalse(data["ok"])
@@ -148,7 +159,11 @@ class TestSettingsLibraryPaths(unittest.TestCase):
             self.assertEqual(data["status"], "missing_id")
 
         # Invalid numeric client ID
-        res = self.client.post("/api/settings/test-discord", json={"client_id": "abc"})
+        res = self.client.post(
+            "/api/settings/test-discord",
+            headers={"X-Action-Token": token},
+            json={"client_id": "abc"},
+        )
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertFalse(data["ok"])
@@ -158,7 +173,11 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         with patch("anibase.constants.Presence") as mock_presence:
             mock_inst = MagicMock()
             mock_presence.return_value = mock_inst
-            res_ok = self.client.post("/api/settings/test-discord", json={"client_id": "123456789012345678"})
+            res_ok = self.client.post(
+                "/api/settings/test-discord",
+                headers={"X-Action-Token": token},
+                json={"client_id": "123456789012345678"},
+            )
             self.assertEqual(res_ok.status_code, 200)
             data_ok = res_ok.get_json()
             self.assertTrue(data_ok["ok"])
@@ -167,14 +186,25 @@ class TestSettingsLibraryPaths(unittest.TestCase):
 
     @patch("requests.get")
     def test_api_settings_test_lendrive_endpoint(self, mock_get):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        # Missing token must be rejected
+        res_unauth = self.client.post("/api/settings/test-lendrive", json={"base_url": "https://lendrive.web.id"})
+        self.assertEqual(res_unauth.status_code, 403)
+
         mock_resp = mock_get.return_value
         mock_resp.status_code = 200
         mock_resp.text = "<html><body><h1>Lendrive Anime</h1></body></html>"
 
-        res = self.client.post("/api/settings/test-lendrive", json={
-            "base_url": "https://lendrive.web.id",
-            "cookie": "wssplashchk=valid_test_cookie"
-        })
+        res = self.client.post(
+            "/api/settings/test-lendrive",
+            headers={"X-Action-Token": token},
+            json={
+                "base_url": "https://lendrive.web.id",
+                "cookie": "wssplashchk=valid_test_cookie"
+            },
+        )
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["ok"])
@@ -184,15 +214,52 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         # Test challenge page detection
         mock_resp.status_code = 403
         mock_resp.text = "<html><title>Just a moment...</title><body>Checking your browser</body></html>"
-        res2 = self.client.post("/api/settings/test-lendrive", json={
-            "base_url": "https://lendrive.web.id",
-            "cookie": ""
-        })
+        res2 = self.client.post(
+            "/api/settings/test-lendrive",
+            headers={"X-Action-Token": token},
+            json={
+                "base_url": "https://lendrive.web.id",
+                "cookie": ""
+            },
+        )
         self.assertEqual(res2.status_code, 200)
         data2 = res2.get_json()
         self.assertTrue(data2["ok"])
         self.assertFalse(data2["valid"])
         self.assertTrue(data2["challenge"])
+
+        # Reject private/loopback SSRF URLs and never call requests.get
+        mock_get.reset_mock()
+        for bad_url in (
+            "http://127.0.0.1:5000/internal",
+            "http://localhost:8080/admin",
+            "http://169.254.169.254/latest/meta-data/",
+            "file:///etc/passwd",
+        ):
+            res_bad = self.client.post(
+                "/api/settings/test-lendrive",
+                headers={"X-Action-Token": token},
+                json={"base_url": bad_url},
+            )
+            self.assertEqual(res_bad.status_code, 400)
+            self.assertFalse(res_bad.get_json()["ok"])
+        mock_get.assert_not_called()
+
+        # Saved lendrive_cookie must not be leaked to a different untrusted host
+        with patch("anibase.web.routes_api.load_settings", return_value={
+            "lendrive_base_url": "https://lendrive.web.id",
+            "lendrive_cookie": "secret_session_cookie",
+        }):
+            mock_resp.status_code = 200
+            mock_resp.text = "<html>OK</html>"
+            res_other = self.client.post(
+                "/api/settings/test-lendrive",
+                headers={"X-Action-Token": token},
+                json={"base_url": "https://other.public.example"},
+            )
+            self.assertEqual(res_other.status_code, 200)
+            sent_headers = mock_get.call_args.kwargs.get("headers", {})
+            self.assertNotIn("Cookie", sent_headers)
 
     def test_update_settings_persists_downloader_form_fields(self):
         from anibase.settings import get_action_token

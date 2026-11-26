@@ -20,6 +20,11 @@ import requests
 from anibase.constants import CACHE_DIR
 from anibase.logging import app_log
 from anibase.settings import load_settings
+from anibase.utils import (
+    validate_external_provider_url,
+    get_lendrive_allowed_hosts,
+    is_lendrive_provider_url,
+)
 from anibase.integrations.samehadaku import (
     resolve_mediafire_direct_url,
     get_pixeldrain_file_info,
@@ -401,7 +406,7 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
             continue
 
         # Abaikan tautan internal situs
-        if "lendrive.web.id" in link_url and not any(k in link_url for k in ("download", "file", "drive")):
+        if is_lendrive_provider_url(link_url) and not any(k in link_url for k in ("download", "file", "drive")):
             continue
 
         # Deteksi apakah URL dibungkus safelink / shortener iklan
@@ -442,8 +447,11 @@ def _parse_lendrive_link_elements(links_html: str) -> List[Dict[str, Any]]:
 
 def get_lendrive_download_links(page_url: str, timeout: int = DEFAULT_TIMEOUT) -> List[Dict[str, Any]]:
     """Mengambil dan mem-parsing tabel/blok link unduhan dari postingan Lendrive."""
-    clean_url = str(page_url or "").strip()
-    if not clean_url:
+    is_valid, clean_url, _ = validate_external_provider_url(
+        page_url,
+        allowed_hosts=get_lendrive_allowed_hosts(),
+    )
+    if not is_valid:
         return []
 
     cache_key = "dl_links_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()
@@ -533,9 +541,12 @@ def get_lendrive_download_links(page_url: str, timeout: int = DEFAULT_TIMEOUT) -
 
 def get_lendrive_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
     """Mengambil detail anime, informasi sinopsis, poster, dan daftar episode dari pos Lendrive."""
-    clean_url = str(page_url or "").strip()
-    if not clean_url:
-        return {"ok": False, "error": "URL halaman kosong"}
+    is_valid, clean_url, err_msg = validate_external_provider_url(
+        page_url,
+        allowed_hosts=get_lendrive_allowed_hosts(),
+    )
+    if not is_valid:
+        return {"ok": False, "error": err_msg or "URL halaman tidak valid"}
 
     cache_key = "anime_details_" + hashlib.md5(clean_url.encode("utf-8")).hexdigest()
     cached = _get_cached_data(cache_key)
@@ -557,13 +568,18 @@ def get_lendrive_anime_details(page_url: str, timeout: int = DEFAULT_TIMEOUT) ->
             hub_link_m = re.search(r'More episodes\s*<a\s+[^>]*href=["\']([^"\']+)["\']', html_text, re.I)
         if hub_link_m and "/anime/" in hub_link_m.group(1):
             hub_url = hub_link_m.group(1).strip()
-            try:
-                hub_resp = requests.get(hub_url, headers=_get_headers(), timeout=timeout)
-                if hub_resp.status_code == 200:
-                    html_text = hub_resp.text
-                    clean_url = hub_url
-            except Exception:
-                pass
+            hub_ok, safe_hub_url, _ = validate_external_provider_url(
+                hub_url,
+                allowed_hosts=get_lendrive_allowed_hosts(),
+            )
+            if hub_ok:
+                try:
+                    hub_resp = requests.get(safe_hub_url, headers=_get_headers(), timeout=timeout)
+                    if hub_resp.status_code == 200:
+                        html_text = hub_resp.text
+                        clean_url = safe_hub_url
+                except Exception:
+                    pass
 
     # 1. Judul Anime
     title = ""

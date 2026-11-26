@@ -59,6 +59,12 @@ from anibase.utils import (
     is_resolved_path_inside,
     load_json_dict_if_exists,
     remove_file_quietly,
+    is_public_network_host,
+    host_matches_allowlist,
+    validate_external_provider_url,
+    get_samehadaku_allowed_hosts,
+    get_lendrive_allowed_hosts,
+    is_lendrive_provider_url,
 )
 from anibase.settings import (
     get_default_settings,

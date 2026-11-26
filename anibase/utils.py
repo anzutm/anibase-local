@@ -8,9 +8,12 @@ import subprocess
 import shutil
 import json
 import re
+import socket
+import ipaddress
 import threading
 import functools
 from datetime import datetime
+from urllib.parse import urlparse
 
 import anibase.constants as constants
 from anibase.logging import app_log, debug_log
@@ -572,4 +575,260 @@ def generate_qr_svg(data: str) -> str:
     except Exception as e:
         app_log(f"Gagal membuat QR SVG: {e}", "DEBUG")
         return ""
+
+
+_DISALLOWED_HOSTNAMES = {"localhost", "localhost.localdomain"}
+_DISALLOWED_HOST_SUFFIXES = (".localhost", ".local", ".internal", ".arpa")
+SAMEHADAKU_ALLOWED_HOSTS = ("samehadaku.how", "samehadaku.email")
+LENDRIVE_DEFAULT_HOST = "lendrive.web.id"
+
+
+def _normalize_hostname(hostname: str) -> str:
+    return str(hostname or "").strip().lower().rstrip(".").strip("[]")
+
+
+def is_public_network_host(hostname: str) -> bool:
+    """Reject loopback, link-local, multicast, reserved, or private hosts/IPs."""
+    clean_host = _normalize_hostname(hostname)
+    if not clean_host or any(ch.isspace() or ord(ch) < 32 for ch in clean_host):
+        return False
+
+    if clean_host in _DISALLOWED_HOSTNAMES or any(
+        clean_host.endswith(suffix) for suffix in _DISALLOWED_HOST_SUFFIXES
+    ):
+        return False
+
+    try:
+        ip = ipaddress.ip_address(clean_host)
+        return bool(ip.is_global)
+    except ValueError:
+        pass
+
+    try:
+        addr_info = socket.getaddrinfo(clean_host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return True
+    except OSError:
+        return False
+
+    resolved_ips = []
+    for entry in addr_info:
+        sockaddr = entry[4]
+        if not sockaddr:
+            continue
+        raw_ip = str(sockaddr[0]).split("%", 1)[0]
+        try:
+            resolved_ips.append(ipaddress.ip_address(raw_ip))
+        except ValueError:
+            continue
+
+    return bool(resolved_ips) and all(ip.is_global for ip in resolved_ips)
+
+
+def host_matches_allowlist(hostname: str, allowed_hosts) -> bool:
+    """Return True if hostname equals or is a subdomain of any allowed host."""
+    clean_host = _normalize_hostname(hostname)
+    if not clean_host:
+        return False
+    for entry in allowed_hosts or ():
+        allowed = _normalize_hostname(entry)
+        if allowed and (clean_host == allowed or clean_host.endswith(f".{allowed}")):
+            return True
+    return False
+
+
+def validate_external_provider_url(url: str, allowed_hosts=None):
+    """Validate an external HTTP(S) provider URL against SSRF and optional host allowlists."""
+    clean_url = str(url or "").strip()
+    if not clean_url or any(ord(ch) < 32 for ch in clean_url):
+        return False, "", "URL kosong atau mengandung karakter tidak valid."
+
+    try:
+        parsed = urlparse(clean_url)
+    except ValueError:
+        return False, "", "Format URL tidak valid."
+
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return False, "", "URL harus menggunakan protokol http:// atau https:// yang valid."
+
+    if parsed.username is not None or parsed.password is not None:
+        return False, "", "URL dengan kredensial tersemat tidak diizinkan."
+
+    hostname = _normalize_hostname(parsed.hostname or "")
+    if not is_public_network_host(hostname):
+        return False, "", "Host jaringan lokal/privat tidak diizinkan."
+
+    if allowed_hosts is not None and not host_matches_allowlist(hostname, allowed_hosts):
+        return False, "", "Domain URL tidak termasuk dalam daftar sumber yang diizinkan."
+
+    return True, clean_url, ""
+
+
+def get_samehadaku_allowed_hosts():
+    """Return allowed host domains for Samehadaku scraping."""
+    return SAMEHADAKU_ALLOWED_HOSTS
+
+
+def get_lendrive_allowed_hosts(settings=None):
+    """Return allowed host domains for Lendrive, including user-configured mirror."""
+    hosts = [LENDRIVE_DEFAULT_HOST]
+    try:
+        cfg = settings if isinstance(settings, dict) else None
+        if cfg is None:
+            from anibase.settings import load_settings
+            cfg = load_settings()
+        custom_url = str((cfg or {}).get("lendrive_base_url") or "").strip()
+        if custom_url:
+            parsed = urlparse(custom_url)
+            if parsed.scheme.lower() in {"http", "https"} and parsed.hostname:
+                custom_host = _normalize_hostname(parsed.hostname)
+                if custom_host and custom_host not in hosts and is_public_network_host(custom_host):
+                    hosts.append(custom_host)
+    except Exception:
+        pass
+    return tuple(hosts)
+
+
+def is_lendrive_provider_url(url: str, settings=None) -> bool:
+    """Return True if URL belongs to Lendrive default or configured custom mirror."""
+    clean_url = str(url or "").strip()
+    if not clean_url:
+        return False
+    try:
+        hostname = urlparse(clean_url).hostname or ""
+    except ValueError:
+        return False
+    return host_matches_allowlist(hostname, get_lendrive_allowed_hosts(settings))
+
+
+def _png_chunk(tag: bytes, payload: bytes) -> bytes:
+    """Build a single PNG chunk with CRC-32."""
+    import struct
+    import zlib
+
+    return (
+        struct.pack(">I", len(payload))
+        + tag
+        + payload
+        + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+    )
+
+
+def _ico_dib_to_png_bytes(entry_bytes: bytes, fallback_width: int, fallback_height: int) -> bytes | None:
+    """Convert an uncompressed 32-bit BGRA ICO DIB entry to PNG bytes without external deps."""
+    import struct
+    import zlib
+
+    if len(entry_bytes) < 40:
+        return None
+    header_size, raw_w, raw_h, _planes, bpp, compression = struct.unpack_from("<IiiHHI", entry_bytes, 0)
+    if header_size < 40 or bpp != 32 or compression not in (0, 3):
+        return None
+
+    width = abs(raw_w) or fallback_width
+    # ICO DIB height stores combined XOR + AND mask height (2x visual height)
+    height = (abs(raw_h) // 2) if abs(raw_h) == fallback_height * 2 else (abs(raw_h) or fallback_height)
+    if width <= 0 or height <= 0:
+        return None
+
+    pixel_offset = header_size + (12 if compression == 3 and header_size == 40 else 0)
+    row_bytes = width * 4
+    expected_end = pixel_offset + (row_bytes * height)
+    if len(entry_bytes) < expected_end:
+        return None
+
+    bottom_up = raw_h > 0
+    rows = []
+    for y in range(height):
+        src_y = (height - 1 - y) if bottom_up else y
+        start = pixel_offset + src_y * row_bytes
+        row = bytearray(entry_bytes[start:start + row_bytes])
+        # BGRA -> RGBA in place
+        row[0::4], row[2::4] = row[2::4], row[0::4]
+        rows.append(b"\x00" + bytes(row))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    idat = zlib.compress(b"".join(rows), level=6)
+    return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", idat) + _png_chunk(b"IEND", b"")
+
+
+def ico_to_png_bytes(ico_path) -> bytes | None:
+    """Render the highest-resolution frame of an .ico file to PNG bytes."""
+    import io
+    import struct
+
+    try:
+        from PIL import Image
+
+        with Image.open(ico_path) as im:
+            sizes = getattr(im, "ico", None) and im.ico.sizes()
+            if sizes:
+                best = max(sizes, key=lambda s: s[0] * s[1])
+                frame = im.ico.getimage(best).convert("RGBA")
+            else:
+                frame = im.convert("RGBA")
+            buf = io.BytesIO()
+            frame.save(buf, format="PNG")
+            return buf.getvalue()
+    except Exception:
+        pass
+
+    try:
+        with open(ico_path, "rb") as handle:
+            data = handle.read()
+        if len(data) < 6:
+            return None
+        reserved, kind, count = struct.unpack_from("<HHH", data, 0)
+        if reserved != 0 or kind != 1 or count <= 0:
+            return None
+
+        best_entry = None
+        best_area = -1
+        for idx in range(count):
+            pos = 6 + idx * 16
+            if pos + 16 > len(data):
+                break
+            w, h, _colors, _res, _planes, _bpp, size, offset = struct.unpack_from("<BBBBHHII", data, pos)
+            width = 256 if w == 0 else w
+            height = 256 if h == 0 else h
+            if offset + size > len(data):
+                continue
+            area = width * height
+            if area > best_area:
+                best_area = area
+                best_entry = (width, height, data[offset:offset + size])
+
+        if not best_entry:
+            return None
+        width, height, payload = best_entry
+        if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+            return payload
+        return _ico_dib_to_png_bytes(payload, width, height)
+    except OSError:
+        return None
+
+
+def export_ico_to_png(ico_path, png_path) -> bool:
+    """Export an .ico file to a .png file only when missing or content differs."""
+    png_bytes = ico_to_png_bytes(ico_path)
+    if not png_bytes:
+        return False
+
+    target = str(png_path)
+    parent = os.path.dirname(os.path.abspath(target))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    try:
+        if os.path.isfile(target):
+            with open(target, "rb") as existing:
+                if existing.read() == png_bytes:
+                    return True
+    except OSError:
+        pass
+
+    with open(target, "wb") as out:
+        out.write(png_bytes)
+    return True
+
+
 

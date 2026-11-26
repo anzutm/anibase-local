@@ -19,12 +19,64 @@
     let localEpisodeNumbers = new Set();
     const downloadTiersRegistry = {};
 
+    function getLendriveBaseUrl() {
+        const raw = typeof window.ANIBASE_LENDRIVE_BASE_URL === 'string'
+            ? window.ANIBASE_LENDRIVE_BASE_URL.trim()
+            : '';
+        if (/^https?:\/\//i.test(raw)) {
+            return raw.replace(/\/+$/, '');
+        }
+        return 'https://lendrive.web.id';
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).replace(/[&<>"']/g, c => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        })[c]);
+    }
+
+    function encodeJsUri(value) {
+        return encodeURIComponent(String(value ?? ''))
+            .replace(/'/g, '%27')
+            .replace(/\(/g, '%28')
+            .replace(/\)/g, '%29');
+    }
+
+    function sanitizeHttpUrl(url, fallback = '') {
+        const clean = String(url || '').trim();
+        if (!clean) return fallback;
+        if (clean.startsWith('/static/')) return clean;
+        try {
+            const parsed = new URL(clean, window.location.origin);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                return clean;
+            }
+        } catch (_) {}
+        return fallback;
+    }
+
     // Helper pendeteksi provider berdasarkan URL
     function getProviderForUrl(url) {
         if (!url) return currentProvider;
         if (typeof url === 'string') {
-            if (url.includes('lendrive.web.id')) return 'lendrive';
-            if (url.includes('samehadaku')) return 'samehadaku';
+            try {
+                const host = new URL(url, window.location.origin).hostname.toLowerCase();
+                const configuredHost = new URL(getLendriveBaseUrl()).hostname.toLowerCase();
+                if (host === 'lendrive.web.id' || host.endsWith('.lendrive.web.id') || (configuredHost && host === configuredHost)) {
+                    return 'lendrive';
+                }
+                if (host === 'samehadaku.how' || host.endsWith('.samehadaku.how') || host === 'samehadaku.email') {
+                    return 'samehadaku';
+                }
+            } catch (_) {
+                if (url.includes('lendrive.web.id')) return 'lendrive';
+                if (url.includes('samehadaku')) return 'samehadaku';
+            }
         }
         return currentProvider;
     }
@@ -363,18 +415,19 @@
         body.innerHTML = `
             <div class="samehadaku-status-box">
                 <div class="samehadaku-spinner"></div>
-                <div>${msg || 'Memuat data dari Samehadaku...'}</div>
+                <div>${escapeHtml(msg || 'Memuat data dari Samehadaku...')}</div>
             </div>
         `;
     }
 
     // Render status box
-    function showMessage(msg, isError) {
+    function showMessage(msg, isError, isTrustedHtml = false) {
         const body = document.getElementById('samehadakuModalBody');
         if (!body) return;
+        const rendered = isTrustedHtml ? String(msg || '') : escapeHtml(msg || '');
         body.innerHTML = `
             <div class="samehadaku-status-box" style="${isError ? 'color: #ef4444;' : ''}">
-                ${msg}
+                ${rendered}
             </div>
         `;
     }
@@ -383,6 +436,11 @@
     function renderLendriveProtectedMessage(cookieConfigured) {
         const body = document.getElementById('samehadakuModalBody');
         if (!body) return;
+        const lendriveUrl = sanitizeHttpUrl(getLendriveBaseUrl(), 'https://lendrive.web.id');
+        let lendriveHost = 'lendrive.web.id';
+        try {
+            lendriveHost = new URL(lendriveUrl).host || lendriveHost;
+        } catch (_) {}
         body.innerHTML = `
             <div class="samehadaku-status-box" style="padding: 24px 18px; max-width: 560px; margin: 0 auto; text-align: center;">
                 <div style="font-size: 36px; margin-bottom: 10px;">🛡️</div>
@@ -390,11 +448,11 @@
                     Verifikasi Anti-Bot (WAF Protection) Aktif di Lendrive
                 </h3>
                 <p style="color: var(--text-secondary, #94a3b8); font-size: 13px; line-height: 1.6; margin: 0 0 18px;">
-                    Situs <strong>lendrive.web.id</strong> saat ini sedang memproteksi akses halamannya dengan gerbang verifikasi browser otomatis (<em>One moment, please... Please wait while your request is being verified</em>).<br><br>
+                    Situs <strong>${escapeHtml(lendriveHost)}</strong> saat ini sedang memproteksi akses halamannya dengan gerbang verifikasi browser otomatis (<em>One moment, please... Please wait while your request is being verified</em>).<br><br>
                     Karena AniBase backend tidak menjalankan eksekusi browser/JavaScript untuk membobol proteksi ini, Anda dapat membuka Lendrive langsung di browser atau menempelkan Cookie sesi browser di bawah.
                 </p>
                 <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
-                    <a href="https://lendrive.web.id" target="_blank" rel="noopener noreferrer" class="samehadaku-batch-btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; text-decoration: none;">
+                    <a href="${escapeHtml(lendriveUrl)}" target="_blank" rel="noopener noreferrer" class="samehadaku-batch-btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; text-decoration: none;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                         <span>Buka Lendrive di Browser</span>
                     </a>
@@ -539,33 +597,39 @@
         `;
 
         episodes.forEach((ep, idx) => {
-            const thumbUrl = ep.thumbnail || '/static/arcana.jpg';
-            const epLabel = ep.episode || 'Episode Baru';
-            const timeLabel = ep.released_on || '';
-            const epNum = ep.episode_number || '';
-            const isLocal = epNum && localEpisodeNumbers.has(String(epNum));
+            const thumbUrl = sanitizeHttpUrl(ep.thumbnail, '/static/arcana.jpg');
+            const epLabel = escapeHtml(ep.episode || 'Episode Baru');
+            const timeLabel = escapeHtml(ep.released_on || '');
+            const epNum = String(ep.episode_number || '');
+            const safeEpNumArg = encodeJsUri(epNum);
+            const rawTitle = String(ep.title || '');
+            const safeTitleHtml = escapeHtml(rawTitle);
             const targetUrl = ep.episode_url || ep.url || '';
-            const formatBadge = ep.format_badge ? `<span class="samehadaku-badge-hevc">${ep.format_badge}</span>` : '';
+            const safeTargetArg = encodeJsUri(targetUrl);
+            const safeTitleArg = encodeJsUri(rawTitle);
+            const seriesUrl = ep.anime_url || ep.url || '';
+            const safeSeriesArg = encodeJsUri(seriesUrl);
+            const formatBadge = ep.format_badge ? `<span class="samehadaku-badge-hevc">${escapeHtml(ep.format_badge)}</span>` : '';
 
             html += `
                 <div class="samehadaku-latest-card" data-idx="${idx}">
-                    <div class="samehadaku-latest-thumb-wrap" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="Klik untuk unduh ${ep.title} ${epLabel}">
-                        <img class="samehadaku-latest-thumb" src="${thumbUrl}" alt="${ep.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/static/arcana.jpg'">
+                    <div class="samehadaku-latest-thumb-wrap" onclick="window.__quickDownloadEpisode('${safeTargetArg}', '${safeTitleArg}', decodeURIComponent('${safeEpNumArg}'))" title="Klik untuk unduh ${safeTitleHtml} ${epLabel}">
+                        <img class="samehadaku-latest-thumb" src="${escapeHtml(thumbUrl)}" alt="${safeTitleHtml}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='/static/arcana.jpg'">
                         <div class="samehadaku-latest-overlay"></div>
                         <span class="samehadaku-latest-ep-badge">${epLabel}</span>
                         ${timeLabel ? `<span class="samehadaku-latest-time-badge">${timeLabel}</span>` : ''}
                     </div>
                     <div class="samehadaku-latest-content">
-                        <div class="samehadaku-latest-title" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')" title="${ep.title}">
-                            ${ep.title}
+                        <div class="samehadaku-latest-title" onclick="window.__quickDownloadEpisode('${safeTargetArg}', '${safeTitleArg}', decodeURIComponent('${safeEpNumArg}'))" title="${safeTitleHtml}">
+                            ${safeTitleHtml}
                             ${formatBadge}
                         </div>
                         <div class="samehadaku-latest-actions">
-                            <button type="button" class="samehadaku-btn-download-ep" onclick="window.__quickDownloadEpisode('${encodeURIComponent(targetUrl)}', '${encodeURIComponent(ep.title)}', '${epNum}')">
+                            <button type="button" class="samehadaku-btn-download-ep" onclick="window.__quickDownloadEpisode('${safeTargetArg}', '${safeTitleArg}', decodeURIComponent('${safeEpNumArg}'))">
                                 <span>⚡</span> Unduh
                             </button>
-                            ${(ep.anime_url || ep.url) ? `
-                                <button type="button" class="samehadaku-btn-view-series" onclick="window.__viewAnimeSeries('${encodeURIComponent(ep.anime_url || ep.url)}', '${encodeURIComponent(ep.title)}')" title="Lihat semua episode serial ini">
+                            ${seriesUrl ? `
+                                <button type="button" class="samehadaku-btn-view-series" onclick="window.__viewAnimeSeries('${safeSeriesArg}', '${safeTitleArg}')" title="Lihat semua episode serial ini">
                                     Serial
                                 </button>
                             ` : ''}
@@ -703,15 +767,21 @@
                 localText = `Ep 1 - ${localMax}`;
             }
 
+            const safeAnimeHtml = escapeHtml(item.anime_name);
+            const safeAnimeArg = encodeJsUri(item.anime_name);
+            const safeSamehadakuArg = encodeJsUri(item.samehadaku_url || '');
+            const safeNextEpHtml = escapeHtml(nextEpToDownload);
+            const safeNextEpArg = encodeJsUri(nextEpToDownload || '');
+
             html += `
                 <div class="samehadaku-tracker-card ${hasNew ? 'has-new' : ''}">
                     <div class="samehadaku-tracker-card-head">
-                        <h4 class="samehadaku-tracker-card-title" title="${item.anime_name}">${item.anime_name}</h4>
+                        <h4 class="samehadaku-tracker-card-title" title="${safeAnimeHtml}">${safeAnimeHtml}</h4>
                         <div class="samehadaku-tracker-card-badges">
                             <span class="samehadaku-tracker-card-badge ${hasNew ? 'new-ep' : 'up-to-date'}">
-                                ${hasNew ? `✨ Ep ${nextEpToDownload} Rilis!` : '✓ Lengkap'}
+                                ${hasNew ? `✨ Ep ${safeNextEpHtml} Rilis!` : '✓ Lengkap'}
                             </span>
-                            <button type="button" class="samehadaku-tracker-card-remove" title="Hapus dari Pantauan Ongoing" onclick="window.__removeOngoingTracker('${encodeURIComponent(item.anime_name)}')">
+                            <button type="button" class="samehadaku-tracker-card-remove" title="Hapus dari Pantauan Ongoing" onclick="window.__removeOngoingTracker('${safeAnimeArg}')">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                     <line x1="18" y1="6" x2="6" y2="18"></line>
                                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -723,21 +793,21 @@
                     <div class="samehadaku-tracker-card-meta">
                         <div class="samehadaku-tracker-card-row">
                             <span>Koleksi Lokal:</span>
-                            <strong>${localText}</strong>
+                            <strong>${escapeHtml(localText)}</strong>
                         </div>
                         <div class="samehadaku-tracker-card-row">
                             <span>Rilis Samehadaku:</span>
-                            <strong>${sameMax > 0 ? `Ep ${sameMax}` : 'Belum Terdeteksi'}</strong>
+                            <strong>${sameMax > 0 ? `Ep ${escapeHtml(sameMax)}` : 'Belum Terdeteksi'}</strong>
                         </div>
                     </div>
 
                     <div class="samehadaku-tracker-card-actions">
                         ${hasNew && nextEpToDownload ? `
-                            <button type="button" class="samehadaku-tracker-btn-dl" onclick="window.__startOngoingQuickDownload('${encodeURIComponent(item.anime_name)}', '${encodeURIComponent(item.samehadaku_url || '')}', '${nextEpToDownload}')">
-                                ⬇️ Unduh Ep ${nextEpToDownload}
+                            <button type="button" class="samehadaku-tracker-btn-dl" onclick="window.__startOngoingQuickDownload('${safeAnimeArg}', '${safeSamehadakuArg}', decodeURIComponent('${safeNextEpArg}'))">
+                                ⬇️ Unduh Ep ${safeNextEpHtml}
                             </button>
                         ` : ''}
-                        <button type="button" class="samehadaku-tracker-btn-view" onclick="window.__searchFromTracker('${encodeURIComponent(item.anime_name)}')">
+                        <button type="button" class="samehadaku-tracker-btn-view" onclick="window.__searchFromTracker('${safeAnimeArg}')">
                             Buka Serial
                         </button>
                     </div>
@@ -802,7 +872,7 @@
                     </div>
                 </div>
                 <div class="samehadaku-episodes-title-wrap">
-                    <h3 class="samehadaku-episodes-anime-title">${title} &bull; ${epDisplay}</h3>
+                    <h3 class="samehadaku-episodes-anime-title">${escapeHtml(title)} &bull; ${escapeHtml(epDisplay)}</h3>
                 </div>
             </div>
             <div class="samehadaku-ep-item" style="border-color: color-mix(in srgb, var(--primary) 50%, transparent); box-shadow: 0 4px 20px var(--card-glow);">
@@ -859,14 +929,14 @@
                     return;
                 }
                 showMessage(`
-                    Tidak ditemukan hasil untuk "<strong>${query}</strong>" di ${providerName}. Coba kata kunci yang lebih singkat.<br><br>
+                    Tidak ditemukan hasil untuk "<strong>${escapeHtml(query)}</strong>" di ${escapeHtml(providerName)}. Coba kata kunci yang lebih singkat.<br><br>
                     <button type="button" class="samehadaku-back-to-series" onclick="window.__backToPreviousView()" title="Kembali ke Rilisan Terbaru">
                         <svg class="samehadaku-back-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M19 12H5M12 19l-7-7 7-7"/>
                         </svg>
                         <span>Kembali ke Rilisan Terbaru</span>
                     </button>
-                `);
+                `, false, true);
                 return;
             }
 
@@ -914,17 +984,18 @@
         `;
 
         results.forEach((item, idx) => {
-            const typeLabel = item.is_batch ? 'Batch' : (item.type || 'Anime');
-            const thumb = item.thumbnail || '';
-            const formatBadge = item.format_badge ? `<span class="samehadaku-badge-hevc">${item.format_badge}</span>` : '';
+            const typeLabel = escapeHtml(item.is_batch ? 'Batch' : (item.type || 'Anime'));
+            const thumb = sanitizeHttpUrl(item.thumbnail);
+            const safeTitleHtml = escapeHtml(item.title || '');
+            const formatBadge = item.format_badge ? `<span class="samehadaku-badge-hevc">${escapeHtml(item.format_badge)}</span>` : '';
             html += `
                 <div class="samehadaku-series-card" data-idx="${idx}" onclick="window.__selectSamehadakuSeries(${idx})">
-                    ${thumb ? `<img src="${thumb}" class="samehadaku-series-thumb" alt="${item.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
-                    <div class="samehadaku-series-title">${item.title}</div>
+                    ${thumb ? `<img src="${escapeHtml(thumb)}" class="samehadaku-series-thumb" alt="${safeTitleHtml}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
+                    <div class="samehadaku-series-title">${safeTitleHtml}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span class="samehadaku-series-badge">${typeLabel}</span>
                         ${formatBadge}
-                        ${item.score ? `<span style="font-size:11px; color:var(--cyan, #fbbf24);">★ ${item.score}</span>` : ''}
+                        ${item.score ? `<span style="font-size:11px; color:var(--cyan, #fbbf24);">★ ${escapeHtml(item.score)}</span>` : ''}
                     </div>
                 </div>
             `;
@@ -976,7 +1047,7 @@
         const rawTitle = details.title || currentAnimeName || 'Detail Anime';
         const cleanTitle = rawTitle.replace(/[\s\-–—]+$/, '');
         currentAnimeName = cleanTitle;
-        const posterFallback = details.poster || '/static/arcana.jpg';
+        const posterFallback = sanitizeHttpUrl(details.poster, '/static/arcana.jpg');
 
         // Perbarui nomor episode lokal dari data pustaka
         const localLib = details.local_library || {};
@@ -1010,7 +1081,7 @@
                     </div>
                 </div>
                 <div class="samehadaku-episodes-title-wrap">
-                    <h3 class="samehadaku-episodes-anime-title">${cleanTitle}</h3>
+                    <h3 class="samehadaku-episodes-anime-title">${escapeHtml(cleanTitle)}</h3>
                 </div>
             </div>
         `;
@@ -1061,7 +1132,7 @@
             html += `
                 <div class="samehadaku-all-synced-banner">
                     <span style="font-size:16px;">✓</span>
-                    <span>Seluruh <strong>${episodes.length}</strong> episode sudah lengkap tersimpan di folder library Anda (<em>${localLib.anime_name || cleanTitle}</em>).</span>
+                    <span>Seluruh <strong>${episodes.length}</strong> episode sudah lengkap tersimpan di folder library Anda (<em>${escapeHtml(localLib.anime_name || cleanTitle)}</em>).</span>
                 </div>
             `;
         }
@@ -1075,14 +1146,14 @@
             batchLinks.forEach((b, bIdx) => {
                 html += `
                     <div class="samehadaku-ep-item" style="margin-bottom: 6px;">
-                        <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('batch-${bIdx}', '${encodeURIComponent(b.url)}')">
+                        <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('batch-${bIdx}', '${encodeJsUri(b.url)}')">
                             <div class="samehadaku-ep-thumb-wrap" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--primary) 15%, #0f172a);">
                                 <span style="font-size:18px;">📦</span>
                                 <span class="samehadaku-ep-badge-num">BATCH</span>
                             </div>
                             <div class="samehadaku-ep-info">
                                 <div class="samehadaku-ep-title-row">
-                                    <span class="samehadaku-ep-title">${b.title}</span>
+                                    <span class="samehadaku-ep-title">${escapeHtml(b.title)}</span>
                                 </div>
                                 <div class="samehadaku-ep-meta-row">
                                     <span class="samehadaku-ep-status-hint">Paket unduhan lengkap satu season</span>
@@ -1111,27 +1182,32 @@
 
         // Render setiap episode dengan thumbnail 16:9, nomor badge, dan aksi download
         episodes.forEach((ep, epIdx) => {
-            const epNum = ep._epNum || ep.episode || String(epIdx + 1);
+            const epNum = String(ep._epNum || ep.episode || String(epIdx + 1));
+            const safeEpNumHtml = escapeHtml(epNum);
+            const safeEpNumArg = encodeJsUri(epNum);
+            const safeEpUrlArg = encodeJsUri(ep.url);
+            const safeEpTitleHtml = escapeHtml(ep.title || '');
             const isLocal = ep._isLocal;
-            const epThumb = ep.thumbnail || posterFallback;
+            const epThumb = sanitizeHttpUrl(ep.thumbnail, posterFallback);
+            const safePosterFallback = escapeHtml(posterFallback);
 
             html += `
                 <div class="samehadaku-ep-item ${!isLocal ? 'is-missing' : ''}" id="item-ep-${epIdx}">
-                    <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${encodeURIComponent(ep.url)}', '${epNum}')">
+                    <div class="samehadaku-ep-summary" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${safeEpUrlArg}', decodeURIComponent('${safeEpNumArg}'))">
                         <div class="samehadaku-ep-thumb-wrap">
-                            <img class="samehadaku-ep-thumb" src="${epThumb}" alt="${ep.title}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${posterFallback}'">
+                            <img class="samehadaku-ep-thumb" src="${escapeHtml(epThumb)}" alt="${safeEpTitleHtml}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${safePosterFallback}'">
                             <div class="samehadaku-ep-thumb-overlay">
                                 <span class="samehadaku-ep-play-icon">⚡</span>
                             </div>
-                            <span class="samehadaku-ep-badge-num">Ep ${epNum}</span>
+                            <span class="samehadaku-ep-badge-num">Ep ${safeEpNumHtml}</span>
                         </div>
                         <div class="samehadaku-ep-info">
                             <div class="samehadaku-ep-title-row">
-                                <span class="samehadaku-ep-title">${ep.title}</span>
+                                <span class="samehadaku-ep-title">${safeEpTitleHtml}</span>
                                 ${isLocal ? `<span class="samehadaku-ep-badge-local" title="Episode ini sudah ada di folder library Anda">✓ Di Library</span>` : `<span class="samehadaku-ep-badge-missing" title="Episode ini belum diunduh ke library">★ Belum Ada</span>`}
                             </div>
                             <div class="samehadaku-ep-meta-row">
-                                ${ep.date ? `<span class="samehadaku-ep-date">📅 ${ep.date}</span>` : ''}
+                                ${ep.date ? `<span class="samehadaku-ep-date">📅 ${escapeHtml(ep.date)}</span>` : ''}
                                 <span class="samehadaku-ep-status-hint">Klik untuk melihat pilihan resolusi unduhan</span>
                             </div>
                         </div>
@@ -1142,7 +1218,7 @@
                                     <span class="samehadaku-batch-checkbox-custom"></span>
                                 </label>
                             ` : ''}
-                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${encodeURIComponent(ep.url)}', '${epNum}')">
+                            <button type="button" class="samehadaku-ep-expand-btn" id="btn-ep-${epIdx}" onclick="window.__toggleEpisodeLinks('ep-${epIdx}', '${safeEpUrlArg}', decodeURIComponent('${safeEpNumArg}'))">
                                 <span>⚡</span> Pilih Resolusi
                             </button>
                         </div>
@@ -1257,7 +1333,7 @@
             detailsDiv.innerHTML = generateDownloadTiersHTML(data.downloads, epNum, id);
             detailsDiv.setAttribute('data-loaded', 'true');
         } catch (err) {
-            detailsDiv.innerHTML = `<span style="font-size:12px; color:#ef4444;">Gagal memuat link: ${err.message}</span>`;
+            detailsDiv.innerHTML = `<span style="font-size:12px; color:#ef4444;">Gagal memuat link: ${escapeHtml(err.message)}</span>`;
         }
     };
 
@@ -1279,19 +1355,22 @@
 
         Object.keys(formatGroups).forEach((fmt) => {
             const tiers = formatGroups[fmt];
+            const safeFmt = escapeHtml(fmt);
             html += `
                 <div class="samehadaku-format-row">
-                    <span class="samehadaku-format-badge">${fmt}</span>
+                    <span class="samehadaku-format-badge">${safeFmt}</span>
                     <div class="samehadaku-resolutions-grid">
             `;
 
             tiers.forEach(({ tier, tIdx }) => {
                 const quality = tier.quality || '720p';
-                const tierKey = `${epId}_${fmt}_${tIdx}_${quality}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const safeQuality = escapeHtml(quality);
+                const safeEpId = String(epId || 'ep').replace(/[^a-zA-Z0-9_-]/g, '_');
+                const tierKey = `${safeEpId}_${fmt}_${tIdx}_${quality}`.replace(/[^a-zA-Z0-9_-]/g, '_');
 
                 // Daftarkan tier ke registry untuk aksi klik resolusi
                 downloadTiersRegistry[tierKey] = {
-                    epId: epId,
+                    epId: safeEpId,
                     epNum: epNum,
                     format: fmt,
                     quality: quality,
@@ -1305,11 +1384,11 @@
                         type="button"
                         class="samehadaku-btn-res"
                         id="btn-res-${tierKey}"
-                        title="Unduh langsung resolusi ${quality} (${fmt})"
+                        title="Unduh langsung resolusi ${safeQuality} (${safeFmt})"
                         onclick="window.__handleResolutionClick('${tierKey}')"
                     >
                         <span class="samehadaku-res-icon">⚡</span>
-                        <span class="samehadaku-res-text">${quality}</span>
+                        <span class="samehadaku-res-text">${safeQuality}</span>
                     </button>
                 `;
             });
@@ -1321,8 +1400,9 @@
         });
 
         // Kontainer untuk menampilkan mirror alternatif jika direct gagal atau tidak tersedia
+        const safeFallbackEpId = String(epId || 'ep').replace(/[^a-zA-Z0-9_-]/g, '_');
         html += `
-            <div class="samehadaku-fallback-container" id="fallback-${epId}" hidden></div>
+            <div class="samehadaku-fallback-container" id="fallback-${safeFallbackEpId}" hidden></div>
         </div>`;
 
         return html;
@@ -1339,9 +1419,10 @@
         const provider = tier.provider || currentProvider;
 
         // Tampilkan status loading pada tombol
+        const safeTierQuality = escapeHtml(tier.quality);
         if (resBtn) {
             resBtn.classList.add('loading');
-            resBtn.innerHTML = `<span class="samehadaku-spinner" style="width:12px; height:12px; margin:0; border-width:2px;"></span> <span>${tier.quality}</span>`;
+            resBtn.innerHTML = `<span class="samehadaku-spinner" style="width:12px; height:12px; margin:0; border-width:2px;"></span> <span>${safeTierQuality}</span>`;
         }
 
         // Cari direct download link (Prioritas 1: Pixeldrain, Prioritas 2: Mediafire direct resolver)
@@ -1365,7 +1446,7 @@
             // Direct download tidak tersedia di provider ini untuk resolusi ini
             if (resBtn) {
                 resBtn.classList.remove('loading');
-                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${safeTierQuality}</span>`;
             }
             const hasSafelink = (tier.links || []).some(l => l.is_safelink || (l.url || '').includes('sfe.ad') || (l.url || '').includes('ouo.io') || (l.url || '').includes('urlwebsite.com'));
             const reasonMsg = hasSafelink
@@ -1422,7 +1503,7 @@
                 // Direct download gagal dimulai di server
                 if (resBtn) {
                     resBtn.classList.remove('loading');
-                    resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                    resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${safeTierQuality}</span>`;
                 }
                 const errorMsg = data.message || data.error || 'Server unduh langsung tidak merespons';
                 showAlternativeServers(epId, tier, `Unduh direct gagal (${errorMsg}).`);
@@ -1433,11 +1514,11 @@
             if (resBtn) {
                 resBtn.classList.remove('loading');
                 resBtn.classList.add('success');
-                resBtn.innerHTML = `<span>✓</span> <span>Mengunduh ${tier.quality}</span>`;
+                resBtn.innerHTML = `<span>✓</span> <span>Mengunduh ${safeTierQuality}</span>`;
                 setTimeout(() => {
                     if (resBtn) {
                         resBtn.classList.remove('success');
-                        resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                        resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${safeTierQuality}</span>`;
                     }
                 }, 4000);
             }
@@ -1454,7 +1535,7 @@
         } catch (err) {
             if (resBtn) {
                 resBtn.classList.remove('loading');
-                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${tier.quality}</span>`;
+                resBtn.innerHTML = `<span class="samehadaku-res-icon">⚡</span> <span>${safeTierQuality}</span>`;
             }
             showAlternativeServers(epId, tier, `Koneksi unduh direct error: ${err.message}`);
         }
@@ -1475,15 +1556,17 @@
         } else {
             listToDisplay.forEach((l) => {
                 const isSafelink = Boolean(l.is_safelink || (l.url || '').includes('sfe.ad') || (l.url || '').includes('ouo.io') || (l.url || '').includes('urlwebsite.com'));
+                const safeHost = escapeHtml(l.host || 'Server');
+                const safeLinkUrl = sanitizeHttpUrl(l.url, '#');
                 const btnTitle = isSafelink
-                    ? `Buka tautan ${l.host} (Safelink) di browser`
-                    : `Unduh lewat server ${l.host}`;
+                    ? `Buka tautan ${safeHost} (Safelink) di browser`
+                    : `Unduh lewat server ${safeHost}`;
                 const labelHtml = isSafelink
-                    ? `<span>🔗 ${l.host} <small style="opacity:0.85; font-size:10px; font-weight:normal;">(Safelink)</small></span>`
-                    : `<span>${l.host}</span>`;
+                    ? `<span>🔗 ${safeHost} <small style="opacity:0.85; font-size:10px; font-weight:normal;">(Safelink)</small></span>`
+                    : `<span>${safeHost}</span>`;
                 linksHTML += `
                     <a
-                        href="${l.url}"
+                        href="${escapeHtml(safeLinkUrl)}"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="samehadaku-btn-ext ${isSafelink ? 'samehadaku-btn-safelink' : ''}"
@@ -1500,16 +1583,17 @@
         const subText = isSafelinkNotice
             ? 'Silakan klik salah satu server di bawah untuk membuka dan mengunduh berkas melalui browser Anda:'
             : 'Silakan pilih tempat download alternatif di bawah ini untuk membuka tautan:';
+        const safeEpId = String(epId || 'ep').replace(/[^a-zA-Z0-9_-]/g, '_');
 
         container.hidden = false;
         container.innerHTML = `
             <div class="samehadaku-fallback-box ${isSafelinkNotice ? 'safelink-warning' : ''}">
                 <div class="samehadaku-fallback-header">
                     <div class="samehadaku-fallback-title-wrap">
-                        <span class="samehadaku-fallback-badge">${tier.format} ${tier.quality}</span>
-                        <span class="samehadaku-fallback-msg">${reason}</span>
+                        <span class="samehadaku-fallback-badge">${escapeHtml(tier.format)} ${escapeHtml(tier.quality)}</span>
+                        <span class="samehadaku-fallback-msg">${escapeHtml(reason)}</span>
                     </div>
-                    <button type="button" class="samehadaku-fallback-close" onclick="document.getElementById('fallback-${epId}').hidden = true;" title="Tutup alternatif">✕</button>
+                    <button type="button" class="samehadaku-fallback-close" onclick="document.getElementById('fallback-${safeEpId}').hidden = true;" title="Tutup alternatif">✕</button>
                 </div>
                 <div class="samehadaku-fallback-sub">${subText}</div>
                 <div class="samehadaku-fallback-links">
@@ -1584,7 +1668,7 @@
             title: e.title || '',
         }));
 
-        const provider = (epsList.length > 0 && epsList[0].url && epsList[0].url.includes('lendrive.web.id')) ? 'lendrive' : currentProvider;
+        const provider = (epsList.length > 0 && epsList[0].url) ? getProviderForUrl(epsList[0].url) : currentProvider;
 
         try {
             const res = await fetch(`/api/${provider}/download/batch`, {
@@ -1762,9 +1846,11 @@
             const isCancelled = b.status === 'cancelled';
             const isInProgress = b.status === 'in_progress';
 
+            const safeBatchId = String(b.batch_id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+            const safeBatchStatus = escapeHtml(b.status || '');
             let batchStatusText = '';
             if (isInProgress) {
-                batchStatusText = `Sedang memproses <strong>Episode ${b.current_episode || '?'}</strong>...`;
+                batchStatusText = `Sedang memproses <strong>Episode ${escapeHtml(b.current_episode || '?')}</strong>...`;
             } else if (isCompleted) {
                 batchStatusText = `<span style="color:var(--primary, #10b981); font-weight:700;">✓ Batch Selesai (${b.completed_count}/${b.total_episodes} Episode)</span>`;
             } else if (isCancelled) {
@@ -1772,11 +1858,11 @@
             }
 
             html += `
-                <div class="samehadaku-batch-tray-card ${b.status}" id="batch-${b.batch_id}">
+                <div class="samehadaku-batch-tray-card ${safeBatchStatus}" id="batch-${safeBatchId}">
                     <div class="samehadaku-batch-tray-top">
                         <div class="samehadaku-batch-tray-title-wrap">
                             <span class="samehadaku-batch-tray-icon">⚡</span>
-                            <span class="samehadaku-batch-tray-title">Batch: ${b.anime_name} [${b.preferred_quality}]</span>
+                            <span class="samehadaku-batch-tray-title">Batch: ${escapeHtml(b.anime_name)} [${escapeHtml(b.preferred_quality)}]</span>
                         </div>
                         <span class="samehadaku-batch-tray-counts">
                             ${b.completed_count} dari ${b.total_episodes} Selesai ${b.failed_count > 0 ? `<span style="color:#ef4444; font-size:11px;">(${b.failed_count} gagal)</span>` : ''}
@@ -1788,7 +1874,7 @@
                     <div class="samehadaku-batch-tray-bottom">
                         <span class="samehadaku-batch-tray-status">${batchStatusText}</span>
                         ${isInProgress ? `
-                            <button type="button" class="samehadaku-batch-tray-cancel-btn" onclick="window.__cancelBatchDownload('${b.batch_id}')">Batalkan Batch</button>
+                            <button type="button" class="samehadaku-batch-tray-cancel-btn" onclick="window.__cancelBatchDownload('${safeBatchId}')">Batalkan Batch</button>
                         ` : ''}
                     </div>
                 </div>
@@ -1797,15 +1883,16 @@
 
         // 2. Tampilkan tugas unduhan individu
         tasks.forEach(t => {
+            const safeTaskId = String(t.task_id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
             const percent = t.total_bytes > 0 ? Math.min(100, (t.downloaded_bytes / t.total_bytes * 100)).toFixed(1) : (t.percent || 0);
             const statusClass = t.status === 'completed' ? 'completed' : (t.status === 'error' || t.status === 'cancelled' ? 'error' : (t.status === 'paused' ? 'paused' : ''));
             const speedText = t.status === 'downloading' ? formatSpeed(t.speed_bps) : '';
             const downloadedText = formatBytes(t.downloaded_bytes);
             const totalText = t.total_bytes > 0 ? formatBytes(t.total_bytes) : '?';
-            const taskProvider = t.provider || 'samehadaku';
+            const taskProvider = t.provider === 'lendrive' ? 'lendrive' : 'samehadaku';
             const providerBadgeHtml = `<span class="samehadaku-task-provider-badge ${taskProvider}">${taskProvider === 'lendrive' ? '⚡ Lendrive' : '🐟 Samehadaku'}</span>`;
 
-            let statusLabel = t.status;
+            let statusLabel = escapeHtml(t.status);
             let destInfo = '';
             let actionButtons = '';
 
@@ -1813,7 +1900,7 @@
                 statusLabel = '<span style="color:var(--primary, #10b981); font-weight:700;">✓ Selesai</span>';
                 const folderName = t.dest_anime_folder || t.matched_anime;
                 if (folderName) {
-                    destInfo = ` &bull; Tersimpan di: <strong style="color:var(--cyan, #38bdf8);">${folderName}</strong>`;
+                    destInfo = ` &bull; Tersimpan di: <strong style="color:var(--cyan, #38bdf8);">${escapeHtml(folderName)}</strong>`;
                 }
             } else if (t.status === 'downloading') {
                 statusLabel = '<span style="color:var(--cyan, #38bdf8); font-weight:600;">⬇️ Mengunduh</span>';
@@ -1822,45 +1909,46 @@
                 }
                 const folderName = t.dest_anime_folder || t.matched_anime;
                 if (folderName) {
-                    destInfo = ` &bull; Tujuan: <em>${folderName}</em>`;
+                    destInfo = ` &bull; Tujuan: <em>${escapeHtml(folderName)}</em>`;
                 }
                 actionButtons = `
-                    <button type="button" class="samehadaku-task-pause-btn" onclick="window.__pauseSamehadakuDownload('${t.task_id}')" title="Jeda unduhan ini">⏸️ Jeda</button>
-                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Batalkan unduhan ini">Batalkan</button>
+                    <button type="button" class="samehadaku-task-pause-btn" onclick="window.__pauseSamehadakuDownload('${safeTaskId}')" title="Jeda unduhan ini">⏸️ Jeda</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${safeTaskId}')" title="Batalkan unduhan ini">Batalkan</button>
                 `;
             } else if (t.status === 'queued') {
-                const pos = t.queue_position ? `#${t.queue_position}` : '';
+                const pos = t.queue_position ? `#${escapeHtml(t.queue_position)}` : '';
                 statusLabel = `<span style="color:#f59e0b; font-weight:600;">⏳ Mengantre ${pos}</span>`;
                 actionButtons = `
-                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Keluarkan dari antrean">Batalkan</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${safeTaskId}')" title="Keluarkan dari antrean">Batalkan</button>
                 `;
             } else if (t.status === 'paused') {
                 statusLabel = '<span style="color:#f97316; font-weight:600;">⏸️ Dijeda</span>';
                 actionButtons = `
-                    <button type="button" class="samehadaku-task-resume-btn" onclick="window.__resumeSamehadakuDownload('${t.task_id}')" title="Lanjutkan unduhan">▶️ Lanjut</button>
-                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Batalkan unduhan">Batalkan</button>
+                    <button type="button" class="samehadaku-task-resume-btn" onclick="window.__resumeSamehadakuDownload('${safeTaskId}')" title="Lanjutkan unduhan">▶️ Lanjut</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${safeTaskId}')" title="Batalkan unduhan">Batalkan</button>
                 `;
             } else if (t.status === 'error') {
                 statusLabel = '<span style="color:#ef4444; font-weight:700;">❌ Gagal</span>';
                 actionButtons = `
-                    <button type="button" class="samehadaku-task-retry-btn" onclick="window.__resumeSamehadakuDownload('${t.task_id}')" title="Coba lagi unduhan dari byte terakhir">🔄 Coba Lagi</button>
-                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${t.task_id}')" title="Hapus dari daftar">Hapus</button>
+                    <button type="button" class="samehadaku-task-retry-btn" onclick="window.__resumeSamehadakuDownload('${safeTaskId}')" title="Coba lagi unduhan dari byte terakhir">🔄 Coba Lagi</button>
+                    <button type="button" class="samehadaku-task-cancel-btn" onclick="window.__cancelSamehadakuDownload('${safeTaskId}')" title="Hapus dari daftar">Hapus</button>
                 `;
             } else if (t.status === 'cancelled') {
                 statusLabel = '<span style="color:var(--muted, #94a3b8);">Dibatalkan</span>';
             }
 
+            const safeFilename = escapeHtml(t.filename || '');
             html += `
-                <div class="samehadaku-task-item" id="task-${t.task_id}">
+                <div class="samehadaku-task-item" id="task-${safeTaskId}">
                     <div class="samehadaku-task-top">
-                        <span class="samehadaku-task-filename" title="${t.filename}">${providerBadgeHtml}${t.filename}</span>
+                        <span class="samehadaku-task-filename" title="${safeFilename}">${providerBadgeHtml}${safeFilename}</span>
                         <span class="samehadaku-task-stats">${downloadedText} / ${totalText} (${percent}%) ${speedText ? `&bull; ${speedText}` : ''}</span>
                     </div>
                     <div class="samehadaku-progress-bar-bg">
                         <div class="samehadaku-progress-bar-fill ${statusClass}" style="width: ${percent}%;"></div>
                     </div>
                     <div class="samehadaku-task-bottom">
-                        <span>Status: ${statusLabel}${destInfo} ${t.error ? ` - <span style="color:#ef4444;">${t.error}</span>` : ''}</span>
+                        <span>Status: ${statusLabel}${destInfo} ${t.error ? ` - <span style="color:#ef4444;">${escapeHtml(t.error)}</span>` : ''}</span>
                         <div class="samehadaku-task-actions">
                             ${actionButtons}
                         </div>
@@ -2006,10 +2094,11 @@
             document.body.appendChild(toast);
         }
 
-        const thumb = notif.thumbnail || '/static/images/placeholder.png';
-        const title = notif.anime_name || 'Anime Ongoing';
-        const ep = `Episode ${notif.episode_number} Baru Rilis!`;
-        const meta = notif.released_on ? `Samehadaku · ${notif.released_on}` : 'Tersedia di Samehadaku';
+        const thumb = sanitizeHttpUrl(notif.thumbnail, '/static/arcana.jpg');
+        const safeThumb = escapeHtml(thumb);
+        const safeTitle = escapeHtml(notif.anime_name || 'Anime Ongoing');
+        const safeEp = escapeHtml(`Episode ${notif.episode_number} Baru Rilis!`);
+        const safeMeta = escapeHtml(notif.released_on ? `Samehadaku · ${notif.released_on}` : 'Tersedia di Samehadaku');
 
         toast.innerHTML = `
             <div class="samehadaku-toast-header">
@@ -2017,11 +2106,11 @@
                 <button type="button" class="samehadaku-toast-close" id="btnCloseOngoingToast" aria-label="Tutup">&times;</button>
             </div>
             <div class="samehadaku-toast-body">
-                <img src="${thumb}" class="samehadaku-toast-thumb" alt="" onerror="this.src='/static/images/placeholder.png'">
+                <img src="${safeThumb}" class="samehadaku-toast-thumb" alt="" onerror="this.onerror=null;this.src='/static/arcana.jpg'">
                 <div class="samehadaku-toast-info">
-                    <div class="samehadaku-toast-title" title="${title}">${title}</div>
-                    <div class="samehadaku-toast-ep">${ep}</div>
-                    <div class="samehadaku-toast-meta">${meta}</div>
+                    <div class="samehadaku-toast-title" title="${safeTitle}">${safeTitle}</div>
+                    <div class="samehadaku-toast-ep">${safeEp}</div>
+                    <div class="samehadaku-toast-meta">${safeMeta}</div>
                 </div>
             </div>
             <div class="samehadaku-toast-footer">

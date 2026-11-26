@@ -1298,6 +1298,13 @@
                         </div>
 
                         <script>
+                        function escapeMalHtml(str) {
+                            if (str === null || str === undefined) return '';
+                            return String(str).replace(/[&<>"']/g, c => ({
+                                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                            })[c]);
+                        }
+
                         function testMalConnection() {
                             const btn = document.getElementById('btnTestMalConnection');
                             const feedback = document.getElementById('malTestFeedback');
@@ -1328,7 +1335,7 @@
                                         feedback.style.background = 'rgba(34, 197, 94, 0.12)';
                                         feedback.style.border = '1px solid rgba(34, 197, 94, 0.35)';
                                         feedback.style.color = '#4ade80';
-                                        feedback.innerHTML = `<strong>Koneksi Terverifikasi:</strong> ${data.message || 'Token MyAnimeList aktif.'}`;
+                                        feedback.innerHTML = `<strong>Koneksi Terverifikasi:</strong> ${escapeMalHtml(data.message || 'Token MyAnimeList aktif.')}`;
                                     }
                                     if (data.token_info && tokenBadge && tokenText) {
                                         tokenBadge.className = 'mal-token-pill ' + (data.token_info.badge_class || 'badge-success');
@@ -1341,7 +1348,7 @@
                                         feedback.style.background = 'rgba(239, 68, 68, 0.12)';
                                         feedback.style.border = '1px solid rgba(239, 68, 68, 0.35)';
                                         feedback.style.color = '#f87171';
-                                        feedback.innerHTML = `<strong>Uji Koneksi Gagal:</strong> ${data.error || 'Gagal memverifikasi token MyAnimeList.'}`;
+                                        feedback.innerHTML = `<strong>Uji Koneksi Gagal:</strong> ${escapeMalHtml(data.error || 'Gagal memverifikasi token MyAnimeList.')}`;
                                     }
                                     if (tokenBadge && tokenText) {
                                         tokenBadge.className = 'mal-token-pill badge-danger';
@@ -1355,7 +1362,7 @@
                                     feedback.style.background = 'rgba(239, 68, 68, 0.12)';
                                     feedback.style.border = '1px solid rgba(239, 68, 68, 0.35)';
                                     feedback.style.color = '#f87171';
-                                    feedback.innerHTML = `<strong>Kesalahan Jaringan:</strong> ${err.message || err}`;
+                                    feedback.innerHTML = `<strong>Kesalahan Jaringan:</strong> ${escapeMalHtml(err.message || err)}`;
                                 }
                             })
                             .finally(() => {
@@ -1386,18 +1393,19 @@
                                         `;
                                     } else {
                                         container.innerHTML = data.scrobbles.map(item => {
-                                            const safeTitle = (item.title || 'Anime').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-                                            const status = item.status || 'watching';
-                                            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
-                                            const epDisplay = (item.ep_num !== null && item.ep_num !== undefined) ? item.ep_num : '?';
-                                            const timeStr = item.timestamp_str || '-';
+                                            const safeTitle = escapeMalHtml(item.title || 'Anime');
+                                            const statusRaw = String(item.status || 'watching');
+                                            const statusClass = statusRaw.replace(/[^a-zA-Z0-9_-]/g, '');
+                                            const statusLabel = escapeMalHtml(statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1));
+                                            const epDisplay = escapeMalHtml((item.ep_num !== null && item.ep_num !== undefined) ? item.ep_num : '?');
+                                            const timeStr = escapeMalHtml(item.timestamp_str || '-');
                                             return `
                                                 <div class="mal-scrobble-item">
                                                     <div class="mal-scrobble-info">
                                                         <span class="mal-scrobble-title" title="${safeTitle}">${safeTitle}</span>
                                                         <span class="mal-scrobble-meta">Episode ${epDisplay} &bull; ${timeStr}</span>
                                                     </div>
-                                                    <span class="mal-status-pill mal-status-${status}">
+                                                    <span class="mal-status-pill mal-status-${statusClass}">
                                                         ${statusLabel}
                                                     </span>
                                                 </div>
@@ -2950,10 +2958,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 const clientId = discordClientIdInput ? discordClientIdInput.value.trim() : '';
+                const actionToken = getSettingsActionToken();
                 const resp = await fetch('/api/settings/test-discord', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ credentials: 'same-origin', client_id: clientId })
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(actionToken ? { 'X-AniBase-Action-Token': actionToken, 'X-Action-Token': actionToken } : {})
+                    },
+                    body: JSON.stringify({ client_id: clientId, action_token: actionToken })
                 });
                 const data = await resp.json();
                 if (discordResult) {
@@ -3000,10 +3013,15 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const cookieVal = lendriveCookieInput ? lendriveCookieInput.value.trim() : '';
                 const urlVal = lendriveBaseUrlInput ? lendriveBaseUrlInput.value.trim() : '';
+                const actionToken = getSettingsActionToken();
                 const resp = await fetch('/api/settings/test-lendrive', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ credentials: 'same-origin', cookie: cookieVal, base_url: urlVal })
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(actionToken ? { 'X-AniBase-Action-Token': actionToken, 'X-Action-Token': actionToken } : {})
+                    },
+                    body: JSON.stringify({ cookie: cookieVal, base_url: urlVal, action_token: actionToken })
                 });
                 const data = await resp.json();
                 if (lendriveResult) {
@@ -3052,9 +3070,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     } catch (_) {}
                 }
 
+                const actionToken = getSettingsActionToken();
                 const resp = await fetch('/api/desktop/reset-window', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(actionToken ? { 'X-AniBase-Action-Token': actionToken, 'X-Action-Token': actionToken } : {})
+                    }
                 });
                 const data = await resp.json();
 
@@ -3075,6 +3098,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 btnResetWindow.innerHTML = originalHtml;
             }
         });
+    }
+
+    function getSettingsActionToken() {
+        return window.ANIBASE_ACTION_TOKEN || document.querySelector('input[name="action_token"]')?.value || '';
     }
 
     function escapeHtml(str) {

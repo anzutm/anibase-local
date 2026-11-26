@@ -184,10 +184,25 @@ class MalProfileTests(unittest.TestCase):
             self.assertTrue(enriched[0]["in_library"])
             self.assertIsNotNone(enriched[0]["local_url"])
             self.assertIsNotNone(enriched[0]["play_url"])
+            self.assertEqual(enriched[0]["play_url"], enriched[0]["local_url"])
 
             # Second item should be external
             self.assertFalse(enriched[1]["in_library"])
             self.assertIsNotNone(enriched[1]["external_url"])
+
+    @patch("main.get_anime")
+    @patch("main.build_local_anime_match_index")
+    @patch("anibase.integrations.mal._resolve_local_play_target", return_value="Season 1/Bocchi Episode 01.mkv")
+    def test_enrich_mal_list_builds_valid_player_url_when_episode_exists(self, _mock_target, mock_index_fn, mock_anime_fn):
+        mock_anime_fn.return_value = [{"name": "Bocchi the Rock!"}]
+        mock_index_fn.return_value = {
+            main.normalize_anime_match_name("Bocchi the Rock!"): {"name": "Bocchi the Rock!"}
+        }
+        mal_items = [{"node": {"id": 47917, "title": "Bocchi the Rock!", "num_episodes": 12}, "list_status": {}}]
+
+        with main.app.test_request_context():
+            enriched = main.enrich_mal_list_with_local_library(mal_items)
+            self.assertIn("/player/Bocchi%20the%20Rock!/Season%201/Bocchi%20Episode%2001.mkv", enriched[0]["play_url"])
 
     def test_mal_profile_page_unauthenticated(self):
         resp = self.client.get("/profile")

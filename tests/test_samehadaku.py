@@ -738,7 +738,7 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
     @patch("anibase.web.routes_api.get_samehadaku_anime_details")
     def test_api_samehadaku_episodes(self, mock_details):
         mock_details.return_value = {"ok": True, "title": "Frieren", "episodes": []}
-        res = self.client.get("/api/samehadaku/episodes?url=https://example.com/anime")
+        res = self.client.get("/api/samehadaku/episodes?url=https://v2.samehadaku.how/anime/frieren/")
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["ok"])
@@ -746,11 +746,27 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
     @patch("anibase.web.routes_api.get_samehadaku_download_links")
     def test_api_samehadaku_downloads(self, mock_links):
         mock_links.return_value = [{"format": "MKV", "quality": "1080p", "links": []}]
-        res = self.client.get("/api/samehadaku/downloads?url=https://example.com/ep1")
+        res = self.client.get("/api/samehadaku/downloads?url=https://v2.samehadaku.how/frieren-episode-1/")
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["ok"])
         self.assertEqual(len(data["downloads"]), 1)
+
+    @patch("anibase.integrations.samehadaku.requests.get")
+    def test_samehadaku_ssrf_and_disallowed_host_rejected(self, mock_get):
+        for endpoint in ("/api/samehadaku/episodes", "/api/samehadaku/downloads"):
+            for bad_url in (
+                "http://127.0.0.1:5000/settings",
+                "http://169.254.169.254/latest/meta-data/",
+                "https://evil.example/fake",
+                "file:///etc/passwd",
+            ):
+                res = self.client.get(f"{endpoint}?url={bad_url}")
+                self.assertEqual(res.status_code, 400)
+                self.assertFalse(res.get_json()["ok"])
+        self.assertFalse(get_samehadaku_anime_details("https://evil.example/anime").get("ok"))
+        self.assertEqual(get_samehadaku_download_links("http://127.0.0.1/ep1"), [])
+        mock_get.assert_not_called()
 
     def test_api_samehadaku_download_status(self):
         res = self.client.get("/api/samehadaku/download/status")
@@ -792,7 +808,7 @@ class SamehadakuApiRoutesTests(unittest.TestCase):
             "existing_episodes": [1],
             "count": 1,
         }
-        res = self.client.get("/api/samehadaku/episodes?url=https://example.com/frieren")
+        res = self.client.get("/api/samehadaku/episodes?url=https://v2.samehadaku.how/anime/frieren/")
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["ok"])

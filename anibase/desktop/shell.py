@@ -335,7 +335,7 @@ def _get_linux_icon_path() -> str:
     try:
         from anibase.utils import get_resource_dir
         res_dir = get_resource_dir()
-        for candidate in ("logo_transparent_cropped.png", "arcana.jpg", "favicon.ico"):
+        for candidate in ("favicon.ico", "arcana.jpg", "logo_transparent_cropped.png"):
             icon = os.path.join(res_dir, "static", candidate)
             if os.path.isfile(icon):
                 return icon
@@ -402,6 +402,10 @@ def ensure_linux_desktop_entry():
         return
     ensure_kde_kwin_rule()
     try:
+        import shutil
+        import subprocess
+        from anibase.utils import export_ico_to_png, get_application_dir
+
         home = os.path.expanduser("~")
         apps_dir = os.path.join(home, ".local", "share", "applications")
         icons_dir = os.path.join(home, ".local", "share", "icons", "hicolor", "512x512", "apps")
@@ -410,15 +414,31 @@ def ensure_linux_desktop_entry():
 
         icon_path = _get_linux_icon_path()
         dest_icon = os.path.join(icons_dir, "anibase.png")
+        fallback_icon = os.path.join(home, ".local", "share", "icons", "anibase.png")
+        icon_updated = False
         if icon_path and os.path.isfile(icon_path):
-            if not os.path.isfile(dest_icon) or os.path.getmtime(icon_path) > os.path.getmtime(dest_icon):
-                import shutil
+            prev_bytes = None
+            if os.path.isfile(dest_icon):
+                try:
+                    with open(dest_icon, "rb") as rf:
+                        prev_bytes = rf.read()
+                except OSError:
+                    prev_bytes = None
+
+            if icon_path.lower().endswith(".ico") and export_ico_to_png(icon_path, dest_icon):
+                export_ico_to_png(icon_path, fallback_icon)
+            elif not os.path.isfile(dest_icon) or os.path.getmtime(icon_path) > os.path.getmtime(dest_icon):
                 shutil.copy2(icon_path, dest_icon)
-                fallback_icon = os.path.join(home, ".local", "share", "icons", "anibase.png")
                 shutil.copy2(icon_path, fallback_icon)
 
+            if os.path.isfile(dest_icon):
+                try:
+                    with open(dest_icon, "rb") as rf:
+                        icon_updated = rf.read() != prev_bytes
+                except OSError:
+                    icon_updated = True
+
         desktop_file = os.path.join(apps_dir, "anibase.desktop")
-        from anibase.utils import get_application_dir
         app_dir = get_application_dir()
         if getattr(sys, "frozen", False):
             exec_cmd = f'"{sys.executable}"'
@@ -452,9 +472,13 @@ def ensure_linux_desktop_entry():
         if should_write:
             with open(desktop_file, "w", encoding="utf-8") as f:
                 f.write(entry_content)
+        if should_write or icon_updated:
             try:
-                import subprocess
                 subprocess.run(["update-desktop-database", apps_dir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                gtk_icon_cache = shutil.which("gtk-update-icon-cache")
+                if gtk_icon_cache:
+                    hicolor_dir = os.path.join(home, ".local", "share", "icons", "hicolor")
+                    subprocess.run([gtk_icon_cache, "-f", "-t", hicolor_dir], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 kbuildsycoca = shutil.which("kbuildsycoca6") or shutil.which("kbuildsycoca5")
                 if kbuildsycoca:
                     subprocess.run([kbuildsycoca], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

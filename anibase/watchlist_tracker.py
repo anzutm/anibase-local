@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional
 from anibase import constants
 from anibase.settings import load_settings
 from anibase.logging import app_log
-from anibase.utils import is_shutdown_requested, wait_for_shutdown
+from anibase.utils import is_shutdown_requested, wait_for_shutdown, is_lendrive_provider_url
 from anibase.db import (
     db_connection,
     get_ongoing_watchlist,
@@ -520,7 +520,7 @@ def quick_download_episode_alert(
     ep_num = extract_episode_number(episode_url) or ""
     ep_str = str(ep_num) if ep_num else (link_info.get("quality") or preferred_quality)
     filename = link_info.get("filename") or f"{anime_name} - {preferred_quality}.mkv"
-    provider = link_info.get("provider") or ("lendrive" if "lendrive.web.id" in episode_url else "samehadaku")
+    provider = link_info.get("provider") or ("lendrive" if is_lendrive_provider_url(episode_url) else "samehadaku")
 
     return start_download(
         url=direct_url,

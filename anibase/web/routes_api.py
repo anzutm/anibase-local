@@ -19,7 +19,7 @@ import select
 import email.utils
 from io import BytesIO
 from datetime import datetime, timezone
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import urlparse, quote_plus, urljoin
 
 import requests
 from flask import (
@@ -68,6 +68,9 @@ from anibase.utils import (
     clean_movie_title,
     safe_join_media_path,
     popen_hidden_subprocess,
+    validate_external_provider_url,
+    get_samehadaku_allowed_hosts,
+    get_lendrive_allowed_hosts,
 )
 from anibase.settings import (
     load_settings,
@@ -222,6 +225,7 @@ from anibase.scanner import (
     cleanup_anime_cache,
     cleanup_all_subtitles_cache,
     cleanup_all_thumbnails_cache,
+    cleanup_thumbnails_for_video_paths,
     optimize_database,
     get_cache_size_breakdown,
     make_cache_cleanup_summary,
@@ -1216,6 +1220,7 @@ def api_settings_lan_qr():
 
 
 @host_only
+@require_action_token
 def api_settings_test_discord():
     """Menguji koneksi ke aplikasi Discord Desktop lokal menggunakan client ID."""
     data = request.get_json(silent=True) or {}
@@ -1295,14 +1300,38 @@ def api_settings_test_discord():
 
 
 @host_only
+@require_action_token
 def api_settings_test_lendrive():
     """Menguji koneksi ke server Lendrive dan memvalidasi cookie anti-bot / WAF."""
-    import requests
     from anibase.integrations.lendrive import is_lendrive_challenge_page, DEFAULT_USER_AGENT
     data = request.get_json(silent=True) or {}
     settings = load_settings()
-    base_url = str(data.get("base_url") or settings.get("lendrive_base_url") or "https://lendrive.web.id").strip().rstrip("/")
-    cookie = str(data.get("cookie") if "cookie" in data else settings.get("lendrive_cookie") or "").strip()
+    raw_base_url = str(data.get("base_url") or settings.get("lendrive_base_url") or "https://lendrive.web.id").strip().rstrip("/")
+    is_valid, base_url, err_msg = validate_external_provider_url(raw_base_url)
+    if not is_valid:
+        return jsonify({
+            "ok": False,
+            "valid": False,
+            "challenge": False,
+            "error": "invalid_url",
+            "message": err_msg or "URL server Lendrive tidak valid atau tidak diizinkan."
+        }), 400
+
+    parsed_target = urlparse(base_url)
+    saved_base_url = str(settings.get("lendrive_base_url") or "https://lendrive.web.id").strip().rstrip("/")
+    parsed_saved = urlparse(saved_base_url)
+    trusted_cookie_origins = {
+        (parsed_saved.scheme.lower(), (parsed_saved.hostname or "").lower()),
+        ("https", "lendrive.web.id"),
+    }
+    target_origin = (parsed_target.scheme.lower(), (parsed_target.hostname or "").lower())
+
+    if "cookie" in data:
+        cookie = str(data.get("cookie") or "").strip()
+    elif target_origin in trusted_cookie_origins:
+        cookie = str(settings.get("lendrive_cookie") or "").strip()
+    else:
+        cookie = ""
 
     headers = {
         "User-Agent": DEFAULT_USER_AGENT,
@@ -1317,7 +1346,38 @@ def api_settings_test_lendrive():
             headers["Cookie"] = cookie
 
     try:
-        resp = requests.get(base_url, headers=headers, timeout=8, allow_redirects=True)
+        current_url = base_url
+        current_host = (parsed_target.hostname or "").lower()
+        current_headers = dict(headers)
+        resp = None
+        for _ in range(4):
+            resp = requests.get(
+                current_url,
+                headers=current_headers,
+                timeout=8,
+                allow_redirects=False,
+            )
+            if resp.status_code not in (301, 302, 303, 307, 308):
+                break
+            location = resp.headers.get("Location") if hasattr(resp.headers, "get") else None
+            if not isinstance(location, str) or not location.strip():
+                break
+            next_url = urljoin(current_url, location.strip())
+            hop_valid, safe_next_url, hop_err = validate_external_provider_url(next_url)
+            if not hop_valid:
+                return jsonify({
+                    "ok": False,
+                    "valid": False,
+                    "challenge": False,
+                    "error": "invalid_redirect",
+                    "message": hop_err or "Redirect menuju host yang tidak diizinkan."
+                }), 400
+            next_host = (urlparse(safe_next_url).hostname or "").lower()
+            if next_host != current_host:
+                current_headers.pop("Cookie", None)
+                current_host = next_host
+            current_url = safe_next_url
+
         is_challenge = is_lendrive_challenge_page(resp.text, resp.status_code)
         if is_challenge:
             return jsonify({
@@ -2942,11 +3002,12 @@ def api_delete_anime():
                     if cache_file and os.path.isfile(cache_file):
                         os.remove(cache_file)
 
-            video_rel_path = os.path.join("Movies", filename)
-            thumb_hash = hashlib.md5(video_rel_path.encode("utf-8")).hexdigest() + ".jpg"
-            thumb_file = os.path.join(THUMBNAIL_CACHE, thumb_hash)
-            if os.path.isfile(thumb_file):
-                os.remove(thumb_file)
+            cleanup_summary = make_cache_cleanup_summary()
+            cleanup_thumbnails_for_video_paths(
+                [target_path, os.path.join("Movies", filename)],
+                cleanup_summary,
+                thumbnail_cache_dir=THUMBNAIL_CACHE,
+            )
 
             remove_watch_history_entry(get_watch_history_key("Movies", filename))
 
@@ -3029,6 +3090,7 @@ def clear_rpc_route():
 
 
 @host_only
+@require_action_token
 def api_desktop_activate():
     """Focus or restore the AniBase desktop window if running."""
     try:
@@ -3040,6 +3102,7 @@ def api_desktop_activate():
 
 
 @host_only
+@require_action_token
 def api_desktop_reset_window():
     """Mereset ukuran dan posisi jendela desktop ke default (1280x800 di tengah layar)."""
     try:
@@ -3051,6 +3114,7 @@ def api_desktop_reset_window():
 
 
 @host_only
+@require_action_token
 def api_desktop_shutdown():
     """Trigger graceful shutdown of the desktop application."""
     try:
@@ -3118,9 +3182,13 @@ def api_samehadaku_search():
 @host_only
 def api_samehadaku_episodes():
     """Mengambil daftar episode dan info anime Samehadaku, diperkaya status library lokal."""
-    page_url = request.args.get("url", "").strip()
-    if not page_url:
-        return json_error("invalid_url", "URL anime atau episode tidak boleh kosong", 400)
+    raw_url = request.args.get("url", "").strip()
+    is_valid, page_url, err_msg = validate_external_provider_url(
+        raw_url,
+        allowed_hosts=get_samehadaku_allowed_hosts(),
+    )
+    if not is_valid:
+        return json_error("invalid_url", err_msg or "URL anime atau episode tidak valid", 400)
     details = get_samehadaku_anime_details(page_url)
 
     if details.get("ok"):
@@ -3154,9 +3222,13 @@ def api_samehadaku_episodes():
 @host_only
 def api_samehadaku_downloads():
     """Mengambil daftar link download per resolusi dan host dari halaman episode Samehadaku."""
-    page_url = request.args.get("url", "").strip()
-    if not page_url:
-        return json_error("invalid_url", "URL unduhan tidak boleh kosong", 400)
+    raw_url = request.args.get("url", "").strip()
+    is_valid, page_url, err_msg = validate_external_provider_url(
+        raw_url,
+        allowed_hosts=get_samehadaku_allowed_hosts(),
+    )
+    if not is_valid:
+        return json_error("invalid_url", err_msg or "URL unduhan tidak valid", 400)
     downloads = get_samehadaku_download_links(page_url)
     return jsonify({"ok": True, "downloads": downloads})
 
@@ -3404,9 +3476,13 @@ def api_lendrive_search():
 @host_only
 def api_lendrive_episodes():
     """Mengambil daftar episode dan info anime Lendrive, diperkaya status library lokal."""
-    page_url = request.args.get("url", "").strip()
-    if not page_url:
-        return json_error("invalid_url", "URL anime atau episode tidak boleh kosong", 400)
+    raw_url = request.args.get("url", "").strip()
+    is_valid, page_url, err_msg = validate_external_provider_url(
+        raw_url,
+        allowed_hosts=get_lendrive_allowed_hosts(),
+    )
+    if not is_valid:
+        return json_error("invalid_url", err_msg or "URL anime atau episode tidak valid", 400)
     details = get_lendrive_anime_details(page_url)
 
     if details.get("ok"):
@@ -3440,9 +3516,13 @@ def api_lendrive_episodes():
 @host_only
 def api_lendrive_downloads():
     """Mengambil daftar link download per resolusi dan host dari halaman Lendrive."""
-    page_url = request.args.get("url", "").strip()
-    if not page_url:
-        return json_error("invalid_url", "URL unduhan tidak boleh kosong", 400)
+    raw_url = request.args.get("url", "").strip()
+    is_valid, page_url, err_msg = validate_external_provider_url(
+        raw_url,
+        allowed_hosts=get_lendrive_allowed_hosts(),
+    )
+    if not is_valid:
+        return json_error("invalid_url", err_msg or "URL unduhan tidak valid", 400)
     downloads = get_lendrive_download_links(page_url)
     return jsonify({"ok": True, "downloads": downloads})
 

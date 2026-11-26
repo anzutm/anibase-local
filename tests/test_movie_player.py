@@ -114,6 +114,72 @@ class MoviePlayerTests(unittest.TestCase):
         self.assertIn('global-mini-player.css', html_detail)
         self.assertIn('global-mini-player.js', html_detail)
 
+    def test_delete_movie_cleans_v2_thumbnail_and_seek_preview_cache(self):
+        import main
+        from anibase.settings import get_action_token
+        from anibase.thumbnails import get_thumbnail_cache_path, seek_preview_identity
+
+        cache_root = os.path.join(self.temp_dir.name, "cache")
+        thumb_root = os.path.join(cache_root, "thumbnails")
+        os.makedirs(thumb_root, exist_ok=True)
+
+        orig = {
+            "CACHE_DIR": main.CACHE_DIR,
+            "THUMBNAIL_CACHE": main.THUMBNAIL_CACHE,
+            "SETTINGS_FILE": main.SETTINGS_FILE,
+            "DB_PATH": main.DB_PATH,
+            "WATCH_HISTORY_FILE": main.WATCH_HISTORY_FILE,
+            "WATCH_STATUS_FILE": main.WATCH_STATUS_FILE,
+            "METADATA_CACHE": main.METADATA_CACHE,
+            "POSTER_CACHE": main.POSTER_CACHE,
+            "BANNER_CACHE": main.BANNER_CACHE,
+            "EPISODE_CACHE": main.EPISODE_CACHE,
+            "SUBTITLE_CACHE": main.SUBTITLE_CACHE,
+            "CHARACTER_CACHE": main.CHARACTER_CACHE,
+        }
+        try:
+            main.CACHE_DIR = cache_root
+            main.THUMBNAIL_CACHE = thumb_root
+            main.SETTINGS_FILE = os.path.join(self.temp_dir.name, "settings.json")
+            main.DB_PATH = os.path.join(cache_root, "library.db")
+            main.WATCH_HISTORY_FILE = os.path.join(cache_root, "watch_history.json")
+            main.WATCH_STATUS_FILE = os.path.join(cache_root, "watch_status.json")
+            main.METADATA_CACHE = os.path.join(cache_root, "metadata")
+            main.POSTER_CACHE = os.path.join(cache_root, "posters")
+            main.BANNER_CACHE = os.path.join(cache_root, "banners")
+            main.EPISODE_CACHE = os.path.join(cache_root, "episodes")
+            main.SUBTITLE_CACHE = os.path.join(cache_root, "subtitles")
+            main.CHARACTER_CACHE = os.path.join(cache_root, "characters")
+            main.init_db(main.DB_PATH)
+            main.save_settings({
+                "setup_completed": True,
+                "library_paths": [self.temp_dir.name],
+                "movie_path": self.movie_dir,
+            })
+
+            movie_full_path = os.path.join(self.movie_dir, self.movie1_file)
+            thumb_v2_path = get_thumbnail_cache_path(movie_full_path)
+            seek_folder, _ = seek_preview_identity(movie_full_path)
+            os.makedirs(seek_folder, exist_ok=True)
+            with open(thumb_v2_path, "wb") as f:
+                f.write(b"thumb")
+            with open(os.path.join(seek_folder, "sprite-01.jpg"), "wb") as f:
+                f.write(b"sprite")
+
+            token = get_action_token()
+            resp = self.client.post(
+                "/api/anime/delete",
+                headers={"X-Action-Token": token},
+                json={"anime_name": "Movies", "is_movie": True, "filename": self.movie1_file},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertFalse(os.path.exists(movie_full_path))
+            self.assertFalse(os.path.exists(thumb_v2_path))
+            self.assertFalse(os.path.exists(seek_folder))
+        finally:
+            for key, value in orig.items():
+                setattr(main, key, value)
+
 
 if __name__ == "__main__":
     unittest.main()

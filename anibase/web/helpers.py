@@ -270,7 +270,8 @@ def inject_shortcuts():
     settings = load_settings()
     return {
         "player_shortcuts": settings.get("shortcuts", DEFAULT_PLAYER_SHORTCUTS),
-        "shortcut_definitions": SHORTCUT_DEFINITIONS
+        "shortcut_definitions": SHORTCUT_DEFINITIONS,
+        "lendrive_base_url": settings.get("lendrive_base_url", "https://lendrive.web.id"),
     }
 
 

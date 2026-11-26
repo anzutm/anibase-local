@@ -352,9 +352,9 @@ def run_pyinstaller(version="0.0.0"):
             "--collect-all",
             "PySide6",
         ]
-        icon_path = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
+        icon_path = PROJECT_ROOT / "static" / "favicon.ico"
         if not icon_path.exists():
-            icon_path = PROJECT_ROOT / "static" / "favicon.ico"
+            icon_path = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
         if icon_path.exists():
             command[-1:-1] = [
                 "--icon",
@@ -475,6 +475,19 @@ def bundle_media_tools(release_dir):
         )
 
 
+def _write_release_desktop_icon(release_dir):
+    """Export static/favicon.ico as release_dir/anibase.png for desktop entries."""
+    from anibase.utils import export_ico_to_png
+
+    dest_icon = release_dir / "anibase.png"
+    ico_source = PROJECT_ROOT / "static" / "favicon.ico"
+    if ico_source.is_file() and export_ico_to_png(ico_source, dest_icon):
+        return
+    fallback = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
+    if fallback.is_file():
+        shutil.copy2(fallback, dest_icon)
+
+
 def copy_exe_release_files(source_dir, release_dir):
     remove_path(release_dir)
     release_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -487,9 +500,7 @@ def copy_exe_release_files(source_dir, release_dir):
 
     # Linux desktop entry & application icon
     write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=True), newline="\n")
-    icon_source = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
-    if icon_source.is_file():
-        shutil.copy2(icon_source, release_dir / "anibase.png")
+    _write_release_desktop_icon(release_dir)
 
     if os.name != "nt":
         exe_file = release_dir / APP_NAME
@@ -644,9 +655,7 @@ def create_source_release(release_dir):
 
     # Linux desktop entry & application icon
     write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=False), newline="\n")
-    icon_source = PROJECT_ROOT / "static" / "logo_transparent_cropped.png"
-    if icon_source.is_file():
-        shutil.copy2(icon_source, release_dir / "anibase.png")
+    _write_release_desktop_icon(release_dir)
 
 
 def build_exe_release(release_dir, version="0.0.0"):

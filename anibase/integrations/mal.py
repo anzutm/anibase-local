@@ -6,13 +6,13 @@ import re
 import json
 import time
 import threading
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 import logging
 import requests
 from flask import request, url_for
 import anibase.constants as _constants
 from anibase.logging import app_log
-from anibase.utils import atomic_write_json_file
+from anibase.utils import atomic_write_json_file, safe_join_media_path
 from anibase.settings import load_settings, get_effective_mal_client_id
 from anibase.db import db_connection
 from anibase.media import get_episode_number
@@ -480,6 +480,71 @@ def get_mal_user_animelist(status="watching", limit=100, offset=0, force=False):
     return cached.get("items", []) if cached else []
 
 
+def _resolve_local_play_target(anime_name):
+    """Return the first or active relative episode path for a local anime folder."""
+    if not anime_name:
+        return None
+    try:
+        from anibase.scanner import find_anime_path
+        from anibase.media import get_episode_sort_key
+        from anibase.watch import get_episode_watch_status
+    except Exception:
+        return None
+
+    anime_path = find_anime_path(anime_name)
+    if not anime_path or not os.path.isdir(anime_path):
+        return None
+
+    try:
+        dir_items = os.listdir(anime_path)
+    except OSError:
+        return None
+
+    seasons = []
+    for item in dir_items:
+        item_path = os.path.join(anime_path, item)
+        if not os.path.isdir(item_path):
+            continue
+        try:
+            if any(fname.lower().endswith(_constants.VIDEO_EXTENSIONS) for fname in os.listdir(item_path)):
+                seasons.append(item)
+        except OSError:
+            continue
+
+    selected_season = None
+    source_path = anime_path
+    if seasons:
+        seasons.sort(key=get_episode_sort_key)
+        selected_season = seasons[0]
+        source_path = safe_join_media_path(anime_path, selected_season)
+        if not source_path or not os.path.isdir(source_path):
+            return None
+
+    try:
+        video_files = [
+            fname for fname in os.listdir(source_path)
+            if fname.lower().endswith(_constants.VIDEO_EXTENSIONS)
+        ]
+    except OSError:
+        return None
+
+    if not video_files:
+        return None
+
+    video_files.sort(key=get_episode_sort_key)
+    relative_files = [
+        (os.path.join(selected_season, fname).replace(os.sep, "/") if selected_season else fname)
+        for fname in video_files
+    ]
+    for rel_file in relative_files:
+        try:
+            if not get_episode_watch_status(anime_name, rel_file).get("watched", False):
+                return rel_file
+        except Exception:
+            break
+    return relative_files[0]
+
+
 def enrich_mal_list_with_local_library(items, local_index=None):
     import main
     from anibase.metadata import (
@@ -534,12 +599,20 @@ def enrich_mal_list_with_local_library(items, local_index=None):
         local_url = None
         play_url = None
         if local_match:
+            matched_name = local_match["name"]
             try:
-                local_url = url_for("anime_detail", anime_name=local_match["name"])
-                play_url = url_for("player", anime=local_match["name"])
+                local_url = url_for("anime_detail", anime_name=matched_name)
             except Exception:
-                local_url = f"/anime/{quote_plus(local_match['name'])}"
-                play_url = f"/play/{quote_plus(local_match['name'])}"
+                local_url = f"/anime/{quote(matched_name, safe='')}"
+
+            play_episode = _resolve_local_play_target(matched_name)
+            if play_episode:
+                try:
+                    play_url = url_for("player", anime_name=matched_name, episode=play_episode)
+                except Exception:
+                    play_url = f"/player/{quote(matched_name, safe='')}/{quote(play_episode, safe='/')}"
+            else:
+                play_url = local_url
 
         try:
             return_to = request.full_path if request else "/profile"

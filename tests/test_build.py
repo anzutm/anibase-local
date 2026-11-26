@@ -206,6 +206,8 @@ class BuildPackagingTests(unittest.TestCase):
         self.assertIn("Exec=./run_tray.sh", entry_src)
 
     def test_create_source_release_includes_linux_launchers_and_desktop_entry(self):
+        from anibase.utils import ico_to_png_bytes
+
         rel_dir = self.root / "source_release"
         with patch.object(build, "RELEASES_DIR", self.root):
             build.create_source_release(rel_dir)
@@ -215,12 +217,18 @@ class BuildPackagingTests(unittest.TestCase):
         self.assertTrue((rel_dir / "run_tray.sh").is_file())
         self.assertTrue((rel_dir / "anibase.desktop").is_file())
         self.assertTrue((rel_dir / "anibase.png").is_file())
+        self.assertEqual(
+            (rel_dir / "anibase.png").read_bytes(),
+            ico_to_png_bytes(build.PROJECT_ROOT / "static" / "favicon.ico"),
+        )
 
         sh_content = (rel_dir / "run_tray.sh").read_text(encoding="utf-8")
         self.assertIn("#!/usr/bin/env bash", sh_content)
         self.assertIn("python tray_ui.py", sh_content)
 
     def test_copy_exe_release_files_includes_desktop_entry(self):
+        from anibase.utils import ico_to_png_bytes
+
         source = self.root / "source"
         source.mkdir()
         (source / "AniBase.exe").write_bytes(b"mock exe")
@@ -229,6 +237,10 @@ class BuildPackagingTests(unittest.TestCase):
             build.copy_exe_release_files(source, rel_dir)
         self.assertTrue((rel_dir / "anibase.desktop").is_file())
         self.assertTrue((rel_dir / "anibase.png").is_file())
+        self.assertEqual(
+            (rel_dir / "anibase.png").read_bytes(),
+            ico_to_png_bytes(build.PROJECT_ROOT / "static" / "favicon.ico"),
+        )
 
     def test_pyinstaller_command_linux_options(self):
         with patch("build.os.name", "posix"), \
@@ -241,6 +253,10 @@ class BuildPackagingTests(unittest.TestCase):
         self.assertIn("PySide6", command)
         self.assertIn("webview", command)
         self.assertIn("anibase", command)
+        self.assertEqual(
+            command[command.index("--icon") + 1],
+            str(build.PROJECT_ROOT / "static" / "favicon.ico"),
+        )
 
     def test_create_release_archive_gztar(self):
         rel_dir = self.root / "pkg"
