@@ -289,6 +289,14 @@ class DownloadManagerTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         self.dest_folder = self.temp_dir.name
+        for target in (
+            "anibase.watcher.queue_anime_sync",
+            "anibase.scanner.sync_anime_to_db",
+            "anibase.watchlist_tracker.on_download_completed",
+        ):
+            p = patch(target)
+            p.start()
+            self.addCleanup(p.stop)
 
     def test_sanitize_filename(self):
         self.assertEqual(sanitize_filename("Anime: Episode <01>?.mkv"), "Anime_ Episode _01__.mkv")

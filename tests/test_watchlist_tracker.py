@@ -358,7 +358,8 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
             provider="samehadaku"
         )
 
-    def test_start_download_keyword_argument_compatibility(self):
+    @patch("anibase.download_manager._download_worker")
+    def test_start_download_keyword_argument_compatibility(self, _mock_worker):
         from anibase.download_manager import start_download
         # Calling start_download with legacy/alternate kwargs should not throw TypeError
         res = start_download(
