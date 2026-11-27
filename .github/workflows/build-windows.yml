@@ -76,42 +76,81 @@ jobs:
         shell: pwsh
         run: python release_check.py
 
-      - name: Smoke-test compiled AniBase.exe runtime
+      - name: Smoke-test compiled AniBase.exe and bundled tools
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $ver = "${{ steps.meta.outputs.version }}"
-          $exePath = "releases\AniBase $ver\AniBase.exe"
-          if (-not (Test-Path -LiteralPath $exePath)) {
-            throw "Compiled binary missing: $exePath"
+          $releaseDir = "releases\AniBase $ver"
+          $exePath = Join-Path $releaseDir "AniBase.exe"
+          $ffmpegPath = Join-Path $releaseDir "tools\ffmpeg.exe"
+          $ffprobePath = Join-Path $releaseDir "tools\ffprobe.exe"
+          foreach ($required in @($exePath, $ffmpegPath, $ffprobePath)) {
+            if (-not (Test-Path -LiteralPath $required)) {
+              throw "Required compiled artifact missing: $required"
+            }
           }
+
+          Write-Host "Verifying bundled ffmpeg.exe & ffprobe.exe..."
+          & $ffmpegPath -version | Select-Object -First 2
+          if ($LASTEXITCODE -ne 0) { throw "Bundled ffmpeg.exe failed with exit code $LASTEXITCODE" }
+          & $ffprobePath -version | Select-Object -First 2
+          if ($LASTEXITCODE -ne 0) { throw "Bundled ffprobe.exe failed with exit code $LASTEXITCODE" }
+
           $tempAppData = Join-Path $env:RUNNER_TEMP "anibase-smoke-appdata"
           New-Item -ItemType Directory -Force -Path $tempAppData | Out-Null
-          $stdoutLog = Join-Path $env:RUNNER_TEMP "anibase-tray-stdout.log"
-          $stderrLog = Join-Path $env:RUNNER_TEMP "anibase-tray-stderr.log"
+          $stdoutLog = Join-Path $env:RUNNER_TEMP "anibase-stdout.log"
+          $stderrLog = Join-Path $env:RUNNER_TEMP "anibase-stderr.log"
 
           $prevLocalAppData = $env:LOCALAPPDATA
-          $prevQtQpa = $env:QT_QPA_PLATFORM
+          $proc = $null
           try {
             $env:LOCALAPPDATA = $tempAppData
-            $env:QT_QPA_PLATFORM = "offscreen"
-            $proc = Start-Process -FilePath (Resolve-Path $exePath) -ArgumentList "--tray-helper" -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
-            Start-Sleep -Seconds 5
-            if ($proc.HasExited) {
-              $errText = if (Test-Path $stderrLog) { Get-Content $stderrLog -Raw } else { "" }
-              throw "AniBase.exe --tray-helper exited prematurely with code $($proc.ExitCode). Stderr: $errText"
+            $proc = Start-Process -FilePath (Resolve-Path $exePath) -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+
+            $ready = $false
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Get-Date) -lt $deadline) {
+              if ($proc.HasExited) {
+                $errText = if (Test-Path $stderrLog) { Get-Content $stderrLog -Raw } else { "" }
+                $appLogPath = Join-Path $tempAppData "AniBase\logs\anibase.log"
+                $appLogText = if (Test-Path $appLogPath) { Get-Content $appLogPath -Raw } else { "" }
+                throw "AniBase.exe exited prematurely with code $($proc.ExitCode). Stderr: $errText`nApp log: $appLogText"
+              }
+              try {
+                $setupResp = Invoke-WebRequest -Uri "http://127.0.0.1:5000/setup" -UseBasicParsing -TimeoutSec 3
+                $statusResp = Invoke-WebRequest -Uri "http://127.0.0.1:5000/api/desktop/status" -UseBasicParsing -TimeoutSec 3
+                if ($setupResp.StatusCode -eq 200 -and $statusResp.StatusCode -eq 200) {
+                  $statusJson = $statusResp.Content | ConvertFrom-Json
+                  if ($statusJson.ok -and $setupResp.Content -match "AniBase") {
+                    Write-Host "HTTP /setup OK (len=$($setupResp.Content.Length)), /api/desktop/status ok=$($statusJson.ok)"
+                    $ready = $true
+                    break
+                  }
+                }
+              } catch {
+                Start-Sleep -Milliseconds 500
+              }
             }
-            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Milliseconds 500
+
+            if (-not $ready) {
+              $errText = if (Test-Path $stderrLog) { Get-Content $stderrLog -Raw } else { "" }
+              $appLogPath = Join-Path $tempAppData "AniBase\logs\anibase.log"
+              $appLogText = if (Test-Path $appLogPath) { Get-Content $appLogPath -Raw } else { "" }
+              throw "AniBase.exe did not become HTTP-ready within 30s. Stderr: $errText`nApp log: $appLogText"
+            }
+
+            $appLogPath = Join-Path $tempAppData "AniBase\logs\anibase.log"
+            if (Test-Path $appLogPath) {
+              Write-Host "=== AniBase startup log ==="
+              Get-Content $appLogPath -Tail 40
+            }
           } finally {
             $env:LOCALAPPDATA = $prevLocalAppData
-            $env:QT_QPA_PLATFORM = $prevQtQpa
-          }
-
-          $outText = if (Test-Path $stdoutLog) { Get-Content $stdoutLog -Raw } else { "" }
-          Write-Host "Smoke test stdout:`n$outText"
-          if (-not ($outText -match "ANIBASE_TRAY_AVAILABLE=")) {
-            throw "Qt tray helper did not emit ANIBASE_TRAY_AVAILABLE signal."
+            if ($proc -and -not $proc.HasExited) {
+              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Milliseconds 500
+            }
           }
 
       - name: Show build output summary
