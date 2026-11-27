@@ -92,10 +92,12 @@ jobs:
           }
 
           Write-Host "Verifying bundled ffmpeg.exe & ffprobe.exe..."
-          & $ffmpegPath -version | Select-Object -First 2
+          $ffOut = & $ffmpegPath -version
           if ($LASTEXITCODE -ne 0) { throw "Bundled ffmpeg.exe failed with exit code $LASTEXITCODE" }
-          & $ffprobePath -version | Select-Object -First 2
+          $ffOut | Select-Object -First 2
+          $fpOut = & $ffprobePath -version
           if ($LASTEXITCODE -ne 0) { throw "Bundled ffprobe.exe failed with exit code $LASTEXITCODE" }
+          $fpOut | Select-Object -First 2
 
           $tempAppData = Join-Path $env:RUNNER_TEMP "anibase-smoke-appdata"
           New-Item -ItemType Directory -Force -Path $tempAppData | Out-Null
