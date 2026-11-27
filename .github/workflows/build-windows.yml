@@ -1,0 +1,130 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (leave blank to use APP_VERSION from anibase/constants.py)"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-win64:
+    name: Build AniBase Windows (win64 EXE)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Determine release version
+        id: meta
+        shell: pwsh
+        run: |
+          $ver = "${{ inputs.version }}".Trim()
+          if (-not $ver -and "${{ github.ref_type }}" -eq "tag") {
+            $ver = "${{ github.ref_name }}".Trim()
+          }
+          if (-not $ver) {
+            $ver = python -c "from anibase.constants import APP_VERSION; print(f'v{APP_VERSION}')"
+          }
+          if (-not $ver.StartsWith("v") -and -not $ver.StartsWith("V")) {
+            $ver = "v$ver"
+          }
+          Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Target release version: $ver"
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install portable FFmpeg & FFprobe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $zipPath = Join-Path $env:RUNNER_TEMP "ffmpeg-win64-gpl.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "ffmpeg-extract"
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+          $binDir = (Get-ChildItem -Path $extractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1).Directory.FullName
+          if (-not $binDir) { throw "ffmpeg.exe not found in archive" }
+          Write-Output $binDir >> $env:GITHUB_PATH
+          & (Join-Path $binDir "ffmpeg.exe") -version | Select-Object -First 1
+          & (Join-Path $binDir "ffprobe.exe") -version | Select-Object -First 1
+
+      - name: Pre-build check
+        shell: pwsh
+        run: python build.py --check
+
+      - name: Build Windows portable EXE release
+        shell: pwsh
+        run: python build.py "${{ steps.meta.outputs.version }}" --exe-only
+
+      - name: Validate release package and Windows unit tests
+        shell: pwsh
+        run: python release_check.py
+
+      - name: Smoke-test compiled AniBase.exe runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = "${{ steps.meta.outputs.version }}"
+          $exePath = "releases\AniBase $ver\AniBase.exe"
+          if (-not (Test-Path -LiteralPath $exePath)) {
+            throw "Compiled binary missing: $exePath"
+          }
+          $tempAppData = Join-Path $env:RUNNER_TEMP "anibase-smoke-appdata"
+          New-Item -ItemType Directory -Force -Path $tempAppData | Out-Null
+          $stdoutLog = Join-Path $env:RUNNER_TEMP "anibase-tray-stdout.log"
+          $stderrLog = Join-Path $env:RUNNER_TEMP "anibase-tray-stderr.log"
+
+          $prevLocalAppData = $env:LOCALAPPDATA
+          $prevQtQpa = $env:QT_QPA_PLATFORM
+          try {
+            $env:LOCALAPPDATA = $tempAppData
+            $env:QT_QPA_PLATFORM = "offscreen"
+            $proc = Start-Process -FilePath (Resolve-Path $exePath) -ArgumentList "--tray-helper" -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+            Start-Sleep -Seconds 5
+            if ($proc.HasExited) {
+              $errText = if (Test-Path $stderrLog) { Get-Content $stderrLog -Raw } else { "" }
+              throw "AniBase.exe --tray-helper exited prematurely with code $($proc.ExitCode). Stderr: $errText"
+            }
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+          } finally {
+            $env:LOCALAPPDATA = $prevLocalAppData
+            $env:QT_QPA_PLATFORM = $prevQtQpa
+          }
+
+          $outText = if (Test-Path $stdoutLog) { Get-Content $stdoutLog -Raw } else { "" }
+          Write-Host "Smoke test stdout:`n$outText"
+          if (-not ($outText -match "ANIBASE_TRAY_AVAILABLE=")) {
+            throw "Qt tray helper did not emit ANIBASE_TRAY_AVAILABLE signal."
+          }
+
+      - name: Show build output summary
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.meta.outputs.version }}"
+          Get-Item "releases\AniBase-$ver-win64.zip" | Format-List Name, Length
+          Get-ChildItem "releases\AniBase $ver"
+
+      - name: Upload Windows portable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AniBase-${{ steps.meta.outputs.version }}-win64
+          path: releases/AniBase-${{ steps.meta.outputs.version }}-win64.zip
+          if-no-files-found: error
+          retention-days: 30
