@@ -244,6 +244,7 @@ from anibase.watcher import (
 from anibase.web.helpers import (
     host_only,
     require_action_token,
+    validate_action_token,
     json_error,
     get_json_body,
     apply_settings,
@@ -321,6 +322,12 @@ def setup_sync():
 def export_settings_backup():
     """Download portable personal settings, mappings, watch history, and reviews as a JSON backup."""
     if request.method == "POST":
+        if not validate_action_token():
+            return json_error(
+                "invalid_action_token",
+                "Invalid or missing action token.",
+                403,
+            )
         want_settings = "include_settings" in request.form
         want_mappings = "include_mappings" in request.form
         want_history = "include_watch_history" in request.form
@@ -3557,6 +3564,7 @@ def api_lendrive_start_download():
     return jsonify(result)
 
 
+@host_only
 def api_ongoing_tracker_list():
     """Mengambil daftar seluruh anime ongoing yang sedang dipantau beserta status episode terbarunya."""
     from anibase.watchlist_tracker import scan_ongoing_anime
@@ -3623,10 +3631,12 @@ def api_ongoing_tracker_delete():
     return jsonify({"ok": True, "anime_name": anime_name, "deleted": True})
 
 
+@host_only
 def api_ongoing_tracker_notifications():
     """Mengambil riwayat notifikasi episode baru."""
     unread_only = request.args.get("unread_only", "").lower() in ("true", "1")
-    limit = max(1, min(100, int(request.args.get("limit", 30) or 30)))
+    limit = request.args.get("limit", default=30, type=int)
+    limit = max(1, min(100, limit))
     notifications = get_episode_notifications(unread_only=unread_only, limit=limit)
     unread_count = get_unread_notification_count()
     return jsonify({

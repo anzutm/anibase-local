@@ -283,6 +283,11 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertIsInstance(data["notifications"], list)
 
+        # Test invalid/non-numeric limit safely falls back to bounded default instead of 500
+        res_bad_limit = self.client.get("/api/ongoing-tracker/notifications?limit=abc")
+        self.assertEqual(res_bad_limit.status_code, 200)
+        self.assertTrue(res_bad_limit.get_json()["ok"])
+
         # Mark all read
         res_read = self.client.post(
             "/api/ongoing-tracker/notifications/read",
@@ -293,6 +298,13 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         data_read = res_read.get_json()
         self.assertTrue(data_read["ok"])
         self.assertEqual(data_read["unread_count"], 0)
+
+    def test_api_ongoing_tracker_read_routes_enforce_host_only(self):
+        with patch("anibase.web.helpers.load_settings", return_value={"lan_access_enabled": True, "setup_completed": True}):
+            for endpoint in ("/api/ongoing-tracker/list", "/api/ongoing-tracker/notifications"):
+                res = self.client.get(endpoint, environ_base={"REMOTE_ADDR": "192.168.1.50"})
+                self.assertEqual(res.status_code, 403, endpoint)
+                self.assertEqual(res.get_json()["error"], "host_only")
 
     @patch("anibase.watchlist_tracker.quick_download_episode_alert")
     def test_api_ongoing_tracker_quick_download(self, mock_quick):

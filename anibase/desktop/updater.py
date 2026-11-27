@@ -92,6 +92,17 @@ def get_default_icon_path() -> str:
     return "anibase"
 
 
+_DESKTOP_NOTIFICATION_HANDLER_LOCK = threading.Lock()
+_desktop_notification_handler = None
+
+
+def register_desktop_notification_handler(handler):
+    """Registers (or clears with None) an in-process UI notification handler (e.g. Qt tray)."""
+    global _desktop_notification_handler
+    with _DESKTOP_NOTIFICATION_HANDLER_LOCK:
+        _desktop_notification_handler = handler
+
+
 def send_desktop_notification(
     title: str,
     message: str,
@@ -100,9 +111,20 @@ def send_desktop_notification(
     expire_time_ms: int = 7000,
 ) -> bool:
     """
-    Sends a native desktop notification on Linux (and other platforms).
+    Sends a native desktop notification on Linux or via the registered tray handler on Windows.
     Non-blocking, silent on failure.
     """
+    with _DESKTOP_NOTIFICATION_HANDLER_LOCK:
+        tray_handler = _desktop_notification_handler
+
+    if os.name == "nt" and callable(tray_handler):
+        try:
+            accepted = tray_handler(title, message, int(expire_time_ms))
+            if accepted is not False:
+                return True
+        except Exception as e:
+            app_log(f"Windows tray notification handler failed: {e}", "DEBUG")
+
     def _deliver():
         icon = icon_path or get_default_icon_path()
         if os.name != "nt":
@@ -162,6 +184,12 @@ def send_desktop_notification(
                     return True
                 except Exception as e:
                     app_log(f"busctl notification failed: {e}", "DEBUG")
+        elif callable(tray_handler):
+            try:
+                if tray_handler(title, message, int(expire_time_ms)) is not False:
+                    return True
+            except Exception as e:
+                app_log(f"Windows tray notification failed: {e}", "DEBUG")
 
         app_log(f"Notification: [{title}] {message}", "INFO")
         return False

@@ -165,8 +165,7 @@ class DesktopApiTests(unittest.TestCase):
             res = desktop_shell.configure_webview2_settings(mock_win)
         self.assertTrue(res)
         self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
-        self.assertTrue(mock_settings.IsZoomControlEnabled)
-        self.assertEqual(mock_core.ZoomFactor, 1.25)
+        self.assertFalse(mock_settings.IsZoomControlEnabled)
         desktop_shell._window_state["zoom"] = 1.0
 
     @patch("anibase.desktop.shell.get_window_hwnd", return_value=12345)
@@ -492,7 +491,7 @@ class DesktopWebIntegrationTests(unittest.TestCase):
             res = desktop_shell.configure_webview2_settings(mock_win)
         self.assertTrue(res)
         self.assertTrue(mock_settings.AreBrowserAcceleratorKeysEnabled)
-        self.assertTrue(mock_settings.IsZoomControlEnabled)
+        self.assertFalse(mock_settings.IsZoomControlEnabled)
         self.assertFalse(mock_settings.IsStatusBarEnabled)
         self.assertFalse(mock_settings.IsSwipeNavigationEnabled)
         self.assertFalse(mock_settings.AreDefaultContextMenusEnabled)
@@ -875,6 +874,74 @@ class LinuxDesktopShellCompatibilityTests(unittest.TestCase):
             self.assertFalse(desktop_shell.is_system_tray_available())
         finally:
             desktop_shell._system_tray_available = orig
+
+    def test_windows_startup_command_uses_tray_ui_when_not_frozen(self):
+        with patch.object(sys, "frozen", False, create=True), \
+             patch("anibase.utils.get_application_dir", return_value="/mock/AniBase"):
+            cmd = desktop_shell.get_windows_startup_command()
+            self.assertIn("tray_ui.py", cmd)
+            self.assertNotIn("main.py", cmd)
+
+    def test_load_saved_window_state_supports_multimonitor_and_ignores_minimized_sentinel(self):
+        # 1. Negative coordinates on left secondary monitor are preserved when within virtual desktop
+        saved_left = {"desktop_window": {"x": -1200, "y": 100, "width": 1280, "height": 800}}
+        with patch("anibase.desktop.shell.load_settings", return_value=saved_left), \
+             patch("anibase.desktop.shell.get_screen_bounds", return_value=(1920, 1080)), \
+             patch("anibase.desktop.shell._get_windows_virtual_screen_bounds", return_value=(-1920, 0, 3840, 1080)):
+            load_saved_window_state()
+            self.assertEqual(desktop_shell._window_state["x"], -1200)
+            self.assertEqual(desktop_shell._window_state["y"], 100)
+
+        # 2. Win32 minimized sentinel (-32000, -32000) falls back to centered primary bounds
+        saved_min = {"desktop_window": {"x": -32000, "y": -32000, "width": 1280, "height": 800}}
+        with patch("anibase.desktop.shell.load_settings", return_value=saved_min), \
+             patch("anibase.desktop.shell.get_screen_bounds", return_value=(1920, 1080)), \
+             patch("anibase.desktop.shell._get_windows_virtual_screen_bounds", return_value=(-1920, 0, 3840, 1080)):
+            load_saved_window_state()
+            self.assertEqual(desktop_shell._window_state["x"], 320)
+            self.assertEqual(desktop_shell._window_state["y"], 140)
+
+    def test_window_state_ignores_minimized_coordinates_on_save_and_move(self):
+        desktop_shell._window_state.update({
+            "x": 250, "y": 120, "width": 1280, "height": 800,
+            "maximized": False, "fullscreen": False,
+        })
+        desktop_shell.on_window_moved(-32000, -32000)
+        self.assertEqual(desktop_shell._window_state["x"], 250)
+        self.assertEqual(desktop_shell._window_state["y"], 120)
+
+        mock_win = MagicMock()
+        mock_win.width = 160
+        mock_win.height = 28
+        mock_win.x = -32000
+        mock_win.y = -32000
+        saved = {}
+        with patch("anibase.desktop.shell.desktop_window", mock_win), \
+             patch("anibase.desktop.shell._is_windows_window_minimized", return_value=True), \
+             patch("anibase.desktop.shell.load_settings", return_value={}), \
+             patch("anibase.desktop.shell.save_settings", side_effect=saved.update):
+            save_current_window_state()
+        self.assertEqual(saved["desktop_window"]["x"], 250)
+        self.assertEqual(saved["desktop_window"]["width"], 1280)
+
+    def test_perform_graceful_shutdown_is_idempotent(self):
+        import tray_ui
+        orig_done = tray_ui._shutdown_completed
+        try:
+            tray_ui._shutdown_completed = False
+            with patch("anibase.desktop.shell.close_desktop_window_permanent") as mock_close, \
+                 patch.object(tray_ui, "app_log", MagicMock()), \
+                 patch.object(tray_ui, "request_shutdown", MagicMock()) as mock_req, \
+                 patch.object(tray_ui, "stop_library_observer", MagicMock()), \
+                 patch.object(tray_ui, "shutdown_flask_server", MagicMock()) as mock_flask, \
+                 patch.object(tray_ui, "join_background_workers", MagicMock()):
+                tray_ui.perform_graceful_shutdown()
+                tray_ui.perform_graceful_shutdown()
+            mock_close.assert_called_once()
+            mock_req.assert_called_once()
+            mock_flask.assert_called_once()
+        finally:
+            tray_ui._shutdown_completed = orig_done
 
 
 if __name__ == "__main__":

@@ -45,6 +45,29 @@ _window_state = {
 }
 _is_shutting_down = False
 ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = (
+    "--enable-gpu-rasterization "
+    "--autoplay-policy=no-user-gesture-required "
+    "--enable-features=ParallelDownloading "
+    "--media-cache-size=104857600"
+)
+_MINIMIZED_COORD_SENTINEL = -30000
+
+
+def configure_webview2_environment(storage_dir=None):
+    """Configures persistent Edge WebView2 profile and runtime flags once on Windows."""
+    if os.name != "nt":
+        return None
+    target_dir = storage_dir or get_desktop_storage_path()
+    try:
+        os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", target_dir)
+        os.environ.setdefault(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS,
+        )
+    except OSError:
+        pass
+    return target_dir
 
 
 class DesktopApi:
@@ -256,6 +279,36 @@ def get_screen_bounds():
     return 1920, 1080
 
 
+def _get_windows_virtual_screen_bounds():
+    """Returns (x, y, width, height) of the Windows virtual multi-monitor desktop."""
+    sw, sh = get_screen_bounds()
+    if os.name == "nt":
+        try:
+            user32 = ctypes.windll.user32
+            vx = int(user32.GetSystemMetrics(76))   # SM_XVIRTUALSCREEN
+            vy = int(user32.GetSystemMetrics(77))   # SM_YVIRTUALSCREEN
+            vw = int(user32.GetSystemMetrics(78))   # SM_CXVIRTUALSCREEN
+            vh = int(user32.GetSystemMetrics(79))   # SM_CYVIRTUALSCREEN
+            if vw > 0 and vh > 0:
+                return vx, vy, vw, vh
+        except Exception:
+            pass
+    return 0, 0, sw, sh
+
+
+def _is_windows_window_minimized(hwnd=None):
+    """Returns True if the Win32 desktop window is currently minimized (iconic)."""
+    if os.name != "nt":
+        return False
+    target_hwnd = hwnd or get_window_hwnd()
+    if not target_hwnd:
+        return False
+    try:
+        return bool(ctypes.windll.user32.IsIconic(target_hwnd))
+    except Exception:
+        return False
+
+
 def get_windows_startup_command() -> str:
     """Returns the executable command line for Windows startup."""
     import sys
@@ -266,8 +319,8 @@ def get_windows_startup_command() -> str:
     py_dir = os.path.dirname(sys.executable)
     pythonw = os.path.join(py_dir, "pythonw.exe")
     exe = pythonw if os.path.isfile(pythonw) else sys.executable
-    main_py = os.path.join(get_application_dir(), "main.py")
-    return f'"{exe}" "{main_py}"'
+    tray_py = os.path.join(get_application_dir(), "tray_ui.py")
+    return f'"{exe}" "{tray_py}"'
 
 
 def is_windows_startup_enabled() -> bool:
@@ -796,13 +849,21 @@ def load_saved_window_state():
         saved = settings.get("desktop_window")
         if isinstance(saved, dict):
             sw, sh = get_screen_bounds()
-            w = max(960, min(sw, int(saved.get("width", 1280))))
-            h = max(600, min(sh, int(saved.get("height", 800))))
+            vx, vy, vw, vh = _get_windows_virtual_screen_bounds()
+            w = max(960, min(max(sw, vw), int(saved.get("width", 1280))))
+            h = max(600, min(max(sh, vh), int(saved.get("height", 800))))
             x = saved.get("x")
             y = saved.get("y")
             if x is not None and y is not None:
-                x = max(0, min(sw - 120, int(x)))
-                y = max(0, min(sh - 120, int(y)))
+                xi = int(x)
+                yi = int(y)
+                # Ignore Win32 minimized sentinel coordinates (-32000, -32000)
+                if xi <= _MINIMIZED_COORD_SENTINEL or yi <= _MINIMIZED_COORD_SENTINEL:
+                    x = (sw - w) // 2
+                    y = (sh - h) // 2
+                else:
+                    x = max(vx, min(vx + vw - 120, xi))
+                    y = max(vy, min(vy + vh - 120, yi))
             else:
                 x = (sw - w) // 2
                 y = (sh - h) // 2
@@ -824,18 +885,27 @@ def save_current_window_state():
     if not desktop_window:
         return
     try:
-        if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
+        if (
+            not _window_state.get("maximized")
+            and not _window_state.get("fullscreen")
+            and not _is_windows_window_minimized()
+        ):
             # On Linux GTK, never access desktop_window.width/height/x/y as pywebview GTK
             # uses glib.idle_add + Semaphore.acquire() which deadlocks when called from the UI thread.
             # _window_state is kept up to date via on_window_resized and on_window_moved.
             if type(desktop_window).__name__ == "MagicMock" or os.name == "nt":
                 try:
-                    if desktop_window.width and desktop_window.height:
-                        _window_state["width"] = int(desktop_window.width)
-                        _window_state["height"] = int(desktop_window.height)
+                    w = int(desktop_window.width) if desktop_window.width else 0
+                    h = int(desktop_window.height) if desktop_window.height else 0
+                    if w > 0 and h > 0:
+                        _window_state["width"] = w
+                        _window_state["height"] = h
                     if desktop_window.x is not None and desktop_window.y is not None:
-                        _window_state["x"] = int(desktop_window.x)
-                        _window_state["y"] = int(desktop_window.y)
+                        x = int(desktop_window.x)
+                        y = int(desktop_window.y)
+                        if x > _MINIMIZED_COORD_SENTINEL and y > _MINIMIZED_COORD_SENTINEL:
+                            _window_state["x"] = x
+                            _window_state["y"] = y
                 except Exception:
                     pass
 
@@ -992,15 +1062,15 @@ def configure_webview2_settings(window=None):
                 settings = getattr(core, "Settings", None)
                 if settings:
                     settings.AreBrowserAcceleratorKeysEnabled = True
-                    settings.IsZoomControlEnabled = True
+                    # CSS zoom in desktop-titlebar.js manages zoom consistently; disable native
+                    # WebView2 browser zoom controls to avoid double-zooming on Ctrl+Wheel.
+                    settings.IsZoomControlEnabled = False
                     if hasattr(settings, "IsStatusBarEnabled"):
                         settings.IsStatusBarEnabled = False
                     if hasattr(settings, "IsSwipeNavigationEnabled"):
                         settings.IsSwipeNavigationEnabled = False
                     if hasattr(settings, "AreDefaultContextMenusEnabled"):
                         settings.AreDefaultContextMenusEnabled = False
-                if type(win.native).__name__ == "MagicMock":
-                    core.ZoomFactor = float(_window_state.get("zoom", 1.0))
             except Exception:
                 pass
 
@@ -1274,15 +1344,27 @@ def on_window_restored():
 
 
 def on_window_resized(width, height):
-    if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
-        _window_state["width"] = int(width)
-        _window_state["height"] = int(height)
+    if (
+        not _window_state.get("maximized")
+        and not _window_state.get("fullscreen")
+        and not _is_windows_window_minimized()
+    ):
+        w, h = int(width), int(height)
+        if w > 0 and h > 0:
+            _window_state["width"] = w
+            _window_state["height"] = h
 
 
 def on_window_moved(x, y):
-    if not _window_state.get("maximized") and not _window_state.get("fullscreen"):
-        _window_state["x"] = int(x)
-        _window_state["y"] = int(y)
+    if (
+        not _window_state.get("maximized")
+        and not _window_state.get("fullscreen")
+        and not _is_windows_window_minimized()
+    ):
+        xi, yi = int(x), int(y)
+        if xi > _MINIMIZED_COORD_SENTINEL and yi > _MINIMIZED_COORD_SENTINEL:
+            _window_state["x"] = xi
+            _window_state["y"] = yi
 
 
 def restore_desktop_window():
@@ -1348,14 +1430,7 @@ def create_desktop_window(url):
 
     storage_dir = get_desktop_storage_path()
     if os.name == "nt":
-        try:
-            os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", storage_dir)
-            os.environ.setdefault(
-                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
-            )
-        except OSError:
-            pass
+        configure_webview2_environment(storage_dir)
     else:
         # GNOME / Wayland application identification
         try:

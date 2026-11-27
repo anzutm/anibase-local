@@ -137,6 +137,22 @@ class TestUpdater(unittest.TestCase):
             res = updater.send_desktop_notification("Test Title", "Test Message")
             self.assertTrue(res)
 
+    def test_send_desktop_notification_windows_uses_registered_tray_handler(self):
+        received = []
+
+        def fake_handler(title, message, expire_ms):
+            received.append((title, message, expire_ms))
+            return True
+
+        try:
+            updater.register_desktop_notification_handler(fake_handler)
+            with patch("os.name", "nt"):
+                res = updater.send_desktop_notification("Win Update", "New release v1.6.0", expire_time_ms=5000)
+            self.assertTrue(res)
+            self.assertEqual(received, [("Win Update", "New release v1.6.0", 5000)])
+        finally:
+            updater.register_desktop_notification_handler(None)
+
 
 if __name__ == "__main__":
     unittest.main()

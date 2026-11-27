@@ -701,6 +701,28 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         self.assertEqual(res_form.status_code, 302)
         self.assertIn("backup_imported=1", res_form.headers["Location"])
 
+    def test_export_settings_backup_post_requires_action_token_and_security_headers(self):
+        from anibase.settings import get_action_token
+        token = get_action_token()
+
+        res_missing = self.client.post("/settings/backup/export", data={"include_settings": "1"})
+        self.assertEqual(res_missing.status_code, 403)
+        self.assertEqual(res_missing.get_json()["error"], "invalid_action_token")
+        self.assertEqual(res_missing.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(res_missing.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(res_missing.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+
+        res_valid = self.client.post(
+            "/settings/backup/export",
+            data={"include_settings": "1", "action_token": token},
+        )
+        self.assertEqual(res_valid.status_code, 200)
+        payload = json.loads(res_valid.data.decode("utf-8"))
+        self.assertEqual(payload["format"], "anibase-settings-backup")
+        self.assertEqual(res_valid.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(res_valid.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(res_valid.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
+
 
 if __name__ == "__main__":
     unittest.main()

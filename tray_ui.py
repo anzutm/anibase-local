@@ -160,7 +160,7 @@ def acquire_single_instance_guard():
         atexit.register(release_instance_mutex)
         return True
 
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.restype = ctypes.c_void_p
     kernel32.CreateMutexW.argtypes = [
         ctypes.c_void_p,
@@ -171,7 +171,7 @@ def acquire_single_instance_guard():
     kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
 
     handle = kernel32.CreateMutexW(None, False, INSTANCE_MUTEX_NAME)
-    error_code = kernel32.GetLastError()
+    error_code = ctypes.get_last_error() or kernel32.GetLastError()
     if not handle:
         fallback_log(f"Single-instance mutex could not be created. error={error_code}")
         return False
@@ -401,30 +401,38 @@ def open_dashboard():
         launch_app_window(APP_URL)
 
 
+_shutdown_lock = threading.Lock()
+_shutdown_completed = False
+
+
 def perform_graceful_shutdown():
-    global tray_proc
-    app_log("Tray exit requested.")
-    if tray_proc and tray_proc.poll() is None:
+    global tray_proc, _shutdown_completed
+    with _shutdown_lock:
+        if _shutdown_completed:
+            return
+        app_log("Tray exit requested.")
+        if tray_proc and tray_proc.poll() is None:
+            try:
+                tray_proc.terminate()
+            except Exception:
+                pass
         try:
-            tray_proc.terminate()
+            from anibase.desktop.shell import close_desktop_window_permanent
+            close_desktop_window_permanent()
         except Exception:
             pass
-    try:
-        from anibase.desktop.shell import close_desktop_window_permanent
-        close_desktop_window_permanent()
-    except Exception:
-        pass
-    request_shutdown()
-    stop_library_observer(timeout=SHUTDOWN_JOIN_TIMEOUT_SECONDS)
-    shutdown_flask_server()
-    join_background_workers(
-        {
-            "tray-server": flask_thread,
-            "library-watchdog": scanner_thread,
-            "periodic-sync": sync_thread,
-        },
-        timeout=SHUTDOWN_JOIN_TIMEOUT_SECONDS,
-    )
+        request_shutdown()
+        stop_library_observer(timeout=SHUTDOWN_JOIN_TIMEOUT_SECONDS)
+        shutdown_flask_server()
+        join_background_workers(
+            {
+                "tray-server": flask_thread,
+                "library-watchdog": scanner_thread,
+                "periodic-sync": sync_thread,
+            },
+            timeout=SHUTDOWN_JOIN_TIMEOUT_SECONDS,
+        )
+        _shutdown_completed = True
 
 
 def run_qt_tray(helper_mode=False):
@@ -652,6 +660,8 @@ def run_qt_tray(helper_mode=False):
             return super().event(event)
 
     class TrayController(QObject):
+        notification_requested = Signal(str, str, int)
+
         def __init__(self, qt_app):
             super().__init__()
             self.qt_app = qt_app
@@ -670,6 +680,14 @@ def run_qt_tray(helper_mode=False):
             self.refresh_thread = None
             self.refresh_worker = None
             self.shutting_down = False
+            self.notification_requested.connect(self._show_tray_notification, Qt.ConnectionType.QueuedConnection)
+            try:
+                from anibase.desktop.updater import register_desktop_notification_handler
+                if self.tray_available:
+                    register_desktop_notification_handler(self._request_notification)
+                    qt_app.aboutToQuit.connect(lambda: register_desktop_notification_handler(None))
+            except Exception:
+                pass
 
             if helper_mode:
                 self.parent_pid = os.getppid()
@@ -826,12 +844,36 @@ def run_qt_tray(helper_mode=False):
             self.refresh_worker = None
             QTimer.singleShot(3500, lambda: self.popup.set_refresh_status(""))
 
+        def _request_notification(self, title, message, expire_ms=7000):
+            if self.shutting_down or not self.tray_available:
+                return False
+            self.notification_requested.emit(str(title), str(message), int(expire_ms or 7000))
+            return True
+
+        def _show_tray_notification(self, title, message, expire_ms=7000):
+            if self.shutting_down or not self.tray_available:
+                return
+            try:
+                self.tray.showMessage(
+                    str(title),
+                    str(message),
+                    self.icon,
+                    max(1000, int(expire_ms or 7000)),
+                )
+            except Exception as err:
+                fallback_log(f"Tray notification failed: {err}")
+
         def exit_application(self):
             if self.shutting_down:
                 return
             self.shutting_down = True
             self.popup.hide()
             self.tray.hide()
+            try:
+                from anibase.desktop.updater import register_desktop_notification_handler
+                register_desktop_notification_handler(None)
+            except Exception:
+                pass
             if helper_mode:
                 import urllib.request
                 import signal
@@ -850,7 +892,11 @@ def run_qt_tray(helper_mode=False):
                 except OSError:
                     pass
             else:
-                perform_graceful_shutdown()
+                threading.Thread(
+                    target=perform_graceful_shutdown,
+                    name="tray-shutdown",
+                    daemon=True,
+                ).start()
             self.qt_app.quit()
 
     qt_app = QApplication(sys.argv)
@@ -934,23 +980,30 @@ def main():
                     pass
                 fallback_log(f"Failed to launch tray helper process: {err}")
         else:
-            qt_thread = threading.Thread(target=run_qt_tray, name="qt-tray", daemon=True)
+            def _run_qt_tray_guarded():
+                try:
+                    run_qt_tray()
+                except Exception as err:
+                    try:
+                        from anibase.desktop.shell import set_system_tray_available
+                        set_system_tray_available(False)
+                    except Exception:
+                        pass
+                    fallback_log(f"Windows/in-process Qt tray failed: {err}")
+
+            qt_thread = threading.Thread(target=_run_qt_tray_guarded, name="qt-tray", daemon=True)
             qt_thread.start()
 
         try:
             from anibase.desktop.shell import (
+                configure_webview2_environment,
                 create_desktop_window,
                 get_desktop_gui_engine,
                 get_desktop_storage_path,
             )
 
             storage_path = get_desktop_storage_path()
-            if os.name == "nt":
-                os.environ.setdefault("WEBVIEW2_USER_DATA_FOLDER", storage_path)
-                os.environ.setdefault(
-                    "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                    "--enable-gpu-rasterization --autoplay-policy=no-user-gesture-required --enable-features=ParallelDownloading --media-cache-size=104857600",
-                )
+            configure_webview2_environment(storage_path)
 
             import webview
             gui_engine = get_desktop_gui_engine()

@@ -18,6 +18,7 @@ from anibase.web.helpers import (
     validate_action_token,
     require_action_token,
     inject_action_token,
+    apply_security_headers,
     apply_cache_headers,
     compress_response,
     internal_url_for,
@@ -154,6 +155,7 @@ def setup_web_app(app):
     app.before_request(redirect_to_setup_when_needed)
     app.after_request(compress_response)
     app.after_request(apply_cache_headers)
+    app.after_request(apply_security_headers)
     app.context_processor(inject_action_token)
     app.context_processor(inject_theme)
     app.context_processor(inject_shortcuts)

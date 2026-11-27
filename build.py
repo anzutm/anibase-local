@@ -296,6 +296,106 @@ def ensure_pyinstaller():
         )
 
 
+COMMON_EXCLUDED_MODULES = (
+    "PyQt5",
+    "PyQt6",
+    "PySide2",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
+    "lxml",
+    "pytest",
+    "playwright",
+    "IPython",
+    "jupyter",
+    "contourpy",
+)
+
+QT_EXCLUDED_MODULES = (
+    "qtpy",
+    "PySide6.QtWebEngineCore",
+    "PySide6.QtWebEngineWidgets",
+    "PySide6.QtWebEngineQuick",
+    "PySide6.QtWebChannel",
+    "PySide6.QtWebSockets",
+    "PySide6.QtQuick",
+    "PySide6.QtQuick3D",
+    "PySide6.QtQuickWidgets",
+    "PySide6.QtQuickControls2",
+    "PySide6.QtQml",
+    "PySide6.Qt3DCore",
+    "PySide6.Qt3DRender",
+    "PySide6.Qt3DInput",
+    "PySide6.Qt3DLogic",
+    "PySide6.Qt3DAnimation",
+    "PySide6.Qt3DExtras",
+    "PySide6.QtCharts",
+    "PySide6.QtDataVisualization",
+    "PySide6.QtGraphs",
+    "PySide6.QtGraphsWidgets",
+    "PySide6.QtMultimedia",
+    "PySide6.QtMultimediaWidgets",
+    "PySide6.QtSpatialAudio",
+    "PySide6.QtDesigner",
+    "PySide6.QtUiTools",
+    "PySide6.QtHelp",
+    "PySide6.QtPdf",
+    "PySide6.QtPdfWidgets",
+    "PySide6.QtPositioning",
+    "PySide6.QtLocation",
+    "PySide6.QtSensors",
+    "PySide6.QtSql",
+    "PySide6.QtTest",
+    "PySide6.QtTextToSpeech",
+    "PySide6.QtNetworkAuth",
+    "PySide6.QtBluetooth",
+    "PySide6.QtNfc",
+    "PySide6.QtRemoteObjects",
+    "PySide6.QtScxml",
+    "PySide6.QtSerialPort",
+    "PySide6.QtSerialBus",
+    "PySide6.QtStateMachine",
+    "PySide6.QtSvgWidgets",
+    "PySide6.QtConcurrent",
+    "PySide6.QtPrintSupport",
+    "PySide6.QtXml",
+    "PySide6.QtHttpServer",
+)
+
+
+def prepare_linux_pyinstaller_hooks():
+    """Write a slim GI/GTK PyInstaller hook that skips multi-GB host icon/cursor themes."""
+    hooks_dir = BUILD_DIR / APP_NAME / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    gtk_hook = hooks_dir / "hook-gi.repository.Gtk.py"
+    write_text(
+        gtk_hook,
+        """import os
+from PyInstaller.utils.hooks.gi import GiModuleInfo, collect_glib_share_files, collect_glib_translations
+
+
+def hook(hook_api):
+    module_info = GiModuleInfo("Gtk", "3.0", hook_api=hook_api)
+    if not module_info.available:
+        return
+
+    binaries, datas, hiddenimports = module_info.collect_typelib_data()
+    datas += collect_glib_share_files("fontconfig")
+    for icon_theme in ("hicolor", "Adwaita"):
+        datas += collect_glib_share_files(os.path.join("icons", icon_theme))
+    for gtk_theme in ("Adwaita", "Default"):
+        datas += collect_glib_share_files(os.path.join("themes", gtk_theme))
+    datas += collect_glib_translations(f"gtk{module_info.version[0]}0", ["en"])
+
+    hook_api.add_datas(datas)
+    hook_api.add_binaries(binaries)
+    hook_api.add_imports(*hiddenimports)
+""",
+    )
+    return hooks_dir
+
+
 def run_pyinstaller(version="0.0.0"):
     command = [
         sys.executable,
@@ -319,15 +419,22 @@ def run_pyinstaller(version="0.0.0"):
         "anibase",
         "--collect-all",
         "webview",
-        "--exclude-module",
-        "PyQt5",
-        "--exclude-module",
-        "PyQt6",
-        "--exclude-module",
-        "PySide2",
         "--hidden-import",
         "main",
         str(PROJECT_ROOT / ENTRYPOINT),
+    ]
+    for mod in COMMON_EXCLUDED_MODULES + QT_EXCLUDED_MODULES:
+        command[-1:-1] = ["--exclude-module", mod]
+
+    command[-1:-1] = [
+        "--hidden-import",
+        "PySide6",
+        "--hidden-import",
+        "PySide6.QtCore",
+        "--hidden-import",
+        "PySide6.QtGui",
+        "--hidden-import",
+        "PySide6.QtWidgets",
     ]
 
     if os.name == "nt":
@@ -347,10 +454,12 @@ def run_pyinstaller(version="0.0.0"):
                 str(icon_path),
             ]
     else:
-        # Linux packaging options
+        # Linux packaging options: bundle only the Qt modules needed for the tray/file dialogs
+        # and avoid copying multi-GB host icon/cursor themes or unused QtWebEngine binaries.
+        hooks_dir = prepare_linux_pyinstaller_hooks()
         command[-1:-1] = [
-            "--collect-all",
-            "PySide6",
+            "--additional-hooks-dir",
+            str(hooks_dir),
         ]
         icon_path = PROJECT_ROOT / "static" / "favicon.ico"
         if not icon_path.exists():
@@ -488,6 +597,11 @@ def _write_release_desktop_icon(release_dir):
         shutil.copy2(fallback, dest_icon)
 
 
+def _is_windows_host():
+    """Return True when building on a Windows host."""
+    return os.name == "nt"
+
+
 def copy_exe_release_files(source_dir, release_dir):
     remove_path(release_dir)
     release_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -499,10 +613,10 @@ def copy_exe_release_files(source_dir, release_dir):
             shutil.copy2(source, release_dir / filename)
 
     # Linux desktop entry & application icon
-    write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=True), newline="\n")
-    _write_release_desktop_icon(release_dir)
+    if not _is_windows_host():
+        write_text(release_dir / "anibase.desktop", make_desktop_entry(executable=True), newline="\n")
+        _write_release_desktop_icon(release_dir)
 
-    if os.name != "nt":
         exe_file = release_dir / APP_NAME
         if exe_file.is_file():
             try:

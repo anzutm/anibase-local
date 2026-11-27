@@ -48,6 +48,8 @@
         const titlebar = document.getElementById('desktopTitlebar');
         const titleEl = document.getElementById('desktopTitlebarTitle');
 
+        const isWindowsPlatform = navigator.platform.indexOf('Win') !== -1 || (navigator.userAgent && navigator.userAgent.indexOf('Windows') !== -1);
+
         // Dynamic titlebar style detection (Default to macOS on Linux / macOS, Windows on Windows)
         let titlebarStyle = localStorage.getItem('anibase_titlebar_style');
         if (!titlebarStyle) {
@@ -56,8 +58,7 @@
             } else if (titlebar && titlebar.classList.contains('style-windows')) {
                 titlebarStyle = 'windows';
             } else {
-                const isWindows = navigator.platform.indexOf('Win') !== -1 || (navigator.userAgent && navigator.userAgent.indexOf('Windows') !== -1);
-                titlebarStyle = isWindows ? 'windows' : 'macos';
+                titlebarStyle = isWindowsPlatform ? 'windows' : 'macos';
             }
         }
         document.body.classList.remove('titlebar-windows', 'titlebar-macos');
@@ -145,6 +146,7 @@
 
         if (titlebar) {
             titlebar.addEventListener('mousedown', function(e) {
+                if (isWindowsPlatform) return;
                 if (e.target.closest('.desktop-titlebar-controls, button, a, input, select, textarea')) return;
                 if (e.button === 0) {
                     if (window.pywebview && window.pywebview.api && window.pywebview.api.start_drag) {

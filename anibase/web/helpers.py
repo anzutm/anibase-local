@@ -1036,6 +1036,14 @@ COMPRESSIBLE_MIMETYPES = (
 )
 
 
+def apply_security_headers(response):
+    """Apply baseline HTTP security headers across all responses."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
 def apply_cache_headers(response):
     """Apply optimized Cache-Control headers for static assets and media."""
     if response.status_code < 200 or response.status_code >= 300:

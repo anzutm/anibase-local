@@ -63,7 +63,7 @@ if _IS_WINDOWS:
     except Exception as _e:
         _DPAPI_INITIALIZED = True
         _DPAPI_AVAILABLE = False
-        app_log(f"Inisialisasi Windows DPAPI gagal: {_e}", level=logging.WARNING)
+        app_log(f"Inisialisasi Windows DPAPI gagal: {_e}", level="WARN")
 
 
 def is_dpapi_supported() -> bool:

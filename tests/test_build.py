@@ -83,12 +83,13 @@ class BuildPackagingTests(unittest.TestCase):
 
     def test_pyinstaller_command_has_explicit_resource_and_work_paths(self):
         # No compiler or build process is executed.
-        with patch.object(build.subprocess, 'run') as run:
+        with patch.object(build, "BUILD_DIR", self.root / "build"), \
+             patch.object(build.subprocess, 'run') as run:
             build.run_pyinstaller('v1.4.0')
         command = run.call_args.args[0]
         self.assertEqual(command[command.index('--contents-directory') + 1], '_internal')
-        self.assertEqual(command[command.index('--workpath') + 1], str(build.BUILD_DIR / build.APP_NAME))
-        self.assertEqual(command[command.index('--specpath') + 1], str(build.BUILD_DIR / build.APP_NAME))
+        self.assertEqual(command[command.index('--workpath') + 1], str(self.root / 'build' / build.APP_NAME))
+        self.assertEqual(command[command.index('--specpath') + 1], str(self.root / 'build' / build.APP_NAME))
         self.assertIn(f"{build.PROJECT_ROOT / 'static'}{build.os.pathsep}static", command)
         self.assertIn("webview", command)
         if build.os.name == "nt":
@@ -99,6 +100,7 @@ class BuildPackagingTests(unittest.TestCase):
             self.assertIn("StringStruct('ProductVersion', '1.4.0')", version_file.read_text(encoding='utf-8'))
         else:
             self.assertIn("PySide6", command)
+            self.assertIn("PySide6.QtWebEngineCore", command)
         self.assertEqual(command[-1], str(build.PROJECT_ROOT / build.ENTRYPOINT))
 
     def test_check_mode_never_builds_or_cleans(self):
@@ -233,7 +235,8 @@ class BuildPackagingTests(unittest.TestCase):
         source.mkdir()
         (source / "AniBase.exe").write_bytes(b"mock exe")
         rel_dir = self.root / "exe_release"
-        with patch.object(build, "RELEASES_DIR", self.root):
+        with patch.object(build, "RELEASES_DIR", self.root), \
+             patch.object(build, "_is_windows_host", return_value=False):
             build.copy_exe_release_files(source, rel_dir)
         self.assertTrue((rel_dir / "anibase.desktop").is_file())
         self.assertTrue((rel_dir / "anibase.png").is_file())
@@ -242,15 +245,51 @@ class BuildPackagingTests(unittest.TestCase):
             ico_to_png_bytes(build.PROJECT_ROOT / "static" / "favicon.ico"),
         )
 
+        win_rel_dir = self.root / "win_exe_release"
+        with patch.object(build, "RELEASES_DIR", self.root), \
+             patch.object(build, "_is_windows_host", return_value=True):
+            build.copy_exe_release_files(source, win_rel_dir)
+        self.assertFalse((win_rel_dir / "anibase.desktop").exists())
+        self.assertFalse((win_rel_dir / "anibase.png").exists())
+
+    def test_pyinstaller_command_windows_options(self):
+        with patch("build.os.name", "nt"), \
+             patch.object(build, "BUILD_DIR", self.root / "build"), \
+             patch.object(build.subprocess, "run") as run:
+            build.run_pyinstaller("v1.5.5")
+        command = run.call_args.args[0]
+        self.assertIn("pythonnet", command)
+        self.assertIn("clr_loader", command)
+        self.assertIn("PySide6.QtWidgets", command)
+        self.assertIn("PySide6.QtWebEngineCore", command)
+        self.assertIn("numpy", command)
+        self.assertNotIn("--additional-hooks-dir", command)
+        self.assertEqual(
+            command[command.index("--icon") + 1],
+            str(build.PROJECT_ROOT / "static" / "favicon.ico"),
+        )
+
     def test_pyinstaller_command_linux_options(self):
         with patch("build.os.name", "posix"), \
+             patch.object(build, "BUILD_DIR", self.root / "build"), \
              patch.object(build.subprocess, "run") as run:
             build.run_pyinstaller("v1.5.3")
         command = run.call_args.args[0]
         self.assertNotIn("--version-file", command)
         self.assertNotIn("pythonnet", command)
         self.assertNotIn("clr_loader", command)
+        self.assertNotIn("--collect-all", [c for i, c in enumerate(command[:-1]) if command[i + 1] == "PySide6"])
         self.assertIn("PySide6", command)
+        self.assertIn("PySide6.QtWidgets", command)
+        self.assertIn("PySide6.QtWebEngineCore", command)
+        self.assertIn("numpy", command)
+        self.assertIn("--additional-hooks-dir", command)
+        hooks_dir = Path(command[command.index("--additional-hooks-dir") + 1])
+        gtk_hook = hooks_dir / "hook-gi.repository.Gtk.py"
+        self.assertTrue(gtk_hook.is_file())
+        hook_src = gtk_hook.read_text(encoding="utf-8")
+        self.assertIn("hicolor", hook_src)
+        self.assertIn("Adwaita", hook_src)
         self.assertIn("webview", command)
         self.assertIn("anibase", command)
         self.assertEqual(
