@@ -645,47 +645,51 @@ class MalScrobbleTests(unittest.TestCase):
         self.assertEqual(recent[1]["status"], "watching")
 
     def test_api_mal_test_connection_and_recent_endpoints(self):
-        from anibase.settings import get_action_token
-        action_token = get_action_token()
-        client = main.app.test_client()
+        import anibase.constants as _constants
+        test_settings_file = str(self.root / "settings.json")
+        with patch.object(_constants, "SETTINGS_FILE", test_settings_file), \
+             patch("anibase.web.helpers.is_setup_complete", return_value=True):
+            from anibase.settings import get_action_token
+            action_token = get_action_token()
+            client = main.app.test_client()
 
-        # 1. Unauthenticated test-connection -> 401
-        res = client.post("/api/mal/test-connection", headers={"X-Action-Token": action_token})
-        self.assertEqual(res.status_code, 401)
-
-        # 2. Authenticated test-connection
-        auth_data = {
-            "access_token": "valid_token_abc",
-            "refresh_token": "valid_refresh_def",
-            "expires_at": time.time() + 86400 * 10,
-            "username": "AnimeLover"
-        }
-        main.save_mal_auth(auth_data)
-
-        mock_profile = {
-            "id": 12345,
-            "name": "AnimeLover",
-            "picture": {"large": "https://cdn.myanimelist.net/images/user.jpg"}
-        }
-
-        with patch("anibase.web.routes_api.fetch_mal_user_profile", return_value=mock_profile), \
-             patch("anibase.web.routes_api.get_valid_mal_token", return_value="valid_token_abc"):
+            # 1. Unauthenticated test-connection -> 401
             res = client.post("/api/mal/test-connection", headers={"X-Action-Token": action_token})
-            self.assertEqual(res.status_code, 200)
-            data = res.get_json()
-            self.assertTrue(data["ok"])
-            self.assertTrue(data["valid"])
-            self.assertEqual(data["username"], "AnimeLover")
-            self.assertIn("token_info", data)
-            self.assertEqual(data["token_info"]["status"], "valid")
+            self.assertEqual(res.status_code, 401)
 
-        # 3. GET recent-scrobbles endpoint
-        res = client.get("/api/mal/recent-scrobbles?limit=5")
-        self.assertEqual(res.status_code, 200)
-        recent_data = res.get_json()
-        self.assertTrue(recent_data["ok"])
-        self.assertIn("scrobbles", recent_data)
-        self.assertIn("pending", recent_data)
+            # 2. Authenticated test-connection
+            auth_data = {
+                "access_token": "valid_token_abc",
+                "refresh_token": "valid_refresh_def",
+                "expires_at": time.time() + 86400 * 10,
+                "username": "AnimeLover"
+            }
+            main.save_mal_auth(auth_data)
+
+            mock_profile = {
+                "id": 12345,
+                "name": "AnimeLover",
+                "picture": {"large": "https://cdn.myanimelist.net/images/user.jpg"}
+            }
+
+            with patch("anibase.web.routes_api.fetch_mal_user_profile", return_value=mock_profile), \
+                 patch("anibase.web.routes_api.get_valid_mal_token", return_value="valid_token_abc"):
+                res = client.post("/api/mal/test-connection", headers={"X-Action-Token": action_token})
+                self.assertEqual(res.status_code, 200)
+                data = res.get_json()
+                self.assertTrue(data["ok"])
+                self.assertTrue(data["valid"])
+                self.assertEqual(data["username"], "AnimeLover")
+                self.assertIn("token_info", data)
+                self.assertEqual(data["token_info"]["status"], "valid")
+
+            # 3. GET recent-scrobbles endpoint
+            res = client.get("/api/mal/recent-scrobbles?limit=5")
+            self.assertEqual(res.status_code, 200)
+            recent_data = res.get_json()
+            self.assertTrue(recent_data["ok"])
+            self.assertIn("scrobbles", recent_data)
+            self.assertIn("pending", recent_data)
 
 
 if __name__ == "__main__":

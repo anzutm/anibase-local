@@ -663,9 +663,12 @@ class DesktopWebIntegrationTests(unittest.TestCase):
 
     def test_ensure_kde_kwin_rule_applies_noborder(self):
         """ensure_kde_kwin_rule() configures noborder rule on KDE Plasma."""
-        with patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}), \
+        with patch("anibase.desktop.shell.os", wraps=os) as mock_os, \
+             patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}), \
+             patch("os.path.isfile", return_value=False), \
              patch("shutil.which", return_value="/usr/bin/kwriteconfig6"), \
              patch("subprocess.run") as mock_run:
+            mock_os.name = "posix"
             desktop_shell.ensure_kde_kwin_rule()
             self.assertTrue(mock_run.called)
 

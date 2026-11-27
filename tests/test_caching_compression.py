@@ -8,6 +8,7 @@ class CachingAndCompressionTestCase(unittest.TestCase):
     def setUp(self):
         self.client = main.app.test_client()
         self.patchers = [
+            patch("anibase.web.helpers.is_setup_complete", return_value=True),
             patch("anibase.web.routes_pages.get_anime", return_value=[]),
             patch("anibase.web.routes_pages.get_movies", return_value=[]),
             patch("anibase.web.routes_pages.get_cached_anilist_info", return_value=None),

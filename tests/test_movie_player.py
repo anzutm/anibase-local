@@ -27,12 +27,15 @@ class MoviePlayerTests(unittest.TestCase):
 
         self.req_patcher = patch("requests.get", side_effect=requests.RequestException("No network in tests"))
         self.req_patcher.start()
+        self.setup_patcher = patch("anibase.web.helpers.is_setup_complete", return_value=True)
+        self.setup_patcher.start()
 
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.setup_patcher.stop()
         self.req_patcher.stop()
         constants.MOVIE_PATH = self.orig_movie_path
         self.temp_dir.cleanup()

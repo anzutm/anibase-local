@@ -10,11 +10,37 @@ from anibase.web.routes_api import inspect_folder_path, analyze_path_hierarchy
 
 class TestSettingsLibraryPaths(unittest.TestCase):
     def setUp(self):
+        from anibase import constants as _constants
+        from anibase.db import init_db
+        from anibase.settings import get_default_settings, save_settings
+
         self.tmp_dir = tempfile.TemporaryDirectory()
+        self.test_settings_file = os.path.join(self.tmp_dir.name, "settings.json")
+        self.test_db_path = os.path.join(self.tmp_dir.name, "test_anibase.db")
+        self.test_history_file = os.path.join(self.tmp_dir.name, "watch_history.json")
+        self.test_status_file = os.path.join(self.tmp_dir.name, "watch_status.json")
+        init_db(self.test_db_path)
+
+        self.setup_patchers = [
+            patch.object(_constants, "SETTINGS_FILE", self.test_settings_file),
+            patch.object(_constants, "DB_PATH", self.test_db_path),
+            patch.object(_constants, "WATCH_HISTORY_FILE", self.test_history_file),
+            patch.object(_constants, "WATCH_STATUS_FILE", self.test_status_file),
+            patch("anibase.web.helpers.is_setup_complete", return_value=True),
+        ]
+        for p in self.setup_patchers:
+            p.start()
+
+        defaults = get_default_settings()
+        defaults["setup_completed"] = True
+        save_settings(defaults)
+
         self.app = create_app()
         self.client = self.app.test_client()
 
     def tearDown(self):
+        for p in reversed(self.setup_patchers):
+            p.stop()
         try:
             self.tmp_dir.cleanup()
         except Exception:

@@ -5,6 +5,9 @@ import main
 
 class ExternalAnimeTests(unittest.TestCase):
     def setUp(self):
+        self.setup_patcher = patch("anibase.web.helpers.is_setup_complete", return_value=True)
+        self.setup_patcher.start()
+        self.addCleanup(self.setup_patcher.stop)
         self.client = main.app.test_client()
         self.sample_anime = {
             "id": 16498,

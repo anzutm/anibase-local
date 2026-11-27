@@ -203,9 +203,14 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.tmp_dir.name, "test_api.db")
+        self.settings_path = os.path.join(self.tmp_dir.name, "settings.json")
         init_db(self.db_path)
         self.db_patcher = patch("anibase.constants.DB_PATH", self.db_path)
         self.db_patcher.start()
+        self.settings_patcher = patch("anibase.constants.SETTINGS_FILE", self.settings_path)
+        self.settings_patcher.start()
+        self.setup_patcher = patch("anibase.web.helpers.is_setup_complete", return_value=True)
+        self.setup_patcher.start()
 
         self.app = create_app()
         self.app.config["TESTING"] = True
@@ -213,6 +218,8 @@ class TestWatchlistTrackerAPI(unittest.TestCase):
         self.token = get_action_token()
 
     def tearDown(self):
+        self.setup_patcher.stop()
+        self.settings_patcher.stop()
         self.db_patcher.stop()
         try:
             self.tmp_dir.cleanup()

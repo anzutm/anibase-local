@@ -714,6 +714,9 @@ class DownloadManagerTests(unittest.TestCase):
 
 class SamehadakuApiRoutesTests(unittest.TestCase):
     def setUp(self):
+        self.setup_patcher = patch("anibase.web.helpers.is_setup_complete", return_value=True)
+        self.setup_patcher.start()
+        self.addCleanup(self.setup_patcher.stop)
         self.app = create_app()
         self.client = self.app.test_client()
 

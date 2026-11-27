@@ -8,11 +8,14 @@ class SpotlightSearchApiTests(unittest.TestCase):
     def setUp(self):
         self.req_patcher = patch("requests.get", side_effect=requests.RequestException("No network in tests"))
         self.req_patcher.start()
+        self.setup_patcher = patch("anibase.web.helpers.is_setup_complete", return_value=True)
+        self.setup_patcher.start()
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.client = self.app.test_client()
 
     def tearDown(self):
+        self.setup_patcher.stop()
         self.req_patcher.stop()
 
     def test_spotlight_empty_query_returns_library_and_actions(self):
