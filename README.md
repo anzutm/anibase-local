@@ -134,13 +134,14 @@ Use the development environment above with PyInstaller **6.11+ (below 7)** and F
 
 ```powershell
 python build.py --check
-python build.py v1.3.4 --exe-only
+python build.py v1.5.5 --exe-only
+python build.py v1.5.5 --all-platforms   # build local .zip + build/fetch remote OS .zip via gh
 python release_check.py
 ```
 
-Replace `v1.3.4` with your version. `--check` validates prerequisites without creating output. The release checker inspects the latest executable release; launch it and test playback before distributing.
+Replace `v1.5.5` with your version (or omit it to use `APP_VERSION`). `--check` validates prerequisites without creating output. The release checker inspects the latest executable release; launch it and test playback before distributing.
 
-Output: `releases/AniBase v<version>/` plus a platform-specific ZIP or TAR.GZ. Packages include the ASS renderer, fonts, and licenses, with asset integrity checked before publishing.
+Output: `releases/AniBase v<version>/` plus a platform `.zip` (`AniBase-<version>-linux-x86_64.zip` and/or `AniBase-<version>-win64.zip`). With `--all-platforms`, `build.py` creates the local OS `.zip` and triggers/downloads the real compiled counterpart `.zip` via GitHub Actions (`gh` CLI), extracting the Windows build into `releases/Windows-AniBase-<version>/`. Pushing a `v*` tag automatically runs `.github/workflows/build-release.yml` to build both Linux and Windows `.zip` packages.
 
 **Compilation succeeded, but packaging failed?** Reuse `dist/AniBase` without compiling again:
 

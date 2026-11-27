@@ -1,5 +1,6 @@
 import argparse
 import datetime as dt
+import json
 import os
 import re
 import shutil
@@ -9,6 +10,7 @@ import platform
 import hashlib
 import tempfile
 import time
+import zipfile
 from pathlib import Path
 
 
@@ -100,6 +102,13 @@ def preflight(source_only=False):
 
 
 def default_version():
+    try:
+        from anibase.constants import APP_VERSION
+        clean = str(APP_VERSION or "").strip()
+        if clean:
+            return clean if clean.lower().startswith("v") else f"v{clean}"
+    except Exception:
+        pass
     today = dt.date.today()
     return f"v{today:%Y.%m.%d}"
 
@@ -365,7 +374,7 @@ QT_EXCLUDED_MODULES = (
 
 
 def prepare_linux_pyinstaller_hooks():
-    """Write a slim GI/GTK PyInstaller hook that skips multi-GB host icon/cursor themes."""
+    """Write slim GI/GTK/WebKit2 PyInstaller hooks that skip multi-GB host icon/cursor themes."""
     hooks_dir = BUILD_DIR / APP_NAME / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     gtk_hook = hooks_dir / "hook-gi.repository.Gtk.py"
@@ -391,6 +400,40 @@ def hook(hook_api):
     hook_api.add_datas(datas)
     hook_api.add_binaries(binaries)
     hook_api.add_imports(*hiddenimports)
+""",
+    )
+    webkit_hook = hooks_dir / "hook-gi.repository.WebKit2.py"
+    write_text(
+        webkit_hook,
+        """from PyInstaller.utils.hooks.gi import GiModuleInfo
+
+
+def hook(hook_api):
+    for api_ver in ("4.1", "4.0"):
+        module_info = GiModuleInfo("WebKit2", api_ver, hook_api=hook_api)
+        if module_info.available:
+            binaries, datas, hiddenimports = module_info.collect_typelib_data()
+            hook_api.add_datas(datas)
+            hook_api.add_binaries(binaries)
+            hook_api.add_imports(*hiddenimports)
+            return
+""",
+    )
+    soup_hook = hooks_dir / "hook-gi.repository.Soup.py"
+    write_text(
+        soup_hook,
+        """from PyInstaller.utils.hooks.gi import GiModuleInfo
+
+
+def hook(hook_api):
+    for api_ver in ("3.0", "2.4"):
+        module_info = GiModuleInfo("Soup", api_ver, hook_api=hook_api)
+        if module_info.available:
+            binaries, datas, hiddenimports = module_info.collect_typelib_data()
+            hook_api.add_datas(datas)
+            hook_api.add_binaries(binaries)
+            hook_api.add_imports(*hiddenimports)
+            return
 """,
     )
     return hooks_dir
@@ -810,16 +853,226 @@ def platform_tag():
 def create_release_archive(release_dir, version, archive_format=None, platform_name=None):
     tag = platform_name or platform_tag()
     base = RELEASES_DIR / f"{APP_NAME}-{version}-{tag}"
-    fmt = archive_format or ("zip" if "win" in tag else "gztar")
+    fmt = archive_format or "zip"
     if fmt in {"gztar", "tar.gz", "tgz"}:
         archive_path = Path(f"{base}.tar.gz")
         remove_path(archive_path)
-        shutil.make_archive(str(base), "gztar", root_dir=release_dir)
+        shutil.make_archive(str(base), "gztar", root_dir=release_dir.parent, base_dir=release_dir.name)
     else:
         archive_path = Path(f"{base}.zip")
         remove_path(archive_path)
-        shutil.make_archive(str(base), "zip", root_dir=release_dir)
+        shutil.make_archive(str(base), "zip", root_dir=release_dir.parent, base_dir=release_dir.name)
     return archive_path
+
+
+def validate_remote_zip_archive(archive_path, target_platform):
+    """Verify a downloaded release ZIP contains expected OS binaries and no runtime secrets."""
+    forbidden_names = {
+        "settings.json",
+        "library.db",
+        "watch_history.json",
+        "watch_status.json",
+        "anibase.log",
+        ".vault_key",
+        "mal_auth.json",
+    }
+    if str(target_platform).startswith("win"):
+        required_suffixes = ("AniBase.exe", "tools/ffmpeg.exe", "tools/ffprobe.exe")
+    else:
+        required_suffixes = ("AniBase", "tools/ffmpeg", "tools/ffprobe")
+
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        names = [info.filename.replace("\\", "/") for info in zf.infolist() if not info.is_dir()]
+    if not names:
+        raise ValueError(f"Downloaded archive is empty: {archive_path}")
+
+    lower_names = [n.lower() for n in names]
+    leaked = [n for n in names if os.path.basename(n).lower() in forbidden_names]
+    if leaked:
+        raise RuntimeError(f"Archive contains private runtime files: {', '.join(leaked)}")
+
+    for suffix in required_suffixes:
+        target_lower = suffix.lower()
+        if not any(n == target_lower or n.endswith(f"/{target_lower}") for n in lower_names):
+            raise RuntimeError(f"Archive {archive_path.name} missing required entry: {suffix}")
+
+
+def extract_zip_safely(archive_path, dest_dir):
+    """Safely extract a release ZIP into dest_dir, stripping a single outer wrapper folder if present."""
+    temp_dir = Path(tempfile.mkdtemp(prefix=".anibase-extract-", dir=RELEASES_DIR))
+    staged_extract = temp_dir / "extracted"
+    staged_extract.mkdir(parents=True, exist_ok=True)
+    staged_root = staged_extract.resolve()
+    try:
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            members = [info for info in zf.infolist() if not info.is_dir()]
+            top_segments = {
+                info.filename.replace("\\", "/").split("/", 1)[0]
+                for info in members
+                if "/" in info.filename.replace("\\", "/")
+            }
+            strip_prefix = ""
+            if len(top_segments) == 1:
+                candidate = next(iter(top_segments))
+                if all(info.filename.replace("\\", "/").startswith(f"{candidate}/") for info in members):
+                    strip_prefix = f"{candidate}/"
+
+            for info in members:
+                rel = info.filename.replace("\\", "/")
+                if strip_prefix and rel.startswith(strip_prefix):
+                    rel = rel[len(strip_prefix):]
+                if not rel or rel.startswith("/") or ".." in Path(rel).parts:
+                    raise ValueError(f"Unsafe path in ZIP archive: {info.filename}")
+                target = (staged_extract / rel).resolve()
+                if not target.is_relative_to(staged_root):
+                    raise ValueError(f"Zip-slip path rejected: {info.filename}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, "r") as src, target.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
+        publish_release(staged_extract, dest_dir)
+    finally:
+        cleanup_output(temp_dir)
+
+
+def _run_cmd(cmd):
+    return subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, check=False)
+
+
+def _find_matching_ci_run(gh_bin, workflows, head_sha, artifact_name):
+    for wf in workflows:
+        res = _run_cmd([
+            gh_bin, "run", "list",
+            "--workflow", wf,
+            "--status", "success",
+            "-L", "10",
+            "--json", "databaseId,headSha,createdAt",
+        ])
+        if res.returncode != 0 or not res.stdout.strip():
+            continue
+        try:
+            runs = json.loads(res.stdout)
+        except json.JSONDecodeError:
+            continue
+        for run in runs:
+            if run.get("headSha") != head_sha:
+                continue
+            run_id = run.get("databaseId")
+            art_res = _run_cmd([
+                gh_bin, "api",
+                f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}/artifacts",
+                "--jq", ".artifacts[].name",
+            ])
+            if art_res.returncode == 0 and artifact_name in {line.strip() for line in art_res.stdout.splitlines()}:
+                return run_id
+    return None
+
+
+def build_remote_platform_zip(version, target_platform, workflow="build-release.yml", force_remote=False, remote_ref=None, extract_dir=None):
+    """Build or fetch the real compiled ZIP for the remote OS via GitHub Actions (`gh`)."""
+    gh_bin = shutil.which("gh")
+    if not gh_bin:
+        raise RuntimeError(
+            "GitHub CLI ('gh') not found. Install and authenticate 'gh' to produce a real "
+            f"{target_platform} executable ZIP alongside the local build, or pass --source-only."
+        )
+
+    auth_res = _run_cmd([gh_bin, "auth", "status"])
+    if auth_res.returncode != 0:
+        raise RuntimeError(
+            "GitHub CLI ('gh') is not authenticated. Run 'gh auth login' first."
+        )
+
+    sha_res = _run_cmd(["git", "rev-parse", "HEAD"])
+    if sha_res.returncode != 0 or not sha_res.stdout.strip():
+        raise RuntimeError("Could not determine current git HEAD commit for remote CI build.")
+    head_sha = sha_res.stdout.strip()
+
+    artifact_name = f"{APP_NAME}-{version}-{target_platform}"
+    workflows_to_check = (workflow, "build-windows.yml") if str(target_platform).startswith("win") else (workflow,)
+    run_id = None if force_remote else _find_matching_ci_run(gh_bin, workflows_to_check, head_sha, artifact_name)
+
+    if run_id:
+        print(f"Reusing existing green GitHub Actions artifact '{artifact_name}' (run {run_id}, commit {head_sha[:7]})...")
+    else:
+        if not remote_ref:
+            dirty_res = _run_cmd(["git", "status", "--porcelain"])
+            if dirty_res.stdout.strip():
+                raise RuntimeError(
+                    "Working tree has uncommitted changes. Commit and push to GitHub before running "
+                    "--all-platforms so the remote build matches your local build."
+                )
+            branch_res = _run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+            ref = branch_res.stdout.strip() or "main"
+            if ref == "HEAD":
+                raise RuntimeError("Detached HEAD; pass --remote-ref <branch-or-tag> for remote CI build.")
+            unpushed = _run_cmd(["git", "rev-list", "--count", f"@{{u}}..HEAD"])
+            if unpushed.returncode == 0 and unpushed.stdout.strip().isdigit() and int(unpushed.stdout.strip()) > 0:
+                raise RuntimeError(
+                    f"Local branch '{ref}' has {unpushed.stdout.strip()} unpushed commit(s). Push first before running --all-platforms."
+                )
+        else:
+            ref = remote_ref
+
+        build_linux_flag = "false" if str(target_platform).startswith("win") else "true"
+        build_win_flag = "true" if str(target_platform).startswith("win") else "false"
+        print(f"Triggering GitHub Actions workflow '{workflow}' on '{ref}' for {target_platform} ({version})...")
+        trigger_res = _run_cmd([
+            gh_bin, "workflow", "run", workflow,
+            "--ref", ref,
+            "-f", f"version={version}",
+            "-f", f"build_linux={build_linux_flag}",
+            "-f", f"build_windows={build_win_flag}",
+        ])
+        if trigger_res.returncode != 0:
+            raise RuntimeError(f"Failed to trigger workflow '{workflow}': {trigger_res.stderr.strip() or trigger_res.stdout.strip()}")
+
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            time.sleep(3)
+            list_res = _run_cmd([
+                gh_bin, "run", "list",
+                "--workflow", workflow,
+                "-L", "5",
+                "--json", "databaseId,headSha,status,event",
+            ])
+            if list_res.returncode == 0 and list_res.stdout.strip():
+                runs = json.loads(list_res.stdout)
+                for r in runs:
+                    if r.get("event") == "workflow_dispatch" and (remote_ref or r.get("headSha") == head_sha):
+                        run_id = r.get("databaseId")
+                        break
+            if run_id:
+                break
+
+        if not run_id:
+            raise RuntimeError("Triggered GitHub Actions workflow, but could not locate the created run ID.")
+
+        print(f"Watching GitHub Actions run {run_id} (https://github.com) until {target_platform} ZIP completes...")
+        watch_res = subprocess.run([gh_bin, "run", "watch", str(run_id), "--exit-status", "--interval", "15"], cwd=PROJECT_ROOT)
+        if watch_res.returncode != 0:
+            raise RuntimeError(f"Remote build failed (run {run_id}). Inspect with: gh run view {run_id} --log-failed")
+
+    dl_dir = Path(tempfile.mkdtemp(prefix=".anibase-remote-dl-", dir=RELEASES_DIR))
+    try:
+        dl_res = subprocess.run([gh_bin, "run", "download", str(run_id), "-n", artifact_name, "-D", str(dl_dir)], cwd=PROJECT_ROOT)
+        if dl_res.returncode != 0:
+            raise RuntimeError(f"Failed to download artifact '{artifact_name}' from run {run_id}.")
+
+        zips = list(dl_dir.rglob("*.zip"))
+        if not zips:
+            raise FileNotFoundError(f"No .zip file found inside downloaded artifact '{artifact_name}'.")
+        downloaded_zip = zips[0]
+        validate_remote_zip_archive(downloaded_zip, target_platform)
+
+        dest_zip = RELEASES_DIR / f"{artifact_name}.zip"
+        remove_path(dest_zip)
+        shutil.move(str(downloaded_zip), str(dest_zip))
+        if extract_dir is not None:
+            extract_zip_safely(dest_zip, extract_dir)
+        return dest_zip
+    finally:
+        cleanup_output(dl_dir)
 
 
 def main():
@@ -829,7 +1082,7 @@ def main():
     parser.add_argument(
         "version",
         nargs="?",
-        help="Release version, e.g. 1.0.0 or v1.0.0. Default: vYYYY.MM.DD.",
+        help="Release version, e.g. 1.0.0 or v1.0.0. Default: APP_VERSION from anibase/constants.py.",
     )
     parser.add_argument(
         "--keep-temp",
@@ -839,17 +1092,27 @@ def main():
     parser.add_argument(
         "--tar",
         action="store_true",
-        help="Package output as .tar.gz archive (default on Linux, optional on Windows).",
+        help="Also package output as .tar.gz archive (with --zip) or only .tar.gz for single-OS builds.",
     )
     parser.add_argument(
         "--zip",
         action="store_true",
-        help="Package output as .zip archive (default on Windows, optional on Linux).",
+        help="Package output as .zip archive (default for executable and --all-platforms builds).",
     )
     parser.add_argument(
         "--all-platforms",
         action="store_true",
-        help="Build release packages for both Linux and Windows (produces both .zip archives).",
+        help="Build .zip release packages for BOTH Linux and Windows (uses GitHub Actions via 'gh' for the remote OS EXE build unless --source-only is passed).",
+    )
+    parser.add_argument(
+        "--force-remote",
+        action="store_true",
+        help="With --all-platforms, force triggering a new remote GitHub Actions build instead of reusing a matching green run.",
+    )
+    parser.add_argument(
+        "--remote-ref",
+        default="",
+        help="Git branch or tag ref to pass to GitHub Actions when triggering a remote build.",
     )
     parser.add_argument(
         "--allow-python",
@@ -927,28 +1190,61 @@ def main():
     if args.all_platforms:
         machine = platform.machine().lower()
         arch = "x86_64" if machine in {"amd64", "x86_64"} else machine
-        linux_tag = f"linux-{arch}"
-        linux_archive = create_release_archive(release_dir, version, archive_format="zip", platform_name=linux_tag)
-        print(f"Linux Zip Archive complete: {linux_archive}")
-        if args.tar:
-            linux_tar = create_release_archive(release_dir, version, archive_format="gztar", platform_name=linux_tag)
-            print(f"Linux Tarball complete: {linux_tar}")
+        if args.source_only or not built_exe:
+            linux_archive = create_release_archive(
+                release_dir, version, archive_format="zip", platform_name=f"linux-{arch}-source"
+            )
+            print(f"Linux Source Zip Archive complete: {linux_archive}")
+            if args.tar:
+                linux_tar = create_release_archive(
+                    release_dir, version, archive_format="gztar", platform_name=f"linux-{arch}-source"
+                )
+                print(f"Linux Source Tarball complete: {linux_tar}")
 
-        win_staging = Path(tempfile.mkdtemp(prefix='.anibase-win-staging-', dir=RELEASES_DIR))
-        win_release_dir = win_staging / APP_NAME
-        try:
-            create_source_release(win_release_dir)
-            validate_packaged_assets(win_release_dir, executable=False)
-            win_archive = create_release_archive(win_release_dir, version, archive_format="zip", platform_name="win64")
-            print(f"Windows Zip Archive complete: {win_archive}")
-        finally:
-            cleanup_output(win_staging)
+            win_staging = Path(tempfile.mkdtemp(prefix='.anibase-win-staging-', dir=RELEASES_DIR))
+            win_release_dir = win_staging / f"{APP_NAME} {version}"
+            try:
+                create_source_release(win_release_dir)
+                validate_packaged_assets(win_release_dir, executable=False)
+                win_archive = create_release_archive(
+                    win_release_dir, version, archive_format="zip", platform_name="win64-source"
+                )
+                print(f"Windows Source Zip Archive complete: {win_archive}")
+            finally:
+                cleanup_output(win_staging)
+        else:
+            local_tag = platform_tag()
+            local_archive = create_release_archive(
+                release_dir, version, archive_format="zip", platform_name=local_tag
+            )
+            print(f"Local Zip Archive complete: {local_archive}")
+            if args.tar:
+                local_tar = create_release_archive(
+                    release_dir, version, archive_format="gztar", platform_name=local_tag
+                )
+                print(f"Local Tarball complete: {local_tar}")
+
+            remote_tag = "win64" if os.name != "nt" else "linux-x86_64"
+            extract_dir = RELEASES_DIR / f"Windows-{APP_NAME}-{version}" if remote_tag == "win64" else None
+            remote_archive = build_remote_platform_zip(
+                version,
+                remote_tag,
+                force_remote=args.force_remote,
+                remote_ref=args.remote_ref.strip() or None,
+                extract_dir=extract_dir,
+            )
+            print(f"Remote Zip Archive complete: {remote_archive}")
     else:
-        archive_format = "zip" if args.zip else ("gztar" if args.tar else ("zip" if os.name == "nt" else "gztar"))
         should_archive = built_exe or args.tar or args.zip
         if should_archive:
-            archive_path = create_release_archive(release_dir, version, archive_format=archive_format)
-            print(f"Archive complete: {archive_path}")
+            if args.zip and args.tar:
+                zip_path = create_release_archive(release_dir, version, archive_format="zip")
+                tar_path = create_release_archive(release_dir, version, archive_format="gztar")
+                print(f"Archive complete: {zip_path}, {tar_path}")
+            else:
+                archive_format = "gztar" if args.tar else "zip"
+                archive_path = create_release_archive(release_dir, version, archive_format=archive_format)
+                print(f"Archive complete: {archive_path}")
 
     if not args.keep_temp and not args.package_existing:
         cleanup_output(BUILD_DIR / APP_NAME)

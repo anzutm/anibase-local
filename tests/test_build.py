@@ -286,10 +286,15 @@ class BuildPackagingTests(unittest.TestCase):
         self.assertIn("--additional-hooks-dir", command)
         hooks_dir = Path(command[command.index("--additional-hooks-dir") + 1])
         gtk_hook = hooks_dir / "hook-gi.repository.Gtk.py"
+        webkit_hook = hooks_dir / "hook-gi.repository.WebKit2.py"
+        soup_hook = hooks_dir / "hook-gi.repository.Soup.py"
         self.assertTrue(gtk_hook.is_file())
+        self.assertTrue(webkit_hook.is_file())
+        self.assertTrue(soup_hook.is_file())
         hook_src = gtk_hook.read_text(encoding="utf-8")
         self.assertIn("hicolor", hook_src)
         self.assertIn("Adwaita", hook_src)
+        self.assertIn("WebKit2", webkit_hook.read_text(encoding="utf-8"))
         self.assertIn("webview", command)
         self.assertIn("anibase", command)
         self.assertEqual(
@@ -297,23 +302,80 @@ class BuildPackagingTests(unittest.TestCase):
             str(build.PROJECT_ROOT / "static" / "favicon.ico"),
         )
 
+    def test_default_version_uses_app_version(self):
+        from anibase.constants import APP_VERSION
+        self.assertEqual(build.default_version(), f"v{APP_VERSION}")
+
     def test_create_release_archive_gztar(self):
-        rel_dir = self.root / "pkg"
+        import tarfile
+
+        rel_dir = self.root / "AniBase v1.5.3"
         rel_dir.mkdir()
         (rel_dir / "test.txt").write_text("content", encoding="utf-8")
         with patch.object(build, "RELEASES_DIR", self.root):
             archive_path = build.create_release_archive(rel_dir, "v1.5.3", archive_format="gztar")
             self.assertTrue(archive_path.is_file())
             self.assertTrue(str(archive_path).endswith(".tar.gz"))
+            with tarfile.open(archive_path, "r:gz") as tf:
+                self.assertIn("AniBase v1.5.3/test.txt", tf.getnames())
 
     def test_create_release_archive_zip(self):
-        rel_dir = self.root / "pkg"
+        import zipfile
+
+        rel_dir = self.root / "AniBase v1.5.5"
         rel_dir.mkdir()
         (rel_dir / "test.txt").write_text("content", encoding="utf-8")
         with patch.object(build, "RELEASES_DIR", self.root):
             archive_path = build.create_release_archive(rel_dir, "v1.5.5", archive_format="zip", platform_name="win64")
             self.assertTrue(archive_path.is_file())
             self.assertTrue(str(archive_path).endswith("AniBase-v1.5.5-win64.zip"))
+            with zipfile.ZipFile(archive_path, "r") as zf:
+                self.assertIn("AniBase v1.5.5/test.txt", zf.namelist())
+
+    def test_validate_remote_zip_archive_checks_binaries_and_secrets(self):
+        import zipfile
+
+        good_zip = self.root / "AniBase-v1.5.5-win64.zip"
+        with zipfile.ZipFile(good_zip, "w") as zf:
+            zf.writestr("AniBase v1.5.5/AniBase.exe", b"mz")
+            zf.writestr("AniBase v1.5.5/tools/ffmpeg.exe", b"ff")
+            zf.writestr("AniBase v1.5.5/tools/ffprobe.exe", b"fp")
+        build.validate_remote_zip_archive(good_zip, "win64")
+
+        missing_zip = self.root / "missing-win64.zip"
+        with zipfile.ZipFile(missing_zip, "w") as zf:
+            zf.writestr("AniBase v1.5.5/main.py", b"src")
+        with self.assertRaisesRegex(RuntimeError, "AniBase.exe"):
+            build.validate_remote_zip_archive(missing_zip, "win64")
+
+        secret_zip = self.root / "secret-win64.zip"
+        with zipfile.ZipFile(secret_zip, "w") as zf:
+            zf.writestr("AniBase v1.5.5/AniBase.exe", b"mz")
+            zf.writestr("AniBase v1.5.5/tools/ffmpeg.exe", b"ff")
+            zf.writestr("AniBase v1.5.5/tools/ffprobe.exe", b"fp")
+            zf.writestr("AniBase v1.5.5/settings.json", b"{}")
+        with self.assertRaisesRegex(RuntimeError, "private runtime"):
+            build.validate_remote_zip_archive(secret_zip, "win64")
+
+    def test_extract_zip_safely_strips_wrapper_and_blocks_zip_slip(self):
+        import zipfile
+
+        rel_zip = self.root / "wrapped.zip"
+        with zipfile.ZipFile(rel_zip, "w") as zf:
+            zf.writestr("AniBase v1.5.5/AniBase.exe", b"exe-bytes")
+            zf.writestr("AniBase v1.5.5/tools/ffmpeg.exe", b"ff-bytes")
+        dest_dir = self.root / "Windows-AniBase-v1.5.5"
+        with patch.object(build, "RELEASES_DIR", self.root):
+            build.extract_zip_safely(rel_zip, dest_dir)
+        self.assertEqual((dest_dir / "AniBase.exe").read_bytes(), b"exe-bytes")
+        self.assertEqual((dest_dir / "tools" / "ffmpeg.exe").read_bytes(), b"ff-bytes")
+
+        evil_zip = self.root / "evil.zip"
+        with zipfile.ZipFile(evil_zip, "w") as zf:
+            zf.writestr("AniBase v1.5.5/../../escape.txt", b"bad")
+        with patch.object(build, "RELEASES_DIR", self.root):
+            with self.assertRaises(ValueError):
+                build.extract_zip_safely(evil_zip, self.root / "out")
 
     def test_all_platforms_argument(self):
         with patch.object(build.sys, "argv", ["build.py", "v1.5.5", "--all-platforms", "--source-only"]), \
@@ -325,6 +387,20 @@ class BuildPackagingTests(unittest.TestCase):
             mock_archive.return_value = Path("dummy.zip")
             self.assertEqual(build.main(), 0)
             self.assertEqual(mock_archive.call_count, 2)
+            tags = [call.kwargs.get("platform_name") for call in mock_archive.call_args_list]
+            self.assertTrue(all(tag and tag.endswith("-source") for tag in tags))
+
+    def test_all_platforms_exe_mode_creates_local_and_fetches_remote_zip(self):
+        with patch.object(build.sys, "argv", ["build.py", "v1.5.5", "--all-platforms", "--exe-only"]), \
+             patch.object(build, "preflight"), \
+             patch.object(build, "build_exe_release", return_value=True), \
+             patch.object(build, "validate_packaged_assets"), \
+             patch.object(build, "publish_release"), \
+             patch.object(build, "create_release_archive", return_value=Path("local.zip")) as mock_archive, \
+             patch.object(build, "build_remote_platform_zip", return_value=Path("remote.zip")) as mock_remote:
+            self.assertEqual(build.main(), 0)
+            mock_archive.assert_called_once()
+            mock_remote.assert_called_once()
 
 
 if __name__ == "__main__":
