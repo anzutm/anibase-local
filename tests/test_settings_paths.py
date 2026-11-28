@@ -749,6 +749,29 @@ class TestSettingsLibraryPaths(unittest.TestCase):
         self.assertEqual(res_valid.headers.get("X-Frame-Options"), "SAMEORIGIN")
         self.assertEqual(res_valid.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
 
+    def test_settings_page_renders_github_update_checker(self):
+        fake_update = {
+            "current_version": "1.5.5",
+            "latest_version": "9.9.9",
+            "release_name": "AniBase v9.9.9",
+            "published_at": "2026-11-28T00:00:00Z",
+            "update_available": True,
+            "release_url": "https://github.com/anzutm/anibase-local/releases/tag/v9.9.9",
+            "release_notes": "Added update checker.",
+            "last_checked_at": 1700000000.0,
+            "has_checked": True,
+            "github_repo": "anzutm/anibase-local",
+        }
+        with patch("anibase.desktop.updater.get_cached_update_status", return_value=fake_update):
+            res = self.client.get("/settings")
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+        self.assertIn('id="btnCheckUpdates"', html)
+        self.assertIn('id="settings-updates"', html)
+        self.assertIn("v9.9.9", html)
+        self.assertIn("anzutm/anibase-local", html)
+        self.assertIn("Update tersedia", html)
+
 
 if __name__ == "__main__":
     unittest.main()

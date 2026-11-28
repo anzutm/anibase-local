@@ -196,6 +196,24 @@ def settings_page():
         is_desktop_active = False
         is_startup_registered = False
 
+    try:
+        from anibase.desktop.updater import get_cached_update_status
+        update_info = get_cached_update_status()
+    except Exception:
+        from anibase.constants import APP_VERSION
+        update_info = {
+            "current_version": APP_VERSION,
+            "latest_version": APP_VERSION,
+            "release_name": f"v{APP_VERSION}",
+            "published_at": "",
+            "update_available": False,
+            "release_url": "https://github.com/anzutm/anibase-local/releases",
+            "release_notes": "",
+            "last_checked_at": 0,
+            "has_checked": False,
+            "github_repo": "anzutm/anibase-local",
+        }
+
     cache_sizes = get_cache_size_breakdown()
 
     return render_template(
@@ -213,6 +231,7 @@ def settings_page():
         lan_qr_svg=lan_qr_svg,
         is_desktop_active=is_desktop_active,
         is_startup_registered=is_startup_registered,
+        update_info=update_info,
         saved=request.args.get("saved") == "1",
         auto_import_scanned=request.args.get("auto_import_scanned") == "1",
         auto_import_processed=request.args.get("processed", "0"),

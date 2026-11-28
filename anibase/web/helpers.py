@@ -238,6 +238,7 @@ def redirect_to_setup_when_needed():
         "api_desktop_reset_window",
         "api_desktop_shutdown",
         "api_desktop_status",
+        "api_desktop_check_update",
     }
 
     if request.endpoint in allowed_endpoints:

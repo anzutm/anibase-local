@@ -3,7 +3,7 @@
 {% block title %}Settings - AniBase{% endblock %}
 {% block meta_description %}Manage library paths, playback, integrations, and automation on AniBase.{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='settings.css', v='6') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='settings.css', v='7') }}">
 {% endblock %}
 {% block body_class %}settings-body{% endblock %}
 
@@ -30,7 +30,7 @@
         <a href="#settings-playback"><span>03</span> Playback</a>
         <a href="#settings-shortcuts"><span>04</span> Shortcuts</a>
         <a href="#settings-integrations"><span>05</span> Integrations</a>
-        <a href="#settings-desktop"><span>06</span> Desktop app</a>
+        <a href="#settings-desktop" id="navSettingsDesktop"><span>06</span> Desktop &amp; updates <span id="navUpdateBadge" class="nav-update-dot"{% if not (update_info and update_info.update_available) %} hidden{% endif %} title="Update tersedia"></span></a>
         <a href="#settings-myanimelist"><span>07</span> MyAnimeList</a>
         <a href="#settings-automation"><span>08</span> Auto import</a>
         <a href="#settings-maintenance"><span>09</span> Maintenance</a>
@@ -1167,6 +1167,61 @@
                                 </button>
                             </div>
                             <div id="desktopResetFeedback" class="settings-test-feedback" hidden></div>
+
+                            <div class="desktop-update-box" id="settings-updates">
+                                <div class="desktop-update-header">
+                                    <div>
+                                        <strong>Pembaruan Aplikasi (GitHub Releases)</strong>
+                                        <p class="settings-help">Cek otomatis dan manual apakah ada rilis terbaru AniBase di repositori GitHub <a href="https://github.com/{{ update_info.github_repo }}/releases" target="_blank" rel="noopener noreferrer">{{ update_info.github_repo }}</a>.</p>
+                                    </div>
+                                    <span id="updateStatusPill" class="desktop-update-pill {% if update_info.update_available %}is-update{% elif update_info.has_checked %}is-ok{% else %}is-idle{% endif %}">
+                                        {% if update_info.update_available %}Update tersedia{% elif update_info.has_checked %}Versi terbaru{% else %}Belum diperiksa{% endif %}
+                                    </span>
+                                </div>
+
+                                <div class="desktop-update-meta">
+                                    <div class="desktop-update-stat">
+                                        <span>Versi terpasang</span>
+                                        <strong id="updateCurrentVersion">v{{ update_info.current_version }}</strong>
+                                    </div>
+                                    <div class="desktop-update-stat">
+                                        <span>Rilis terbaru GitHub</span>
+                                        <strong id="updateLatestVersion">{% if update_info.has_checked or update_info.update_available %}v{{ update_info.latest_version }}{% else %}-{% endif %}</strong>
+                                    </div>
+                                    <div class="desktop-update-stat">
+                                        <span>Terakhir diperiksa</span>
+                                        <strong id="updateLastChecked" data-last-checked="{{ update_info.last_checked_at }}">
+                                            {% if update_info.has_checked %}Memuat...{% else %}Belum pernah diperiksa{% endif %}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                <div id="updateReleaseDetails" class="desktop-update-release" {% if not update_info.update_available %}hidden{% endif %}>
+                                    <div class="desktop-update-release-head">
+                                        <strong id="updateReleaseTitle">{{ update_info.release_name }}</strong>
+                                        <span id="updateReleaseDate" class="desktop-update-release-date">{{ update_info.published_at[:10] if update_info.published_at else '' }}</span>
+                                    </div>
+                                    <pre id="updateReleaseNotes" class="desktop-update-notes">{{ update_info.release_notes or 'Rilis baru tersedia untuk diunduh di halaman GitHub Releases.' }}</pre>
+                                    <div class="desktop-update-release-actions">
+                                        <a id="updateDownloadLink" class="action-btn-secondary desktop-update-download-btn" href="{{ update_info.release_url }}" target="_blank" rel="noopener noreferrer">
+                                            Unduh Rilis Terbaru di GitHub
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div class="desktop-update-actions">
+                                    <button type="button" class="action-btn-secondary" id="btnCheckUpdates">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                        </svg>
+                                        Check for Updates
+                                    </button>
+                                    <a id="btnViewReleases" class="desktop-update-all-link" href="{{ update_info.release_url }}" target="_blank" rel="noopener noreferrer">Lihat semua release &rarr;</a>
+                                </div>
+
+                                <div id="updateCheckFeedback" class="settings-test-feedback" hidden></div>
+                            </div>
 
                             <div class="desktop-shortcuts-tip">
                                 <span class="desktop-tip-badge">Tip</span>
@@ -3098,6 +3153,180 @@ document.addEventListener('DOMContentLoaded', function() {
                 btnResetWindow.innerHTML = originalHtml;
             }
         });
+    }
+
+    const btnCheckUpdates = document.getElementById('btnCheckUpdates');
+    const updateStatusPill = document.getElementById('updateStatusPill');
+    const updateCurrentVersion = document.getElementById('updateCurrentVersion');
+    const updateLatestVersion = document.getElementById('updateLatestVersion');
+    const updateLastChecked = document.getElementById('updateLastChecked');
+    const updateReleaseDetails = document.getElementById('updateReleaseDetails');
+    const updateReleaseTitle = document.getElementById('updateReleaseTitle');
+    const updateReleaseDate = document.getElementById('updateReleaseDate');
+    const updateReleaseNotes = document.getElementById('updateReleaseNotes');
+    const updateDownloadLink = document.getElementById('updateDownloadLink');
+    const btnViewReleases = document.getElementById('btnViewReleases');
+    const updateCheckFeedback = document.getElementById('updateCheckFeedback');
+    const navUpdateBadge = document.getElementById('navUpdateBadge');
+    const fallbackReleasesUrl = 'https://github.com/anzutm/anibase-local/releases';
+
+    function sanitizeGithubHttpsUrl(rawUrl) {
+        if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+            return fallbackReleasesUrl;
+        }
+        try {
+            const parsed = new URL(rawUrl.trim());
+            if (parsed.protocol === 'https:') {
+                return parsed.href;
+            }
+        } catch (_err) {
+            return fallbackReleasesUrl;
+        }
+        return fallbackReleasesUrl;
+    }
+
+    function formatUpdateTimestamp(epochSec) {
+        const numeric = Number(epochSec) || 0;
+        if (numeric <= 0) {
+            return 'Belum pernah diperiksa';
+        }
+        try {
+            return new Intl.DateTimeFormat('id-ID', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+            }).format(new Date(numeric * 1000));
+        } catch (_err) {
+            return new Date(numeric * 1000).toLocaleString();
+        }
+    }
+
+    function applyUpdateUi(data, { showFeedback = false } = {}) {
+        if (!data || typeof data !== 'object') {
+            return;
+        }
+        const safeUrl = sanitizeGithubHttpsUrl(data.release_url);
+        if (updateCurrentVersion && data.current_version) {
+            updateCurrentVersion.textContent = `v${data.current_version}`;
+        }
+        if (updateLatestVersion) {
+            if (data.has_checked || data.update_available || (data.ok && data.latest_version)) {
+                updateLatestVersion.textContent = `v${data.latest_version || data.current_version || ''}`;
+            }
+        }
+        if (updateLastChecked && typeof data.last_checked_at !== 'undefined') {
+            updateLastChecked.dataset.lastChecked = String(data.last_checked_at || 0);
+            updateLastChecked.textContent = formatUpdateTimestamp(data.last_checked_at);
+        }
+        if (btnViewReleases) {
+            btnViewReleases.href = safeUrl;
+        }
+        if (updateDownloadLink) {
+            updateDownloadLink.href = safeUrl;
+        }
+
+        const hasUpdate = Boolean(data.update_available);
+        if (navUpdateBadge) {
+            navUpdateBadge.hidden = !hasUpdate;
+        }
+        if (updateStatusPill) {
+            updateStatusPill.classList.remove('is-update', 'is-ok', 'is-idle', 'is-error');
+            if (!data.ok && showFeedback) {
+                updateStatusPill.classList.add('is-error');
+                updateStatusPill.textContent = 'Gagal memeriksa';
+            } else if (hasUpdate) {
+                updateStatusPill.classList.add('is-update');
+                updateStatusPill.textContent = 'Update tersedia';
+            } else if (data.has_checked || data.ok) {
+                updateStatusPill.classList.add('is-ok');
+                updateStatusPill.textContent = 'Versi terbaru';
+            } else {
+                updateStatusPill.classList.add('is-idle');
+                updateStatusPill.textContent = 'Belum diperiksa';
+            }
+        }
+
+        if (updateReleaseDetails) {
+            updateReleaseDetails.hidden = !hasUpdate;
+            if (hasUpdate) {
+                if (updateReleaseTitle) {
+                    updateReleaseTitle.textContent = data.release_name || `v${data.latest_version}`;
+                }
+                if (updateReleaseDate) {
+                    updateReleaseDate.textContent = data.published_at ? String(data.published_at).slice(0, 10) : '';
+                }
+                if (updateReleaseNotes) {
+                    const notes = String(data.release_notes || '').trim();
+                    updateReleaseNotes.textContent = notes
+                        ? (notes.length > 900 ? `${notes.slice(0, 900)}...` : notes)
+                        : 'Rilis baru tersedia untuk diunduh di halaman GitHub Releases.';
+                }
+            }
+        }
+
+        if (showFeedback && updateCheckFeedback) {
+            updateCheckFeedback.hidden = false;
+            if (!data.ok) {
+                updateCheckFeedback.className = 'settings-test-feedback error';
+                updateCheckFeedback.textContent = data.error || 'Gagal menghubungi GitHub Releases.';
+            } else if (hasUpdate) {
+                updateCheckFeedback.className = 'settings-test-feedback success';
+                updateCheckFeedback.textContent = `Rilis baru v${data.latest_version} terdeteksi di GitHub!`;
+            } else {
+                updateCheckFeedback.className = 'settings-test-feedback success';
+                updateCheckFeedback.textContent = `AniBase sudah menggunakan versi terbaru (v${data.current_version}).`;
+            }
+        }
+    }
+
+    if (updateLastChecked) {
+        updateLastChecked.textContent = formatUpdateTimestamp(updateLastChecked.dataset.lastChecked);
+    }
+
+    if (btnCheckUpdates) {
+        const defaultBtnHtml = btnCheckUpdates.innerHTML;
+        btnCheckUpdates.addEventListener('click', async () => {
+            btnCheckUpdates.disabled = true;
+            btnCheckUpdates.textContent = 'Memeriksa GitHub...';
+            if (updateCheckFeedback) {
+                updateCheckFeedback.hidden = false;
+                updateCheckFeedback.className = 'settings-test-feedback loading';
+                updateCheckFeedback.textContent = 'Memeriksa rilis terbaru dari GitHub...';
+            }
+            try {
+                const token = getSettingsActionToken();
+                const res = await fetch('/api/desktop/check-update?force=1', {
+                    method: 'POST',
+                    headers: {
+                        'X-AniBase-Action-Token': token,
+                        'X-Action-Token': token,
+                    },
+                });
+                const data = await res.json();
+                applyUpdateUi(data, { showFeedback: true });
+            } catch (_err) {
+                if (updateCheckFeedback) {
+                    updateCheckFeedback.hidden = false;
+                    updateCheckFeedback.className = 'settings-test-feedback error';
+                    updateCheckFeedback.textContent = 'Tidak dapat terhubung ke GitHub Releases.';
+                }
+            } finally {
+                btnCheckUpdates.disabled = false;
+                btnCheckUpdates.innerHTML = defaultBtnHtml;
+            }
+        });
+
+        const initialCheckedAt = Number(updateLastChecked?.dataset.lastChecked || 0);
+        const cacheAgeSec = initialCheckedAt > 0 ? (Date.now() / 1000) - initialCheckedAt : Infinity;
+        if (cacheAgeSec >= 14400) {
+            fetch('/api/desktop/check-update')
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                    if (data && data.ok) {
+                        applyUpdateUi(data, { showFeedback: false });
+                    }
+                })
+                .catch(() => {});
+        }
     }
 
     function getSettingsActionToken() {

@@ -3138,10 +3138,9 @@ def api_desktop_shutdown():
 def api_desktop_status():
     """Mengembalikan status runtime desktop app dan konfigurasi startup lintas platform."""
     from anibase.desktop.shell import desktop_window, is_system_startup_enabled, _window_state
-    from anibase.desktop.updater import load_version_state, is_version_newer
+    from anibase.desktop.updater import get_cached_update_status
     settings = load_settings()
-    version_state = load_version_state()
-    latest_release = version_state.get("latest_known_release", APP_VERSION)
+    update_info = get_cached_update_status()
     return jsonify({
         "ok": True,
         "is_desktop": desktop_window is not None,
@@ -3151,19 +3150,33 @@ def api_desktop_status():
         "start_minimized": bool(settings.get("desktop_start_minimized", False)),
         "window_state": _window_state,
         "app_version": APP_VERSION,
-        "latest_known_release": latest_release,
-        "update_available": is_version_newer(latest_release, APP_VERSION),
-        "release_url": version_state.get("latest_release_url") or "https://github.com/anzutm/anibase-local/releases",
+        "latest_known_release": update_info["latest_version"],
+        "release_name": update_info["release_name"],
+        "published_at": update_info["published_at"],
+        "update_available": update_info["update_available"],
+        "release_url": update_info["release_url"],
+        "release_notes": update_info["release_notes"],
+        "last_checked_at": update_info["last_checked_at"],
+        "has_checked": update_info["has_checked"],
+        "github_repo": update_info["github_repo"],
     })
 
 
 @host_only
 def api_desktop_check_update():
     """Memeriksa pembaruan rilis AniBase melalui GitHub Releases API."""
-    force = request.args.get("force", "false").lower() in ("1", "true", "yes")
     from anibase.desktop.updater import check_github_release
-    result = check_github_release(force=force, notify=True)
-    return jsonify(result)
+    if request.method == "POST":
+        if not validate_action_token():
+            return json_error(
+                "invalid_action_token",
+                "Invalid or missing action token.",
+                403,
+            )
+        force = request.args.get("force", "true").lower() in ("1", "true", "yes")
+        return jsonify(check_github_release(force=force, notify=True))
+
+    return jsonify(check_github_release(force=False, notify=False))
 
 
 @host_only

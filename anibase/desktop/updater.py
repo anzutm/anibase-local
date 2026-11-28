@@ -16,10 +16,25 @@ import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
 from anibase.constants import APP_NAME, APP_VERSION
-from anibase.utils import app_log, get_user_data_dir
+from anibase.utils import app_log, atomic_write_json_file, get_user_data_dir
 
 GITHUB_REPO = "anzutm/anibase-local"
 CHECK_INTERVAL_SECONDS = 4 * 3600  # 4 hours
+_VERSION_STATE_LOCK = threading.Lock()
+
+
+def _safe_release_url(candidate: Any, repo: str = GITHUB_REPO) -> str:
+    """Validates a GitHub release URL so only https:// links are exposed."""
+    fallback = f"https://github.com/{repo}/releases"
+    if not isinstance(candidate, str):
+        return fallback
+    cleaned = candidate.strip()
+    if not cleaned:
+        return fallback
+    parsed = urllib.parse.urlparse(cleaned)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return fallback
+    return cleaned
 
 
 def parse_version_tuple(version_str: str) -> Tuple[int, int, int]:
@@ -62,18 +77,38 @@ def load_version_state() -> Dict[str, Any]:
 
 
 def save_version_state(state: Dict[str, Any]) -> bool:
-    """Saves version state file safely."""
+    """Saves version state file atomically under a module lock."""
     path = get_version_state_path()
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        temp_path = f"{path}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-        os.replace(temp_path, path)
+        with _VERSION_STATE_LOCK:
+            atomic_write_json_file(path, state, "Version state")
         return True
     except Exception as e:
         app_log(f"Failed to write version_state.json: {e}", "WARN")
         return False
+
+
+def get_cached_update_status(repo: str = GITHUB_REPO) -> Dict[str, Any]:
+    """Returns cached release status without making any network requests."""
+    state = load_version_state()
+    latest_known = str(state.get("latest_known_release") or "").strip()
+    update_available = bool(latest_known) and is_version_newer(latest_known, APP_VERSION)
+    last_checked_at = float(state.get("last_check_timestamp") or 0)
+    return {
+        "current_version": APP_VERSION,
+        "latest_version": latest_known or APP_VERSION,
+        "release_name": str(
+            state.get("latest_release_name")
+            or (f"v{latest_known}" if latest_known else f"v{APP_VERSION}")
+        ),
+        "published_at": str(state.get("latest_published_at") or ""),
+        "update_available": update_available,
+        "release_url": _safe_release_url(state.get("latest_release_url"), repo=repo),
+        "release_notes": str(state.get("latest_release_notes") or ""),
+        "last_checked_at": last_checked_at,
+        "has_checked": last_checked_at > 0,
+        "github_repo": repo,
+    }
 
 
 def get_default_icon_path() -> str:
@@ -256,19 +291,13 @@ def check_github_release(
     """
     state = load_version_state()
     now = time.time()
-    last_check = float(state.get("last_check_timestamp", 0))
+    last_check = float(state.get("last_check_timestamp") or 0)
 
     if not force and (now - last_check < CHECK_INTERVAL_SECONDS):
-        latest_known = state.get("latest_known_release", APP_VERSION)
-        update_available = is_version_newer(latest_known, APP_VERSION)
         return {
             "ok": True,
             "cached": True,
-            "current_version": APP_VERSION,
-            "latest_version": latest_known,
-            "update_available": update_available,
-            "release_url": state.get("latest_release_url") or f"https://github.com/{repo}/releases",
-            "release_notes": state.get("latest_release_notes", ""),
+            **get_cached_update_status(repo=repo),
         }
 
     url = f"https://api.github.com/repos/{repo}/releases/latest"
@@ -282,60 +311,91 @@ def check_github_release(
 
     try:
         with urllib.request.urlopen(req, timeout=5.0) as resp:
-            if resp.status == 200:
-                raw_data = resp.read().decode("utf-8")
-                release = json.loads(raw_data)
-                tag_name = release.get("tag_name", "").strip()
-                html_url = release.get("html_url", f"https://github.com/{repo}/releases")
-                body = release.get("body", "")
-                name = release.get("name", tag_name)
-
-                clean_ver = tag_name.lstrip("vV").strip()
-                update_available = is_version_newer(clean_ver, APP_VERSION)
-
-                state["last_check_timestamp"] = now
-                state["latest_known_release"] = clean_ver
-                state["latest_release_url"] = html_url
-                state["latest_release_notes"] = body[:2000] if body else ""
-
-                notified = False
-                if update_available and notify:
-                    last_notified = state.get("last_notified_release")
-                    if last_notified != clean_ver:
-                        send_desktop_notification(
-                            f"Pembaruan AniBase Tersedia (v{clean_ver})",
-                            f"Versi v{clean_ver} telah rilis di GitHub. Buka browser atau rilis untuk mengunduh.",
-                        )
-                        state["last_notified_release"] = clean_ver
-                        notified = True
-
-                save_version_state(state)
+            if resp.status != 200:
+                cached = get_cached_update_status(repo=repo)
                 return {
-                    "ok": True,
+                    **cached,
+                    "ok": False,
                     "cached": False,
-                    "current_version": APP_VERSION,
-                    "latest_version": clean_ver,
-                    "release_name": name,
-                    "update_available": update_available,
-                    "release_url": html_url,
-                    "release_notes": body,
-                    "notified": notified,
+                    "error": f"GitHub API returned HTTP {resp.status}",
                 }
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as e:
-        app_log(f"GitHub release check failed: {e}", "DEBUG")
+
+            raw_data = resp.read().decode("utf-8")
+            release = json.loads(raw_data)
+            tag_name = str(release.get("tag_name") or "").strip()
+            html_url = _safe_release_url(release.get("html_url"), repo=repo)
+            body = str(release.get("body") or "")
+            name = str(release.get("name") or tag_name or f"v{APP_VERSION}").strip()
+            published_at = str(release.get("published_at") or "").strip()
+
+            clean_ver = tag_name.lstrip("vV").strip() or APP_VERSION
+            update_available = is_version_newer(clean_ver, APP_VERSION)
+
+            state["last_check_timestamp"] = now
+            state["latest_known_release"] = clean_ver
+            state["latest_release_name"] = name
+            state["latest_published_at"] = published_at
+            state["latest_release_url"] = html_url
+            state["latest_release_notes"] = body[:2000] if body else ""
+
+            notified = False
+            if update_available and notify:
+                last_notified = state.get("last_notified_release")
+                if last_notified != clean_ver:
+                    send_desktop_notification(
+                        f"Pembaruan AniBase Tersedia (v{clean_ver})",
+                        f"Versi v{clean_ver} telah rilis di GitHub. Buka browser atau rilis untuk mengunduh.",
+                    )
+                    state["last_notified_release"] = clean_ver
+                    notified = True
+
+            save_version_state(state)
+            return {
+                "ok": True,
+                "cached": False,
+                "current_version": APP_VERSION,
+                "latest_version": clean_ver,
+                "release_name": name,
+                "published_at": published_at,
+                "update_available": update_available,
+                "release_url": html_url,
+                "release_notes": body,
+                "last_checked_at": now,
+                "has_checked": True,
+                "github_repo": repo,
+                "notified": notified,
+            }
+    except urllib.error.HTTPError as e:
+        app_log(f"GitHub release check HTTP error: {e}", "DEBUG")
+        err_msg = (
+            "Belum ada release yang dipublikasikan di GitHub (HTTP 404)."
+            if e.code == 404
+            else f"GitHub API error (HTTP {e.code}): {e.reason}"
+        )
+        cached = get_cached_update_status(repo=repo)
         return {
+            **cached,
             "ok": False,
+            "cached": False,
+            "error": err_msg,
+        }
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        app_log(f"GitHub release check failed: {e}", "DEBUG")
+        cached = get_cached_update_status(repo=repo)
+        return {
+            **cached,
+            "ok": False,
+            "cached": False,
             "error": str(e),
-            "current_version": APP_VERSION,
-            "update_available": False,
         }
     except Exception as e:
         app_log(f"Unexpected error in GitHub release check: {e}", "WARN")
+        cached = get_cached_update_status(repo=repo)
         return {
+            **cached,
             "ok": False,
+            "cached": False,
             "error": str(e),
-            "current_version": APP_VERSION,
-            "update_available": False,
         }
 
 

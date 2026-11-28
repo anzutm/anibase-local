@@ -154,5 +154,71 @@ class TestUpdater(unittest.TestCase):
             updater.register_desktop_notification_handler(None)
 
 
+class TestUpdaterHardening(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.patcher_dir = patch(
+            "anibase.desktop.updater.get_user_data_dir",
+            return_value=self.tmp_dir.name,
+        )
+        self.patcher_dir.start()
+
+    def tearDown(self):
+        self.patcher_dir.stop()
+        self.tmp_dir.cleanup()
+
+    @patch("urllib.request.urlopen")
+    def test_check_github_release_non_200_never_returns_none(self, mock_urlopen):
+        mock_resp = MagicMock()
+        mock_resp.status = 503
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        res = updater.check_github_release(force=True, notify=False)
+        self.assertIsInstance(res, dict)
+        self.assertFalse(res["ok"])
+        self.assertIn("503", res["error"])
+
+    @patch("urllib.request.urlopen")
+    def test_check_github_release_sanitizes_non_https_release_url(self, mock_urlopen):
+        payload = {
+            "tag_name": "v99.0.0",
+            "name": "AniBase v99.0.0",
+            "html_url": "javascript:alert(1)",
+            "published_at": "2026-11-28T00:00:00Z",
+            "body": "Security test release",
+        }
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        res = updater.check_github_release(force=True, notify=False)
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["update_available"])
+        self.assertEqual(res["latest_version"], "99.0.0")
+        self.assertEqual(res["published_at"], "2026-11-28T00:00:00Z")
+        self.assertEqual(
+            res["release_url"],
+            f"https://github.com/{updater.GITHUB_REPO}/releases",
+        )
+
+    @patch("urllib.request.urlopen")
+    def test_check_github_release_404_returns_clear_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="https://api.github.com/repos/anzutm/anibase-local/releases/latest",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=None,
+        )
+        res = updater.check_github_release(force=True, notify=False)
+        self.assertFalse(res["ok"])
+        self.assertFalse(res["update_available"])
+        self.assertIn("404", res["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -946,6 +946,42 @@ class LinuxDesktopShellCompatibilityTests(unittest.TestCase):
         finally:
             tray_ui._shutdown_completed = orig_done
 
+    def test_api_desktop_check_update_post_requires_action_token_and_forces_check(self):
+        app = create_app()
+        client = app.test_client()
+        token = get_action_token()
+
+        res_missing = client.post("/api/desktop/check-update?force=1")
+        self.assertEqual(res_missing.status_code, 403)
+        self.assertEqual(res_missing.get_json()["error"], "invalid_action_token")
+
+        payload = {
+            "ok": True,
+            "cached": False,
+            "current_version": "1.0.0",
+            "latest_version": "9.9.9",
+            "release_name": "AniBase v9.9.9",
+            "published_at": "2026-11-28T00:00:00Z",
+            "update_available": True,
+            "release_url": "https://github.com/anzutm/anibase-local/releases/tag/v9.9.9",
+            "release_notes": "New release!",
+            "last_checked_at": 1700000000.0,
+            "has_checked": True,
+            "github_repo": "anzutm/anibase-local",
+            "notified": False,
+        }
+        with patch("anibase.desktop.updater.check_github_release", return_value=payload) as mock_check:
+            res_ok = client.post(
+                "/api/desktop/check-update?force=1",
+                headers={"X-AniBase-Action-Token": token},
+            )
+            self.assertEqual(res_ok.status_code, 200)
+            body = res_ok.get_json()
+            self.assertTrue(body["ok"])
+            self.assertTrue(body["update_available"])
+            self.assertEqual(body["latest_version"], "9.9.9")
+            mock_check.assert_called_once_with(force=True, notify=True)
+
 
 if __name__ == "__main__":
     unittest.main()
